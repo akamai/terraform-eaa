@@ -2,22 +2,26 @@
 
 ## Table of contents<!-- omit in toc -->
 
-- [Introduction](#introduction)
-- [Key features](#key-features)
-- [Installation](#installation)
-- [Examples](#examples)
-  - [Create a new application](#create-a-new-application-using-terraform)
-  - [Import all applications into Terraform](#import-applications-created-outside-terraform)
-- [Scope and Limitations](#scope-and-limitations)
-- [Troubleshooting and Support](#troubleshooting-and-support)
-  - [Self-troubleshooting](#self-troubleshooting)
-  - [Support](#support)
-- [References](#references)
+- [EAA Provider for Terraform](#eaa-provider-for-terraform)
+  - [Introduction](#introduction)
+  - [Key features](#key-features)
+  - [Installation](#installation)
+  - [Examples](#examples)
+  - [Create a new application using Terraform:](#create-a-new-application-using-terraform)
+  - [Import applications created outside Terraform](#import-applications-created-outside-terraform)
+  - [Scope and Limitations](#scope-and-limitations)
+    - [The EAA Terraform provider currently supports:](#the-eaa-terraform-provider-currently-supports)
+    - [The EAA custom plugin currently does not support](#the-eaa-custom-plugin-currently-does-not-support)
+  - [Troubleshooting and Support](#troubleshooting-and-support)
+    - [Self-troubleshooting](#self-troubleshooting)
+    - [Support](#support)
+  - [References:](#references)
 
 ## Introduction
 
 [Enterprise Application Access (EAA)](https://www.akamai.com/us/en/products/security/enterprise-application-access.jsp) comes with a full suite of APIs. 
-Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.
+Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.  
+Alternatively, you may consider [Akamai CLI with EAA module](https://github.com/akamai/cli-eaa), to interact with EAA configurations from the command line.
 
 With EAA Terraform provider, you can run some common operations directly from the command line, no coding required.
 
