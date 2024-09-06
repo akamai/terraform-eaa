@@ -17,11 +17,11 @@ type AppCate struct {
 
 type AppCategoryResponse struct {
 	Meta struct {
-		Limit      int         `json:"limit,omitempty"`
-		Next       interface{} `json:"next,omitempty"`
-		Offset     int         `json:"offset,omitempty"`
-		Previous   interface{} `json:"previous,omitempty"`
-		TotalCount int         `json:"total_count,omitempty"`
+		Limit      int     `json:"limit,omitempty"`
+		Next       *string `json:"next,omitempty"`
+		Offset     int     `json:"offset,omitempty"`
+		Previous   *string `json:"previous,omitempty"`
+		TotalCount int     `json:"total_count,omitempty"`
 	} `json:"meta,omitempty"`
 	AppCategories []AppCate `json:"objects,omitempty"`
 }

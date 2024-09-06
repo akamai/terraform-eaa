@@ -2,26 +2,22 @@
 
 ## Table of contents<!-- omit in toc -->
 
-- [EAA Provider for Terraform](#eaa-provider-for-terraform)
-  - [Introduction](#introduction)
-  - [Key features](#key-features)
-  - [Installation](#installation)
-  - [Examples](#examples)
-  - [Create a new application using Terraform:](#create-a-new-application-using-terraform)
-  - [Import applications created outside Terraform](#import-applications-created-outside-terraform)
-  - [Scope and Limitations](#scope-and-limitations)
-    - [The EAA Terraform provider currently supports:](#the-eaa-terraform-provider-currently-supports)
-    - [The EAA custom plugin currently does not support](#the-eaa-custom-plugin-currently-does-not-support)
-  - [Troubleshooting and Support](#troubleshooting-and-support)
-    - [Self-troubleshooting](#self-troubleshooting)
-    - [Support](#support)
-  - [References:](#references)
+- [Introduction](#introduction)
+- [Key features](#key-features)
+- [Installation](#installation)
+- [Examples](#examples)
+  - [Create a new application](#create-a-new-application-using-terraform)
+  - [Import all applications into Terraform](#import-applications-created-outside-terraform)
+- [Scope and Limitations](#scope-and-limitations)
+- [Troubleshooting and Support](#troubleshooting-and-support)
+  - [Self-troubleshooting](#self-troubleshooting)
+  - [Support](#support)
+- [References](#references)
 
 ## Introduction
 
 [Enterprise Application Access (EAA)](https://www.akamai.com/us/en/products/security/enterprise-application-access.jsp) comes with a full suite of APIs. 
-Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.  
-Alternatively, you may consider [Akamai CLI with EAA module](https://github.com/akamai/cli-eaa), to interact with EAA configurations from the command line.
+Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.
 
 With EAA Terraform provider, you can run some common operations directly from the command line, no coding required.
 
@@ -82,22 +78,24 @@ terraform apply
 
 - Create and deploy an application 
 - Update the application
-- Only Akamai domain is supported 
+- Apps with Akamai domain and custom domain 
+- Self signed certificate for custom domain
+- Uploaded certicate for custom domain
 - Assigning pops to the application
 - Assigning App categories to the application
 - Assigning connectors to the application
 - Assigning IDP to the application
 - Assigning directories to the application 
 - Assigning groups to the application
+- Enabling Access service
+- Creating access control rule(s) to block or deny access to an application, based on User/Group criteria
 - updating G2O
 - subset of advanced_settings
+- updating connectors, IDPs, directories and groups assigned to application
 - data sources for app_categories, pops, agents, idps, directories and groups
 - Supports only Mac darwin_amd64
 
 ### The EAA custom plugin currently does not support
-- custom domain
-- certificates
-- modifying agents, authentication
 - all of advanced_settings
 
 ## Troubleshooting and Support

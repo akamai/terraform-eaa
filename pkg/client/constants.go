@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	STR_TRUE  = "true"
-	STR_FALSE = "false"
+	STR_TRUE      = "true"
+	STR_FALSE     = "false"
+	STATE_ENABLED = 1
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 	AGENTS_URL         = "crux/v1/mgmt-pop/agents"
 	APP_CATEGORIES_URL = "crux/v1/mgmt-pop/appcategories"
 	IDP_URL            = "crux/v1/mgmt-pop/idp"
+	CERTIFICATES_URL   = "crux/v1/mgmt-pop/certificates"
+	SERVICES_URL       = "crux/v1/mgmt-pop/services"
 	URL_SCHEME         = "https"
 )
 
@@ -239,3 +242,104 @@ func (cat ClientAppTypeInt) String() (string, error) {
 		return "", errors.New("Unknown ClientAppType value")
 	}
 }
+
+type CertType string
+
+const (
+	CertSelfSigned CertType = "self_signed"
+	CertUploaded   CertType = "uploaded"
+)
+const (
+	CERT_TYPE_APP = 1 + iota
+	CERT_TYPE_AGENT
+	CERT_TYPE_INTERNAL
+	CERT_TYPE_USER
+	CERT_TYPE_APP_SSC
+	CERT_TYPE_CA
+)
+
+const (
+	ACCESS_RULE_SETTING_BROWSER               = "browser"
+	ACCESS_RULE_SETTING_URL                   = "url"
+	ACCESS_RULE_SETTING_GROUP                 = "group"
+	ACCESS_RULE_SETTING_USER                  = "user"
+	ACCESS_RULE_SETTING_CLIENTIP              = "clientip"
+	ACCESS_RULE_SETTING_OS                    = "os"
+	ACCESS_RULE_SETTING_DEVICE                = "device"
+	ACCESS_RULE_SETTING_COUNTRY               = "country"
+	ACCESS_RULE_SETTING_TIME                  = "time"
+	ACCESS_RULE_SETTING_METHOD                = "method"
+	ACCESS_RULE_SETTING_EAACLIENT_APPHOST     = "EAAClientAppHost"
+	ACCESS_RULE_SETTING_EAACLIENT_APPPORT     = "EAAClientAppPort"
+	ACCESS_RULE_SETTING_EAACLIENT_APPPROTOCOL = "EAAClientAppProtocol"
+	ACCESS_RULE_SETTING_DEVICE_POSTURE        = "DevicePostureRiskAssessment"
+	ACCESS_RULE_SETTING_DEVICE_TIER           = "device_risk_tier"
+	ACCESS_RULE_SETTING_DEVICE_TAG            = "device_risk_tag"
+)
+
+type ServiceTypeInt int
+
+const (
+	SERVICE_TYPE_WAF = 1 + iota
+	SERVICE_TYPE_ACCELERATION
+	SERVICE_TYPE_AV
+	SERVICE_TYPE_IPS
+	SERVICE_TYPE_SLB
+	SERVICE_TYPE_ACCESS_CTRL
+	SERVICE_TYPE_REWRITE
+)
+
+type ServiceType string
+
+const (
+	ServiceTypeWAF          ServiceType = "waf"
+	ServiceTypeAcceleration ServiceType = "acceleration"
+	ServiceTypeAV           ServiceType = "av"
+	ServiceTypeIPS          ServiceType = "ips"
+	ServiceTypeSLB          ServiceType = "slb"
+	ServiceTypeAccessCtrl   ServiceType = "access"
+	ServiceTypeRewrite      ServiceType = "rewrite"
+)
+
+func (s ServiceType) ToInt() (int, error) {
+	switch s {
+	case ServiceTypeWAF:
+		return int(SERVICE_TYPE_WAF), nil
+	case ServiceTypeAcceleration:
+		return int(SERVICE_TYPE_ACCELERATION), nil
+	case ServiceTypeAV:
+		return int(SERVICE_TYPE_AV), nil
+	case ServiceTypeIPS:
+		return int(SERVICE_TYPE_IPS), nil
+	case ServiceTypeSLB:
+		return int(SERVICE_TYPE_SLB), nil
+	case ServiceTypeAccessCtrl:
+		return int(SERVICE_TYPE_ACCESS_CTRL), nil
+	case ServiceTypeRewrite:
+		return int(SERVICE_TYPE_REWRITE), nil
+	default:
+		return 0, errors.New("Unknown service type value")
+	}
+}
+
+type RuleTypeInt int
+
+const (
+	RULE_TYPE_ACCESS_CTRL = 1 + iota
+	RULE_TYPE_CONTENT_REWRITE
+	RULE_TYPE_POST_REWRITE
+	RULE_TYPE_QUERY_REWRITE
+	RULE_TYPE_COOKIE_REWRITE
+	RULE_TYPE_LOCATION_REWRITE
+	RULE_TYPE_GROUP_BASED_REWRITE
+)
+
+const (
+	ADMIN_STATE_ENABLED  = 1
+	ADMIN_STATE_DISABLED = 0
+	RULE_ACTION_DENY     = 1
+	OPERATOR_IS          = "=="
+	OPERATOR_IS_NOT      = "!="
+	RULE_ON              = "on"
+	RULE_OFF             = "off"
+)

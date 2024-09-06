@@ -177,6 +177,23 @@ func resourceEaaApplication() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"cert_name": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+			"cert_type": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+			"cert": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+			},
+			"generate_self_signed_cert": {
+				Type:     schema.TypeBool,
+				Optional: true,
+			},
 			"advanced_settings": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -185,18 +202,22 @@ func resourceEaaApplication() *schema.Resource {
 						"is_ssl_verification_enabled": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"edge_authentication_enabled": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"ignore_cname_resolution": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"g2o_enabled": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"g2o_nonce": {
 							Type:     schema.TypeString,
@@ -228,9 +249,72 @@ func resourceEaaApplication() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 						},
+						"edge_cookie_key": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+						},
+						"sla_object_url": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+						},
 					},
 				},
 			},
+			"service": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"service_type": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"status": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"access_rule": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"status": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"rule": {
+										Type:     schema.TypeList,
+										Optional: true,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"operator": {
+													Type:     schema.TypeString,
+													Required: true,
+												},
+												"type": {
+													Type:     schema.TypeString,
+													Required: true,
+												},
+												"value": {
+													Type:     schema.TypeString,
+													Required: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+
 			"app_authentication": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -386,6 +470,32 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 	}
+	_, ok := d.Get("service").([]interface{})
+	if ok {
+		aclSrv, err := client.ExtractACLService(ctx, d, eaaclient)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		appSrv, err := client.GetACLService(eaaclient, app_uuid_url)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		if appSrv.Status != aclSrv.Status {
+			appSrv.Status = aclSrv.Status
+			err := appSrv.EnableService(eaaclient)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+		if len(aclSrv.ACLRules) > 0 {
+			for _, aclRule := range aclSrv.ACLRules {
+				err := aclRule.CreateAccessRule(ctx, eaaclient, appSrv.UUIDURL)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			}
+		}
+	}
 
 	err = app.DeployApplication(eaaclient)
 
@@ -470,9 +580,9 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	attrs["popregion"] = appResp.POPRegion
 
 	attrs["auth_enabled"] = appResp.AuthEnabled
-	/*attrs["app_deployed"] = appResp.AppDeployed
+	attrs["app_deployed"] = appResp.AppDeployed
 	attrs["app_operational"] = appResp.AppOperational
-	attrs["app_status"] = appResp.AppStatus*/
+	attrs["app_status"] = appResp.AppStatus
 
 	if appResp.CName != nil {
 		attrs["cname"] = *appResp.CName
@@ -521,6 +631,9 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		"g2o_key":                     appResp.AdvancedSettings.G2OKey,
 		"is_ssl_verification_enabled": appResp.AdvancedSettings.IsSSLVerificationEnabled,
 		"ignore_cname_resolution":     appResp.AdvancedSettings.IgnoreCnameResolution,
+		"edge_authentication_enabled": appResp.AdvancedSettings.EdgeAuthenticationEnabled,
+		"edge_cookie_key":             appResp.AdvancedSettings.EdgeCookieKey,
+		"sla_object_url":              appResp.AdvancedSettings.SlaObjectUrl,
 	}
 
 	if client.ClientAppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
@@ -547,6 +660,29 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		appAuthData, err := appResp.Application.CreateAppAuthenticationStruct(eaaclient)
 		if err == nil {
 			err = d.Set("app_authentication", appAuthData)
+			if err != nil {
+				return diag.FromErr(err) // Return the error wrapped in a diag.Diagnostic
+			}
+		}
+	}
+
+	if appResp.Cert != nil {
+		appCertData, err := client.GetCertificate(eaaclient, *appResp.Cert)
+		if err == nil {
+			err = d.Set("cert", appCertData.Cert)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
+	aclSrv, err := client.GetACLService(eaaclient, appResp.UUIDURL)
+	if err != nil {
+		return diag.FromErr(err)
+	} else {
+		appSvcData, err := aclSrv.CreateAppServiceStruct(eaaclient)
+		if err == nil && appSvcData != nil {
+			err = d.Set("service", appSvcData)
 			if err != nil {
 				return diag.FromErr(err) // Return the error wrapped in a diag.Diagnostic
 			}
@@ -588,6 +724,178 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
+	}
+
+	currAgents, err := appResp.GetAppAgents(eaaclient)
+	if err == nil {
+		if agentsRaw, ok := d.GetOk("agents"); ok {
+			agentList := agentsRaw.([]interface{})
+			var desiredAgents []string
+			for _, agent := range agentList {
+				if str, ok := agent.(string); ok {
+					desiredAgents = append(desiredAgents, str)
+				}
+			}
+
+			agentsToAssign := client.DifferenceIgnoreCase(desiredAgents, currAgents)
+			agentsToUnassign := client.DifferenceIgnoreCase(currAgents, desiredAgents)
+
+			if len(agentsToAssign) > 0 {
+				var agents client.AssignAgents
+				agents.AppId = id
+				agents.AgentNames = append(agents.AgentNames, agentsToAssign...)
+				err := agents.AssignAgents(ctx, eaaclient)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			}
+			if len(agentsToUnassign) > 0 {
+				var agents client.AssignAgents
+				agents.AppId = id
+				agents.AgentNames = append(agents.AgentNames, agentsToUnassign...)
+
+				err := agents.UnAssignAgents(ctx, eaaclient)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			}
+		}
+	}
+	if d.HasChange("app_authentication") {
+		auth_enabled := "false"
+
+		if aE, ok := d.GetOk("auth_enabled"); ok {
+			auth_enabled = aE.(string)
+		}
+
+		if auth_enabled == "true" {
+			if appAuth, ok := d.GetOk("app_authentication"); ok {
+				app_uuid_url := id
+				appIDPMembership, err := appResp.GetAppIdpMembership(eaaclient)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+				if appIDPMembership != nil {
+					appIdp := client.AppIdp{
+						App: app_uuid_url,
+						IDP: appIDPMembership.UUIDURL,
+					}
+					err = appIdp.UnAssignIDP(eaaclient)
+					if err != nil {
+						eaaclient.Logger.Error("idp unassign error err ", err)
+						return diag.FromErr(err)
+					}
+				}
+				appAuthList := appAuth.([]interface{})
+				if appAuthList == nil {
+					return diag.FromErr(ErrInvalidData)
+				}
+				if len(appAuthList) > 0 {
+					appAuthenticationMap := appAuthList[0].(map[string]interface{})
+					if appAuthenticationMap == nil {
+						eaaclient.Logger.Error("invalid authentication data")
+						return diag.FromErr(ErrInvalidData)
+					}
+
+					// Check if app_idp key is present
+					if app_idp_name, ok := appAuthenticationMap["app_idp"].(string); ok {
+						idpData, err := client.GetIdpWithName(ctx, eaaclient, app_idp_name)
+						if err != nil || idpData == nil {
+							eaaclient.Logger.Error("get idp with name error, err ", err)
+							return diag.FromErr(err)
+						}
+
+						appIdp := client.AppIdp{
+							App: app_uuid_url,
+							IDP: idpData.UUIDURL,
+						}
+						err = appIdp.AssignIDP(eaaclient)
+						if err != nil {
+							eaaclient.Logger.Error("idp assign error err ", err)
+							return diag.FromErr(err)
+						}
+
+						// check if app_directories are present
+						if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
+							err := idpData.AssignIdpDirectories(ctx, appDirs, app_uuid_url, eaaclient)
+							if err != nil {
+								return diag.FromErr(err)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check if the "service" attribute is present and has changed
+	if d.HasChange("service") {
+		// Get the service attribute as a list (since it is defined as a list in the schema)
+		services := d.Get("service").([]interface{})
+
+		if len(services) > 0 {
+			app_uuid_url := appResp.UUIDURL
+			appSrv, err := client.GetACLService(eaaclient, app_uuid_url)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			aclSrv, err := client.ExtractACLService(ctx, d, eaaclient)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			if appSrv.Status != aclSrv.Status {
+				appSrv.Status = aclSrv.Status
+				err := appSrv.EnableService(eaaclient)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			}
+			if d.HasChange("service.0.access_rule") {
+				// Fetch existing rules
+				existingACLResponse, err := client.GetAccessControlRules(eaaclient, appSrv.UUIDURL)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+				existingRulesMap := make(map[string]client.AccessRule)
+				for _, rule := range existingACLResponse.ACLRules {
+					existingRulesMap[rule.Name] = rule
+				}
+
+				// Convert new rules into a map for easy comparison
+				newRulesMap := make(map[string]client.AccessRule)
+				for _, rule := range aclSrv.ACLRules {
+					newRulesMap[rule.Name] = rule
+				}
+
+				// Handle deletions
+				for name, existingRule := range existingRulesMap {
+					if _, exists := newRulesMap[name]; !exists {
+						if err := existingRule.DeleteAccessRule(ctx, eaaclient, appSrv.UUIDURL); err != nil {
+							return diag.FromErr(err)
+						}
+					}
+				}
+
+				// Handle creations and modifications
+				for name, newRule := range newRulesMap {
+					if existingRule, exists := existingRulesMap[name]; exists {
+						if !existingRule.IsEqual(newRule) {
+							newRule.UUID_URL = existingRule.UUID_URL
+							if err := newRule.ModifyAccessRule(ctx, eaaclient, appSrv.UUIDURL); err != nil {
+								return diag.FromErr(err)
+							}
+						}
+					} else {
+						// Create new rule
+						if err := newRule.CreateAccessRule(ctx, eaaclient, appSrv.UUIDURL); err != nil {
+							return diag.FromErr(err)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	err = appUpdateReq.Application.DeployApplication(eaaclient)

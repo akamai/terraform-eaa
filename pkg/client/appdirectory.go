@@ -31,6 +31,12 @@ type AppGroup struct {
 
 // AssignIdpDirectory method assigns an IDP directory to an application.
 func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClient) error {
+	ec.Logger.Info("assign IDP directory")
+	if dirData.APP_ID == "" || dirData.UUID == "" {
+		assignErrMsg := fmt.Errorf("%w: app or dir is empty", ErrAssignDirectoryFailure)
+		ec.Logger.Error("assign directories to application failed. app or dir is empty")
+		return assignErrMsg
+	}
 	var directories []map[string]interface{}
 
 	directory := map[string]interface{}{
@@ -70,6 +76,7 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 
 // GetIdpDirectoryGroup method searches for an IDP group within a directory
 func (dirData *DirectoryData) GetIdpDirectoryGroup(ctx context.Context, ec *EaaClient, groupName string) (*GroupData, error) {
+	ec.Logger.Info("get IDP Group ")
 	for _, group := range dirData.Groups {
 		if groupName == group.Name {
 			ec.Logger.Info(group.Name)
@@ -88,7 +95,7 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		if gData, ok := s.(map[string]interface{}); ok {
 			appgroup := AppGroup{}
 			gn, ok := gData["name"].(string)
-			if !ok {
+			if !ok || gn == "" {
 				continue
 			}
 			grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)

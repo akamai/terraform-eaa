@@ -7,60 +7,59 @@ import (
 )
 
 var (
-	ErrAgentsGet = errors.New("agents get failed")
+	ErrAgentsGet = errors.New("connectors get failed")
 )
 
 type Connector struct {
 	Name                  string  `json:"name,omitempty"`
 	UUIDURL               string  `json:"uuid_url,omitempty"`
-	ActivationCode        *string `json:"activation_code"`
-	AgentInfraType        int     `json:"agent_infra_type"`
-	AgentType             int     `json:"agent_type"`
-	AgentVersion          *string `json:"agent_version"`
-	CPU                   *string `json:"cpu"`
-	DataService           bool    `json:"data_service"`
-	DebugChannelPermitted bool    `json:"debug_channel_permitted"`
-	Description           *string `json:"description"`
-	DHCP                  string  `json:"dhcp"`
-	DiskSize              *string `json:"disk_size"`
-	DNSServer             *string `json:"dns_server"`
-	DownAppsCount         int     `json:"down_apps_count"`
-	DownDirCount          int     `json:"down_dir_count"`
-	DownloadURL           *string `json:"download_url"`
-	Gateway               *string `json:"gateway"`
-	GeoLocation           *string `json:"geo_location"`
-	Hostname              *string `json:"hostname"`
-	IPAddr                *string `json:"ip_addr"`
-	LastCheckin           *string `json:"last_checkin"`
-	LoadStatus            *string `json:"load_status"`
-	MAC                   *string `json:"mac"`
-	ManualOverride        bool    `json:"manual_override"`
-	OSUpgradesUpToDate    bool    `json:"os_upgrades_up_to_date"`
-	OSVersion             *string `json:"os_version"`
-	Package               int     `json:"package"`
-	Policy                string  `json:"policy"`
-	PrivateIP             *string `json:"private_ip"`
-	PublicIP              *string `json:"public_ip"`
-	RAMSize               *string `json:"ram_size"`
-	Reach                 int     `json:"reach"`
-	Region                *string `json:"region"`
-	State                 int     `json:"state"`
-	Status                int     `json:"status"`
-	Subnet                *string `json:"subnet"`
-	Timezone              *string `json:"tz"`
-	UnificationStatus     int     `json:"unification_status"`
-	UpAppsCount           int     `json:"up_apps_count"`
-	UpDirCount            int     `json:"up_dir_count"`
-	UUID                  string  `json:"uuid"`
+	ActivationCode        *string `json:"activation_code,omitempty"`
+	AgentInfraType        int     `json:"agent_infra_type,omitempty"`
+	AgentType             int     `json:"agent_type,omitempty"`
+	AgentVersion          *string `json:"agent_version,omitempty"`
+	CPU                   *string `json:"cpu,omitempty"`
+	DataService           bool    `json:"data_service,omitempty"`
+	DebugChannelPermitted bool    `json:"debug_channel_permitted,omitempty"`
+	Description           *string `json:"description,omitempty"`
+	DHCP                  string  `json:"dhcp,omitempty"`
+	DiskSize              *string `json:"disk_size,omitempty"`
+	DownAppsCount         int     `json:"down_apps_count,omitempty"`
+	DownDirCount          int     `json:"down_dir_count,omitempty"`
+	DownloadURL           *string `json:"download_url,omitempty"`
+	Gateway               *string `json:"gateway,omitempty"`
+	GeoLocation           *string `json:"geo_location,omitempty"`
+	Hostname              *string `json:"hostname,omitempty"`
+	IPAddr                *string `json:"ip_addr,omitempty"`
+	LastCheckin           *string `json:"last_checkin,omitempty"`
+	LoadStatus            *string `json:"load_status,omitempty"`
+	MAC                   *string `json:"mac,omitempty"`
+	ManualOverride        bool    `json:"manual_override,omitempty"`
+	OSUpgradesUpToDate    bool    `json:"os_upgrades_up_to_date,omitempty"`
+	OSVersion             *string `json:"os_version,omitempty"`
+	Package               int     `json:"package,omitempty"`
+	Policy                string  `json:"policy,omitempty"`
+	PrivateIP             *string `json:"private_ip,omitempty"`
+	PublicIP              *string `json:"public_ip,omitempty"`
+	RAMSize               *string `json:"ram_size,omitempty"`
+	Reach                 int     `json:"reach,omitempty"`
+	Region                *string `json:"region,omitempty"`
+	State                 int     `json:"state,omitempty"`
+	Status                int     `json:"status,omitempty"`
+	Subnet                *string `json:"subnet,omitempty"`
+	Timezone              *string `json:"tz,omitempty"`
+	UnificationStatus     int     `json:"unification_status,omitempty"`
+	UpAppsCount           int     `json:"up_apps_count,omitempty"`
+	UpDirCount            int     `json:"up_dir_count,omitempty"`
+	UUID                  string  `json:"uuid,omitempty"`
 }
 
 type ConnectorResponse struct {
 	Meta struct {
-		Limit      int         `json:"limit,omitempty"`
-		Next       interface{} `json:"next,omitempty"`
-		Offset     int         `json:"offset,omitempty"`
-		Previous   interface{} `json:"previous,omitempty"`
-		TotalCount int         `json:"total_count,omitempty"`
+		Limit      int     `json:"limit,omitempty"`
+		Next       *string `json:"next,omitempty"`
+		Offset     int     `json:"offset,omitempty"`
+		Previous   *string `json:"previous,omitempty"`
+		TotalCount int     `json:"total_count,omitempty"`
 	} `json:"meta,omitempty"`
 	Connectors []Connector `json:"objects,omitempty"`
 }

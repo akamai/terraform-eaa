@@ -38,11 +38,11 @@ type DirectoryResponse struct {
 }
 
 type Meta struct {
-	Limit      int         `json:"limit,omitempty"`
-	Next       interface{} `json:"next,omitempty"`
-	Offset     int         `json:"offset,omitempty"`
-	Previous   interface{} `json:"previous,omitempty"`
-	TotalCount int         `json:"total_count,omitempty"`
+	Limit      int     `json:"limit,omitempty"`
+	Next       *string `json:"next,omitempty"`
+	Offset     int     `json:"offset,omitempty"`
+	Previous   *string `json:"previous,omitempty"`
+	TotalCount int     `json:"total_count,omitempty"`
 }
 
 func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {

@@ -23,16 +23,10 @@ type AppMembership struct {
 }
 
 type AppIdpMembership struct {
-	App         AppMembership `json:"app"`
-	EnableMFA   string        `json:"enable_mfa"`
-	IDP         IDPMembership `json:"idp"`
-	Resource    string        `json:"resource"`
-	ResourceURI struct {
-		Apps string `json:"apps"`
-		Href string `json:"href"`
-		IDP  string `json:"idp"`
-	} `json:"resource_uri"`
-	UUIDURL string `json:"uuid_url"`
+	App       AppMembership `json:"app,omitempty"`
+	EnableMFA string        `json:"enable_mfa,omitempty"`
+	IDP       IDPMembership `json:"idp,omitempty"`
+	UUIDURL   string        `json:"uuid_url,omitempty"`
 }
 
 type AppIdpMembershipResponse struct {
@@ -41,6 +35,7 @@ type AppIdpMembershipResponse struct {
 }
 
 func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, error) {
+	ec.Logger.Info("get App-Idp membership")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/idp_membership", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appidpMembershipResponse := AppIdpMembershipResponse{}
 
@@ -57,6 +52,9 @@ func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, e
 		appIdpmem := appidpMembershipResponse.AppIdpMemberships[0]
 		return &appIdpmem, nil
 	}
+	if len(appidpMembershipResponse.AppIdpMemberships) == 0 {
+		return nil, nil
+	}
 	return nil, ErrAppIdpMembershipGet
 }
 
@@ -66,11 +64,10 @@ type DirectoryMembership struct {
 }
 
 type AppDirectoryMembership struct {
-	App       AppMembership       `json:"app"`
-	Directory DirectoryMembership `json:"directory"`
-	EnableMFA string              `json:"enable_mfa"`
-	Resource  string              `json:"resource"`
-	UUIDURL   string              `json:"uuid_url"`
+	App       AppMembership       `json:"app,omitempty"`
+	Directory DirectoryMembership `json:"directory,omitempty"`
+	EnableMFA string              `json:"enable_mfa,omitempty"`
+	UUIDURL   string              `json:"uuid_url,omitempty"`
 }
 
 type AppDirectoryMembershipResponse struct {
@@ -79,6 +76,7 @@ type AppDirectoryMembershipResponse struct {
 }
 
 func (app *Application) GetAppDirectoryMembership(ec *EaaClient) ([]AppDirectoryMembership, error) {
+	ec.Logger.Info("get App-Directory membership")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories_membership", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appdirectoryMembershipResponse := AppDirectoryMembershipResponse{}
 
@@ -105,10 +103,10 @@ type GroupMembership struct {
 }
 
 type AppGroupMembership struct {
-	App       AppMembership   `json:"app"`
-	EnableMFA string          `json:"enable_mfa"`
-	Group     GroupMembership `json:"group"`
-	UUIDURL   string          `json:"uuid_url"`
+	App       AppMembership   `json:"app,omitempty"`
+	EnableMFA string          `json:"enable_mfa,omitempty"`
+	Group     GroupMembership `json:"group,omitempty"`
+	UUIDURL   string          `json:"uuid_url,omitempty"`
 }
 
 type AppGroupMembershipResponse struct {
@@ -117,6 +115,7 @@ type AppGroupMembershipResponse struct {
 }
 
 func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembership, error) {
+	ec.Logger.Info("get App-Group membership")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/groups", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appgroupMembershipResponse := AppGroupMembershipResponse{}
 
@@ -136,6 +135,7 @@ func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembersh
 }
 
 func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interface{}, error) {
+	ec.Logger.Info("create App Authentication struct")
 	appAuth := make(map[string]interface{})
 
 	// Get the data from the auth membership functions
@@ -143,6 +143,11 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	if err != nil {
 		return nil, err
 	}
+
+	if appIDPMembership == nil {
+		return []interface{}{appAuth}, nil
+	}
+
 	appAuth["app_idp"] = appIDPMembership.IDP.Name
 	appDirectoryMemberships, err := app.GetAppDirectoryMembership(ec)
 	if err != nil {

@@ -63,7 +63,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	}
 
 	if err := edgerc.Validate(); err != nil {
-		return nil, diag.Errorf(err.Error())
+		return nil, diag.FromErr(err)
 	}
 
 	logger := hclog.New(&hclog.LoggerOptions{
