@@ -29,42 +29,42 @@ func dataSourceAgents() *schema.Resource {
 						"name": {
 							Type:        schema.TypeString,
 							Required:    true,
-							Description: "The name of the agent",
+							Description: "name of the agent",
 						},
 						"reach": {
 							Type:        schema.TypeInt,
 							Optional:    true,
-							Description: "The reachability of the agent",
+							Description: "reachability of the agent",
 						},
 						"state": {
 							Type:        schema.TypeInt,
 							Optional:    true,
-							Description: "The state of the agent",
+							Description: "state of the agent",
 						},
 						"os_version": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "The OS version of the agent",
+							Description: "OS version of the agent",
 						},
 						"public_ip": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "The OS version of the agent",
+							Description: "public IP of the agent",
 						},
 						"private_ip": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "The OS version of the agent",
+							Description: "private IP of the agent",
 						},
 						"type": {
 							Type:        schema.TypeInt,
 							Optional:    true,
-							Description: "The type of the agent",
+							Description: "type of the agent",
 						},
 						"region": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "The type of the agent",
+							Description: "region of the agent",
 						},
 						"uuid_url": {
 							Type:     schema.TypeString,

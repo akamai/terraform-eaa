@@ -50,10 +50,10 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppType = value
-		ec.Logger.Info("appType", appType)
-		ec.Logger.Info("car.AppType", car.AppType)
+		logger.Info("appType", appType)
+		logger.Info("car.AppType", car.AppType)
 	} else {
-		ec.Logger.Info("appType is not present, defaulting to enterprise")
+		logger.Info("appType is not present, defaulting to enterprise")
 		car.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
 	}
 
@@ -70,10 +70,10 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppProfile = value
-		ec.Logger.Info("appProfile", appProfile)
-		ec.Logger.Info("car.AppProfile", car.AppProfile)
+		logger.Info("appProfile", appProfile)
+		logger.Info("car.AppProfile", car.AppProfile)
 	} else {
-		ec.Logger.Info("appProfile is not present, defaulting to http")
+		logger.Info("appProfile is not present, defaulting to http")
 		car.AppProfile = int(APP_PROFILE_HTTP)
 	}
 
@@ -90,16 +90,17 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.ClientAppMode = value
-		ec.Logger.Info("appMode", clientAppMode)
-		ec.Logger.Info("car.ClientAppMode", car.ClientAppMode)
+		logger.Info("appMode", clientAppMode)
+		logger.Info("car.ClientAppMode", car.ClientAppMode)
 	} else {
-		ec.Logger.Info("appMode is not present, defaulting to tcp")
+		logger.Info("appMode is not present, defaulting to tcp")
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
 	}
 	return nil
 }
 
 func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
+	ec.Logger.Info("create application")
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
 	createAppResp, err := ec.SendAPIRequest(apiURL, "POST", car, &appResp, false)
@@ -152,10 +153,19 @@ type Application struct {
 	CName          *string `json:"cname"`
 	Status         int     `json:"status"`
 
-	AdvancedSettings AdvancedSettings `json:"advanced_settings"`
-	AppCategory      AppCategory      `json:"app_category"`
+	AppCategory AppCategory `json:"app_category"`
 
 	UUIDURL string `json:"uuid_url"`
+
+	TLSSuiteName           *string `json:"tls_suite_name"`
+	AppProfileID           *string `json:"app_profile_id"`
+	RDPVersion             string  `json:"rdp_version"`
+	SupportedClientVersion int     `json:"supported_client_version"`
+
+	SAML              bool `json:"saml"`
+	Oidc              bool `json:"oidc"`
+	FQDNBridgeEnabled bool `json:"fqdn_bridge_enabled"`
+	WSFED             bool `json:"wsfed"`
 }
 
 func (app *Application) FromResponse(ar *ApplicationResponse) {
@@ -204,9 +214,23 @@ func (app *Application) FromResponse(ar *ApplicationResponse) {
 	app.AppCategory = ar.AppCategory
 
 	app.UUIDURL = ar.UUIDURL
+	if ar.TLSSuiteName != nil {
+		app.TLSSuiteName = ar.TLSSuiteName
+	}
+	if ar.AppProfileID != nil {
+		app.AppProfileID = ar.AppProfileID
+	}
+	app.RDPVersion = ar.RDPVersion
+	app.SupportedClientVersion = ar.SupportedClientVersion
+
+	app.SAML = ar.SAML
+	app.Oidc = ar.Oidc
+	app.FQDNBridgeEnabled = ar.FQDNBridgeEnabled
+	app.WSFED = ar.WSFED
 }
 
 func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
+	ec.Logger.Info("updateG2O")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/g2o", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
 	var g2oResp G2O_Response
@@ -223,6 +247,26 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
 		return nil, g2oErrMsg
 	}
 	return &g2oResp, nil
+}
+
+func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuth_Response, error) {
+	ec.Logger.Info("UpdateEdgeAuthentication")
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/edgekey", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
+
+	var edgeAuthResp EdgeAuth_Response
+	edgeAuthhttpResp, err := ec.SendAPIRequest(apiURL, "POST", nil, &edgeAuthResp, false)
+	if err != nil {
+		ec.Logger.Error("edge auth request failed. err: ", err)
+		return nil, err
+	}
+	if !(edgeAuthhttpResp.StatusCode >= http.StatusOK && edgeAuthhttpResp.StatusCode < http.StatusMultipleChoices) {
+		desc, _ := FormatErrorResponse(edgeAuthhttpResp)
+		edgeuthErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
+
+		ec.Logger.Error("edge authentication cookie request failed. edgeAuthhttpResp.StatusCode: desc: ", edgeAuthhttpResp.StatusCode, desc)
+		return nil, edgeuthErrMsg
+	}
+	return &edgeAuthResp, nil
 }
 
 func (app *Application) DeployApplication(ec *EaaClient) error {
@@ -257,7 +301,8 @@ func (app *Application) DeleteApplication(ec *EaaClient) error {
 
 type ApplicationUpdateRequest struct {
 	Application
-	Domain string `json:"domain"`
+	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
+	Domain           string                    `json:"domain"`
 }
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -343,8 +388,23 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 							}
 						}
+						if edgeAuth, ok := advSettingsData["edge_authentication_enabled"].(string); ok {
+							advSettings.EdgeAuthenticationEnabled = edgeAuth
+							if edgeAuth == STR_TRUE {
 
-						appUpdateReq.AdvancedSettings = advSettings
+								edgeAuthResp, err := appUpdateReq.Application.UpdateEdgeAuthentication(ec)
+								if err != nil {
+									ec.Logger.Error("edge auth cookie request failed. err: ", err)
+									return err
+								}
+								advSettings.EdgeAuthenticationEnabled = STR_TRUE
+								advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
+								advSettings.SlaObjectUrl = &edgeAuthResp.SlaObjectUrl
+							}
+						}
+						UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
+
+						// appUpdateReq.AdvancedSettings = advSettings
 					}
 				}
 			}
@@ -406,22 +466,105 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	}
 
 	if domain, ok := d.GetOk("domain"); ok {
-		strDomain, ok := domain.(string)
-		if !ok {
-			ec.Logger.Error("update application failed. domain is invalid")
-			return ErrInvalidType
+		if strDomain, ok := domain.(string); ok {
+			appDomain := Domain(strDomain)
+			value, err := appDomain.ToInt()
+			if err != nil {
+				ec.Logger.Error("Update Application failed. Domain is invalid")
+				return ErrInvalidValue
+			}
+			appUpdateReq.Domain = strconv.Itoa(value)
+
+			if appDomain == AppDomainCustom {
+				if err := processCustomDomain(ec, appUpdateReq, d, ctx); err != nil {
+					ec.Logger.Error("Custom domain processing failed: ", err)
+					return err
+				}
+			}
 		}
-		appDomain := Domain(strDomain)
-		value, err := appDomain.ToInt()
-		if err != nil {
-			ec.Logger.Error("update Application failed. domain is invalid")
-			return ErrInvalidValue
-		}
-		appUpdateReq.Domain = strconv.Itoa(value)
-		ec.Logger.Info("Domain ", domain, " ", appUpdateReq.Domain)
 	} else {
-		appUpdateReq.Domain = strconv.Itoa(int(APP_DOMAIN_CUSTOM))
+		appUpdateReq.Domain = strconv.Itoa(int(APP_DOMAIN_WAPP))
 	}
+
+	fmt.Printf("updating application - advanced settings")
+	fmt.Printf("%+v\n", appUpdateReq)
+	fmt.Printf("%+v\n", appUpdateReq.AdvancedSettings)
+	return nil
+}
+
+func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, d *schema.ResourceData, ctx context.Context) error {
+	ec.Logger.Info("Custom domain")
+
+	// Default certificate type to "self-signed"
+	certType := "self_signed"
+
+	// Check if 'cert_type' is specified in the Terraform input
+	if cert, ok := d.GetOk("cert_type"); ok {
+		if certStr, ok := cert.(string); ok {
+			certType = certStr
+		} else {
+			return fmt.Errorf("cert_type is not a valid string")
+		}
+	}
+
+	// Convert certificate type to CertType
+	appCert := CertType(certType)
+	ec.Logger.Info("Certificate type: ", appCert)
+
+	// Check if the certificate type is self-signed
+	if appCert == CertSelfSigned {
+		// Check if a self-signed certificate exists for the given hostname
+		certObj, err := DoesSelfSignedCertExistForHost(ec, *appUpdateReq.Host)
+		if err != nil {
+			return fmt.Errorf("failed to check self-signed certificate existence: %w", err)
+		}
+
+		if certObj != nil {
+			// Use existing self-signed certificate
+			appUpdateReq.Cert = &certObj.UUIDURL
+			ec.Logger.Info("Using existing self-signed certificate: ", appUpdateReq.Cert)
+			return nil
+		} else {
+			ec.Logger.Info("Generating self-signed certificate")
+			// Create a new self-signed certificate
+			var certReq CreateSelfSignedCertRequest
+			certReq.HostName = *appUpdateReq.Host
+			certReq.CertType = CERT_TYPE_APP_SSC
+			certResp, err := certReq.CreateSelfSignedCertificate(ctx, ec)
+			if err != nil {
+				return fmt.Errorf("failed to generate self-signed certificate: %w", err)
+			}
+
+			// Update application request with the generated certificate
+			appUpdateReq.Cert = &certResp.UUIDURL
+			ec.Logger.Info("Generated self-signed certificate: ", appUpdateReq.Cert)
+			return nil
+		}
+	}
+	if appCert == CertUploaded {
+		cert, ok := d.GetOk("cert_name")
+		if !ok {
+			return fmt.Errorf("uploaded cert name is missing")
+		}
+		certStr, ok := cert.(string)
+		if !ok || certStr == "" {
+			return fmt.Errorf("cert_name is not a valid string")
+		}
+
+		// Check if the uploaded certificate exists for the given certname
+		certObj, err := DoesUploadedCertExist(ec, certStr)
+		if err != nil || certObj == nil {
+			return fmt.Errorf("the uploaded cert does not exist: %w", err)
+		}
+
+		if certObj != nil {
+			// Use existing self-signed certificate
+			appUpdateReq.Cert = &certObj.UUIDURL
+			ec.Logger.Info("using uploaded cert : ", appUpdateReq.Cert)
+			return nil
+		}
+	}
+
 	return nil
 }
 
@@ -449,7 +592,8 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 
 type ApplicationDataModel struct {
 	Application
-	Domain int `json:"domain"`
+	AdvancedSettings AdvancedSettings `json:"advanced_settings"`
+	Domain           int              `json:"domain"`
 }
 
 type Server struct {
@@ -471,58 +615,48 @@ type AppCategory struct {
 }
 
 type ApplicationResponse struct {
-	AdvancedSettings AdvancedSettings `json:"advanced_settings"`
-	AppCategory      AppCategory      `json:"app_category"`
+	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
+	AppCategory      AppCategory               `json:"app_category"`
 
-	AppDeployed            bool                   `json:"app_deployed"`
-	AppLogo                *string                `json:"app_logo"`
-	AppOperational         int                    `json:"app_operational"`
-	AppProfile             int                    `json:"app_profile"`
-	AppProfileID           string                 `json:"app_profile_id"`
-	AppStatus              int                    `json:"app_status"`
-	AppType                int                    `json:"app_type"`
-	ApplicationAccessGroup interface{}            `json:"application_access_group"`
-	AuthAgent              interface{}            `json:"auth_agent"`
-	AuthEnabled            string                 `json:"auth_enabled"`
-	AuthType               int                    `json:"auth_type"`
-	BookmarkURL            string                 `json:"bookmark_url"`
-	Cert                   *string                `json:"cert"`
-	ClientAppMode          int                    `json:"client_app_mode"`
-	CName                  *string                `json:"cname"`
-	ConnectorPools         []interface{}          `json:"connector_pools"`
-	CreatedAt              string                 `json:"created_at"`
-	DataAgent              interface{}            `json:"data_agent"`
-	Description            *string                `json:"description"`
-	DomainSuffix           string                 `json:"domain_suffix"`
-	FailoverPopName        string                 `json:"failover_popName"`
-	FQDNBridgeEnabled      bool                   `json:"fqdn_bridge_enabled"`
-	Host                   *string                `json:"host"`
-	ModifiedAt             string                 `json:"modified_at"`
-	Name                   string                 `json:"name"`
-	Oidc                   bool                   `json:"oidc"`
-	OidcSettings           map[string]interface{} `json:"oidc_settings"`
-	OrigTLS                string                 `json:"orig_tls"`
-	OriginHost             *string                `json:"origin_host"`
-	OriginPort             int                    `json:"origin_port"`
-	POP                    string                 `json:"pop"`
-	POPName                string                 `json:"popName"`
-	POPRegion              string                 `json:"popRegion"`
-	RDPVersion             string                 `json:"rdp_version"`
-	Resource               string                 `json:"resource"`
-	ResourceURI            interface{}
-	SAML                   bool          `json:"saml"`
-	SAMLSettings           []interface{} `json:"saml_settings"`
-	Servers                []Server      `json:"servers"`
-	Sites                  []interface{} `json:"sites"`
-	SSLCACert              string        `json:"ssl_ca_cert"`
-	Status                 int           `json:"status"`
-	SupportedClientVersion int           `json:"supported_client_version"`
-	//TLSCipherSuite         interface{}          `json:"tls_cipher_suite"`
-	TLSSuiteName        string               `json:"tls_suite_name"`
-	TunnelInternalHosts []TunnelInternalHost `json:"tunnel_internal_hosts"`
-	UUIDURL             string               `json:"uuid_url"` //Id - to do
-	WSFED               bool                 `json:"wsfed"`
-	WSFEDSettings       []interface{}        `json:"wsfed_settings"`
+	AppDeployed            bool                 `json:"app_deployed"`
+	AppLogo                *string              `json:"app_logo"`
+	AppOperational         int                  `json:"app_operational"`
+	AppProfile             int                  `json:"app_profile"`
+	AppProfileID           *string              `json:"app_profile_id"`
+	AppStatus              int                  `json:"app_status"`
+	AppType                int                  `json:"app_type"`
+	AuthEnabled            string               `json:"auth_enabled"`
+	AuthType               int                  `json:"auth_type"`
+	BookmarkURL            string               `json:"bookmark_url"`
+	Cert                   *string              `json:"cert"`
+	ClientAppMode          int                  `json:"client_app_mode"`
+	CName                  *string              `json:"cname"`
+	CreatedAt              string               `json:"created_at"`
+	Description            *string              `json:"description"`
+	DomainSuffix           string               `json:"domain_suffix"`
+	FailoverPopName        string               `json:"failover_popName"`
+	FQDNBridgeEnabled      bool                 `json:"fqdn_bridge_enabled"`
+	Host                   *string              `json:"host"`
+	ModifiedAt             string               `json:"modified_at"`
+	Name                   string               `json:"name"`
+	Oidc                   bool                 `json:"oidc"`
+	OrigTLS                string               `json:"orig_tls"`
+	OriginHost             *string              `json:"origin_host"`
+	OriginPort             int                  `json:"origin_port"`
+	POP                    string               `json:"pop"`
+	POPName                string               `json:"popName"`
+	POPRegion              string               `json:"popRegion"`
+	RDPVersion             string               `json:"rdp_version"`
+	Resource               string               `json:"resource"`
+	SAML                   bool                 `json:"saml"`
+	Servers                []Server             `json:"servers"`
+	SSLCACert              string               `json:"ssl_ca_cert"`
+	Status                 int                  `json:"status"`
+	SupportedClientVersion int                  `json:"supported_client_version"`
+	TLSSuiteName           *string              `json:"tls_suite_name"`
+	TunnelInternalHosts    []TunnelInternalHost `json:"tunnel_internal_hosts"`
+	UUIDURL                string               `json:"uuid_url"` //Id - to do
+	WSFED                  bool                 `json:"wsfed"`
 }
 
 type ResourceStatus struct {
@@ -544,6 +678,11 @@ type G2O_Response struct {
 	G2OKey     string `json:"g2o_key,omitempty"`
 }
 
+type EdgeAuth_Response struct {
+	EdgeCookieKey string `json:"edge_cookie_key,omitempty"`
+	SlaObjectUrl  string `json:"sla_object_url,omitempty"`
+}
+
 type AdvancedSettings struct {
 	IsSSLVerificationEnabled  string  `json:"is_ssl_verification_enabled,omitempty"`
 	IgnoreCnameResolution     string  `json:"ignore_cname_resolution,omitempty"`
@@ -556,6 +695,8 @@ type AdvancedSettings struct {
 	InternalHostPort          string  `json:"internal_host_port,omitempty"`
 	WildcardInternalHostname  string  `json:"wildcard_internal_hostname,omitempty"`
 	IPAccessAllow             string  `json:"ip_access_allow,omitempty"`
+	EdgeCookieKey             *string `json:"edge_cookie_key,omitempty"`
+	SlaObjectUrl              *string `json:"sla_object_url,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
@@ -644,35 +785,34 @@ type AdvancedSettings_Complete struct {
 	EdgeAuthenticationEnabled    string  `json:"edge_authentication_enabled,omitempty"`
 	HSTSage                      string  `json:"hsts_age,omitempty"`
 	RDPInitialProgram            *string `json:"rdp_initial_program,omitempty"`
-	//RDPRemoteApps                []interface{} `json:"rdp_remote_apps,omitempty"`
-	RemoteSparkMapClipboard  string  `json:"remote_spark_mapClipboard,omitempty"`
-	RDPLegacyMode            string  `json:"rdp_legacy_mode,omitempty"`
-	RemoteSparkAudio         string  `json:"remote_spark_audio,omitempty"`
-	RemoteSparkMapPrinter    string  `json:"remote_spark_mapPrinter,omitempty"`
-	RemoteSparkPrinter       string  `json:"remote_spark_printer,omitempty"`
-	RemoteSparkMapDisk       string  `json:"remote_spark_mapDisk,omitempty"`
-	RemoteSparkDisk          string  `json:"remote_spark_disk,omitempty"`
-	RemoteSparkRecording     string  `json:"remote_spark_recording,omitempty"`
-	ClientCertAuth           string  `json:"client_cert_auth,omitempty"`
-	ClientCertUserParam      string  `json:"client_cert_user_param,omitempty"`
-	G2OEnabled               string  `json:"g2o_enabled,omitempty"`
-	G2ONonce                 *string `json:"g2o_nonce,omitempty"`
-	G2OKey                   *string `json:"g2o_key,omitempty"`
-	RDPTLS1                  string  `json:"rdp_tls1,omitempty"`
-	DomainExceptionList      string  `json:"domain_exception_list,omitempty"`
-	Acceleration             string  `json:"acceleration,omitempty"`
-	OffloadOnPremiseTraffic  string  `json:"offload_onpremise_traffic,omitempty"`
-	AppClientCertAuth        string  `json:"app_client_cert_auth,omitempty"`
-	PreauthConsent           string  `json:"preauth_consent,omitempty"`
-	MDCEnable                string  `json:"mdc_enable,omitempty"`
-	SingleHostEnable         string  `json:"single_host_enable,omitempty"`
-	SingleHostFQDN           string  `json:"single_host_fqdn,omitempty"`
-	SingleHostPath           string  `json:"single_host_path,omitempty"`
-	SingleHostContentRW      string  `json:"single_host_content_rw,omitempty"`
-	IsSSLVerificationEnabled string  `json:"is_ssl_verification_enabled,omitempty"`
-	SingleHostCookieDomain   string  `json:"single_host_cookie_domain,omitempty"`
-	XWappReadTimeout         string  `json:"x_wapp_read_timeout,omitempty"`
-	ForceIPRoute             string  `json:"force_ip_route,omitempty"`
+	RemoteSparkMapClipboard      string  `json:"remote_spark_mapClipboard,omitempty"`
+	RDPLegacyMode                string  `json:"rdp_legacy_mode,omitempty"`
+	RemoteSparkAudio             string  `json:"remote_spark_audio,omitempty"`
+	RemoteSparkMapPrinter        string  `json:"remote_spark_mapPrinter,omitempty"`
+	RemoteSparkPrinter           string  `json:"remote_spark_printer,omitempty"`
+	RemoteSparkMapDisk           string  `json:"remote_spark_mapDisk,omitempty"`
+	RemoteSparkDisk              string  `json:"remote_spark_disk,omitempty"`
+	RemoteSparkRecording         string  `json:"remote_spark_recording,omitempty"`
+	ClientCertAuth               string  `json:"client_cert_auth,omitempty"`
+	ClientCertUserParam          string  `json:"client_cert_user_param,omitempty"`
+	G2OEnabled                   string  `json:"g2o_enabled,omitempty"`
+	G2ONonce                     *string `json:"g2o_nonce,omitempty"`
+	G2OKey                       *string `json:"g2o_key,omitempty"`
+	RDPTLS1                      string  `json:"rdp_tls1,omitempty"`
+	DomainExceptionList          string  `json:"domain_exception_list,omitempty"`
+	Acceleration                 string  `json:"acceleration,omitempty"`
+	OffloadOnPremiseTraffic      string  `json:"offload_onpremise_traffic,omitempty"`
+	AppClientCertAuth            string  `json:"app_client_cert_auth,omitempty"`
+	PreauthConsent               string  `json:"preauth_consent,omitempty"`
+	MDCEnable                    string  `json:"mdc_enable,omitempty"`
+	SingleHostEnable             string  `json:"single_host_enable,omitempty"`
+	SingleHostFQDN               string  `json:"single_host_fqdn,omitempty"`
+	SingleHostPath               string  `json:"single_host_path,omitempty"`
+	SingleHostContentRW          string  `json:"single_host_content_rw,omitempty"`
+	IsSSLVerificationEnabled     string  `json:"is_ssl_verification_enabled,omitempty"`
+	SingleHostCookieDomain       string  `json:"single_host_cookie_domain,omitempty"`
+	XWappReadTimeout             string  `json:"x_wapp_read_timeout,omitempty"`
+	ForceIPRoute                 string  `json:"force_ip_route,omitempty"`
 }
 
 type OIDCSettings struct {
@@ -810,4 +950,11 @@ type IDP struct {
 	ClientCertUserParam string `json:"client_cert_user_param"`
 	Name                string `json:"name"`
 	Type                int    `json:"type"`
+}
+
+type AppsResponse struct {
+	Meta struct {
+		TotalCount int `json:"total_count"`
+	} `json:"meta"`
+	Applications []ApplicationDataModel `json:"objects"`
 }

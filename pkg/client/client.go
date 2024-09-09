@@ -32,7 +32,11 @@ type ErrorResponse struct {
 // Exec will sign and execute the request using the client edgegrid.Config
 func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}, out interface{}, global bool) (*http.Response, error) {
 	if !global {
-		queryParams := url.Values{}
+		parsedURL, err := url.Parse(apiURL)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrMarshaling, err)
+		}
+		queryParams := parsedURL.Query()
 		if ec.ContractID != "" {
 			queryParams.Set("contractId", ec.ContractID)
 		}
@@ -43,7 +47,11 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 			queryParams.Set("expand", "true")
 			queryParams.Set("limit", "0")
 		}
-		apiURL = fmt.Sprintf("%s?%s", apiURL, queryParams.Encode())
+		parsedURL.RawQuery = queryParams.Encode()
+
+		apiURL = parsedURL.String()
+
+		// apiURL = fmt.Sprintf("%s?%s", apiURL, queryParams.Encode())
 	}
 
 	ec.Logger.Info(apiURL)

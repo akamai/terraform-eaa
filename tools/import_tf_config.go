@@ -118,14 +118,24 @@ func main() {
 	var appNames string
 
 	fmt.Println("Enter Your Contract Id: ")
-	fmt.Scanln(&contractID)
-
+	_, err := fmt.Scanln(&contractID)
+	if err != nil {
+		fmt.Println("Error reading contractID:", err)
+		return
+	}
 	fmt.Println("Enter Your accountSwitchKey: ")
-	fmt.Scanln(&accountSwitch)
+	_, err = fmt.Scanln(&accountSwitch)
+	if err != nil {
+		fmt.Println("Error reading accountSwitch:", err)
+		return
+	}
 
 	fmt.Println("Enter comma seperated app names: (example: exampleapp, *app, app*, ex*app)")
-	fmt.Scanln(&appNames)
-
+	_, err = fmt.Scanln(&appNames)
+	if err != nil {
+		fmt.Println("Error reading appNames:", err)
+		return
+	}
 	edgerc, err := edgegrid.New(edgegrid.WithFile(".edgerc"))
 	if err != nil {
 		fmt.Println("EdgeRc error")
