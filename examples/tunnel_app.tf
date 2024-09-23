@@ -42,8 +42,6 @@ resource "eaa_application" "sap-prod-dc1-app" {
 
     advanced_settings {
         is_ssl_verification_enabled = "false"
-        ignore_cname_resolution = "true"
-        g2o_enabled = "true"
         ip_access_allow = "false"
         x_wapp_read_timeout = "300"
 	  }

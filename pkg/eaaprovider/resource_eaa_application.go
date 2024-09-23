@@ -240,6 +240,7 @@ func resourceEaaApplication() *schema.Resource {
 						"internal_host_port": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "0",
 						},
 						"ip_access_allow": {
 							Type:     schema.TypeString,
@@ -248,6 +249,7 @@ func resourceEaaApplication() *schema.Resource {
 						"wildcard_internal_hostname": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"edge_cookie_key": {
 							Type:     schema.TypeString,
@@ -912,9 +914,19 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 	// Read the resource ID from d
 	id := d.Id()
 	eaaclient := m.(*client.EaaClient)
+	var appResp client.ApplicationDataModel
 
-	// Send the delete application REST endpoint
-	err := eaaclient.SendDeleteApplicationEndpoint(id)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
+	getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+		desc, _ := client.FormatErrorResponse(getResp)
+		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
+		return diag.FromErr(getAppErrMsg)
+	}
+	err = appResp.DeleteApplication(eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
 	}
