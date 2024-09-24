@@ -90,23 +90,6 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 	return resp, nil
 }
 
-func (ec *EaaClient) SendDeleteApplicationEndpoint(id string) error {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, id), nil)
-	if err != nil {
-		return err
-	}
-	req.URL.RawQuery = req.URL.Query().Encode()
-	ec.Signer.SignRequest(req)
-
-	resp, err := ec.Client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-	return nil
-}
-
 func FormatErrorResponse(errResp *http.Response) (string, error) {
 	var errResponse ErrorResponse
 	data, err := io.ReadAll(errResp.Body)
