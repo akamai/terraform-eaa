@@ -232,10 +232,12 @@ func resourceEaaApplication() *schema.Resource {
 						"x_wapp_read_timeout": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "900",
 						},
 						"internal_hostname": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "",
 						},
 						"internal_host_port": {
 							Type:     schema.TypeString,
@@ -245,6 +247,7 @@ func resourceEaaApplication() *schema.Resource {
 						"ip_access_allow": {
 							Type:     schema.TypeString,
 							Optional: true,
+							Default:  "false",
 						},
 						"wildcard_internal_hostname": {
 							Type:     schema.TypeString,
@@ -636,14 +639,12 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		"edge_authentication_enabled": appResp.AdvancedSettings.EdgeAuthenticationEnabled,
 		"edge_cookie_key":             appResp.AdvancedSettings.EdgeCookieKey,
 		"sla_object_url":              appResp.AdvancedSettings.SlaObjectUrl,
-	}
 
-	if client.ClientAppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
-		advSettings[0]["x_wapp_read_timeout"] = appResp.AdvancedSettings.XWappReadTimeout
-		advSettings[0]["internal_hostname"] = appResp.AdvancedSettings.InternalHostname
-		advSettings[0]["internal_host_port"] = appResp.AdvancedSettings.InternalHostPort
-		advSettings[0]["wildcard_internal_hostname"] = appResp.AdvancedSettings.WildcardInternalHostname
-		advSettings[0]["ip_access_allow"] = appResp.AdvancedSettings.IPAccessAllow
+		"x_wapp_read_timeout":        appResp.AdvancedSettings.XWappReadTimeout,
+		"internal_hostname":          appResp.AdvancedSettings.InternalHostname,
+		"internal_host_port":         appResp.AdvancedSettings.InternalHostPort,
+		"wildcard_internal_hostname": appResp.AdvancedSettings.WildcardInternalHostname,
+		"ip_access_allow":            appResp.AdvancedSettings.IPAccessAllow,
 	}
 
 	err = d.Set("advanced_settings", advSettings)
