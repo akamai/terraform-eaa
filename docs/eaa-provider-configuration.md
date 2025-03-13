@@ -41,5 +41,9 @@ provider "eaa" {
 #### Provider settings
 * ```contractid``` - (Required) The Akamai contract identifier for your Enterprise Application Access product.
 * ```accountswitchkey``` - (Optional) Runs the operation from another account.
-* ```edgerc``` - (Required) EAA TF plugin uses OpenAPI to configure the applications. API Client needs to be created from Akamai Enterprise Center, which contains client_secret, access_token & client_token required to authenticate Akamai EAA API. This setting contains the location of the .edgerc file. Follow the link for instructions on how to create [authentication credentials](https://techdocs.akamai.com/developer/docs/set-up-authentication-credentials
+* ```edgerc``` - (Optional) EAA TF plugin uses OpenAPI to configure the applications. API Client needs to be created from Akamai Enterprise Center, which contains client_secret, access_token & client_token required to authenticate Akamai EAA API. This setting contains the location of the .edgerc file. Follow the link for instructions on how to create [authentication credentials](https://techdocs.akamai.com/developer/docs/set-up-authentication-credentials
 )
+
+#### Environment variables
+The authentication credentials can also be set using environment variables. The environment variables are:
+https://techdocs.akamai.com/terraform/docs/environment-variables
