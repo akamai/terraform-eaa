@@ -34,7 +34,7 @@ func Provider() *schema.Provider {
 			},
 			"edgerc": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "The edgerc file path key for the provider.",
 			},
 		},
@@ -57,7 +57,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 
 	edgercPath := d.Get("edgerc").(string)
 
-	edgerc, err := edgegrid.New(edgegrid.WithFile(edgercPath))
+	edgerc, err := edgegrid.New(edgegrid.WithEnv(true), edgegrid.WithFile(edgercPath))
 	if err != nil {
 		return nil, diag.Errorf("%s: %s", ErrInvalidEdgercConfig, err.Error())
 	}
