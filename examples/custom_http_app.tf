@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "eaa" {
-  contractid       = "1-3XXXXX"
+  contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
 
@@ -41,6 +41,25 @@ resource "eaa_application" "jira-app" {
         is_ssl_verification_enabled = "false"
         ignore_cname_resolution = "true"
         g2o_enabled = "true"
+        allow_cors = "true"
+        cors_method_list = "method1,method2"
+        cors_origin_list = "origin1,origin2,orign3"
+        cors_header_list = "header1,header2,header3"
+        cors_max_age = 90000
+        cors_support_credential = "off"
+        sticky_agent = "false"
+        websocket_enabled = "false"
+        sentry_redirect_401 = "off"
+        logout_url = "logout_url"
+        custom_headers {
+            attribute_type = "custom"
+            header = "myheader"
+            attribute = "attributevalue"
+        }
+        custom_headers {
+            attribute_type = "user"
+            header = "myuser"
+        }
 	}
 
     auth_enabled = "true"

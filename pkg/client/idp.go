@@ -56,7 +56,7 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
 		return nil, getIdpErrMsg
@@ -93,7 +93,7 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
 		return nil, getIdpErrMsg
@@ -139,7 +139,7 @@ func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		getIdpDirsErrMsg := fmt.Errorf("%w: %s", ErrIDPDirectoriesGet, desc)
 		return nil, getIdpDirsErrMsg
