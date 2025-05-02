@@ -33,7 +33,7 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 		ec.Logger.Error("self certificate generation request failed. err: ", err)
 		return nil, err
 	}
-	if !(ssCertHttpResp.StatusCode >= http.StatusOK && ssCertHttpResp.StatusCode < http.StatusMultipleChoices) {
+	if ssCertHttpResp.StatusCode < http.StatusOK || ssCertHttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(ssCertHttpResp)
 		ssCertErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -86,7 +86,7 @@ func GetCertificates(ec *EaaClient) ([]CertObject, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
 		return nil, updErrMsg
@@ -123,7 +123,7 @@ func GetCertificate(ec *EaaClient, cert_uuid_url string) (*CertificateResponse, 
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
 		return nil, updErrMsg

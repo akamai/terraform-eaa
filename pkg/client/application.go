@@ -239,7 +239,7 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
 		ec.Logger.Error("g2o request failed. err: ", err)
 		return nil, err
 	}
-	if !(g2ohttpResp.StatusCode >= http.StatusOK && g2ohttpResp.StatusCode < http.StatusMultipleChoices) {
+	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(g2ohttpResp)
 		g2oErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -259,7 +259,7 @@ func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuth_Respo
 		ec.Logger.Error("edge auth request failed. err: ", err)
 		return nil, err
 	}
-	if !(edgeAuthhttpResp.StatusCode >= http.StatusOK && edgeAuthhttpResp.StatusCode < http.StatusMultipleChoices) {
+	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(edgeAuthhttpResp)
 		edgeuthErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -279,7 +279,7 @@ func (app *Application) DeployApplication(ec *EaaClient) error {
 		return err
 	}
 
-	if !(deployResp.StatusCode >= http.StatusOK && deployResp.StatusCode < http.StatusMultipleChoices) {
+	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
 		return ErrDeploy
 	}
 	return nil
@@ -293,7 +293,7 @@ func (app *Application) DeleteApplication(ec *EaaClient) error {
 		return err
 	}
 
-	if !(deleteResp.StatusCode >= http.StatusOK && deleteResp.StatusCode < http.StatusMultipleChoices) {
+	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
 		return ErrAppDelete
 	}
 	return nil
@@ -377,7 +377,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 							advSettings.G2OEnabled = g2o
 							if g2o == STR_TRUE {
 
-								g2oResp, err := appUpdateReq.Application.UpdateG2O(ec)
+								g2oResp, err := appUpdateReq.UpdateG2O(ec)
 								if err != nil {
 									ec.Logger.Error("g2o request failed. err: ", err)
 									return err
@@ -392,7 +392,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 							advSettings.EdgeAuthenticationEnabled = edgeAuth
 							if edgeAuth == STR_TRUE {
 
-								edgeAuthResp, err := appUpdateReq.Application.UpdateEdgeAuthentication(ec)
+								edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
 								if err != nil {
 									ec.Logger.Error("edge auth cookie request failed. err: ", err)
 									return err
@@ -402,6 +402,76 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 								advSettings.SlaObjectUrl = &edgeAuthResp.SlaObjectUrl
 							}
 						}
+						if websocket_enabled, ok := advSettingsData["websocket_enabled"].(string); ok {
+							advSettings.WebSocketEnabled = websocket_enabled
+						}
+						if sticky_agent, ok := advSettingsData["sticky_agent"].(string); ok {
+							advSettings.StickyAgent = sticky_agent
+						}
+
+						if app_cookie_domain, ok := advSettingsData["app_cookie_domain"].(string); ok {
+							if app_cookie_domain != "" {
+								advSettings.AppCookieDomain = &app_cookie_domain
+							}
+						}
+						if logout_url, ok := advSettingsData["logout_url"].(string); ok {
+							if logout_url != "" {
+								advSettings.LogoutURL = &logout_url
+							}
+						}
+						if sentry_redirect_401, ok := advSettingsData["sentry_redirect_401"].(string); ok {
+							advSettings.SentryRedirect401 = sentry_redirect_401
+						}
+						var customHeaders []CustomHeader
+
+						if headersRaw, ok := advSettingsData["custom_headers"]; ok {
+							if chList, ok := headersRaw.([]interface{}); ok {
+								for _, ch := range chList {
+									if headerMap, ok := ch.(map[string]interface{}); ok {
+										customHeader := CustomHeader{}
+										// Safely extract strings if present
+										if val, ok := headerMap["attribute_type"].(string); ok {
+											customHeader.AttributeType = val
+											if val == "custom" {
+												if val, ok := headerMap["attribute"].(string); ok {
+													customHeader.Attribute = val
+												}
+											} else {
+												customHeader.Attribute = ""
+											}
+										}
+										if val, ok := headerMap["header"].(string); ok {
+											customHeader.Header = val
+										}
+										if customHeader.AttributeType != "" {
+											customHeaders = append(customHeaders, customHeader)
+										}
+									}
+								}
+								advSettings.CustomHeaders = customHeaders
+							}
+						}
+						if allow_cors, ok := advSettingsData["allow_cors"].(string); ok {
+							advSettings.AllowCORS = allow_cors
+							if allow_cors == STR_TRUE {
+								if cors_origin_list, ok := advSettingsData["cors_origin_list"].(string); ok {
+									advSettings.CORSOriginList = cors_origin_list
+								}
+								if cors_method_list, ok := advSettingsData["cors_method_list"].(string); ok {
+									advSettings.CORSMethodList = cors_method_list
+								}
+								if cors_header_list, ok := advSettingsData["cors_header_list"].(string); ok {
+									advSettings.CORSHeaderList = cors_header_list
+								}
+								if cors_support_credential, ok := advSettingsData["cors_support_credential"].(string); ok {
+									advSettings.CORSSupportCredential = cors_support_credential
+								}
+								if cors_max_age, ok := advSettingsData["cors_max_age"].(int); ok {
+									advSettings.CORSMaxAge = strconv.Itoa(cors_max_age)
+								}
+							}
+						}
+
 						UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
 
 						// appUpdateReq.AdvancedSettings = advSettings
@@ -579,7 +649,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 		ec.Logger.Error("update application failed. err: ", err)
 		return err
 	}
-	if !(appUpdResp.StatusCode >= http.StatusOK && appUpdResp.StatusCode < http.StatusMultipleChoices) {
+	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -683,136 +753,155 @@ type EdgeAuth_Response struct {
 	SlaObjectUrl  string `json:"sla_object_url,omitempty"`
 }
 
+type CustomHeader struct {
+	Attribute     string `json:"attribute"`
+	AttributeType string `json:"attribute_type"`
+	Header        string `json:"header"`
+}
+
 type AdvancedSettings struct {
-	IsSSLVerificationEnabled  string  `json:"is_ssl_verification_enabled,omitempty"`
-	IgnoreCnameResolution     string  `json:"ignore_cname_resolution,omitempty"`
-	EdgeAuthenticationEnabled string  `json:"edge_authentication_enabled,omitempty"`
-	G2OEnabled                string  `json:"g2o_enabled,omitempty"`
-	G2ONonce                  *string `json:"g2o_nonce,omitempty"`
-	G2OKey                    *string `json:"g2o_key,omitempty"`
-	XWappReadTimeout          string  `json:"x_wapp_read_timeout,omitempty"`
-	InternalHostname          *string `json:"internal_hostname,omitempty"`
-	InternalHostPort          string  `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname  string  `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow             string  `json:"ip_access_allow,omitempty"`
-	EdgeCookieKey             *string `json:"edge_cookie_key,omitempty"`
-	SlaObjectUrl              *string `json:"sla_object_url,omitempty"`
+	IsSSLVerificationEnabled  string         `json:"is_ssl_verification_enabled,omitempty"`
+	IgnoreCnameResolution     string         `json:"ignore_cname_resolution,omitempty"`
+	EdgeAuthenticationEnabled string         `json:"edge_authentication_enabled,omitempty"`
+	G2OEnabled                string         `json:"g2o_enabled,omitempty"`
+	G2ONonce                  *string        `json:"g2o_nonce,omitempty"`
+	G2OKey                    *string        `json:"g2o_key,omitempty"`
+	XWappReadTimeout          string         `json:"x_wapp_read_timeout,omitempty"`
+	InternalHostname          *string        `json:"internal_hostname,omitempty"`
+	InternalHostPort          string         `json:"internal_host_port,omitempty"`
+	WildcardInternalHostname  string         `json:"wildcard_internal_hostname,omitempty"`
+	IPAccessAllow             string         `json:"ip_access_allow,omitempty"`
+	EdgeCookieKey             *string        `json:"edge_cookie_key,omitempty"`
+	SlaObjectUrl              *string        `json:"sla_object_url,omitempty"`
+	AllowCORS                 string         `json:"allow_cors,omitempty"`
+	CORSOriginList            string         `json:"cors_origin_list,omitempty"`
+	CORSMethodList            string         `json:"cors_method_list,omitempty"`
+	CORSHeaderList            string         `json:"cors_header_list,omitempty"`
+	CORSSupportCredential     string         `json:"cors_support_credential,omitempty"`
+	CORSMaxAge                string         `json:"cors_max_age,omitempty"`
+	WebSocketEnabled          string         `json:"websocket_enabled,omitempty"`
+	StickyAgent               string         `json:"sticky_agent,omitempty"`
+	AppCookieDomain           *string        `json:"app_cookie_domain,omitempty"`
+	LogoutURL                 *string        `json:"logout_url,omitempty"`
+	SentryRedirect401         string         `json:"sentry_redirect_401,omitempty"`
+	CustomHeaders             []CustomHeader `json:"custom_headers,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
-	LoginURL                     *string `json:"login_url,omitempty"`
-	LogoutURL                    *string `json:"logout_url,omitempty"`
-	InternalHostname             *string `json:"internal_hostname,omitempty"`
-	InternalHostPort             string  `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname     string  `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow                string  `json:"ip_access_allow,omitempty"`
-	CookieDomain                 *string `json:"cookie_domain,omitempty"`
-	RequestParameters            *string `json:"request_parameters,omitempty"`
-	LoggingEnabled               string  `json:"logging_enabled,omitempty"`
-	LoginTimeout                 string  `json:"login_timeout,omitempty"`
-	AppAuth                      string  `json:"app_auth,omitempty"`
-	WappAuth                     string  `json:"wapp_auth,omitempty"`
-	SSO                          string  `json:"sso,omitempty"`
-	HTTPOnlyCookie               string  `json:"http_only_cookie,omitempty"`
-	RequestBodyRewrite           string  `json:"request_body_rewrite,omitempty"`
-	IDPIdleExpiry                *string `json:"idp_idle_expiry,omitempty"`
-	IDPMaxExpiry                 *string `json:"idp_max_expiry,omitempty"`
-	HTTPSSSLV3                   string  `json:"https_sslv3,omitempty"`
-	SPDYEnabled                  string  `json:"spdy_enabled,omitempty"`
-	WebSocketEnabled             string  `json:"websocket_enabled,omitempty"`
-	HiddenApp                    string  `json:"hidden_app,omitempty"`
-	AppLocation                  *string `json:"app_location,omitempty"`
-	AppCookieDomain              *string `json:"app_cookie_domain,omitempty"`
-	AppAuthDomain                *string `json:"app_auth_domain,omitempty"`
-	LoadBalancingMetric          string  `json:"load_balancing_metric,omitempty"`
-	HealthCheckType              string  `json:"health_check_type,omitempty"`
-	HealthCheckHTTPURL           string  `json:"health_check_http_url,omitempty"`
-	HealthCheckHTTPVersion       string  `json:"health_check_http_version,omitempty"`
-	HealthCheckHTTPHostHeader    *string `json:"health_check_http_host_header,omitempty"`
-	ProxyBufferSizeKB            string  `json:"proxy_buffer_size_kb,omitempty"`
-	SessionSticky                string  `json:"session_sticky,omitempty"`
-	SessionStickyCookieMaxAge    string  `json:"session_sticky_cookie_maxage,omitempty"`
-	SessionStickyServerCookie    *string `json:"session_sticky_server_cookie,omitempty"`
-	PassPhrase                   *string `json:"pass_phrase,omitempty"`
-	PrivateKey                   *string `json:"private_key,omitempty"`
-	HostKey                      *string `json:"host_key,omitempty"`
-	UserName                     *string `json:"user_name,omitempty"`
-	ExternalCookieDomain         *string `json:"external_cookie_domain,omitempty"`
-	ServicePrincipleName         *string `json:"service_principle_name,omitempty"`
-	ServerCertValidate           string  `json:"server_cert_validate,omitempty"`
-	IgnoreCnameResolution        string  `json:"ignore_cname_resolution,omitempty"`
-	SSHAuditEnabled              string  `json:"ssh_audit_enabled,omitempty"`
-	MFA                          string  `json:"mfa,omitempty"`
-	RefreshStickyCookie          string  `json:"refresh_sticky_cookie,omitempty"`
-	AppServerReadTimeout         string  `json:"app_server_read_timeout,omitempty"`
-	IdleConnFloor                string  `json:"idle_conn_floor,omitempty"`
-	IdleConnCeil                 string  `json:"idle_conn_ceil,omitempty"`
-	IdleConnStep                 string  `json:"idle_conn_step,omitempty"`
-	IdleCloseTimeSeconds         string  `json:"idle_close_time_seconds,omitempty"`
-	RateLimit                    string  `json:"rate_limit,omitempty"`
-	AuthenticatedServerReqLimit  string  `json:"authenticated_server_request_limit,omitempty"`
-	AnonymousServerReqLimit      string  `json:"anonymous_server_request_limit,omitempty"`
-	AuthenticatedServerConnLimit string  `json:"authenticated_server_conn_limit,omitempty"`
-	AnonymousServerConnLimit     string  `json:"anonymous_server_conn_limit,omitempty"`
-	ServerRequestBurst           string  `json:"server_request_burst,omitempty"`
-	HealthCheckRise              string  `json:"health_check_rise,omitempty"`
-	HealthCheckFall              string  `json:"health_check_fall,omitempty"`
-	HealthCheckTimeout           string  `json:"health_check_timeout,omitempty"`
-	HealthCheckInterval          string  `json:"health_check_interval,omitempty"`
-	KerberosNegotiateOnce        string  `json:"kerberos_negotiate_once,omitempty"`
-	InjectAjaxJavascript         string  `json:"inject_ajax_javascript,omitempty"`
-	SentryRedirect401            string  `json:"sentry_redirect_401,omitempty"`
-	ProxyDisableClipboard        string  `json:"proxy_disable_clipboard,omitempty"`
-	PreauthEnforceURL            string  `json:"preauth_enforce_url,omitempty"`
-	ForceMFA                     string  `json:"force_mfa,omitempty"`
-	IgnoreBypassMFA              string  `json:"ignore_bypass_mfa,omitempty"`
-	StickyAgent                  string  `json:"sticky_agent,omitempty"`
-	SaaSEnabled                  string  `json:"saas_enabled,omitempty"`
-	AllowCORS                    string  `json:"allow_cors,omitempty"`
-	CORSOriginList               string  `json:"cors_origin_list,omitempty"`
-	CORSMethodList               string  `json:"cors_method_list,omitempty"`
-	CORSHeaderList               string  `json:"cors_header_list,omitempty"`
-	CORSSupportCredential        string  `json:"cors_support_credential,omitempty"`
-	CORSMaxAge                   string  `json:"cors_max_age,omitempty"`
-	KeepaliveEnable              string  `json:"keepalive_enable,omitempty"`
-	KeepaliveConnectionPool      string  `json:"keepalive_connection_pool,omitempty"`
-	KeepaliveTimeout             string  `json:"keepalive_timeout,omitempty"`
-	KeyedKeepaliveEnable         string  `json:"keyed_keepalive_enable,omitempty"`
-	Keytab                       string  `json:"keytab,omitempty"`
-	EdgeCookieKey                string  `json:"edge_cookie_key,omitempty"`
-	SLAObjectURL                 string  `json:"sla_object_url,omitempty"`
-	ForwardTicketGrantingTicket  string  `json:"forward_ticket_granting_ticket,omitempty"`
-	EdgeAuthenticationEnabled    string  `json:"edge_authentication_enabled,omitempty"`
-	HSTSage                      string  `json:"hsts_age,omitempty"`
-	RDPInitialProgram            *string `json:"rdp_initial_program,omitempty"`
-	RemoteSparkMapClipboard      string  `json:"remote_spark_mapClipboard,omitempty"`
-	RDPLegacyMode                string  `json:"rdp_legacy_mode,omitempty"`
-	RemoteSparkAudio             string  `json:"remote_spark_audio,omitempty"`
-	RemoteSparkMapPrinter        string  `json:"remote_spark_mapPrinter,omitempty"`
-	RemoteSparkPrinter           string  `json:"remote_spark_printer,omitempty"`
-	RemoteSparkMapDisk           string  `json:"remote_spark_mapDisk,omitempty"`
-	RemoteSparkDisk              string  `json:"remote_spark_disk,omitempty"`
-	RemoteSparkRecording         string  `json:"remote_spark_recording,omitempty"`
-	ClientCertAuth               string  `json:"client_cert_auth,omitempty"`
-	ClientCertUserParam          string  `json:"client_cert_user_param,omitempty"`
-	G2OEnabled                   string  `json:"g2o_enabled,omitempty"`
-	G2ONonce                     *string `json:"g2o_nonce,omitempty"`
-	G2OKey                       *string `json:"g2o_key,omitempty"`
-	RDPTLS1                      string  `json:"rdp_tls1,omitempty"`
-	DomainExceptionList          string  `json:"domain_exception_list,omitempty"`
-	Acceleration                 string  `json:"acceleration,omitempty"`
-	OffloadOnPremiseTraffic      string  `json:"offload_onpremise_traffic,omitempty"`
-	AppClientCertAuth            string  `json:"app_client_cert_auth,omitempty"`
-	PreauthConsent               string  `json:"preauth_consent,omitempty"`
-	MDCEnable                    string  `json:"mdc_enable,omitempty"`
-	SingleHostEnable             string  `json:"single_host_enable,omitempty"`
-	SingleHostFQDN               string  `json:"single_host_fqdn,omitempty"`
-	SingleHostPath               string  `json:"single_host_path,omitempty"`
-	SingleHostContentRW          string  `json:"single_host_content_rw,omitempty"`
-	IsSSLVerificationEnabled     string  `json:"is_ssl_verification_enabled,omitempty"`
-	SingleHostCookieDomain       string  `json:"single_host_cookie_domain,omitempty"`
-	XWappReadTimeout             string  `json:"x_wapp_read_timeout,omitempty"`
-	ForceIPRoute                 string  `json:"force_ip_route,omitempty"`
+	LoginURL                     *string        `json:"login_url,omitempty"`
+	LogoutURL                    *string        `json:"logout_url,omitempty"`
+	InternalHostname             *string        `json:"internal_hostname,omitempty"`
+	InternalHostPort             string         `json:"internal_host_port,omitempty"`
+	WildcardInternalHostname     string         `json:"wildcard_internal_hostname,omitempty"`
+	IPAccessAllow                string         `json:"ip_access_allow,omitempty"`
+	CookieDomain                 *string        `json:"cookie_domain,omitempty"`
+	RequestParameters            *string        `json:"request_parameters,omitempty"`
+	LoggingEnabled               string         `json:"logging_enabled,omitempty"`
+	LoginTimeout                 string         `json:"login_timeout,omitempty"`
+	AppAuth                      string         `json:"app_auth,omitempty"`
+	WappAuth                     string         `json:"wapp_auth,omitempty"`
+	SSO                          string         `json:"sso,omitempty"`
+	HTTPOnlyCookie               string         `json:"http_only_cookie,omitempty"`
+	RequestBodyRewrite           string         `json:"request_body_rewrite,omitempty"`
+	IDPIdleExpiry                *string        `json:"idp_idle_expiry,omitempty"`
+	IDPMaxExpiry                 *string        `json:"idp_max_expiry,omitempty"`
+	HTTPSSSLV3                   string         `json:"https_sslv3,omitempty"`
+	SPDYEnabled                  string         `json:"spdy_enabled,omitempty"`
+	WebSocketEnabled             string         `json:"websocket_enabled,omitempty"`
+	HiddenApp                    string         `json:"hidden_app,omitempty"`
+	AppLocation                  *string        `json:"app_location,omitempty"`
+	AppCookieDomain              *string        `json:"app_cookie_domain,omitempty"`
+	AppAuthDomain                *string        `json:"app_auth_domain,omitempty"`
+	LoadBalancingMetric          string         `json:"load_balancing_metric,omitempty"`
+	HealthCheckType              string         `json:"health_check_type,omitempty"`
+	HealthCheckHTTPURL           string         `json:"health_check_http_url,omitempty"`
+	HealthCheckHTTPVersion       string         `json:"health_check_http_version,omitempty"`
+	HealthCheckHTTPHostHeader    *string        `json:"health_check_http_host_header,omitempty"`
+	ProxyBufferSizeKB            string         `json:"proxy_buffer_size_kb,omitempty"`
+	SessionSticky                string         `json:"session_sticky,omitempty"`
+	SessionStickyCookieMaxAge    string         `json:"session_sticky_cookie_maxage,omitempty"`
+	SessionStickyServerCookie    *string        `json:"session_sticky_server_cookie,omitempty"`
+	PassPhrase                   *string        `json:"pass_phrase,omitempty"`
+	PrivateKey                   *string        `json:"private_key,omitempty"`
+	HostKey                      *string        `json:"host_key,omitempty"`
+	UserName                     *string        `json:"user_name,omitempty"`
+	ExternalCookieDomain         *string        `json:"external_cookie_domain,omitempty"`
+	ServicePrincipleName         *string        `json:"service_principle_name,omitempty"`
+	ServerCertValidate           string         `json:"server_cert_validate,omitempty"`
+	IgnoreCnameResolution        string         `json:"ignore_cname_resolution,omitempty"`
+	SSHAuditEnabled              string         `json:"ssh_audit_enabled,omitempty"`
+	MFA                          string         `json:"mfa,omitempty"`
+	RefreshStickyCookie          string         `json:"refresh_sticky_cookie,omitempty"`
+	AppServerReadTimeout         string         `json:"app_server_read_timeout,omitempty"`
+	IdleConnFloor                string         `json:"idle_conn_floor,omitempty"`
+	IdleConnCeil                 string         `json:"idle_conn_ceil,omitempty"`
+	IdleConnStep                 string         `json:"idle_conn_step,omitempty"`
+	IdleCloseTimeSeconds         string         `json:"idle_close_time_seconds,omitempty"`
+	RateLimit                    string         `json:"rate_limit,omitempty"`
+	AuthenticatedServerReqLimit  string         `json:"authenticated_server_request_limit,omitempty"`
+	AnonymousServerReqLimit      string         `json:"anonymous_server_request_limit,omitempty"`
+	AuthenticatedServerConnLimit string         `json:"authenticated_server_conn_limit,omitempty"`
+	AnonymousServerConnLimit     string         `json:"anonymous_server_conn_limit,omitempty"`
+	ServerRequestBurst           string         `json:"server_request_burst,omitempty"`
+	HealthCheckRise              string         `json:"health_check_rise,omitempty"`
+	HealthCheckFall              string         `json:"health_check_fall,omitempty"`
+	HealthCheckTimeout           string         `json:"health_check_timeout,omitempty"`
+	HealthCheckInterval          string         `json:"health_check_interval,omitempty"`
+	KerberosNegotiateOnce        string         `json:"kerberos_negotiate_once,omitempty"`
+	InjectAjaxJavascript         string         `json:"inject_ajax_javascript,omitempty"`
+	SentryRedirect401            string         `json:"sentry_redirect_401,omitempty"`
+	ProxyDisableClipboard        string         `json:"proxy_disable_clipboard,omitempty"`
+	PreauthEnforceURL            string         `json:"preauth_enforce_url,omitempty"`
+	ForceMFA                     string         `json:"force_mfa,omitempty"`
+	IgnoreBypassMFA              string         `json:"ignore_bypass_mfa,omitempty"`
+	StickyAgent                  string         `json:"sticky_agent,omitempty"`
+	SaaSEnabled                  string         `json:"saas_enabled,omitempty"`
+	AllowCORS                    string         `json:"allow_cors,omitempty"`
+	CORSOriginList               string         `json:"cors_origin_list,omitempty"`
+	CORSMethodList               string         `json:"cors_method_list,omitempty"`
+	CORSHeaderList               string         `json:"cors_header_list,omitempty"`
+	CORSSupportCredential        string         `json:"cors_support_credential,omitempty"`
+	CORSMaxAge                   string         `json:"cors_max_age,omitempty"`
+	KeepaliveEnable              string         `json:"keepalive_enable,omitempty"`
+	KeepaliveConnectionPool      string         `json:"keepalive_connection_pool,omitempty"`
+	KeepaliveTimeout             string         `json:"keepalive_timeout,omitempty"`
+	KeyedKeepaliveEnable         string         `json:"keyed_keepalive_enable,omitempty"`
+	Keytab                       string         `json:"keytab,omitempty"`
+	EdgeCookieKey                string         `json:"edge_cookie_key,omitempty"`
+	SLAObjectURL                 string         `json:"sla_object_url,omitempty"`
+	ForwardTicketGrantingTicket  string         `json:"forward_ticket_granting_ticket,omitempty"`
+	EdgeAuthenticationEnabled    string         `json:"edge_authentication_enabled,omitempty"`
+	HSTSage                      string         `json:"hsts_age,omitempty"`
+	RDPInitialProgram            *string        `json:"rdp_initial_program,omitempty"`
+	RemoteSparkMapClipboard      string         `json:"remote_spark_mapClipboard,omitempty"`
+	RDPLegacyMode                string         `json:"rdp_legacy_mode,omitempty"`
+	RemoteSparkAudio             string         `json:"remote_spark_audio,omitempty"`
+	RemoteSparkMapPrinter        string         `json:"remote_spark_mapPrinter,omitempty"`
+	RemoteSparkPrinter           string         `json:"remote_spark_printer,omitempty"`
+	RemoteSparkMapDisk           string         `json:"remote_spark_mapDisk,omitempty"`
+	RemoteSparkDisk              string         `json:"remote_spark_disk,omitempty"`
+	RemoteSparkRecording         string         `json:"remote_spark_recording,omitempty"`
+	ClientCertAuth               string         `json:"client_cert_auth,omitempty"`
+	ClientCertUserParam          string         `json:"client_cert_user_param,omitempty"`
+	G2OEnabled                   string         `json:"g2o_enabled,omitempty"`
+	G2ONonce                     *string        `json:"g2o_nonce,omitempty"`
+	G2OKey                       *string        `json:"g2o_key,omitempty"`
+	RDPTLS1                      string         `json:"rdp_tls1,omitempty"`
+	DomainExceptionList          string         `json:"domain_exception_list,omitempty"`
+	Acceleration                 string         `json:"acceleration,omitempty"`
+	OffloadOnPremiseTraffic      string         `json:"offload_onpremise_traffic,omitempty"`
+	AppClientCertAuth            string         `json:"app_client_cert_auth,omitempty"`
+	PreauthConsent               string         `json:"preauth_consent,omitempty"`
+	MDCEnable                    string         `json:"mdc_enable,omitempty"`
+	SingleHostEnable             string         `json:"single_host_enable,omitempty"`
+	SingleHostFQDN               string         `json:"single_host_fqdn,omitempty"`
+	SingleHostPath               string         `json:"single_host_path,omitempty"`
+	SingleHostContentRW          string         `json:"single_host_content_rw,omitempty"`
+	IsSSLVerificationEnabled     string         `json:"is_ssl_verification_enabled,omitempty"`
+	SingleHostCookieDomain       string         `json:"single_host_cookie_domain,omitempty"`
+	XWappReadTimeout             string         `json:"x_wapp_read_timeout,omitempty"`
+	ForceIPRoute                 string         `json:"force_ip_route,omitempty"`
+	CustomHeaders                []CustomHeader `json:"custom_headers,omitempty"`
 }
 
 type OIDCSettings struct {

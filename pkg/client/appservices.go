@@ -142,7 +142,7 @@ func (rule AccessRule) DeleteAccessRule(ctx context.Context, ec *EaaClient, serv
 		return err
 	}
 
-	if !(deleteResp.StatusCode >= http.StatusOK && deleteResp.StatusCode < http.StatusMultipleChoices) {
+	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
 		return ErrRuleDelete
 	}
 	return nil
@@ -175,7 +175,7 @@ func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serv
 		return err
 	}
 
-	if !(createRuleResp.StatusCode >= http.StatusOK && createRuleResp.StatusCode < http.StatusMultipleChoices) {
+	if createRuleResp.StatusCode < http.StatusOK || createRuleResp.StatusCode >= http.StatusMultipleChoices {
 
 		desc, _ := FormatErrorResponse(createRuleResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrRuleModify, desc)
@@ -224,7 +224,7 @@ func (appService AppService) EnableService(ec *EaaClient) error {
 	if err != nil {
 		return fmt.Errorf("failed to enable app service: %w", err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrEnableService, desc)
 		return appServiceErrMsg
@@ -306,7 +306,7 @@ func GetACLService(ec *EaaClient, app_uuid_url string) (*AppService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app services: %w", err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrAppServicesGet, desc)
 		return nil, appServiceErrMsg
@@ -458,7 +458,7 @@ func GetAccessControlRules(ec *EaaClient, service_uuid_url string) (*ACLRulesRes
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access control rules: %w", err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrAppServicesGet, desc)
 		return nil, appServiceErrMsg

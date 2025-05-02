@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrAppCategoriesGet = errors.New("AppCategories get failed")
+	ErrAppCategoriesGet = errors.New("appCategories get failed")
 )
 
 type AppCategory struct {

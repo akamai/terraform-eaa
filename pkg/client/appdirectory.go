@@ -65,7 +65,7 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 		ec.Logger.Error("assign directories to application failed. err", err)
 		return err
 	}
-	if !(appDirResp.StatusCode >= http.StatusOK && appDirResp.StatusCode < http.StatusMultipleChoices) {
+	if appDirResp.StatusCode < http.StatusOK || appDirResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appDirResp)
 		assignDirErrMsg := fmt.Errorf("%w: %s", ErrAssignDirectoryFailure, desc)
 		ec.Logger.Error("assign directories to application failed. appDirResp.StatusCode", appDirResp.StatusCode)
@@ -138,7 +138,7 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		ec.Logger.Error("assign groups to application failed. err", err)
 		return err
 	}
-	if !(appGroupResp.StatusCode >= http.StatusOK && appGroupResp.StatusCode < http.StatusMultipleChoices) {
+	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appGroupResp)
 		assignGrpErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
 		ec.Logger.Error("assign groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)
@@ -183,7 +183,7 @@ func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *
 		ec.Logger.Error("assign directory groups to application failed. err", err)
 		return err
 	}
-	if !(appGroupResp.StatusCode >= http.StatusOK && appGroupResp.StatusCode < http.StatusMultipleChoices) {
+	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appGroupResp)
 		appGroupErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
 		ec.Logger.Error("assign directory groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)

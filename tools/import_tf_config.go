@@ -114,7 +114,7 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 				return err
 			}
 
-			if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+			if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 				desc, _ := FormatErrorResponse(getResp)
 				getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 				return getAppErrMsg
@@ -150,7 +150,11 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 			fmt.Println("Error creating file:", err)
 			return err
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				fmt.Printf("Error closing file: %v", err)
+			}
+		}()
 		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)
 		if err != nil {
 			fmt.Println("Error writing provider block to file:", err)
