@@ -79,12 +79,12 @@ resource "eaa_application" "tfappname" {
 
   agents = ["agent1", "agent2"] /* List of connectors assigned to application */
 
-  auth_enabled = "true" /* is app authentication enabled *
+  auth_enabled = "true" /* is app authentication enabled */
   
   app_authentication {
     app_idp = "enterprise-idp" /* name of IDP assigned to app */
     
-    app_directories { /* List of directories assigned to the application *?
+    app_directories { /* List of directories assigned to the application */
       name = "Cloud Directory"
       app_groups { /* List of groups under the directory that are assigned to the applicaion */
         name = "group-1"
@@ -98,7 +98,7 @@ resource "eaa_application" "tfappname" {
 
 advanced_settings {
       is_ssl_verification_enabled = "false" /* is the connector verifying the origin server certificate */
-      ignore_cname_resolution = "true" /* if the end user is accessing the application through Akamai CDN, which connects to the EAA cloud *
+      ignore_cname_resolution = "true" /* if the end user is accessing the application through Akamai CDN, which connects to the EAA cloud */
       g2o_enabled = "true" /* Is G2O enabled */
 }
 
