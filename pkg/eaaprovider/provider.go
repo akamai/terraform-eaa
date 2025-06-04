@@ -40,6 +40,7 @@ func Provider() *schema.Provider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"eaa_application": resourceEaaApplication(),
+			"eaa_connector":   resourceEaaConnector(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"eaa_data_source_pops":          dataSourcePops(),
@@ -88,7 +89,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 func Client(meta interface{}) (*client.EaaClient, error) {
 	eaaClient, ok := meta.(*client.EaaClient)
 	if !ok {
-		return nil, fmt.Errorf("Invalid client")
+		return nil, fmt.Errorf("invalid client")
 	}
 
 	return eaaClient, nil

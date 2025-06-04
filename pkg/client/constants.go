@@ -59,7 +59,7 @@ func (d Domain) ToInt() (int, error) {
 	case AppDomainWapp:
 		return int(APP_DOMAIN_WAPP), nil
 	default:
-		return 0, errors.New("Unknown domain value")
+		return 0, errors.New("unknown domain value")
 	}
 }
 
@@ -77,7 +77,7 @@ func (cam DomainInt) String() (string, error) {
 	case APP_DOMAIN_WAPP:
 		return string(AppDomainWapp), nil
 	default:
-		return "", errors.New("Unknown domain value")
+		return "", errors.New("unknown domain value")
 	}
 }
 
@@ -116,7 +116,7 @@ func (ap AppProfile) ToInt() (int, error) {
 	case AppProfileTCP:
 		return int(APP_PROFILE_TCP), nil
 	default:
-		return 0, errors.New("Unknown App_Profile value")
+		return 0, errors.New("unknown App_Profile value")
 	}
 }
 
@@ -155,7 +155,7 @@ func (cam AppProfileInt) String() (string, error) {
 	case APP_PROFILE_TCP:
 		return string(AppProfileTCP), nil
 	default:
-		return "", errors.New("Unknown app_profile value")
+		return "", errors.New("unknown app_profile value")
 	}
 }
 
@@ -173,7 +173,7 @@ func (cam ClientAppMode) ToInt() (int, error) {
 	case ClientAppModeTunnel:
 		return int(CLIENT_APP_MODE_TUNNEL), nil
 	default:
-		return 0, errors.New("Unknown ClientAppMode value")
+		return 0, errors.New("unknown ClientAppMode value")
 	}
 }
 
@@ -191,7 +191,7 @@ func (cam ClientAppModeInt) String() (string, error) {
 	case CLIENT_APP_MODE_TUNNEL:
 		return string(ClientAppModeTunnel), nil
 	default:
-		return "", errors.New("Unknown ClientAppMode value")
+		return "", errors.New("unknown ClientAppMode value")
 	}
 }
 
@@ -215,7 +215,7 @@ func (cat ClientAppType) ToInt() (int, error) {
 	case ClientAppTypeTunnel:
 		return int(APP_TYPE_TUNNEL), nil
 	default:
-		return 0, errors.New("Unknown ClientAppType value")
+		return 0, errors.New("unknown ClientAppType value")
 	}
 }
 
@@ -239,7 +239,7 @@ func (cat ClientAppTypeInt) String() (string, error) {
 	case APP_TYPE_TUNNEL:
 		return string(ClientAppTypeTunnel), nil
 	default:
-		return "", errors.New("Unknown ClientAppType value")
+		return "", errors.New("unknown ClientAppType value")
 	}
 }
 
@@ -318,7 +318,7 @@ func (s ServiceType) ToInt() (int, error) {
 	case ServiceTypeRewrite:
 		return int(SERVICE_TYPE_REWRITE), nil
 	default:
-		return 0, errors.New("Unknown service type value")
+		return 0, errors.New("unknown service type value")
 	}
 }
 
@@ -343,3 +343,144 @@ const (
 	RULE_ON              = "on"
 	RULE_OFF             = "off"
 )
+
+type ConnPackageType string
+
+const (
+	ConnPackageTypeVmware     ConnPackageType = "vmware"
+	ConnPackageTypeVbox       ConnPackageType = "vbox"
+	ConnPackageTypeAWS        ConnPackageType = "aws"
+	ConnPackageTypeKVM        ConnPackageType = "kvm"
+	ConnPackageTypeHyperv     ConnPackageType = "hyperv"
+	ConnPackageTypeDocker     ConnPackageType = "docker"
+	ConnPackageTypeAWSClassic ConnPackageType = "aws_classic"
+	ConnPackageTypeAzure      ConnPackageType = "azure"
+	ConnPackageTypeGoogle     ConnPackageType = "google"
+	ConnPackageTypeSoftLayer  ConnPackageType = "softlayer"
+	ConnPackageTypeFujitsu_k5 ConnPackageType = "fujitsu_k5"
+)
+
+func (cat ConnPackageType) ToInt() (int, error) {
+	switch cat {
+	case ConnPackageTypeVmware:
+		return int(AGENT_PACKAGE_VMWARE), nil
+	case ConnPackageTypeVbox:
+		return int(AGENT_PACKAGE_VBOX), nil
+	case ConnPackageTypeAWS:
+		return int(AGENT_PACKAGE_AWS), nil
+	case ConnPackageTypeKVM:
+		return int(AGENT_PACKAGE_KVM), nil
+	case ConnPackageTypeHyperv:
+		return int(AGENT_PACKAGE_HYPERV), nil
+	case ConnPackageTypeDocker:
+		return int(AGENT_PACKAGE_DOCKER), nil
+	case ConnPackageTypeAWSClassic:
+		return int(AGENT_PACKAGE_AWS_CLASSIC), nil
+	case ConnPackageTypeAzure:
+		return int(AGENT_PACKAGE_AZURE), nil
+	case ConnPackageTypeGoogle:
+		return int(AGENT_PACKAGE_GOOGLE), nil
+	case ConnPackageTypeSoftLayer:
+		return int(AGENT_PACKAGE_SOFTLAYER), nil
+	case ConnPackageTypeFujitsu_k5:
+		return int(AGENT_PACKAGE_FUJITSU_K5), nil
+	default:
+		return 0, errors.New("unknown connector package value")
+	}
+}
+
+type ConnPackageTypeInt int
+
+const (
+	AGENT_PACKAGE_VMWARE ConnPackageTypeInt = 1 + iota
+	AGENT_PACKAGE_VBOX
+	AGENT_PACKAGE_AWS
+	AGENT_PACKAGE_KVM
+	AGENT_PACKAGE_HYPERV
+	AGENT_PACKAGE_DOCKER
+	AGENT_PACKAGE_AWS_CLASSIC
+	AGENT_PACKAGE_AZURE
+	AGENT_PACKAGE_GOOGLE
+	AGENT_PACKAGE_SOFTLAYER
+	AGENT_PACKAGE_FUJITSU_K5
+)
+
+func (cat ConnPackageTypeInt) String() (string, error) {
+	switch cat {
+	case AGENT_PACKAGE_VMWARE:
+		return string(ConnPackageTypeVmware), nil
+	case AGENT_PACKAGE_VBOX:
+		return string(ConnPackageTypeVbox), nil
+	case AGENT_PACKAGE_AWS:
+		return string(ConnPackageTypeAWS), nil
+	case AGENT_PACKAGE_KVM:
+		return string(ConnPackageTypeKVM), nil
+	case AGENT_PACKAGE_HYPERV:
+		return string(ConnPackageTypeHyperv), nil
+	case AGENT_PACKAGE_DOCKER:
+		return string(ConnPackageTypeDocker), nil
+	case AGENT_PACKAGE_AWS_CLASSIC:
+		return string(ConnPackageTypeAWSClassic), nil
+	case AGENT_PACKAGE_AZURE:
+		return string(ConnPackageTypeAzure), nil
+	case AGENT_PACKAGE_GOOGLE:
+		return string(ConnPackageTypeGoogle), nil
+	case AGENT_PACKAGE_SOFTLAYER:
+		return string(ConnPackageTypeSoftLayer), nil
+	case AGENT_PACKAGE_FUJITSU_K5:
+		return string(ConnPackageTypeFujitsu_k5), nil
+	default:
+		return "", errors.New("unknown connector package value")
+	}
+}
+
+type ConnPackageState string
+
+const (
+	ConnPackageStateNotCreated    ConnPackageState = "not_created "
+	ConnPackageStateCreated       ConnPackageState = "created"
+	ConnPackageStateNotInstalled  ConnPackageState = "not_installed"
+	ConnPackageStateNotVerified   ConnPackageState = "not_verified"
+	ConnPackageStateVerified      ConnPackageState = "verified"
+	ConnPackageStateUnenrolled    ConnPackageState = "unenrolled"
+	ConnPackageStateEnrolled      ConnPackageState = "enrolled"
+	ConnPackageStateNotConfigured ConnPackageState = "not_configured"
+	ConnPackageStateConfigured    ConnPackageState = "configured"
+)
+
+type ConnPackageStateInt int
+
+const (
+	AGENT_STATE_NOT_CREATED = 0 + iota
+	AGENT_STATE_CREATED
+	AGENT_STATE_NOT_INSTALLED
+	AGENT_STATE_NOT_VERIFIED
+	AGENT_STATE_VERIFIED
+	AGENT_STATE_UNENROLLED
+	AGENT_STATE_ENROLLED
+	AGENT_STATE_NOT_CONFIGURED
+	AGENT_STATE_CONFIGURED
+)
+
+func (cat ConnPackageStateInt) String() (string, error) {
+	switch cat {
+	case AGENT_STATE_NOT_CREATED:
+		return string(ConnPackageStateNotCreated), nil
+	case AGENT_STATE_CREATED:
+		return string(ConnPackageStateCreated), nil
+	case AGENT_STATE_NOT_INSTALLED:
+		return string(ConnPackageStateNotInstalled), nil
+	case AGENT_STATE_NOT_VERIFIED:
+		return string(ConnPackageStateNotVerified), nil
+	case AGENT_STATE_VERIFIED:
+		return string(ConnPackageStateVerified), nil
+	case AGENT_STATE_UNENROLLED:
+		return string(ConnPackageStateUnenrolled), nil
+	case AGENT_STATE_NOT_CONFIGURED:
+		return string(ConnPackageStateNotConfigured), nil
+	case AGENT_STATE_CONFIGURED:
+		return string(ConnPackageStateConfigured), nil
+	default:
+		return "", errors.New("unknown connector state value")
+	}
+}

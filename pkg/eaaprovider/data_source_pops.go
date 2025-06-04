@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrPopsGet = errors.New("Pops get failed")
+	ErrPopsGet = errors.New("pops get failed")
 )
 
 func dataSourcePops() *schema.Resource {

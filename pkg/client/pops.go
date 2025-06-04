@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrPopsGet = errors.New("Pops get failed")
+	ErrPopsGet = errors.New("pops get failed")
 )
 
 type Pop struct {
@@ -48,7 +48,7 @@ func GetPops(ec *EaaClient) ([]Pop, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		getPopsErrMsg := fmt.Errorf("%w: %s", ErrPopsGet, desc)
 		return nil, getPopsErrMsg

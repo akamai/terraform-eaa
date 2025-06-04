@@ -26,7 +26,7 @@ func (ai *AppIdp) AssignIDP(ec *EaaClient) error {
 		ec.Logger.Error("assign IDP to Application failed. err", err)
 		return err
 	}
-	if !(appIdpResp.StatusCode >= http.StatusOK && appIdpResp.StatusCode < http.StatusMultipleChoices) {
+	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appIdpResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
 		ec.Logger.Error("assigning IDP to Application failed. appIdpResp.StatusCode", appIdpResp.StatusCode)
@@ -58,7 +58,7 @@ func (ai *AppIdp) UnAssignIDP(ec *EaaClient) error {
 		ec.Logger.Error("unassign IDP to Application failed. err", err)
 		return err
 	}
-	if !(appIdpResp.StatusCode >= http.StatusOK && appIdpResp.StatusCode < http.StatusMultipleChoices) {
+	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appIdpResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
 		ec.Logger.Error("unassigning IDP to Application failed. appIdpResp.StatusCode", appIdpResp.StatusCode)

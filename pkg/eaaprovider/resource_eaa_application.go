@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 var (
@@ -200,24 +202,28 @@ func resourceEaaApplication() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"is_ssl_verification_enabled": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"edge_authentication_enabled": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"ignore_cname_resolution": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"g2o_enabled": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"g2o_nonce": {
 							Type:     schema.TypeString,
@@ -245,14 +251,16 @@ func resourceEaaApplication() *schema.Resource {
 							Default:  "0",
 						},
 						"ip_access_allow": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"wildcard_internal_hostname": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "false",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
 						},
 						"edge_cookie_key": {
 							Type:     schema.TypeString,
@@ -264,9 +272,89 @@ func resourceEaaApplication() *schema.Resource {
 							Optional: true,
 							Computed: true,
 						},
+						"websocket_enabled": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
+						},
+						"sticky_agent": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
+						},
+						"sentry_redirect_401": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "off",
+							ValidateFunc: validation.StringInSlice([]string{"on", "off"}, false),
+						},
+						"app_cookie_domain": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"logout_url": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"allow_cors": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "false",
+							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
+						},
+						"cors_origin_list": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "unbounded",
+						},
+						"cors_method_list": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "unbounded",
+						},
+						"cors_header_list": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "unbounded",
+						},
+						"cors_max_age": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  86400,
+						},
+						"cors_support_credential": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      "on",
+							ValidateFunc: validation.StringInSlice([]string{"on", "off"}, false),
+						},
+						"custom_headers": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"attribute_type": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										ValidateFunc: validation.StringInSlice([]string{"user", "group", "clientip", "fixed", "custom"}, false),
+									},
+									"attribute": {
+										Type:     schema.TypeString,
+										Optional: true,
+									},
+									"header": {
+										Type:     schema.TypeString,
+										Optional: true,
+									},
+								},
+							},
+						},
 					},
 				},
 			},
+
 			"service": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -528,7 +616,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 		return diag.FromErr(getAppErrMsg)
@@ -645,6 +733,31 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		"internal_host_port":         appResp.AdvancedSettings.InternalHostPort,
 		"wildcard_internal_hostname": appResp.AdvancedSettings.WildcardInternalHostname,
 		"ip_access_allow":            appResp.AdvancedSettings.IPAccessAllow,
+
+		"allow_cors":              appResp.AdvancedSettings.AllowCORS,
+		"cors_origin_list":        appResp.AdvancedSettings.CORSOriginList,
+		"cors_method_list":        appResp.AdvancedSettings.CORSMethodList,
+		"cors_header_list":        appResp.AdvancedSettings.CORSHeaderList,
+		"cors_support_credential": appResp.AdvancedSettings.CORSSupportCredential,
+
+		"websocket_enabled":   appResp.AdvancedSettings.WebSocketEnabled,
+		"sticky_agent":        appResp.AdvancedSettings.StickyAgent,
+		"app_cookie_domain":   appResp.AdvancedSettings.AppCookieDomain,
+		"logout_url":          appResp.AdvancedSettings.LogoutURL,
+		"sentry_redirect_401": appResp.AdvancedSettings.SentryRedirect401,
+	}
+	var corsAge int
+	corsAge, err = strconv.Atoi(appResp.AdvancedSettings.CORSMaxAge)
+	if err != nil {
+		advSettings[0]["cors_max_age"] = corsAge
+	}
+	custom_headers := make([]map[string]interface{}, len(appResp.AdvancedSettings.CustomHeaders))
+	for i, ch := range appResp.AdvancedSettings.CustomHeaders {
+		custom_headers[i] = map[string]interface{}{
+			"attribute_type": ch.AttributeType,
+			"header":         ch.Header,
+			"attribute":      ch.Attribute,
+		}
 	}
 
 	err = d.Set("advanced_settings", advSettings)
@@ -652,7 +765,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
-	appAgents, err := appResp.Application.GetAppAgents(eaaclient)
+	appAgents, err := appResp.GetAppAgents(eaaclient)
 	if err == nil {
 		err = d.Set("agents", appAgents)
 		if err != nil {
@@ -660,7 +773,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 	if appResp.AuthEnabled == "true" {
-		appAuthData, err := appResp.Application.CreateAppAuthenticationStruct(eaaclient)
+		appAuthData, err := appResp.CreateAppAuthenticationStruct(eaaclient)
 		if err == nil {
 			err = d.Set("app_authentication", appAuthData)
 			if err != nil {
@@ -711,7 +824,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 		return diag.FromErr(getAppErrMsg)
@@ -901,7 +1014,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	err = appUpdateReq.Application.DeployApplication(eaaclient)
+	err = appUpdateReq.DeployApplication(eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -922,7 +1035,7 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 		return diag.FromErr(getAppErrMsg)

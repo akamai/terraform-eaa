@@ -92,12 +92,18 @@ func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedS
 		deltaField := deltaVal.Field(i)
 		completeField := completeVal.FieldByName(deltaVal.Type().Field(i).Name)
 
-		// Check if the field is set and is of type string or *string
-		if deltaField.IsValid() && completeField.IsValid() && completeField.CanSet() &&
-			(completeField.Kind() == reflect.String || completeField.Kind() == reflect.Ptr) {
+		if !deltaField.IsValid() || !completeField.IsValid() || !completeField.CanSet() {
+			continue
+		}
+
+		if completeField.Kind() == reflect.String || completeField.Kind() == reflect.Ptr {
 			if deltaField.Kind() == reflect.Ptr && !deltaField.IsNil() {
 				completeField.Set(deltaField)
 			} else if deltaField.Kind() == reflect.String {
+				completeField.Set(deltaField)
+			}
+		} else if completeField.Kind() == reflect.Slice {
+			if deltaField.IsValid() && deltaField.Kind() == reflect.Slice && !deltaField.IsNil() {
 				completeField.Set(deltaField)
 			}
 		}

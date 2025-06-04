@@ -45,6 +45,20 @@ This resource supports the following arguments:
   * x_wapp_read_timeout - (Required for Tunnel apps)
   * internal_hostname - internal host name
   * internal_host_port - internal host port
+  * allow_cors - (Optional) allows HTTP applications to make cross-origin resource sharing calls to other applications.
+  * cors_origin_list - (Optional) space delimited list of hosts that can access this application if allow_cors is enabled.
+  * cors_method_list - (Optional) space delimited list of HTTP methods that can be sent to this application if allow_cors is enabled.
+  * cors_header_list - (Optional) space delimited list of HTTP headers that can be sent to this application if allow_cors is enabled.
+  * cors_support_credential - (Optional) allows requests that are made with credentials if allow_cors is enabled.
+  * cors_max_age - (Optional) - duration (in seconds) for which an allowed host's pre-flight request is cached and trust is maintained by the application, if allow_cors is enabled.
+  * websocket_enabled - (Optional) - controls if the HTTP application uses websockets for HTTP transport.
+  * sticky_agent - (Optional) - controls if the requests always get routed to the same connector.
+  * app_cookie_domain - (Optional) - allows to configure common SSO domain.
+  * logout_url - (Optional) - URL that is triggered when the user is logged out of this application.
+  * sentry_redirect_401 - (Optional) - select this if the application is unable to handle HTTP 302 redirect to validate the logged-in user's session.
+  * custom_headers - (Optional) - headers to insert and forward to the origin application.
+
+
 * ```app_operational``` - (Computed) if the app is operational	
 * ```app_status```  - (Computed) status of the app
 * ```app_deployed``` - (Computed) is the app deployed	
