@@ -22,6 +22,11 @@ const (
 	IDP_URL            = "crux/v1/mgmt-pop/idp"
 	CERTIFICATES_URL   = "crux/v1/mgmt-pop/certificates"
 	SERVICES_URL       = "crux/v1/mgmt-pop/services"
+	CONNECTOR_POOLS_URL = "crux/v1/zt/connector-pools"
+	CONNECTOR_POOLS_GET_URL = "/crux/v1/mgmt-pop/connector-pools"
+	APP_ACCESS_GROUPS_URL = "crux/v1/mgmt-pop/app-access-groups"
+	REGISTRATION_TOKEN_URL = "crux/v1/zt/registration-token"
+	REGISTRATION_TOKEN_GET_URL = "crux/v3/mgmt-pop/registrationtokens"
 	URL_SCHEME         = "https"
 )
 
@@ -40,6 +45,9 @@ var (
 	ErrDeploy                 = errors.New("app deploy failed")
 	ErrAssignGroupFailure     = errors.New("assigning groups to the app failed")
 	ErrGetApp                 = errors.New("app deploy failed")
+
+	ErrAgentAssociationCreate = errors.New("agent association create failed")
+	ErrAgentAssociationDelete = errors.New("agent association delete failed")
 
 	ErrInvalidType  = errors.New("value must be of the specified type")
 	ErrInvalidValue = errors.New("invalid value for a key")

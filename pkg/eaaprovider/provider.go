@@ -41,12 +41,17 @@ func Provider() *schema.Provider {
 		ResourcesMap: map[string]*schema.Resource{
 			"eaa_application": resourceEaaApplication(),
 			"eaa_connector":   resourceEaaConnector(),
+			"eaa_connector_pool": resourceEaaConnectorPool(),
+			"eaa_registration_token": resourceEaaRegistrationToken(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"eaa_data_source_pops":          dataSourcePops(),
 			"eaa_data_source_appcategories": dataSourceAppCategories(),
 			"eaa_data_source_agents":        dataSourceAgents(),
 			"eaa_data_source_idps":          dataSourceIdps(),
+			"eaa_connector_pool":            dataSourceEaaConnectorPool(),
+			"eaa_app_access_groups":         dataSourceAppAccessGroups(),
+			"eaa_registration_tokens":       dataSourceRegistrationTokens(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}
