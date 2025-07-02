@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "eaa" {
-    contractid       = "XXXXXXX"
+    contractid       = "XX"
     edgerc           = ".edgerc"
 }
 
