@@ -198,6 +198,7 @@ type Connector struct {
 	Region             *string `json:"region,omitempty"`
 	State              int     `json:"state,omitempty"`
 	Status             int     `json:"status,omitempty"`
+	ConnectorPool       *ConnectorPool        `json:"connector_pool,omitempty"`
 	Subnet             *string `json:"subnet,omitempty"`
 	Timezone           *string `json:"tz,omitempty"`
 	UnificationStatus  int     `json:"unification_status,omitempty"`
@@ -248,6 +249,7 @@ func GetAgents(ec *EaaClient) ([]Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+	
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
