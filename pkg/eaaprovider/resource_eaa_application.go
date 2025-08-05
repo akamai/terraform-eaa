@@ -485,9 +485,8 @@ func resourceEaaApplication() *schema.Resource {
 							},
 						},
 						"attrmap": {
-							Type:         schema.TypeList,
-							Optional:     true,
-							ValidateFunc: validateWSFEDAttrmapBlock,
+							Type:     schema.TypeList,
+							Optional: true,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
 									"name": {
