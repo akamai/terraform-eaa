@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "eaa" {
-  contractid       = "XXXXXXX"
+  contractid       = "W-Y0Q4V8"
   edgerc           = ".edgerc"
 }
 
@@ -24,9 +24,9 @@ resource "eaa_application" "jira-app" {
     popregion    = "us-east-1"
     domain = "wapp"
 
-    name         = "JIRA Application"
-    description  = "Web-based JIRA app created using terraform"
-    host         = "jira-app" /* Application Name */
+    name         = "App All Subject Types Test 2025"
+    description  = "Testing all subject types and configurations"
+    host         = "app-all-subject-types-test-2025" /* Application Name */
 
     agents = ["EAA_DC1_US1_Access_01"]
 
@@ -51,6 +51,7 @@ resource "eaa_application" "jira-app" {
         websocket_enabled = "false"
         sentry_redirect_401 = "off"
         logout_url = "logout_url"
+        app_auth = "SAML2.0"
         custom_headers {
             attribute_type = "custom"
             header = "myheader"
@@ -65,7 +66,7 @@ resource "eaa_application" "jira-app" {
     auth_enabled = "true"
 
     app_authentication {
-        app_idp = "employees-idp"
+        app_idp = "Philippine Charity Sweepstakes Office"
 
         app_directories {
             name = "Cloud Directory"
@@ -77,7 +78,6 @@ resource "eaa_application" "jira-app" {
             }
         }
     }
-
     service {
         service_type = "access"
         status = "on"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -162,10 +163,13 @@ type Application struct {
 	RDPVersion             string  `json:"rdp_version"`
 	SupportedClientVersion int     `json:"supported_client_version"`
 
-	SAML              bool `json:"saml"`
-	Oidc              bool `json:"oidc"`
-	FQDNBridgeEnabled bool `json:"fqdn_bridge_enabled"`
-	WSFED             bool `json:"wsfed"`
+	SAML              bool        `json:"saml"`
+	SAMLSettings      []SAMLConfig `json:"saml_settings,omitempty"`
+	Oidc              bool        `json:"oidc"`
+	OIDCSettings      *OIDCConfig `json:"oidc_settings,omitempty"`
+	FQDNBridgeEnabled bool        `json:"fqdn_bridge_enabled"`
+	WSFED             bool        `json:"wsfed"`
+	WSFEDSettings     []WSFEDConfig `json:"wsfed_settings,omitempty"`
 }
 
 func (app *Application) FromResponse(ar *ApplicationResponse) {
@@ -224,6 +228,7 @@ func (app *Application) FromResponse(ar *ApplicationResponse) {
 	app.SupportedClientVersion = ar.SupportedClientVersion
 
 	app.SAML = ar.SAML
+	app.SAMLSettings = ar.SAMLSettings
 	app.Oidc = ar.Oidc
 	app.FQDNBridgeEnabled = ar.FQDNBridgeEnabled
 	app.WSFED = ar.WSFED
@@ -303,6 +308,9 @@ type ApplicationUpdateRequest struct {
 	Application
 	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
 	Domain           string                    `json:"domain"`
+	SAMLSettings     []SAMLConfig              `json:"saml_settings,omitempty"`
+	WSFEDSettings    []WSFEDConfig             `json:"wsfed_settings,omitempty"`
+	OIDCSettings     *OIDCConfig               `json:"oidc_settings,omitempty"`
 }
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -472,6 +480,88 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 							}
 						}
 
+						// Handle app_auth field
+						if app_auth, ok := advSettingsData["app_auth"].(string); ok {
+							// Handle special authentication types that require setting boolean flags
+							switch app_auth {
+							case "SAML2.0":
+								// For SAML2.0, set app_auth to "none" in payload
+								advSettings.AppAuth = "none"
+								appUpdateReq.SAML = true
+								appUpdateReq.Oidc = false
+								appUpdateReq.WSFED = false
+							case "oidc", "OpenID Connect 1.0":
+								// For oidc, set app_auth to "oidc" in payload and oidc = true
+								advSettings.AppAuth = "oidc"
+								appUpdateReq.SAML = false
+								appUpdateReq.Oidc = true
+								appUpdateReq.WSFED = false
+							case "wsfed", "WS-Federation":
+								// For wsfed, include app_auth in payload
+								advSettings.AppAuth = "none"
+								appUpdateReq.SAML = false
+								appUpdateReq.Oidc = false
+								appUpdateReq.WSFED = true
+							default:
+								// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
+								advSettings.AppAuth = app_auth
+								appUpdateReq.SAML = false
+								appUpdateReq.Oidc = false
+								appUpdateReq.WSFED = false
+							}
+						}
+
+						// Handle wapp_auth field
+						if wapp_auth, ok := advSettingsData["wapp_auth"].(string); ok {
+							advSettings.WappAuth = wapp_auth
+						} else {
+							// Default to "form" if not provided
+							advSettings.WappAuth = "form"
+						}
+
+						// Handle JWT-specific fields
+						if jwt_issuers, ok := advSettingsData["jwt_issuers"].(string); ok {
+							advSettings.JWTIssuers = jwt_issuers
+						}
+						if jwt_audience, ok := advSettingsData["jwt_audience"].(string); ok {
+							advSettings.JWTAudience = jwt_audience
+						}
+						if jwt_grace_period, ok := advSettingsData["jwt_grace_period"].(string); ok {
+							advSettings.JWTGracePeriod = jwt_grace_period
+						} else {
+							// Default to "60" if not provided
+							advSettings.JWTGracePeriod = "60"
+						}
+						if jwt_return_option, ok := advSettingsData["jwt_return_option"].(string); ok {
+							advSettings.JWTReturnOption = jwt_return_option
+						} else {
+							// Default to "401" if not provided
+							advSettings.JWTReturnOption = "401"
+						}
+						if jwt_username, ok := advSettingsData["jwt_username"].(string); ok {
+							advSettings.JWTUsername = jwt_username
+						}
+						if jwt_return_url, ok := advSettingsData["jwt_return_url"].(string); ok {
+							advSettings.JWTReturnURL = jwt_return_url
+						}
+
+						// Handle Kerberos-specific fields
+						if app_auth_domain, ok := advSettingsData["app_auth_domain"].(string); ok {
+							advSettings.AppAuthDomain = app_auth_domain
+						}
+						if app_client_cert_auth, ok := advSettingsData["app_client_cert_auth"].(string); ok {
+							advSettings.AppClientCertAuth = app_client_cert_auth
+						}
+						if forward_ticket_granting_ticket, ok := advSettingsData["forward_ticket_granting_ticket"].(string); ok {
+							advSettings.ForwardTicketGrantingTicket = forward_ticket_granting_ticket
+						}
+						if keytab, ok := advSettingsData["keytab"].(string); ok {
+							advSettings.Keytab = keytab
+						}
+						if service_principal_name, ok := advSettingsData["service_principal_name"].(string); ok {
+							advSettings.ServicePrincipalName = service_principal_name
+						}
+
 						UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
 
 						// appUpdateReq.AdvancedSettings = advSettings
@@ -479,6 +569,636 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				}
 			}
 		}
+
+		// Handle SAML settings - always create structure when app_auth = "SAML2.0"
+		var samlConfigs []SAMLConfig
+		
+		if samlSettingsData, ok := d.GetOk("saml_settings"); ok {
+			// User provided saml_settings - use their values
+			samlSettingsList := samlSettingsData.([]interface{})
+			if len(samlSettingsList) > 0 {
+				for _, samlSetting := range samlSettingsList {
+					samlSettings := samlSetting.(map[string]interface{})
+					
+					samlConfig := SAMLConfig{}
+
+					// Process SP (Service Provider) settings
+					if spData, ok := samlSettings["sp"].([]interface{}); ok && len(spData) > 0 {
+						sp := spData[0].(map[string]interface{})
+						
+						spConfig := SPConfig{}
+
+						// Handle mandatory fields - always include them
+						if entityID, ok := sp["entity_id"].(string); ok {
+							spConfig.EntityID = entityID
+						} else {
+							spConfig.EntityID = "" // default value
+						}
+						if acsURL, ok := sp["acs_url"].(string); ok {
+							spConfig.ACSURL = acsURL
+						} else {
+							spConfig.ACSURL = "" // default value
+						}
+						if sloURL, ok := sp["slo_url"].(string); ok {
+							spConfig.SLOURL = sloURL
+						} else {
+							spConfig.SLOURL = "" // default value
+						}
+						if reqBind, ok := sp["req_bind"].(string); ok {
+							spConfig.ReqBind = reqBind
+						} else {
+							spConfig.ReqBind = "redirect" // default value
+						}
+						if metadata, ok := sp["metadata"].(string); ok {
+							spConfig.Metadata = metadata
+						}
+						if defaultRelayState, ok := sp["default_relay_state"].(string); ok && defaultRelayState != "" {
+							spConfig.DefaultRelayState = &defaultRelayState
+						}
+						// default_relay_state remains nil if not provided (null in JSON)
+						if forceAuth, ok := sp["force_auth"].(bool); ok {
+							spConfig.ForceAuth = forceAuth
+						} else {
+							spConfig.ForceAuth = false // default value
+						}
+						if reqVerify, ok := sp["req_verify"].(bool); ok {
+							spConfig.ReqVerify = reqVerify
+						} else {
+							spConfig.ReqVerify = false // default value
+						}
+						if signCert, ok := sp["sign_cert"].(string); ok {
+							spConfig.SignCert = signCert
+						} else {
+							spConfig.SignCert = "" // default value
+						}
+						if respEncr, ok := sp["resp_encr"].(bool); ok {
+							spConfig.RespEncr = respEncr
+						} else {
+							spConfig.RespEncr = false // default value
+						}
+						if encrCert, ok := sp["encr_cert"].(string); ok {
+							spConfig.EncrCert = encrCert
+						} else {
+							spConfig.EncrCert = "" // default value
+						}
+						if encrAlgo, ok := sp["encr_algo"].(string); ok {
+							spConfig.EncrAlgo = encrAlgo
+						} else {
+							spConfig.EncrAlgo = "aes256-cbc" // default value
+						}
+						if sloReqVerify, ok := sp["slo_req_verify"].(bool); ok {
+							spConfig.SLOReqVerify = sloReqVerify
+						} else {
+							spConfig.SLOReqVerify = true // default value
+						}
+						if dstURL, ok := sp["dst_url"].(string); ok {
+							spConfig.DSTURL = dstURL
+						} else {
+							spConfig.DSTURL = "" // default value
+						}
+						if sloBind, ok := sp["slo_bind"].(string); ok {
+							spConfig.SLOBind = sloBind
+						} else {
+							spConfig.SLOBind = "post" // default value
+						}
+
+						samlConfig.SP = spConfig
+					}
+
+					// Process IDP (Identity Provider) settings
+					if idpData, ok := samlSettings["idp"].([]interface{}); ok && len(idpData) > 0 {
+						idp := idpData[0].(map[string]interface{})
+						
+						idpConfig := IDPConfig{}
+
+						// Handle mandatory fields - always include them
+						if entityID, ok := idp["entity_id"].(string); ok {
+							idpConfig.EntityID = entityID
+						} else {
+							idpConfig.EntityID = "" // default value
+						}
+						if metadata, ok := idp["metadata"].(string); ok {
+							idpConfig.Metadata = metadata
+						} else {
+							idpConfig.Metadata = "" // default value
+						}
+						if signCert, ok := idp["sign_cert"].(string); ok {
+							idpConfig.SignCert = signCert
+						} else {
+							idpConfig.SignCert = "" // default value
+						}
+						if signKey, ok := idp["sign_key"].(string); ok {
+							idpConfig.SignKey = signKey
+						} else {
+							idpConfig.SignKey = "" // default value
+						}
+						if selfSigned, ok := idp["self_signed"].(bool); ok {
+							idpConfig.SelfSigned = selfSigned
+						} else {
+							idpConfig.SelfSigned = true // default value
+						}
+						if signAlgo, ok := idp["sign_algo"].(string); ok {
+							idpConfig.SignAlgo = signAlgo
+						} else {
+							idpConfig.SignAlgo = "SHA256" // default value
+						}
+						if respBind, ok := idp["resp_bind"].(string); ok {
+							idpConfig.RespBind = respBind
+						} else {
+							idpConfig.RespBind = "post" // default value
+						}
+						if sloURL, ok := idp["slo_url"].(string); ok {
+							idpConfig.SLOURL = sloURL
+						} else {
+							idpConfig.SLOURL = "" // default value
+						}
+						if ecpIsEnabled, ok := idp["ecp_enable"].(bool); ok {
+							idpConfig.ECPIsEnabled = ecpIsEnabled
+						} else {
+							idpConfig.ECPIsEnabled = false // default value
+						}
+						if ecpRespSignature, ok := idp["ecp_resp_signature"].(bool); ok {
+							idpConfig.ECPRespSignature = ecpRespSignature
+						} else {
+							idpConfig.ECPRespSignature = false // default value
+						}
+
+						samlConfig.IDP = idpConfig
+					}
+
+					// Process Subject settings
+					if subjectData, ok := samlSettings["subject"].([]interface{}); ok && len(subjectData) > 0 {
+						subject := subjectData[0].(map[string]interface{})
+						
+						subjectConfig := SubjectConfig{}
+
+						if fmt, ok := subject["fmt"].(string); ok {
+							subjectConfig.Fmt = fmt
+						} else {
+							subjectConfig.Fmt = "email" // default value
+						}
+						if src, ok := subject["src"].(string); ok {
+							subjectConfig.Src = src
+						} else {
+							subjectConfig.Src = "user.email" // default value
+						}
+						if val, ok := subject["val"].(string); ok {
+							subjectConfig.Val = val
+						}
+						if rule, ok := subject["rule"].(string); ok {
+							subjectConfig.Rule = rule
+						}
+
+						samlConfig.Subject = subjectConfig
+					}
+
+					// Process Attrmap settings
+					if attrmapData, ok := samlSettings["attrmap"].([]interface{}); ok {
+						var attrMappings []AttrMapping
+						
+						// Process each attrmap item
+						for _, attrItem := range attrmapData {
+							if attrMap, ok := attrItem.(map[string]interface{}); ok {
+								attrMapping := AttrMapping{}
+								
+								if name, ok := attrMap["name"].(string); ok {
+									attrMapping.Name = name
+								}
+								if fname, ok := attrMap["fname"].(string); ok {
+									attrMapping.Fname = fname
+								}
+								if fmt, ok := attrMap["fmt"].(string); ok {
+									attrMapping.Fmt = fmt
+								}
+								if val, ok := attrMap["val"].(string); ok {
+									attrMapping.Val = val
+								}
+								if src, ok := attrMap["src"].(string); ok {
+									attrMapping.Src = src
+								}
+								if rule, ok := attrMap["rule"].(string); ok {
+									attrMapping.Rule = rule
+								}
+								
+								attrMappings = append(attrMappings, attrMapping)
+							}
+						}
+
+						samlConfig.Attrmap = attrMappings
+					}
+
+					samlConfigs = append(samlConfigs, samlConfig)
+				}
+			}
+		} else if appUpdateReq.SAML { // This condition ensures it only runs if app_auth was SAML2.0
+			// No saml_settings provided but app_auth = "SAML2.0" - create default structure
+			// This ensures mandatory SAML fields are always in the payload
+			defaultSAMLConfig := SAMLConfig{
+				SP: SPConfig{
+					EntityID:     "",
+					ACSURL:       "",
+					SLOURL:       "",
+					ReqBind:      "redirect",
+					ForceAuth:    false,
+					ReqVerify:    false,
+					SignCert:     "",
+					RespEncr:     false,
+					EncrCert:     "",
+					EncrAlgo:     "aes256-cbc",
+					SLOReqVerify: true,
+					DSTURL:       "",
+					SLOBind:      "post",
+				},
+				IDP: IDPConfig{
+					EntityID:         "",
+					Metadata:         "",
+					SignCert:         "",
+					SignKey:          "",
+					SelfSigned:       true,
+					SignAlgo:         "SHA256",
+					RespBind:         "post",
+					SLOURL:           "",
+					ECPIsEnabled:     false,
+					ECPRespSignature: false,
+				},
+				Subject: SubjectConfig{
+					Fmt: "email",
+					Src: "user.email",
+				},
+				Attrmap: []AttrMapping{},
+			}
+
+			samlConfigs = append(samlConfigs, defaultSAMLConfig)
+		}
+
+		// Set the SAML settings in the application update request if we have any
+		if len(samlConfigs) > 0 {
+			appUpdateReq.SAMLSettings = samlConfigs
+		}
+	}
+
+	// Handle WS-Federation settings - always create structure when app_auth = "wsfed"
+	var wsfedConfigs []WSFEDConfig
+	
+	if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
+		// User provided wsfed_settings - use their values
+		wsfedSettingsList := wsfedSettingsData.([]interface{})
+		if len(wsfedSettingsList) > 0 {
+			for _, wsfedSetting := range wsfedSettingsList {
+				wsfedSettings := wsfedSetting.(map[string]interface{})
+				
+				wsfedConfig := WSFEDConfig{}
+
+				// Process SP (Service Provider) settings
+				if spData, ok := wsfedSettings["sp"].([]interface{}); ok && len(spData) > 0 {
+					sp := spData[0].(map[string]interface{})
+					
+					spConfig := WSFEDSPConfig{}
+
+					// Handle mandatory fields - always include them
+					if entityID, ok := sp["entity_id"].(string); ok {
+						spConfig.EntityID = entityID
+					} else {
+						spConfig.EntityID = "" // default value
+					}
+					if sloURL, ok := sp["slo_url"].(string); ok {
+						spConfig.SLOURL = sloURL
+					} else {
+						spConfig.SLOURL = "" // default value
+					}
+					if dstURL, ok := sp["dst_url"].(string); ok {
+						spConfig.DSTURL = dstURL
+					} else {
+						spConfig.DSTURL = "" // default value
+					}
+					if respBind, ok := sp["resp_bind"].(string); ok {
+						spConfig.RespBind = respBind
+					} else {
+						spConfig.RespBind = "post" // default value
+					}
+					if tokenLife, ok := sp["token_life"].(int); ok {
+						spConfig.TokenLife = tokenLife
+					} else {
+						spConfig.TokenLife = 3600 // default value
+					}
+					if encrAlgo, ok := sp["encr_algo"].(string); ok {
+						spConfig.EncrAlgo = encrAlgo
+					} else {
+						spConfig.EncrAlgo = "aes256-cbc" // default value
+					}
+
+					wsfedConfig.SP = spConfig
+				}
+
+				// Process IDP (Identity Provider) settings
+				if idpData, ok := wsfedSettings["idp"].([]interface{}); ok && len(idpData) > 0 {
+					idp := idpData[0].(map[string]interface{})
+					
+					idpConfig := WSFEDIDPConfig{}
+
+					if entityID, ok := idp["entity_id"].(string); ok {
+						idpConfig.EntityID = entityID
+					} else {
+						idpConfig.EntityID = "" // default value
+					}
+					if signAlgo, ok := idp["sign_algo"].(string); ok {
+						idpConfig.SignAlgo = signAlgo
+					} else {
+						idpConfig.SignAlgo = "SHA256" // default value
+					}
+					if signCert, ok := idp["sign_cert"].(string); ok {
+						idpConfig.SignCert = signCert
+					} else {
+						idpConfig.SignCert = "" // default value
+					}
+					if signKey, ok := idp["sign_key"].(string); ok {
+						idpConfig.SignKey = signKey
+					} else {
+						idpConfig.SignKey = "" // default value
+					}
+					if selfSigned, ok := idp["self_signed"].(bool); ok {
+						idpConfig.SelfSigned = selfSigned
+					} else {
+						idpConfig.SelfSigned = true // default value
+					}
+
+					wsfedConfig.IDP = idpConfig
+				}
+
+				// Process Subject settings
+				if subjectData, ok := wsfedSettings["subject"].([]interface{}); ok && len(subjectData) > 0 {
+					subject := subjectData[0].(map[string]interface{})
+					
+					subjectConfig := WSFEDSubjectConfig{}
+
+					if fmt, ok := subject["fmt"].(string); ok {
+						subjectConfig.Fmt = fmt
+					} else {
+						subjectConfig.Fmt = "" // default value
+					}
+					if customFmt, ok := subject["custom_fmt"].(string); ok {
+						subjectConfig.CustomFmt = customFmt
+					} else {
+						subjectConfig.CustomFmt = "" // default value
+					}
+					if src, ok := subject["src"].(string); ok {
+						subjectConfig.Src = src
+					} else {
+						subjectConfig.Src = "" // default value
+					}
+					if val, ok := subject["val"].(string); ok {
+						subjectConfig.Val = val
+					} else {
+						subjectConfig.Val = "" // default value
+					}
+					if rule, ok := subject["rule"].(string); ok {
+						subjectConfig.Rule = rule
+					} else {
+						subjectConfig.Rule = "" // default value
+					}
+
+					wsfedConfig.Subject = subjectConfig
+				}
+
+				// Process Attrmap settings
+				if attrmapData, ok := wsfedSettings["attrmap"].([]interface{}); ok {
+					var attrmapList []WSFEDAttrMapping
+					for _, attrmapItem := range attrmapData {
+						if attrmap, ok := attrmapItem.(map[string]interface{}); ok {
+							attrMapping := WSFEDAttrMapping{}
+
+							if name, ok := attrmap["name"].(string); ok {
+								attrMapping.Name = name
+							} else {
+								attrMapping.Name = "" // default value
+							}
+							if fmt, ok := attrmap["fmt"].(string); ok {
+								attrMapping.Fmt = fmt
+							} else {
+								attrMapping.Fmt = "" // default value
+							}
+							if customFmt, ok := attrmap["custom_fmt"].(string); ok {
+								attrMapping.CustomFmt = customFmt
+							} else {
+								attrMapping.CustomFmt = "" // default value
+							}
+							if val, ok := attrmap["val"].(string); ok {
+								attrMapping.Val = val
+							} else {
+								attrMapping.Val = "" // default value
+							}
+							if src, ok := attrmap["src"].(string); ok {
+								attrMapping.Src = src
+							} else {
+								attrMapping.Src = "" // default value
+							}
+							if rule, ok := attrmap["rule"].(string); ok {
+								attrMapping.Rule = rule
+							} else {
+								attrMapping.Rule = "" // default value
+							}
+
+							attrmapList = append(attrmapList, attrMapping)
+						}
+					}
+					wsfedConfig.Attrmap = attrmapList
+				} else {
+					wsfedConfig.Attrmap = []WSFEDAttrMapping{} // empty array
+				}
+
+				wsfedConfigs = append(wsfedConfigs, wsfedConfig)
+			}
+		}
+	} else if appUpdateReq.WSFED { // This condition ensures it only runs if app_auth was wsfed
+		// No wsfed_settings provided but app_auth = "wsfed" - create default structure
+		// This ensures mandatory WS-Federation fields are always in the payload
+		defaultWSFEDConfig := WSFEDConfig{
+			SP: WSFEDSPConfig{
+				EntityID:  "",
+				SLOURL:    "",
+				DSTURL:    "",
+				RespBind:  "post",
+				TokenLife: 3600,
+				EncrAlgo:  "aes256-cbc",
+			},
+			IDP: WSFEDIDPConfig{
+				EntityID:  "",
+				SignAlgo:  "SHA256",
+				SignCert:  "",
+				SignKey:   "",
+				SelfSigned: true,
+			},
+			Subject: WSFEDSubjectConfig{
+				Fmt:       "email",
+				CustomFmt: "",
+				Src:       "user.email",
+				Val:       "",
+				Rule:      "",
+			},
+			Attrmap: []WSFEDAttrMapping{},
+		}
+
+		wsfedConfigs = append(wsfedConfigs, defaultWSFEDConfig)
+	}
+
+	// Set the WS-Federation settings in the application update request if we have any
+	if len(wsfedConfigs) > 0 {
+		appUpdateReq.WSFEDSettings = wsfedConfigs
+	}
+
+	// Handle OIDC settings - always create structure when app_auth = "oidc"
+	var oidcConfig *OIDCConfig
+
+	if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
+		// User provided oidc_settings - use their values
+		oidcSettingsList := oidcSettingsData.([]interface{})
+		if len(oidcSettingsList) > 0 {
+			oidcSettings := oidcSettingsList[0].(map[string]interface{})
+
+			oidcConfig = &OIDCConfig{}
+
+			// Process OIDC clients
+			if oidcClientsData, ok := oidcSettings["oidc_clients"].([]interface{}); ok {
+				var oidcClients []OIDCClient
+				for _, clientData := range oidcClientsData {
+					if client, ok := clientData.(map[string]interface{}); ok {
+						oidcClient := OIDCClient{}
+
+						if clientName, ok := client["client_name"].(string); ok {
+							oidcClient.ClientName = clientName
+						}
+						if clientID, ok := client["client_id"].(string); ok {
+							oidcClient.ClientID = clientID
+						}
+
+						// Process client_secret
+						if clientSecretData, ok := client["client_secret"].([]interface{}); ok {
+							var clientSecrets []OIDCClientSecret
+							for _, secretData := range clientSecretData {
+								if secret, ok := secretData.(map[string]interface{}); ok {
+									clientSecret := OIDCClientSecret{}
+									if timestamp, ok := secret["timestamp"].(string); ok {
+										clientSecret.Timestamp = timestamp
+									}
+									if value, ok := secret["value"].(string); ok {
+										clientSecret.Value = value
+									}
+									clientSecrets = append(clientSecrets, clientSecret)
+								}
+							}
+							oidcClient.ClientSecret = clientSecrets
+						}
+
+						// Process response_type
+						if responseTypeData, ok := client["response_type"].([]interface{}); ok {
+							var responseTypes []string
+							for _, rt := range responseTypeData {
+								if rtStr, ok := rt.(string); ok {
+									responseTypes = append(responseTypes, rtStr)
+								}
+							}
+							oidcClient.ResponseType = responseTypes
+						} else {
+							oidcClient.ResponseType = []string{"code"} // default
+						}
+
+						if implicitGrant, ok := client["implicit_grant"].(bool); ok {
+							oidcClient.ImplicitGrant = implicitGrant
+						}
+
+						if clientType, ok := client["type"].(string); ok {
+							oidcClient.Type = clientType
+						}
+
+						// Process redirect_uris
+						if redirectURIsData, ok := client["redirect_uris"].([]interface{}); ok {
+							var redirectURIs []string
+							for _, uri := range redirectURIsData {
+								if uriStr, ok := uri.(string); ok {
+									redirectURIs = append(redirectURIs, uriStr)
+								}
+							}
+							oidcClient.RedirectURIs = redirectURIs
+						}
+
+						// Process javascript_origins
+						if jsOriginsData, ok := client["javascript_origins"].([]interface{}); ok {
+							var jsOrigins []string
+							for _, origin := range jsOriginsData {
+								if originStr, ok := origin.(string); ok {
+									jsOrigins = append(jsOrigins, originStr)
+								}
+							}
+							oidcClient.JavaScriptOrigins = jsOrigins
+						}
+
+						if logoutURL, ok := client["logout_url"].(string); ok {
+							oidcClient.LogoutURL = logoutURL
+						}
+
+						if logoutSessionRequired, ok := client["logout_session_required"].(bool); ok {
+							oidcClient.LogoutSessionRequired = logoutSessionRequired
+						}
+
+						// Process post_logout_redirect_uri
+						if postLogoutURIsData, ok := client["post_logout_redirect_uri"].([]interface{}); ok {
+							var postLogoutURIs []string
+							for _, uri := range postLogoutURIsData {
+								if uriStr, ok := uri.(string); ok {
+									postLogoutURIs = append(postLogoutURIs, uriStr)
+								}
+							}
+							oidcClient.PostLogoutRedirectURI = postLogoutURIs
+						}
+
+						if metadata, ok := client["metadata"].(string); ok {
+							oidcClient.Metadata = metadata
+						}
+
+						// Process claims
+						if claimsData, ok := client["claims"].([]interface{}); ok {
+							var claims []OIDCClaim
+							for _, claimData := range claimsData {
+								if claim, ok := claimData.(map[string]interface{}); ok {
+									oidcClaim := OIDCClaim{}
+									if name, ok := claim["name"].(string); ok {
+										oidcClaim.Name = name
+									}
+									if scope, ok := claim["scope"].(string); ok {
+										oidcClaim.Scope = scope
+									}
+									if val, ok := claim["val"].(string); ok {
+										oidcClaim.Val = val
+									}
+									if src, ok := claim["src"].(string); ok {
+										oidcClaim.Src = src
+									}
+									if rule, ok := claim["rule"].(string); ok {
+										oidcClaim.Rule = rule
+									}
+									claims = append(claims, oidcClaim)
+								}
+							}
+							oidcClient.Claims = claims
+						}
+
+						oidcClients = append(oidcClients, oidcClient)
+					}
+				}
+				oidcConfig.OIDCClients = oidcClients
+			}
+		}
+	} else if appUpdateReq.Oidc { // This condition ensures it only runs if app_auth was oidc
+		// No oidc_settings provided but app_auth = "oidc" - create empty OIDCConfig
+		// This will result in "oidc_settings": {} in the payload
+		oidcConfig = &OIDCConfig{
+			OIDCClients: []OIDCClient{}, // empty slice
+		}
+	}
+
+	// Set the OIDC settings in the application update request if we have any
+	if oidcConfig != nil {
+		appUpdateReq.OIDCSettings = oidcConfig
 	}
 	appUpdateReq.Servers = []Server{}
 	if servers, ok := d.GetOk("servers"); ok {
@@ -561,7 +1281,6 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	fmt.Printf("%+v\n", appUpdateReq.AdvancedSettings)
 	return nil
 }
-
 func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, d *schema.ResourceData, ctx context.Context) error {
 	ec.Logger.Info("Custom domain")
 
@@ -640,15 +1359,31 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Context, ec *EaaClient) error {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
-	ec.Logger.Info(apiURL)
-	b, _ := json.Marshal(appUpdateReq)
+	ec.Logger.Info("API URL: ", apiURL)
+	
+	// Log the request payload
+	b, _ := json.MarshalIndent(appUpdateReq, "", "  ")
+	fmt.Println("=== REQUEST PAYLOAD ===")
 	fmt.Println(string(b))
+	fmt.Println("=== END REQUEST PAYLOAD ===")
 
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
 		ec.Logger.Error("update application failed. err: ", err)
 		return err
 	}
+	
+	// Log the response
+	fmt.Println("=== RESPONSE STATUS ===")
+	fmt.Printf("Status Code: %d\n", appUpdResp.StatusCode)
+	fmt.Println("=== END RESPONSE STATUS ===")
+	
+	// Log the response body
+	fmt.Println("=== RESPONSE BODY ===")
+	bodyBytes, _ := io.ReadAll(appUpdResp.Body)
+	fmt.Println(string(bodyBytes))
+	fmt.Println("=== END RESPONSE BODY ===")
+	
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
@@ -719,6 +1454,7 @@ type ApplicationResponse struct {
 	RDPVersion             string               `json:"rdp_version"`
 	Resource               string               `json:"resource"`
 	SAML                   bool                 `json:"saml"`
+	SAMLSettings           []SAMLConfig         `json:"saml_settings,omitempty"`
 	Servers                []Server             `json:"servers"`
 	SSLCACert              string               `json:"ssl_ca_cert"`
 	Status                 int                  `json:"status"`
@@ -727,6 +1463,8 @@ type ApplicationResponse struct {
 	TunnelInternalHosts    []TunnelInternalHost `json:"tunnel_internal_hosts"`
 	UUIDURL                string               `json:"uuid_url"` //Id - to do
 	WSFED                  bool                 `json:"wsfed"`
+	WSFEDSettings          []WSFEDConfig        `json:"wsfed_settings,omitempty"`
+	OIDCSettings           *OIDCSettings        `json:"oidc_settings,omitempty"`
 }
 
 type ResourceStatus struct {
@@ -784,6 +1522,19 @@ type AdvancedSettings struct {
 	AppCookieDomain           *string        `json:"app_cookie_domain,omitempty"`
 	LogoutURL                 *string        `json:"logout_url,omitempty"`
 	SentryRedirect401         string         `json:"sentry_redirect_401,omitempty"`
+	AppAuth                   string         `json:"app_auth,omitempty"`
+	WappAuth                  string         `json:"wapp_auth,omitempty"`
+	JWTIssuers                string         `json:"jwt_issuers,omitempty"`
+	JWTAudience                string         `json:"jwt_audience,omitempty"`
+	JWTGracePeriod            string         `json:"jwt_grace_period,omitempty"`
+	JWTReturnOption           string         `json:"jwt_return_option,omitempty"`
+	JWTUsername                string         `json:"jwt_username,omitempty"`
+	JWTReturnURL               string         `json:"jwt_return_url,omitempty"`
+	AppAuthDomain             string         `json:"app_auth_domain,omitempty"`
+	AppClientCertAuth         string         `json:"app_client_cert_auth,omitempty"`
+	ForwardTicketGrantingTicket string       `json:"forward_ticket_granting_ticket,omitempty"`
+	Keytab                    string         `json:"keytab,omitempty"`
+	ServicePrincipalName      string         `json:"service_principal_name,omitempty"`
 	CustomHeaders             []CustomHeader `json:"custom_headers,omitempty"`
 }
 
@@ -800,6 +1551,12 @@ type AdvancedSettings_Complete struct {
 	LoginTimeout                 string         `json:"login_timeout,omitempty"`
 	AppAuth                      string         `json:"app_auth,omitempty"`
 	WappAuth                     string         `json:"wapp_auth,omitempty"`
+	JWTIssuers                   string         `json:"jwt_issuers,omitempty"`
+	JWTAudience                  string         `json:"jwt_audience,omitempty"`
+	JWTGracePeriod               string         `json:"jwt_grace_period,omitempty"`
+	JWTReturnOption              string         `json:"jwt_return_option,omitempty"`
+	JWTUsername                  string         `json:"jwt_username,omitempty"`
+	JWTReturnURL                 string         `json:"jwt_return_url,omitempty"`
 	SSO                          string         `json:"sso,omitempty"`
 	HTTPOnlyCookie               string         `json:"http_only_cookie,omitempty"`
 	RequestBodyRewrite           string         `json:"request_body_rewrite,omitempty"`
@@ -811,7 +1568,7 @@ type AdvancedSettings_Complete struct {
 	HiddenApp                    string         `json:"hidden_app,omitempty"`
 	AppLocation                  *string        `json:"app_location,omitempty"`
 	AppCookieDomain              *string        `json:"app_cookie_domain,omitempty"`
-	AppAuthDomain                *string        `json:"app_auth_domain,omitempty"`
+	AppAuthDomain                string         `json:"app_auth_domain,omitempty"`
 	LoadBalancingMetric          string         `json:"load_balancing_metric,omitempty"`
 	HealthCheckType              string         `json:"health_check_type,omitempty"`
 	HealthCheckHTTPURL           string         `json:"health_check_http_url,omitempty"`
@@ -826,7 +1583,7 @@ type AdvancedSettings_Complete struct {
 	HostKey                      *string        `json:"host_key,omitempty"`
 	UserName                     *string        `json:"user_name,omitempty"`
 	ExternalCookieDomain         *string        `json:"external_cookie_domain,omitempty"`
-	ServicePrincipleName         *string        `json:"service_principle_name,omitempty"`
+	ServicePrincipleName         string         `json:"service_principle_name,omitempty"`
 	ServerCertValidate           string         `json:"server_cert_validate,omitempty"`
 	IgnoreCnameResolution        string         `json:"ignore_cname_resolution,omitempty"`
 	SSHAuditEnabled              string         `json:"ssh_audit_enabled,omitempty"`
@@ -916,10 +1673,142 @@ type OIDCSettings struct {
 	UserinfoEndpoint      string `json:"userinfo_endpoint"`
 }
 
+// Simple SAML configuration object that matches the API expectation
+type SAMLConfig struct {
+	SP      SPConfig      `json:"sp"`
+	IDP     IDPConfig     `json:"idp"`
+	Subject SubjectConfig `json:"subject"`
+	Attrmap []AttrMapping `json:"attrmap"`
+}
+
+type SPConfig struct {
+	EntityID          string  `json:"entity_id"`
+	ACSURL            string  `json:"acs_url"`
+	SLOURL            string  `json:"slo_url"`
+	ReqBind           string  `json:"req_bind"`
+	Metadata          string  `json:"metadata"`
+	DefaultRelayState *string `json:"default_relay_state,omitempty"`
+	ForceAuth         bool    `json:"force_auth"`
+	ReqVerify         bool    `json:"req_verify"`
+	SignCert          string  `json:"sign_cert"`
+	RespEncr          bool    `json:"resp_encr"`
+	EncrCert          string  `json:"encr_cert"`
+	EncrAlgo          string  `json:"encr_algo"`
+	SLOReqVerify      bool    `json:"slo_req_verify"`
+	DSTURL            string  `json:"dst_url"`
+	SLOBind           string  `json:"slo_bind"`
+}
+
+type IDPConfig struct {
+	EntityID         string `json:"entity_id"`
+	Metadata         string `json:"metadata"`
+	SignCert         string `json:"sign_cert"`
+	SignKey          string `json:"sign_key"`
+	SelfSigned       bool   `json:"self_signed"`
+	SignAlgo         string `json:"sign_algo"`
+	RespBind         string `json:"resp_bind"`
+	SLOURL           string `json:"slo_url"`
+	ECPIsEnabled     bool   `json:"ecp_enable"`
+	ECPRespSignature bool   `json:"ecp_resp_signature"`
+}
+
+type SubjectConfig struct {
+	Fmt  string `json:"fmt"`
+	Src  string `json:"src"`
+	Val  string `json:"val"`
+	Rule string `json:"rule"`
+}
+
+type AttrMapping struct {
+	Name  string `json:"name"`
+	Fname string `json:"fname"`
+	Fmt   string `json:"fmt"`
+	Val   string `json:"val"`
+	Src   string `json:"src"`
+	Rule  string `json:"rule"`
+}
+
+// WS-Federation configuration structs
+type WSFEDConfig struct {
+	SP      WSFEDSPConfig      `json:"sp"`
+	IDP     WSFEDIDPConfig     `json:"idp"`
+	Subject WSFEDSubjectConfig `json:"subject"`
+	Attrmap []WSFEDAttrMapping `json:"attrmap"`
+}
+
+type WSFEDSPConfig struct {
+	EntityID  string `json:"entity_id"`
+	SLOURL    string `json:"slo_url"`
+	DSTURL    string `json:"dst_url"`
+	RespBind  string `json:"resp_bind"`
+	TokenLife int    `json:"token_life"`
+	EncrAlgo  string `json:"encr_algo"`
+}
+
+type WSFEDIDPConfig struct {
+	EntityID  string `json:"entity_id"`
+	SignAlgo  string `json:"sign_algo"`
+	SignCert  string `json:"sign_cert"`
+	SignKey   string `json:"sign_key"`
+	SelfSigned bool  `json:"self_signed"`
+}
+
+type WSFEDSubjectConfig struct {
+	Fmt       string `json:"fmt"`
+	CustomFmt string `json:"custom_fmt"`
+	Src       string `json:"src"`
+	Val       string `json:"val"`
+	Rule      string `json:"rule"`
+}
+
+type WSFEDAttrMapping struct {
+	Name      string `json:"name"`
+	Fmt       string `json:"fmt"`
+	CustomFmt string `json:"custom_fmt"`
+	Val       string `json:"val"`
+	Src       string `json:"src"`
+	Rule      string `json:"rule"`
+}
+
+// OIDC configuration structs
+type OIDCConfig struct {
+	OIDCClients []OIDCClient `json:"oidc_clients,omitempty"`
+}
+
+type OIDCClient struct {
+	ClientName                string                    `json:"client_name"`
+	ClientID                  string                    `json:"client_id"`
+	ClientSecret              []OIDCClientSecret        `json:"client_secret"`
+	ResponseType              []string                  `json:"response_type"`
+	ImplicitGrant             bool                      `json:"implicit_grant"`
+	Type                      string                    `json:"type"`
+	RedirectURIs              []string                  `json:"redirect_uris"`
+	JavaScriptOrigins         []string                  `json:"javascript_origins"`
+	LogoutURL                 string                    `json:"logout_url"`
+	LogoutSessionRequired     bool                      `json:"logout_session_required"`
+	PostLogoutRedirectURI     []string                  `json:"post_logout_redirect_uri"`
+	Metadata                  string                    `json:"metadata"`
+	Claims                    []OIDCClaim               `json:"claims"`
+}
+
+type OIDCClientSecret struct {
+	Timestamp string `json:"timestamp"`
+	Value     string `json:"value"`
+}
+
+type OIDCClaim struct {
+	Name  string `json:"name"`
+	Scope string `json:"scope"`
+	Val   string `json:"val"`
+	Src   string `json:"src"`
+	Rule  string `json:"rule"`
+}
+
+// Legacy structs for backward compatibility with response parsing
 type SAMLSettings struct {
-	Title string     `json:"title"`
-	Type  string     `json:"type"`
-	Items SAMLObject `json:"items"`
+	Title string       `json:"title"`
+	Type  string       `json:"type"`
+	Items []SAMLObject `json:"items"`
 }
 
 type SAMLObject struct {
@@ -931,7 +1820,7 @@ type SAMLProperties struct {
 	SP      SPMetadata    `json:"sp"`
 	IDP     IDPMetadata   `json:"idp"`
 	Subject SubjectData   `json:"subject"`
-	Attrmap []AttrMapping `json:"attrmap"`
+	Attrmap AttrMapSchema `json:"attrmap"`
 }
 
 type SPMetadata struct {
@@ -941,21 +1830,21 @@ type SPMetadata struct {
 }
 
 type SPProperties struct {
-	EntityID          string  `json:"entity_id"`
-	ACSURL            string  `json:"acs_url"`
-	SLOURL            string  `json:"slo_url,omitempty"`
+	EntityID          *string `json:"entity_id,omitempty"`
+	ACSURL            *string `json:"acs_url,omitempty"`
+	SLOURL            *string `json:"slo_url,omitempty"`
 	ReqBind           string  `json:"req_bind"`
-	Metadata          string  `json:"metadata,omitempty"`
-	DefaultRelayState *string `json:"default_relay_state"`
+	Metadata          *string `json:"metadata,omitempty"`
+	DefaultRelayState *string `json:"default_relay_state,omitempty"`
 	ForceAuth         bool    `json:"force_auth"`
 	ReqVerify         bool    `json:"req_verify"`
-	SignCert          string  `json:"sign_cert,omitempty"`
+	SignCert          *string `json:"sign_cert,omitempty"`
 	RespEncr          bool    `json:"resp_encr"`
-	EncrCert          string  `json:"encr_cert,omitempty"`
+	EncrCert          *string `json:"encr_cert,omitempty"`
 	EncrAlgo          string  `json:"encr_algo"`
-	SLOReqVerify      bool    `json:"slo_req_verify,omitempty"`
-	DSTURL            string  `json:"dst_url,omitempty"`
-	SLOBind           string  `json:"slo_bind,omitempty"`
+	SLOReqVerify      *bool   `json:"slo_req_verify,omitempty"`
+	DSTURL            *string `json:"dst_url,omitempty"`
+	SLOBind           *string `json:"slo_bind,omitempty"`
 }
 
 type IDPMetadata struct {
@@ -989,13 +1878,30 @@ type SubjectProperties struct {
 	Rule string `json:"rule,omitempty"`
 }
 
-type AttrMapping struct {
-	Name  string `json:"name"`
-	Fname string `json:"fname,omitempty"`
-	Fmt   string `json:"fmt"`
-	Val   string `json:"val,omitempty"`
-	Src   string `json:"src"`
-	Rule  string `json:"rule,omitempty"`
+type AttrMapSchema struct {
+	Type       string        `json:"type"`
+	UniqueItems bool         `json:"uniqueItems"`
+	Items      AttrMapItem   `json:"items"`
+	AttributeMap map[string]string `json:"attribute_map"`
+}
+
+type AttrMapItem struct {
+	Type       string                `json:"type"`
+	Properties AttrMapItemProperties `json:"properties"`
+	Required   []string              `json:"required"`
+}
+
+type AttrMapItemProperties struct {
+	Name AttrMapField `json:"name"`
+	Fname AttrMapField `json:"fname"`
+	Fmt  AttrMapField `json:"fmt"`
+	Val  AttrMapField `json:"val"`
+	Src  AttrMapField `json:"src"`
+	Rule AttrMapField `json:"rule"`
+}
+
+type AttrMapField struct {
+	Type string `json:"type"`
 }
 
 type TLSCipherSuite struct {
@@ -1047,3 +1953,4 @@ type AppsResponse struct {
 	} `json:"meta"`
 	Applications []ApplicationDataModel `json:"objects"`
 }
+
