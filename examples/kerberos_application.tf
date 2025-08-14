@@ -5,12 +5,15 @@ terraform {
   required_providers {
     eaa = {
       source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
   # Configuration options
+  contractid       = "XXXXXXX"
+  edgerc           = ".edgerc"
 }
 
 # Basic Kerberos Authentication Application
@@ -70,7 +73,7 @@ resource "eaa_application" "kerberos_client_cert" {
     app_auth_domain = "EXAMPLE.COM"
     app_client_cert_auth = "true"
     forward_ticket_granting_ticket = "true"
-    keytab = "-----BEGIN KEYTAB-----\n...\n-----END KEYTAB-----"
+    keytab = ""
     service_principal_name = "HTTP/kerberos-client-cert.example.com"
   }
 }

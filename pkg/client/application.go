@@ -558,9 +558,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						if keytab, ok := advSettingsData["keytab"].(string); ok {
 							advSettings.Keytab = keytab
 						}
-						if service_principal_name, ok := advSettingsData["service_principal_name"].(string); ok {
-							advSettings.ServicePrincipalName = service_principal_name
-						}
+								if service_principle_name, ok := advSettingsData["service_principle_name"].(string); ok {
+			advSettings.ServicePrincipalName = &service_principle_name
+		} else {
+			// When field is not in config, don't set it (will be null in JSON)
+			// This allows the field to be omitted from the payload
+		}
 
 						UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
 
@@ -1534,7 +1537,7 @@ type AdvancedSettings struct {
 	AppClientCertAuth         string         `json:"app_client_cert_auth,omitempty"`
 	ForwardTicketGrantingTicket string       `json:"forward_ticket_granting_ticket,omitempty"`
 	Keytab                    string         `json:"keytab,omitempty"`
-	ServicePrincipalName      string         `json:"service_principal_name,omitempty"`
+	ServicePrincipalName      *string        `json:"service_principle_name,omitempty"`
 	CustomHeaders             []CustomHeader `json:"custom_headers,omitempty"`
 }
 
@@ -1583,7 +1586,7 @@ type AdvancedSettings_Complete struct {
 	HostKey                      *string        `json:"host_key,omitempty"`
 	UserName                     *string        `json:"user_name,omitempty"`
 	ExternalCookieDomain         *string        `json:"external_cookie_domain,omitempty"`
-	ServicePrincipleName         string         `json:"service_principle_name,omitempty"`
+	ServicePrincipalName         *string        `json:"service_principle_name,omitempty"`
 	ServerCertValidate           string         `json:"server_cert_validate,omitempty"`
 	IgnoreCnameResolution        string         `json:"ignore_cname_resolution,omitempty"`
 	SSHAuditEnabled              string         `json:"ssh_audit_enabled,omitempty"`

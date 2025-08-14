@@ -801,7 +801,7 @@ func resourceEaaApplication() *schema.Resource {
 							Optional: true,
 							Default:  "",
 						},
-						"service_principal_name": {
+						"service_principle_name": {
 							Type:     schema.TypeString,
 							Optional: true,
 							Default:  "",
@@ -1541,7 +1541,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		"app_client_cert_auth": appResp.AdvancedSettings.AppClientCertAuth,
 		"forward_ticket_granting_ticket": appResp.AdvancedSettings.ForwardTicketGrantingTicket,
 		"keytab":              appResp.AdvancedSettings.Keytab,
-		"service_principal_name": appResp.AdvancedSettings.ServicePrincipleName,
+		"service_principle_name": appResp.AdvancedSettings.ServicePrincipalName,
 		"wapp_auth":             appResp.AdvancedSettings.WappAuth,
 		"jwt_issuers":           appResp.AdvancedSettings.JWTIssuers,
 		"jwt_audience":          appResp.AdvancedSettings.JWTAudience,

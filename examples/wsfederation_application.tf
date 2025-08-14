@@ -5,12 +5,15 @@ terraform {
   required_providers {
     eaa = {
       source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
   # Configuration options
+  contractid       = "XXXXXXX"
+  edgerc           = ".edgerc"
 }
 
 # Basic WS-Federation Application with Default Settings
@@ -81,8 +84,8 @@ resource "eaa_application" "wsfed_custom" {
     idp {
       entity_id = "https://test-idp.example.com/wsfed/idp/sso"
       sign_algo = "SHA1"
-      sign_cert = "-----BEGIN CERTIFICATE-----\nMII...\n-----END CERTIFICATE-----"
-      sign_key  = "-----BEGIN PRIVATE KEY-----\nMII...\n-----END PRIVATE KEY-----"
+      sign_cert = ""
+      sign_key  = ""
       self_signed = false
     }
     
@@ -122,31 +125,3 @@ resource "eaa_application" "wsfed_custom" {
     }
   }
 }
-
-# WS-Federation Application with Alternative app_auth Value
-resource "eaa_application" "wsfed_alt" {
-  name        = "wsfed-alt-app"
-  description = "WS-Federation application using 'wsfed' value"
-  host        = "wsfed-alt.example.com"
-  app_profile = "http"
-  app_type    = "enterprise"
-  domain      = "wapp"
-  client_app_mode = "tcp"
-  
-  servers {
-    orig_tls        = true
-    origin_protocol = "https"
-    origin_port     = 443
-    origin_host     = "backend.example.com"
-  }
-  
-  popregion = "us-east-1"
-  agents = ["EAA_DC1_US1_Access_01"]
-  auth_enabled = "true"
-
-  advanced_settings {
-    app_auth = "wsfed"  # Alternative to "WS-Federation"
-  }
-
-  # Uses same default behavior as "WS-Federation"
-} 

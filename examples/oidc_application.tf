@@ -5,12 +5,15 @@ terraform {
   required_providers {
     eaa = {
       source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
   # Configuration options
+  contractid       = "XXXXXXX"
+  edgerc           = ".edgerc"
 }
 
 # Basic OpenID Connect Application with Default Settings
