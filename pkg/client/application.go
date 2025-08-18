@@ -685,10 +685,8 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						} else {
 							idpConfig.Metadata = "" // default value
 						}
-						if signCert, ok := idp["sign_cert"].(string); ok {
-							idpConfig.SignCert = signCert
-						} else {
-							idpConfig.SignCert = "" // default value
+						if signCert, ok := idp["sign_cert"].(string); ok && signCert != "" {
+							idpConfig.SignCert = &signCert
 						}
 						if signKey, ok := idp["sign_key"].(string); ok {
 							idpConfig.SignKey = signKey
@@ -815,7 +813,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				IDP: IDPConfig{
 					EntityID:         "",
 					Metadata:         "",
-					SignCert:         "",
+					SignCert:         nil,
 					SignKey:          "",
 					SelfSigned:       true,
 					SignAlgo:         "SHA256",
@@ -909,10 +907,8 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					} else {
 						idpConfig.SignAlgo = "SHA256" // default value
 					}
-					if signCert, ok := idp["sign_cert"].(string); ok {
-						idpConfig.SignCert = signCert
-					} else {
-						idpConfig.SignCert = "" // default value
+					if signCert, ok := idp["sign_cert"].(string); ok && signCert != "" {
+						idpConfig.SignCert = &signCert
 					}
 					if signKey, ok := idp["sign_key"].(string); ok {
 						idpConfig.SignKey = signKey
@@ -1703,16 +1699,16 @@ type SPConfig struct {
 }
 
 type IDPConfig struct {
-	EntityID         string `json:"entity_id"`
-	Metadata         string `json:"metadata"`
-	SignCert         string `json:"sign_cert"`
-	SignKey          string `json:"sign_key"`
-	SelfSigned       bool   `json:"self_signed"`
-	SignAlgo         string `json:"sign_algo"`
-	RespBind         string `json:"resp_bind"`
-	SLOURL           string `json:"slo_url"`
-	ECPIsEnabled     bool   `json:"ecp_enable"`
-	ECPRespSignature bool   `json:"ecp_resp_signature"`
+	EntityID         string  `json:"entity_id"`
+	Metadata         string  `json:"metadata"`
+	SignCert         *string `json:"sign_cert,omitempty"`
+	SignKey          string  `json:"sign_key"`
+	SelfSigned       bool    `json:"self_signed"`
+	SignAlgo         string  `json:"sign_algo"`
+	RespBind         string  `json:"resp_bind"`
+	SLOURL           string  `json:"slo_url"`
+	ECPIsEnabled     bool    `json:"ecp_enable"`
+	ECPRespSignature bool    `json:"ecp_resp_signature"`
 }
 
 type SubjectConfig struct {
