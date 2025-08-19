@@ -49,7 +49,7 @@ func dataSourceAppsRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	// Get all applications using the improved GetApps function with proper pagination
+	// Get all applications using the existing GetApps function with smart pagination
 	apps, err := client.GetApps(eaaClient)
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("%w: %w", ErrAppsGet, err))
@@ -74,4 +74,4 @@ func dataSourceAppsRead(ctx context.Context, d *schema.ResourceData, m interface
 	d.SetId("eaa_apps")
 
 	return nil
-} 
+}
