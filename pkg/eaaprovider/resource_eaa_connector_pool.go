@@ -293,7 +293,7 @@ func resourceEaaConnectorPoolCreate(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(err)
 	}
 
-	connPoolResp, err := createRequest.CreateConnectorPool(ctx, eaaclient, "")
+			connPoolResp, err := createRequest.CreateConnectorPool(ctx, eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -329,7 +329,7 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 	connectorPoolUUID := d.Id()
 
 	// Read connector pool details
-	connPool, err := client.GetConnectorPool(ctx, eaaclient, connectorPoolUUID, "")
+	connPool, err := client.GetConnectorPool(ctx, eaaclient, connectorPoolUUID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -557,7 +557,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 				ConnectorPool:       connectorPoolUUID,
 				GenerateEmbeddedImg: tokenData["generate_embedded_img"].(bool),
 			}
-			_, err = createTokenRequest.CreateRegistrationToken(ctx, eaaclient, "")
+			_, err = createTokenRequest.CreateRegistrationToken(ctx, eaaclient)
 			if err != nil {
 				logger.Error("Failed to create registration token:", err)
 				return diag.FromErr(fmt.Errorf("failed to create registration token: %w", err))
@@ -652,35 +652,88 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	logger := eaaclient.Logger
 
 	id := d.Id()
-	// First, get the current connectors in the pool
-	connectors := d.Get("connectors").([]interface{})
-	if len(connectors) > 0 {
-		logger.Info("Disassociating connectors before deleting pool")
-
-		// Convert interface{} to []string (connector names)
-		connectorNames := make([]string, len(connectors))
-		for i, connector := range connectors {
-			connectorNames[i] = connector.(string)
-		}
-
-		// Disassociate all connectors from the pool using names
-		err = client.UnassignConnectorsFromPoolByName(eaaclient, id, connectorNames)
+	logger.Info(fmt.Sprintf("Destroying connector pool with ID: %s", id))
+	
+	// STEP 1: Disassociate APPS first (must be done before connectors)
+	logger.Info("Step 1: Disassociating apps from pool before deletion")
+	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, id)  // Fixed: Use names, not UUIDs
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to get current apps assigned to pool: %v", err))
+		// Continue with deletion even if we can't get current apps
+	} else if len(currentApps) > 0 {
+		logger.Info(fmt.Sprintf("Disassociating apps from pool: %v", currentApps))
+		
+		// Disassociate all current apps from the pool
+		err = client.UnassignConnectorPoolFromApps(eaaclient, id, currentApps)
 		if err != nil {
-			logger.Error("Failed to disassociate connectors from pool:", err)
+			logger.Error(fmt.Sprintf("Failed to disassociate apps from pool: %v", err))
 			// Continue with deletion even if disassociation fails
 			// The API might handle this automatically
 		} else {
+			logger.Info("Successfully disassociated apps from pool")
+		}
+	} else {
+		logger.Info("No apps currently assigned to pool")
+	}
+	
+	// STEP 2: Disassociate CONNECTORS second (after apps are removed)
+	logger.Info("Step 2: Disassociating connectors from pool before deletion")
+	currentConnectors, err := client.GetConnectorNamesInPool(eaaclient, id)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to get current connectors in pool: %v", err))
+		// Continue with deletion even if we can't get current connectors
+	} else if len(currentConnectors) > 0 {
+		logger.Info(fmt.Sprintf("Found %d connectors to disassociate: %v", len(currentConnectors), currentConnectors))
+
+		// Disassociate all current connectors from the pool
+		logger.Info("Calling UnassignConnectorsFromPoolByName...")
+		err = client.UnassignConnectorsFromPoolByName(eaaclient, id, currentConnectors)
+		if err != nil {
+			logger.Error(fmt.Sprintf("FAILED to disassociate connectors from pool: %v", err))
+			logger.Error("This is likely due to EAA business rules preventing connector disassociation")
+			logger.Error("The pool cannot be deleted while connectors are present")
+			// Don't continue - we need to stop here since connectors can't be removed
+			return diag.Errorf("cannot destroy connector pool: connectors cannot be disassociated due to EAA business rules: %v", err)
+		} else {
 			logger.Info("Successfully disassociated connectors from pool")
 		}
+	} else {
+		logger.Info("No connectors currently in pool")
 	}
 
-	// Now delete the connector pool
-			err = client.DeleteConnectorPool(ctx, eaaclient, id, "")
+	// STEP 3: Verify that all resources are actually disassociated
+	logger.Info("Step 3: Verifying all resources are disassociated before deletion")
+	
+	// Add a small delay to allow API state to sync
+	logger.Info("Waiting 2 seconds for API state to sync...")
+	time.Sleep(2 * time.Second)
+	
+	// Verify apps are disassociated
+	currentAppsAfter, err := client.GetAppNamesAssignedToPool(eaaclient, id)  // Fixed: Use names, not UUIDs
+	if err == nil && len(currentAppsAfter) > 0 {
+		logger.Warn("Apps still assigned after disassociation:", currentAppsAfter)
+	} else {
+		logger.Info("Apps successfully disassociated")
+	}
+	
+	// Verify connectors are disassociated
+	currentConnectorsAfter, err := client.GetConnectorNamesInPool(eaaclient, id)
+	if err == nil && len(currentConnectorsAfter) > 0 {
+		logger.Warn(fmt.Sprintf("Connectors still in pool after disassociation: %v", currentConnectorsAfter))
+	} else {
+		logger.Info("Connectors successfully disassociated")
+	}
+	
+	// STEP 4: Now delete the empty connector pool
+	logger.Info("Step 4: Deleting empty connector pool")
+	err = client.DeleteConnectorPool(ctx, eaaclient, id)
 	if err != nil {
 		logger.Error("delete connector pool failed. err ", err)
 		return diag.FromErr(err)
 	}
 
+	logger.Info("Successfully deleted connector pool")
+	logger.Info("Successfully deleted connector pool")
 	d.SetId("")
 	return nil
 }

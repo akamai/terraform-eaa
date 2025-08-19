@@ -118,7 +118,7 @@ func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchem
 }
 
 // CreateRegistrationToken creates a new registration token
-func (r *CreateRegistrationTokenRequest) CreateRegistrationToken(ctx context.Context, client *EaaClient, gid string) (*RegistrationToken, error) {
+func (r *CreateRegistrationTokenRequest) CreateRegistrationToken(ctx context.Context, client *EaaClient) (*RegistrationToken, error) {
 	// Create the registration token via API
 	body, err := r.createTokenViaAPI(client)
 	if err != nil {
@@ -425,7 +425,7 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 			GenerateEmbeddedImg: tokenData["generate_embedded_img"].(bool),
 		}
 
-		_, err3 := createTokenRequest.CreateRegistrationToken(ctx, eaaclient, "")
+		_, err3 := createTokenRequest.CreateRegistrationToken(ctx, eaaclient)
 		if err3 != nil {
 			eaaclient.Logger.Error("Failed to create registration token:", err3)
 			return fmt.Errorf("failed to create registration token: %w", err3)
