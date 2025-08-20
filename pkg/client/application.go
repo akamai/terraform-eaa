@@ -908,7 +908,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						idpConfig.SignAlgo = "SHA256" // default value
 					}
 					if signCert, ok := idp["sign_cert"].(string); ok && signCert != "" {
-						idpConfig.SignCert = &signCert
+						idpConfig.SignCert = signCert
 					}
 					if signKey, ok := idp["sign_key"].(string); ok {
 						idpConfig.SignKey = signKey
