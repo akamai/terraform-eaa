@@ -781,8 +781,13 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	// Handle custom headers - now just strings
+	fmt.Printf("DEBUG: CustomHeaders from API response: %+v\n", appResp.AdvancedSettings.CustomHeaders)
+	fmt.Printf("DEBUG: CustomHeaders length: %d\n", len(appResp.AdvancedSettings.CustomHeaders))
 	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
 		advSettingsMap["custom_headers"] = appResp.AdvancedSettings.CustomHeaders
+		fmt.Printf("DEBUG: Added custom_headers to advSettingsMap\n")
+	} else {
+		fmt.Printf("DEBUG: No custom_headers found in API response\n")
 	}
 
 	// Convert to JSON string

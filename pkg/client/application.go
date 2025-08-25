@@ -1900,11 +1900,18 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 	return advSettings, nil
 }
 
-// applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
-// This eliminates the need for the massive switch statement and makes the code much more maintainable
-func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
-	// Field mapping: JSON key -> struct field name
-	fieldMapping := map[string]string{
+	// applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
+	// This eliminates the need for the massive switch statement and makes the code much more maintainable
+	func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
+		// Debug logging for custom_headers
+		if customHeaders, exists := userSettings["custom_headers"]; exists {
+			fmt.Printf("DEBUG: Found custom_headers in userSettings: %+v\n", customHeaders)
+		} else {
+			fmt.Printf("DEBUG: No custom_headers found in userSettings\n")
+		}
+		
+		// Field mapping: JSON key -> struct field name
+		fieldMapping := map[string]string{
 		"is_ssl_verification_enabled":        "IsSSLVerificationEnabled",
 		"g2o_enabled":                        "G2OEnabled",
 		"edge_authentication_enabled":        "EdgeAuthenticationEnabled",
@@ -2049,6 +2056,13 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 	for jsonKey, value := range userSettings {
 		if fieldName, exists := fieldMapping[jsonKey]; exists {
 			field := val.FieldByName(fieldName)
+			
+			// Debug logging for custom_headers
+			if jsonKey == "custom_headers" {
+				fmt.Printf("DEBUG: Processing custom_headers field: %s\n", fieldName)
+				fmt.Printf("DEBUG: Field type: %v\n", field.Type())
+				fmt.Printf("DEBUG: Value to set: %+v\n", value)
+			}
 			if field.IsValid() && field.CanSet() {
 				// Special handling for health_check_type mapping
 				if jsonKey == "health_check_type" {
@@ -2145,6 +2159,42 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 					}
 					field.SetInt(intVal)
 				case reflect.Slice:
+					// Special handling for CustomHeaders slice
+					if jsonKey == "custom_headers" {
+						fmt.Printf("DEBUG: Processing CustomHeaders slice\n")
+						if interfaceSlice, ok := value.([]interface{}); ok {
+							// Convert []interface{} to []CustomHeader
+							customHeaders := make([]CustomHeader, len(interfaceSlice))
+							for i, v := range interfaceSlice {
+								if headerMap, ok := v.(map[string]interface{}); ok {
+									customHeader := CustomHeader{}
+									if attrType, exists := headerMap["attribute_type"]; exists {
+										if str, ok := attrType.(string); ok {
+											customHeader.AttributeType = str
+										}
+									}
+									if header, exists := headerMap["header"]; exists {
+										if str, ok := header.(string); ok {
+											customHeader.Header = str
+										}
+									}
+									if attr, exists := headerMap["attribute"]; exists {
+										if str, ok := attr.(string); ok {
+											customHeader.Attribute = str
+										}
+									}
+									customHeaders[i] = customHeader
+									fmt.Printf("DEBUG: Created CustomHeader: %+v\n", customHeader)
+								}
+							}
+							field.Set(reflect.ValueOf(customHeaders))
+							fmt.Printf("DEBUG: Set CustomHeaders field with %d headers\n", len(customHeaders))
+							continue
+						} else {
+							fmt.Printf("DEBUG: Value is not []interface{} for custom_headers: %+v\n", value)
+						}
+					}
+					
 					// For slice fields, handle type conversion properly
 					if field.Type().Elem().Kind() == reflect.String {
 						// Special handling for form_post_attributes: convert string to string slice

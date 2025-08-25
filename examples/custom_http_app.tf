@@ -61,9 +61,14 @@ resource "eaa_application" "jira-app" {
             {
                 attribute_type = "user"
                 header = "myuser"
+                attribute = "user.email"  # Added missing attribute field
             }
         ]
     })
+
+
+
+
 
     auth_enabled = "true"
 
