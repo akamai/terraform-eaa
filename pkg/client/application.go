@@ -6,17 +6,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 type CreateAppRequest struct {
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	AppProfile    int     `json:"app_profile"`
-	AppType       int     `json:"app_type"`
-	ClientAppMode int     `json:"client_app_mode"`
+	Name             string           `json:"name"`
+	Description      *string          `json:"description"`
+	AppProfile       int              `json:"app_profile"`
+	AppType          int              `json:"app_type"`
+	ClientAppMode    int              `json:"client_app_mode"`
+	AdvancedSettings AdvancedSettings `json:"advanced_settings,omitempty"`
+	SAML             bool             `json:"saml"`
+	Oidc             bool             `json:"oidc"`
+	WSFED            bool             `json:"wsfed"`
+	SAMLSettings     []SAMLConfig     `json:"saml_settings"`
+	OIDCSettings     *OIDCConfig      `json:"oidc_settings"`
+	WSFEDSettings    []WSFEDConfig    `json:"wsfed_settings"`
 }
 
 func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -97,11 +107,219 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		logger.Info("appMode is not present, defaulting to tcp")
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
 	}
+
+	// Handle advanced settings for CREATE flow - ALWAYS set defaults
+	// SUPER VISIBLE LOGGING
+
+	// Get advanced settings JSON or use empty JSON to force defaults
+	var advSettingsJSON string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if jsonStr, ok := advSettingsData.(string); ok {
+			advSettingsJSON = jsonStr
+		}
+	}
+	if advSettingsJSON == "" {
+		advSettingsJSON = "{}" // Force parsing with empty JSON to apply defaults
+	}
+
+	logger.Info("CREATE FLOW: Using JSON:", advSettingsJSON)
+
+	// ALWAYS parse and apply malformed defaults
+	advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+	if err != nil {
+		return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
+	}
+
+	// Parse the JSON again to handle app_auth special cases for CREATE flow
+	var advSettingsDataMap map[string]interface{}
+	if err := json.Unmarshal([]byte(advSettingsJSON), &advSettingsDataMap); err == nil {
+		if app_auth, ok := advSettingsDataMap["app_auth"].(string); ok {
+			logger.Info("CREATE FLOW: Found app_auth in advanced settings:", app_auth)
+			// Handle special authentication types that require setting boolean flags
+			switch app_auth {
+			case "SAML2.0":
+				// For SAML2.0, set app_auth to "none" in payload
+				advSettings.AppAuth = "none"
+				car.SAML = true
+				car.Oidc = false
+				car.WSFED = false
+			case "oidc", "OpenID Connect 1.0":
+				// For oidc, set app_auth to "oidc" in payload and oidc = true
+				advSettings.AppAuth = "oidc"
+				car.SAML = false
+				car.Oidc = true
+				car.WSFED = false
+			case "wsfed", "WS-Federation":
+				// For wsfed, include app_auth in payload
+				advSettings.AppAuth = "none"
+				car.SAML = false
+				car.Oidc = false
+				car.WSFED = true
+			default:
+				// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
+				advSettings.AppAuth = app_auth
+				car.SAML = false
+				car.Oidc = false
+				car.WSFED = false
+			}
+		} else {
+			logger.Info("CREATE FLOW: No app_auth found in advanced settings, explicitly setting to 'none'")
+			advSettings.AppAuth = "none"
+		}
+	}
+	logger.Info("CREATE FLOW: Final app_auth value in payload:", advSettings.AppAuth)
+	
+	logger.Info("CREATE FLOW: After setting flags - SAML:", car.SAML)
+	logger.Info("CREATE FLOW: After setting flags - Oidc:", car.Oidc)
+	logger.Info("CREATE FLOW: After setting flags - WSFED:", car.WSFED)
+
+	// Handle SAML settings for CREATE flow
+	if car.SAML {
+		if samlSettingsData, ok := d.GetOk("saml_settings"); ok {
+			// User provided saml_settings as JSON string - parse it
+			logger.Info("CREATE FLOW: Found saml_settings as JSON string")
+			if samlSettingsJSON, ok := samlSettingsData.(string); ok && samlSettingsJSON != "" {
+				// Parse the JSON string into SAMLConfig slice
+				if err := json.Unmarshal([]byte(samlSettingsJSON), &car.SAMLSettings); err != nil {
+					logger.Error("CREATE FLOW: Failed to parse saml_settings JSON:", err)
+					return fmt.Errorf("failed to parse saml_settings JSON: %w", err)
+				}
+				logger.Info("CREATE FLOW: Successfully parsed", len(car.SAMLSettings), "SAML configs from JSON")
+			}
+		} else {
+			// No saml_settings provided but SAML is enabled - create default structure
+			logger.Info("CREATE FLOW: No saml_settings found, creating defaults")
+			defaultSAMLConfig := SAMLConfig{
+				SP: SPConfig{
+					EntityID:     "",
+					ACSURL:       "",
+					SLOURL:       "",
+					ReqBind:      "redirect",
+					ForceAuth:    false,
+					ReqVerify:    false,
+					SignCert:     "",
+					RespEncr:     false,
+					EncrCert:     "",
+					EncrAlgo:     "aes256-cbc",
+					SLOReqVerify: true,
+					DSTURL:       "",
+					SLOBind:      "post",
+				},
+				IDP: IDPConfig{
+					EntityID:         "",
+					Metadata:         "",
+					SignCert:         nil,
+					SignKey:          "",
+					SelfSigned:       true,
+					SignAlgo:         "SHA256",
+					RespBind:         "post",
+					SLOURL:           "",
+					ECPIsEnabled:     false,
+					ECPRespSignature: false,
+				},
+				Subject: SubjectConfig{
+					Fmt: "email",
+					Src: "user.email",
+				},
+				Attrmap: []AttrMapping{},
+			}
+			car.SAMLSettings = []SAMLConfig{defaultSAMLConfig}
+		}
+	} else {
+		car.SAMLSettings = []SAMLConfig{}
+	}
+
+	// Always set the settings fields to ensure they appear in payload
+	if !car.Oidc {
+		car.OIDCSettings = nil
+	} else {
+		// Handle OIDC settings for CREATE flow
+		if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
+			logger.Info("CREATE FLOW: Found oidc_settings as JSON string")
+			if oidcSettingsJSON, ok := oidcSettingsData.(string); ok && oidcSettingsJSON != "" {
+				if err := json.Unmarshal([]byte(oidcSettingsJSON), &car.OIDCSettings); err != nil {
+					logger.Error("CREATE FLOW: Failed to parse oidc_settings JSON:", err)
+					return fmt.Errorf("failed to parse oidc_settings JSON: %w", err)
+				}
+				logger.Info("CREATE FLOW: Successfully parsed OIDC settings from JSON")
+			}
+		} else {
+			logger.Info("CREATE FLOW: No oidc_settings found, creating defaults")
+			car.OIDCSettings = &OIDCConfig{
+				OIDCClients: []OIDCClient{
+					{
+						ClientName:            "default_client",
+						ClientID:              "default_client_id",
+						ResponseType:          []string{"code"},
+						ImplicitGrant:         false,
+						Type:                  "standard",
+						RedirectURIs:          []string{},
+						JavaScriptOrigins:     []string{},
+						Claims:                []OIDCClaim{},
+					},
+				},
+			}
+		}
+	}
+	if !car.WSFED {
+		car.WSFEDSettings = []WSFEDConfig{}
+	} else {
+		// Handle WS-Federation settings for CREATE flow
+		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
+			logger.Info("CREATE FLOW: Found wsfed_settings as JSON string")
+			if wsfedSettingsJSON, ok := wsfedSettingsData.(string); ok && wsfedSettingsJSON != "" {
+				if err := json.Unmarshal([]byte(wsfedSettingsJSON), &car.WSFEDSettings); err != nil {
+					logger.Error("CREATE FLOW: Failed to parse wsfed_settings JSON:", err)
+					return fmt.Errorf("failed to parse wsfed_settings JSON: %w", err)
+				}
+				logger.Info("CREATE FLOW: Successfully parsed", len(car.WSFEDSettings), "WS-Federation configs from JSON")
+			}
+		} else {
+			logger.Info("CREATE FLOW: No wsfed_settings found, creating defaults")
+			defaultWSFEDConfig := WSFEDConfig{
+				SP: WSFEDSPConfig{
+					EntityID:  "",
+					SLOURL:    "",
+					DSTURL:    "",
+					RespBind:  "post",
+					TokenLife: 3600,
+					EncrAlgo:  "aes256-cbc",
+				},
+				IDP: WSFEDIDPConfig{
+					EntityID:   "",
+					SignAlgo:   "SHA256",
+					SignCert:   "",
+					SignKey:    "",
+					SelfSigned: true,
+				},
+				Subject: WSFEDSubjectConfig{
+					Fmt:       "email",
+					CustomFmt: "",
+					Src:       "user.email",
+					Val:       "",
+					Rule:      "",
+				},
+				Attrmap: []WSFEDAttrMapping{},
+			}
+			car.WSFEDSettings = []WSFEDConfig{defaultWSFEDConfig}
+		}
+	}
+
+	logger.Info("CREATE FLOW: Setting car.AdvancedSettings with malformed defaults")
+	car.AdvancedSettings = *advSettings
+
 	return nil
 }
 
 func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
 	ec.Logger.Info("create application")
+
+	// Log the complete payload being sent to API
+	payloadBytes, _ := json.MarshalIndent(car, "", "  ")
+	ec.Logger.Info("=== COMPLETE API PAYLOAD BEING SENT ===")
+	ec.Logger.Info(string(payloadBytes))
+	ec.Logger.Info("=== END API PAYLOAD ===")
+
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
 	createAppResp, err := ec.SendAPIRequest(apiURL, "POST", car, &appResp, false)
@@ -163,13 +381,13 @@ type Application struct {
 	RDPVersion             string  `json:"rdp_version"`
 	SupportedClientVersion int     `json:"supported_client_version"`
 
-	SAML              bool        `json:"saml"`
-	SAMLSettings      []SAMLConfig `json:"saml_settings,omitempty"`
-	Oidc              bool        `json:"oidc"`
-	OIDCSettings      *OIDCConfig `json:"oidc_settings,omitempty"`
-	FQDNBridgeEnabled bool        `json:"fqdn_bridge_enabled"`
-	WSFED             bool        `json:"wsfed"`
-	WSFEDSettings     []WSFEDConfig `json:"wsfed_settings,omitempty"`
+	SAML              bool          `json:"saml"`
+	SAMLSettings      []SAMLConfig  `json:"saml_settings,omitempty"`
+	Oidc              bool          `json:"oidc"`
+	OIDCSettings      *OIDCConfig   `json:"oidc_settings,omitempty"`
+	FQDNBridgeEnabled bool          `json:"fqdn_bridge_enabled"`
+	WSFED             bool          `json:"wsfed"`
+	WSFEDSettings     []WSFEDConfig `json:"wsfed_settings"`
 }
 
 func (app *Application) FromResponse(ar *ApplicationResponse) {
@@ -308,13 +526,47 @@ type ApplicationUpdateRequest struct {
 	Application
 	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
 	Domain           string                    `json:"domain"`
-	SAMLSettings     []SAMLConfig              `json:"saml_settings,omitempty"`
-	WSFEDSettings    []WSFEDConfig             `json:"wsfed_settings,omitempty"`
-	OIDCSettings     *OIDCConfig               `json:"oidc_settings,omitempty"`
+	SAMLSettings     []SAMLConfig              `json:"saml_settings"`
+	WSFEDSettings    []WSFEDConfig             `json:"wsfed_settings"`
+	OIDCSettings     *OIDCConfig               `json:"oidc_settings"`
 }
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
 	ec.Logger.Info("updating application")
+	
+	// Handle basic application fields
+	if description, ok := d.GetOk("description"); ok {
+		if descriptionStr, ok := description.(string); ok && descriptionStr != "" {
+			appUpdateReq.Description = &descriptionStr
+		}
+	}
+	
+	if name, ok := d.GetOk("name"); ok {
+		if nameStr, ok := name.(string); ok && nameStr != "" {
+			appUpdateReq.Name = nameStr
+		}
+	}
+	
+	if host, ok := d.GetOk("host"); ok {
+		if hostStr, ok := host.(string); ok && hostStr != "" {
+			appUpdateReq.Host = &hostStr
+		}
+	}
+	
+	if domain, ok := d.GetOk("domain"); ok {
+		if domainStr, ok := domain.(string); ok && domainStr != "" {
+			appUpdateReq.Domain = domainStr
+		}
+	}
+	
+	if popregion, ok := d.GetOk("popregion"); ok {
+		if popregionStr, ok := popregion.(string); ok && popregionStr != "" {
+			appUpdateReq.POPRegion = popregionStr
+		}
+	}
+	
+
+	
 	appUpdateReq.TunnelInternalHosts = []TunnelInternalHost{}
 	if tunnelInternalHosts, ok := d.GetOk("tunnel_internal_hosts"); ok {
 		if tunnelInternalHostsList, ok := tunnelInternalHosts.([]interface{}); ok {
@@ -352,448 +604,115 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	}
 
 	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if advSettingsList, ok := advSettingsData.([]interface{}); ok {
-			if advSettingsList != nil {
-				if len(advSettingsList) > 0 {
-					if advSettingsData, ok := advSettingsList[0].(map[string]interface{}); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			// Parse JSON and apply defaults
+			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err != nil {
+				return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
+			}
 
-						advSettings := AdvancedSettings{}
-
-						if isSSL, ok := advSettingsData["is_ssl_verification_enabled"].(string); ok {
-							advSettings.IsSSLVerificationEnabled = isSSL
-						}
-						if internal_hostname, ok := advSettingsData["internal_hostname"].(string); ok {
-							advSettings.InternalHostname = &internal_hostname
-						}
-						if internal_host_port, ok := advSettingsData["internal_host_port"].(string); ok {
-							advSettings.InternalHostPort = internal_host_port
-						}
-						if wildcard_internal_hostname, ok := advSettingsData["wildcard_internal_hostname"].(string); ok {
-							advSettings.WildcardInternalHostname = wildcard_internal_hostname
-						}
-						if ip_access_allow, ok := advSettingsData["ip_access_allow"].(string); ok {
-							advSettings.IPAccessAllow = ip_access_allow
-						}
-
-						if x_wapp_read_timeout, ok := advSettingsData["x_wapp_read_timeout"].(string); ok {
-							advSettings.XWappReadTimeout = x_wapp_read_timeout
-						}
-						if icr, ok := advSettingsData["ignore_cname_resolution"].(string); ok {
-							advSettings.IgnoreCnameResolution = icr
-						}
-						if g2o, ok := advSettingsData["g2o_enabled"].(string); ok {
-							advSettings.G2OEnabled = g2o
-							if g2o == STR_TRUE {
-
-								g2oResp, err := appUpdateReq.UpdateG2O(ec)
-								if err != nil {
-									ec.Logger.Error("g2o request failed. err: ", err)
-									return err
-								}
-								advSettings.G2OEnabled = STR_TRUE
-								advSettings.G2OKey = &g2oResp.G2OKey
-								advSettings.G2ONonce = &g2oResp.G2ONonce
-
-							}
-						}
-						if edgeAuth, ok := advSettingsData["edge_authentication_enabled"].(string); ok {
-							advSettings.EdgeAuthenticationEnabled = edgeAuth
-							if edgeAuth == STR_TRUE {
-
-								edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
-								if err != nil {
-									ec.Logger.Error("edge auth cookie request failed. err: ", err)
-									return err
-								}
-								advSettings.EdgeAuthenticationEnabled = STR_TRUE
-								advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
-								advSettings.SlaObjectUrl = &edgeAuthResp.SlaObjectUrl
-							}
-						}
-						if websocket_enabled, ok := advSettingsData["websocket_enabled"].(string); ok {
-							advSettings.WebSocketEnabled = websocket_enabled
-						}
-						if sticky_agent, ok := advSettingsData["sticky_agent"].(string); ok {
-							advSettings.StickyAgent = sticky_agent
-						}
-
-						if app_cookie_domain, ok := advSettingsData["app_cookie_domain"].(string); ok {
-							if app_cookie_domain != "" {
-								advSettings.AppCookieDomain = &app_cookie_domain
-							}
-						}
-						if logout_url, ok := advSettingsData["logout_url"].(string); ok {
-							if logout_url != "" {
-								advSettings.LogoutURL = &logout_url
-							}
-						}
-						if sentry_redirect_401, ok := advSettingsData["sentry_redirect_401"].(string); ok {
-							advSettings.SentryRedirect401 = sentry_redirect_401
-						}
-						var customHeaders []CustomHeader
-
-						if headersRaw, ok := advSettingsData["custom_headers"]; ok {
-							if chList, ok := headersRaw.([]interface{}); ok {
-								for _, ch := range chList {
-									if headerMap, ok := ch.(map[string]interface{}); ok {
-										customHeader := CustomHeader{}
-										// Safely extract strings if present
-										if val, ok := headerMap["attribute_type"].(string); ok {
-											customHeader.AttributeType = val
-											if val == "custom" {
-												if val, ok := headerMap["attribute"].(string); ok {
-													customHeader.Attribute = val
-												}
-											} else {
-												customHeader.Attribute = ""
-											}
-										}
-										if val, ok := headerMap["header"].(string); ok {
-											customHeader.Header = val
-										}
-										if customHeader.AttributeType != "" {
-											customHeaders = append(customHeaders, customHeader)
-										}
-									}
-								}
-								advSettings.CustomHeaders = customHeaders
-							}
-						}
-						if allow_cors, ok := advSettingsData["allow_cors"].(string); ok {
-							advSettings.AllowCORS = allow_cors
-							if allow_cors == STR_TRUE {
-								if cors_origin_list, ok := advSettingsData["cors_origin_list"].(string); ok {
-									advSettings.CORSOriginList = cors_origin_list
-								}
-								if cors_method_list, ok := advSettingsData["cors_method_list"].(string); ok {
-									advSettings.CORSMethodList = cors_method_list
-								}
-								if cors_header_list, ok := advSettingsData["cors_header_list"].(string); ok {
-									advSettings.CORSHeaderList = cors_header_list
-								}
-								if cors_support_credential, ok := advSettingsData["cors_support_credential"].(string); ok {
-									advSettings.CORSSupportCredential = cors_support_credential
-								}
-								if cors_max_age, ok := advSettingsData["cors_max_age"].(int); ok {
-									advSettings.CORSMaxAge = strconv.Itoa(cors_max_age)
-								}
-							}
-						}
-
-						// Handle app_auth field
-						if app_auth, ok := advSettingsData["app_auth"].(string); ok {
-							// Handle special authentication types that require setting boolean flags
-							switch app_auth {
-							case "SAML2.0":
-								// For SAML2.0, set app_auth to "none" in payload
-								advSettings.AppAuth = "none"
-								appUpdateReq.SAML = true
-								appUpdateReq.Oidc = false
-								appUpdateReq.WSFED = false
-							case "oidc", "OpenID Connect 1.0":
-								// For oidc, set app_auth to "oidc" in payload and oidc = true
-								advSettings.AppAuth = "oidc"
-								appUpdateReq.SAML = false
-								appUpdateReq.Oidc = true
-								appUpdateReq.WSFED = false
-							case "wsfed", "WS-Federation":
-								// For wsfed, include app_auth in payload
-								advSettings.AppAuth = "none"
-								appUpdateReq.SAML = false
-								appUpdateReq.Oidc = false
-								appUpdateReq.WSFED = true
-							default:
-								// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
-								advSettings.AppAuth = app_auth
-								appUpdateReq.SAML = false
-								appUpdateReq.Oidc = false
-								appUpdateReq.WSFED = false
-							}
-						}
-
-						// Handle wapp_auth field
-						if wapp_auth, ok := advSettingsData["wapp_auth"].(string); ok {
-							advSettings.WappAuth = wapp_auth
-						} else {
-							// Default to "form" if not provided
-							advSettings.WappAuth = "form"
-						}
-
-						// Handle JWT-specific fields
-						if jwt_issuers, ok := advSettingsData["jwt_issuers"].(string); ok {
-							advSettings.JWTIssuers = jwt_issuers
-						}
-						if jwt_audience, ok := advSettingsData["jwt_audience"].(string); ok {
-							advSettings.JWTAudience = jwt_audience
-						}
-						if jwt_grace_period, ok := advSettingsData["jwt_grace_period"].(string); ok {
-							advSettings.JWTGracePeriod = jwt_grace_period
-						} else {
-							// Default to "60" if not provided
-							advSettings.JWTGracePeriod = "60"
-						}
-						if jwt_return_option, ok := advSettingsData["jwt_return_option"].(string); ok {
-							advSettings.JWTReturnOption = jwt_return_option
-						} else {
-							// Default to "401" if not provided
-							advSettings.JWTReturnOption = "401"
-						}
-						if jwt_username, ok := advSettingsData["jwt_username"].(string); ok {
-							advSettings.JWTUsername = jwt_username
-						}
-						if jwt_return_url, ok := advSettingsData["jwt_return_url"].(string); ok {
-							advSettings.JWTReturnURL = jwt_return_url
-						}
-
-						// Handle Kerberos-specific fields
-						if app_auth_domain, ok := advSettingsData["app_auth_domain"].(string); ok {
-							advSettings.AppAuthDomain = app_auth_domain
-						}
-						if app_client_cert_auth, ok := advSettingsData["app_client_cert_auth"].(string); ok {
-							advSettings.AppClientCertAuth = app_client_cert_auth
-						}
-						if forward_ticket_granting_ticket, ok := advSettingsData["forward_ticket_granting_ticket"].(string); ok {
-							advSettings.ForwardTicketGrantingTicket = forward_ticket_granting_ticket
-						}
-						if keytab, ok := advSettingsData["keytab"].(string); ok {
-							advSettings.Keytab = keytab
-						}
-								if service_principle_name, ok := advSettingsData["service_principle_name"].(string); ok {
-			advSettings.ServicePrincipalName = &service_principle_name
-		} else {
-			// When field is not in config, don't set it (will be null in JSON)
-			// This allows the field to be omitted from the payload
-		}
-
-						UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
-
-						// appUpdateReq.AdvancedSettings = advSettings
+			// Parse the JSON again to handle app_auth special cases
+			var advSettingsData map[string]interface{}
+			if err := json.Unmarshal([]byte(advSettingsJSON), &advSettingsData); err == nil {
+				if app_auth, ok := advSettingsData["app_auth"].(string); ok {
+					ec.Logger.Info("UPDATE FLOW: Found app_auth in advanced settings:", app_auth)
+					// Handle special authentication types that require setting boolean flags
+					switch app_auth {
+					case "SAML2.0":
+						// For SAML2.0, set app_auth to "none" in payload
+						advSettings.AppAuth = "none"
+						appUpdateReq.SAML = true
+						appUpdateReq.Oidc = false
+						appUpdateReq.WSFED = false
+					case "oidc", "OpenID Connect 1.0":
+						// For oidc, set app_auth to "oidc" in payload and oidc = true
+						advSettings.AppAuth = "oidc"
+						appUpdateReq.SAML = false
+						appUpdateReq.Oidc = true
+						appUpdateReq.WSFED = false
+					case "wsfed", "WS-Federation":
+						// For wsfed, include app_auth in payload
+						advSettings.AppAuth = "none"
+						appUpdateReq.SAML = false
+						appUpdateReq.Oidc = false
+						appUpdateReq.WSFED = true
+					default:
+						// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
+						advSettings.AppAuth = app_auth
+						appUpdateReq.SAML = false
+						appUpdateReq.Oidc = false
+						appUpdateReq.WSFED = false
 					}
+				} else {
+					ec.Logger.Info("UPDATE FLOW: No app_auth found in advanced settings, explicitly setting to 'none'")
+					advSettings.AppAuth = "none"
 				}
 			}
+			ec.Logger.Info("UPDATE FLOW: Final app_auth value in payload:", advSettings.AppAuth)
+			ec.Logger.Info("UPDATE FLOW: SAML flag:", appUpdateReq.SAML)
+			ec.Logger.Info("UPDATE FLOW: Oidc flag:", appUpdateReq.Oidc)
+			ec.Logger.Info("UPDATE FLOW: WSFED flag:", appUpdateReq.WSFED)
+
+			// Always set the settings fields to ensure they appear in payload
+			if !appUpdateReq.SAML {
+				appUpdateReq.SAMLSettings = []SAMLConfig{}
+			}
+			if !appUpdateReq.Oidc {
+				appUpdateReq.OIDCSettings = nil
+			}
+			if !appUpdateReq.WSFED {
+				appUpdateReq.WSFEDSettings = []WSFEDConfig{}
+			}
+
+			// Handle special cases that require API calls
+			if advSettings.G2OEnabled == STR_TRUE {
+				g2oResp, err := appUpdateReq.UpdateG2O(ec)
+				if err != nil {
+					ec.Logger.Error("g2o request failed. err: ", err)
+					return err
+				}
+				advSettings.G2OKey = &g2oResp.G2OKey
+				advSettings.G2ONonce = &g2oResp.G2ONonce
+			}
+
+			if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
+				edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
+				if err != nil {
+					ec.Logger.Error("edge auth cookie request failed. err: ", err)
+					return err
+				}
+				advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
+				advSettings.SlaObjectUrl = &edgeAuthResp.SlaObjectUrl
+			}
+
+			// Use the UpdateAdvancedSettings function to properly update the struct
+			UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, *advSettings)
+			
+			// Explicitly set the AppAuth field to ensure it's preserved
+			appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
+			
+			// Log the final advanced settings to see what's being sent
+			ec.Logger.Info("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
 		}
 
 		// Handle SAML settings - always create structure when app_auth = "SAML2.0"
 		var samlConfigs []SAMLConfig
-		
+
 		if samlSettingsData, ok := d.GetOk("saml_settings"); ok {
-			// User provided saml_settings - use their values
-			samlSettingsList := samlSettingsData.([]interface{})
-			if len(samlSettingsList) > 0 {
-				for _, samlSetting := range samlSettingsList {
-					samlSettings := samlSetting.(map[string]interface{})
-					
-					samlConfig := SAMLConfig{}
-
-					// Process SP (Service Provider) settings
-					if spData, ok := samlSettings["sp"].([]interface{}); ok && len(spData) > 0 {
-						sp := spData[0].(map[string]interface{})
-						
-						spConfig := SPConfig{}
-
-						// Handle mandatory fields - always include them
-						if entityID, ok := sp["entity_id"].(string); ok {
-							spConfig.EntityID = entityID
-						} else {
-							spConfig.EntityID = "" // default value
-						}
-						if acsURL, ok := sp["acs_url"].(string); ok {
-							spConfig.ACSURL = acsURL
-						} else {
-							spConfig.ACSURL = "" // default value
-						}
-						if sloURL, ok := sp["slo_url"].(string); ok {
-							spConfig.SLOURL = sloURL
-						} else {
-							spConfig.SLOURL = "" // default value
-						}
-						if reqBind, ok := sp["req_bind"].(string); ok {
-							spConfig.ReqBind = reqBind
-						} else {
-							spConfig.ReqBind = "redirect" // default value
-						}
-						if metadata, ok := sp["metadata"].(string); ok {
-							spConfig.Metadata = metadata
-						}
-						if defaultRelayState, ok := sp["default_relay_state"].(string); ok && defaultRelayState != "" {
-							spConfig.DefaultRelayState = &defaultRelayState
-						}
-						// default_relay_state remains nil if not provided (null in JSON)
-						if forceAuth, ok := sp["force_auth"].(bool); ok {
-							spConfig.ForceAuth = forceAuth
-						} else {
-							spConfig.ForceAuth = false // default value
-						}
-						if reqVerify, ok := sp["req_verify"].(bool); ok {
-							spConfig.ReqVerify = reqVerify
-						} else {
-							spConfig.ReqVerify = false // default value
-						}
-						if signCert, ok := sp["sign_cert"].(string); ok {
-							spConfig.SignCert = signCert
-						} else {
-							spConfig.SignCert = "" // default value
-						}
-						if respEncr, ok := sp["resp_encr"].(bool); ok {
-							spConfig.RespEncr = respEncr
-						} else {
-							spConfig.RespEncr = false // default value
-						}
-						if encrCert, ok := sp["encr_cert"].(string); ok {
-							spConfig.EncrCert = encrCert
-						} else {
-							spConfig.EncrCert = "" // default value
-						}
-						if encrAlgo, ok := sp["encr_algo"].(string); ok {
-							spConfig.EncrAlgo = encrAlgo
-						} else {
-							spConfig.EncrAlgo = "aes256-cbc" // default value
-						}
-						if sloReqVerify, ok := sp["slo_req_verify"].(bool); ok {
-							spConfig.SLOReqVerify = sloReqVerify
-						} else {
-							spConfig.SLOReqVerify = true // default value
-						}
-						if dstURL, ok := sp["dst_url"].(string); ok {
-							spConfig.DSTURL = dstURL
-						} else {
-							spConfig.DSTURL = "" // default value
-						}
-						if sloBind, ok := sp["slo_bind"].(string); ok {
-							spConfig.SLOBind = sloBind
-						} else {
-							spConfig.SLOBind = "post" // default value
-						}
-
-						samlConfig.SP = spConfig
-					}
-
-					// Process IDP (Identity Provider) settings
-					if idpData, ok := samlSettings["idp"].([]interface{}); ok && len(idpData) > 0 {
-						idp := idpData[0].(map[string]interface{})
-						
-						idpConfig := IDPConfig{}
-
-						// Handle mandatory fields - always include them
-						if entityID, ok := idp["entity_id"].(string); ok {
-							idpConfig.EntityID = entityID
-						} else {
-							idpConfig.EntityID = "" // default value
-						}
-						if metadata, ok := idp["metadata"].(string); ok {
-							idpConfig.Metadata = metadata
-						} else {
-							idpConfig.Metadata = "" // default value
-						}
-						if signCert, ok := idp["sign_cert"].(string); ok && signCert != "" {
-							idpConfig.SignCert = &signCert
-						}
-						if signKey, ok := idp["sign_key"].(string); ok {
-							idpConfig.SignKey = signKey
-						} else {
-							idpConfig.SignKey = "" // default value
-						}
-						if selfSigned, ok := idp["self_signed"].(bool); ok {
-							idpConfig.SelfSigned = selfSigned
-						} else {
-							idpConfig.SelfSigned = true // default value
-						}
-						if signAlgo, ok := idp["sign_algo"].(string); ok {
-							idpConfig.SignAlgo = signAlgo
-						} else {
-							idpConfig.SignAlgo = "SHA256" // default value
-						}
-						if respBind, ok := idp["resp_bind"].(string); ok {
-							idpConfig.RespBind = respBind
-						} else {
-							idpConfig.RespBind = "post" // default value
-						}
-						if sloURL, ok := idp["slo_url"].(string); ok {
-							idpConfig.SLOURL = sloURL
-						} else {
-							idpConfig.SLOURL = "" // default value
-						}
-						if ecpIsEnabled, ok := idp["ecp_enable"].(bool); ok {
-							idpConfig.ECPIsEnabled = ecpIsEnabled
-						} else {
-							idpConfig.ECPIsEnabled = false // default value
-						}
-						if ecpRespSignature, ok := idp["ecp_resp_signature"].(bool); ok {
-							idpConfig.ECPRespSignature = ecpRespSignature
-						} else {
-							idpConfig.ECPRespSignature = false // default value
-						}
-
-						samlConfig.IDP = idpConfig
-					}
-
-					// Process Subject settings
-					if subjectData, ok := samlSettings["subject"].([]interface{}); ok && len(subjectData) > 0 {
-						subject := subjectData[0].(map[string]interface{})
-						
-						subjectConfig := SubjectConfig{}
-
-						if fmt, ok := subject["fmt"].(string); ok {
-							subjectConfig.Fmt = fmt
-						} else {
-							subjectConfig.Fmt = "email" // default value
-						}
-						if src, ok := subject["src"].(string); ok {
-							subjectConfig.Src = src
-						} else {
-							subjectConfig.Src = "user.email" // default value
-						}
-						if val, ok := subject["val"].(string); ok {
-							subjectConfig.Val = val
-						}
-						if rule, ok := subject["rule"].(string); ok {
-							subjectConfig.Rule = rule
-						}
-
-						samlConfig.Subject = subjectConfig
-					}
-
-					// Process Attrmap settings
-					if attrmapData, ok := samlSettings["attrmap"].([]interface{}); ok {
-						var attrMappings []AttrMapping
-						
-						// Process each attrmap item
-						for _, attrItem := range attrmapData {
-							if attrMap, ok := attrItem.(map[string]interface{}); ok {
-								attrMapping := AttrMapping{}
-								
-								if name, ok := attrMap["name"].(string); ok {
-									attrMapping.Name = name
-								}
-								if fname, ok := attrMap["fname"].(string); ok {
-									attrMapping.Fname = fname
-								}
-								if fmt, ok := attrMap["fmt"].(string); ok {
-									attrMapping.Fmt = fmt
-								}
-								if val, ok := attrMap["val"].(string); ok {
-									attrMapping.Val = val
-								}
-								if src, ok := attrMap["src"].(string); ok {
-									attrMapping.Src = src
-								}
-								if rule, ok := attrMap["rule"].(string); ok {
-									attrMapping.Rule = rule
-								}
-								
-								attrMappings = append(attrMappings, attrMapping)
-							}
-						}
-
-						samlConfig.Attrmap = attrMappings
-					}
-
-					samlConfigs = append(samlConfigs, samlConfig)
+			// User provided saml_settings as JSON string - parse it
+			ec.Logger.Info("UPDATE FLOW: Found saml_settings as JSON string")
+			if samlSettingsJSON, ok := samlSettingsData.(string); ok && samlSettingsJSON != "" {
+				// Parse the JSON string into SAMLConfig slice
+				if err := json.Unmarshal([]byte(samlSettingsJSON), &samlConfigs); err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to parse saml_settings JSON:", err)
+					return fmt.Errorf("failed to parse saml_settings JSON: %w", err)
 				}
+				ec.Logger.Info("UPDATE FLOW: Successfully parsed", len(samlConfigs), "SAML configs from JSON")
 			}
 		} else if appUpdateReq.SAML { // This condition ensures it only runs if app_auth was SAML2.0
 			// No saml_settings provided but app_auth = "SAML2.0" - create default structure
 			// This ensures mandatory SAML fields are always in the payload
+			ec.Logger.Info("UPDATE FLOW: No saml_settings found, creating defaults")
 			defaultSAMLConfig := SAMLConfig{
 				SP: SPConfig{
 					EntityID:     "",
@@ -838,206 +757,50 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 	}
 
-	// Handle WS-Federation settings - always create structure when app_auth = "wsfed"
+	// Handle WS-Federation settings for UPDATE flow
 	var wsfedConfigs []WSFEDConfig
-	
-	if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
-		// User provided wsfed_settings - use their values
-		wsfedSettingsList := wsfedSettingsData.([]interface{})
-		if len(wsfedSettingsList) > 0 {
-			for _, wsfedSetting := range wsfedSettingsList {
-				wsfedSettings := wsfedSetting.(map[string]interface{})
-				
-				wsfedConfig := WSFEDConfig{}
 
-				// Process SP (Service Provider) settings
-				if spData, ok := wsfedSettings["sp"].([]interface{}); ok && len(spData) > 0 {
-					sp := spData[0].(map[string]interface{})
-					
-					spConfig := WSFEDSPConfig{}
-
-					// Handle mandatory fields - always include them
-					if entityID, ok := sp["entity_id"].(string); ok {
-						spConfig.EntityID = entityID
-					} else {
-						spConfig.EntityID = "" // default value
-					}
-					if sloURL, ok := sp["slo_url"].(string); ok {
-						spConfig.SLOURL = sloURL
-					} else {
-						spConfig.SLOURL = "" // default value
-					}
-					if dstURL, ok := sp["dst_url"].(string); ok {
-						spConfig.DSTURL = dstURL
-					} else {
-						spConfig.DSTURL = "" // default value
-					}
-					if respBind, ok := sp["resp_bind"].(string); ok {
-						spConfig.RespBind = respBind
-					} else {
-						spConfig.RespBind = "post" // default value
-					}
-					if tokenLife, ok := sp["token_life"].(int); ok {
-						spConfig.TokenLife = tokenLife
-					} else {
-						spConfig.TokenLife = 3600 // default value
-					}
-					if encrAlgo, ok := sp["encr_algo"].(string); ok {
-						spConfig.EncrAlgo = encrAlgo
-					} else {
-						spConfig.EncrAlgo = "aes256-cbc" // default value
-					}
-
-					wsfedConfig.SP = spConfig
+	if appUpdateReq.WSFED {
+		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
+			ec.Logger.Info("UPDATE FLOW: Found wsfed_settings as JSON string")
+			if wsfedSettingsJSON, ok := wsfedSettingsData.(string); ok && wsfedSettingsJSON != "" {
+				if err := json.Unmarshal([]byte(wsfedSettingsJSON), &wsfedConfigs); err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to parse wsfed_settings JSON:", err)
+					return fmt.Errorf("failed to parse wsfed_settings JSON: %w", err)
 				}
-
-				// Process IDP (Identity Provider) settings
-				if idpData, ok := wsfedSettings["idp"].([]interface{}); ok && len(idpData) > 0 {
-					idp := idpData[0].(map[string]interface{})
-					
-					idpConfig := WSFEDIDPConfig{}
-
-					if entityID, ok := idp["entity_id"].(string); ok {
-						idpConfig.EntityID = entityID
-					} else {
-						idpConfig.EntityID = "" // default value
-					}
-					if signAlgo, ok := idp["sign_algo"].(string); ok {
-						idpConfig.SignAlgo = signAlgo
-					} else {
-						idpConfig.SignAlgo = "SHA256" // default value
-					}
-					if signCert, ok := idp["sign_cert"].(string); ok && signCert != "" {
-						idpConfig.SignCert = signCert
-					}
-					if signKey, ok := idp["sign_key"].(string); ok {
-						idpConfig.SignKey = signKey
-					} else {
-						idpConfig.SignKey = "" // default value
-					}
-					if selfSigned, ok := idp["self_signed"].(bool); ok {
-						idpConfig.SelfSigned = selfSigned
-					} else {
-						idpConfig.SelfSigned = true // default value
-					}
-
-					wsfedConfig.IDP = idpConfig
-				}
-
-				// Process Subject settings
-				if subjectData, ok := wsfedSettings["subject"].([]interface{}); ok && len(subjectData) > 0 {
-					subject := subjectData[0].(map[string]interface{})
-					
-					subjectConfig := WSFEDSubjectConfig{}
-
-					if fmt, ok := subject["fmt"].(string); ok {
-						subjectConfig.Fmt = fmt
-					} else {
-						subjectConfig.Fmt = "" // default value
-					}
-					if customFmt, ok := subject["custom_fmt"].(string); ok {
-						subjectConfig.CustomFmt = customFmt
-					} else {
-						subjectConfig.CustomFmt = "" // default value
-					}
-					if src, ok := subject["src"].(string); ok {
-						subjectConfig.Src = src
-					} else {
-						subjectConfig.Src = "" // default value
-					}
-					if val, ok := subject["val"].(string); ok {
-						subjectConfig.Val = val
-					} else {
-						subjectConfig.Val = "" // default value
-					}
-					if rule, ok := subject["rule"].(string); ok {
-						subjectConfig.Rule = rule
-					} else {
-						subjectConfig.Rule = "" // default value
-					}
-
-					wsfedConfig.Subject = subjectConfig
-				}
-
-				// Process Attrmap settings
-				if attrmapData, ok := wsfedSettings["attrmap"].([]interface{}); ok {
-					var attrmapList []WSFEDAttrMapping
-					for _, attrmapItem := range attrmapData {
-						if attrmap, ok := attrmapItem.(map[string]interface{}); ok {
-							attrMapping := WSFEDAttrMapping{}
-
-							if name, ok := attrmap["name"].(string); ok {
-								attrMapping.Name = name
-							} else {
-								attrMapping.Name = "" // default value
-							}
-							if fmt, ok := attrmap["fmt"].(string); ok {
-								attrMapping.Fmt = fmt
-							} else {
-								attrMapping.Fmt = "" // default value
-							}
-							if customFmt, ok := attrmap["custom_fmt"].(string); ok {
-								attrMapping.CustomFmt = customFmt
-							} else {
-								attrMapping.CustomFmt = "" // default value
-							}
-							if val, ok := attrmap["val"].(string); ok {
-								attrMapping.Val = val
-							} else {
-								attrMapping.Val = "" // default value
-							}
-							if src, ok := attrmap["src"].(string); ok {
-								attrMapping.Src = src
-							} else {
-								attrMapping.Src = "" // default value
-							}
-							if rule, ok := attrmap["rule"].(string); ok {
-								attrMapping.Rule = rule
-							} else {
-								attrMapping.Rule = "" // default value
-							}
-
-							attrmapList = append(attrmapList, attrMapping)
-						}
-					}
-					wsfedConfig.Attrmap = attrmapList
-				} else {
-					wsfedConfig.Attrmap = []WSFEDAttrMapping{} // empty array
-				}
-
-				wsfedConfigs = append(wsfedConfigs, wsfedConfig)
+				ec.Logger.Info("UPDATE FLOW: Successfully parsed", len(wsfedConfigs), "WS-Federation configs from JSON")
 			}
+		} else {
+			ec.Logger.Info("UPDATE FLOW: No wsfed_settings found, creating defaults")
+			defaultWSFEDConfig := WSFEDConfig{
+				SP: WSFEDSPConfig{
+					EntityID:  "",
+					SLOURL:    "",
+					DSTURL:    "",
+					RespBind:  "post",
+					TokenLife: 3600,
+					EncrAlgo:  "aes256-cbc",
+				},
+				IDP: WSFEDIDPConfig{
+					EntityID:   "",
+					SignAlgo:   "SHA256",
+					SignCert:   "",
+					SignKey:    "",
+					SelfSigned: true,
+				},
+				Subject: WSFEDSubjectConfig{
+					Fmt:       "email",
+					CustomFmt: "",
+					Src:       "user.email",
+					Val:       "",
+					Rule:      "",
+				},
+				Attrmap: []WSFEDAttrMapping{},
+			}
+			wsfedConfigs = append(wsfedConfigs, defaultWSFEDConfig)
 		}
-	} else if appUpdateReq.WSFED { // This condition ensures it only runs if app_auth was wsfed
-		// No wsfed_settings provided but app_auth = "wsfed" - create default structure
-		// This ensures mandatory WS-Federation fields are always in the payload
-		defaultWSFEDConfig := WSFEDConfig{
-			SP: WSFEDSPConfig{
-				EntityID:  "",
-				SLOURL:    "",
-				DSTURL:    "",
-				RespBind:  "post",
-				TokenLife: 3600,
-				EncrAlgo:  "aes256-cbc",
-			},
-			IDP: WSFEDIDPConfig{
-				EntityID:  "",
-				SignAlgo:  "SHA256",
-				SignCert:  "",
-				SignKey:   "",
-				SelfSigned: true,
-			},
-			Subject: WSFEDSubjectConfig{
-				Fmt:       "email",
-				CustomFmt: "",
-				Src:       "user.email",
-				Val:       "",
-				Rule:      "",
-			},
-			Attrmap: []WSFEDAttrMapping{},
-		}
-
-		wsfedConfigs = append(wsfedConfigs, defaultWSFEDConfig)
+	} else {
+		wsfedConfigs = []WSFEDConfig{}
 	}
 
 	// Set the WS-Federation settings in the application update request if we have any
@@ -1045,160 +808,45 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		appUpdateReq.WSFEDSettings = wsfedConfigs
 	}
 
-	// Handle OIDC settings - always create structure when app_auth = "oidc"
+	// Handle OIDC settings for UPDATE flow
 	var oidcConfig *OIDCConfig
 
-	if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
-		// User provided oidc_settings - use their values
-		oidcSettingsList := oidcSettingsData.([]interface{})
-		if len(oidcSettingsList) > 0 {
-			oidcSettings := oidcSettingsList[0].(map[string]interface{})
-
-			oidcConfig = &OIDCConfig{}
-
-			// Process OIDC clients
-			if oidcClientsData, ok := oidcSettings["oidc_clients"].([]interface{}); ok {
-				var oidcClients []OIDCClient
-				for _, clientData := range oidcClientsData {
-					if client, ok := clientData.(map[string]interface{}); ok {
-						oidcClient := OIDCClient{}
-
-						if clientName, ok := client["client_name"].(string); ok {
-							oidcClient.ClientName = clientName
-						}
-						if clientID, ok := client["client_id"].(string); ok {
-							oidcClient.ClientID = clientID
-						}
-
-						// Process client_secret
-						if clientSecretData, ok := client["client_secret"].([]interface{}); ok {
-							var clientSecrets []OIDCClientSecret
-							for _, secretData := range clientSecretData {
-								if secret, ok := secretData.(map[string]interface{}); ok {
-									clientSecret := OIDCClientSecret{}
-									if timestamp, ok := secret["timestamp"].(string); ok {
-										clientSecret.Timestamp = timestamp
-									}
-									if value, ok := secret["value"].(string); ok {
-										clientSecret.Value = value
-									}
-									clientSecrets = append(clientSecrets, clientSecret)
-								}
-							}
-							oidcClient.ClientSecret = clientSecrets
-						}
-
-						// Process response_type
-						if responseTypeData, ok := client["response_type"].([]interface{}); ok {
-							var responseTypes []string
-							for _, rt := range responseTypeData {
-								if rtStr, ok := rt.(string); ok {
-									responseTypes = append(responseTypes, rtStr)
-								}
-							}
-							oidcClient.ResponseType = responseTypes
-						} else {
-							oidcClient.ResponseType = []string{"code"} // default
-						}
-
-						if implicitGrant, ok := client["implicit_grant"].(bool); ok {
-							oidcClient.ImplicitGrant = implicitGrant
-						}
-
-						if clientType, ok := client["type"].(string); ok {
-							oidcClient.Type = clientType
-						}
-
-						// Process redirect_uris
-						if redirectURIsData, ok := client["redirect_uris"].([]interface{}); ok {
-							var redirectURIs []string
-							for _, uri := range redirectURIsData {
-								if uriStr, ok := uri.(string); ok {
-									redirectURIs = append(redirectURIs, uriStr)
-								}
-							}
-							oidcClient.RedirectURIs = redirectURIs
-						}
-
-						// Process javascript_origins
-						if jsOriginsData, ok := client["javascript_origins"].([]interface{}); ok {
-							var jsOrigins []string
-							for _, origin := range jsOriginsData {
-								if originStr, ok := origin.(string); ok {
-									jsOrigins = append(jsOrigins, originStr)
-								}
-							}
-							oidcClient.JavaScriptOrigins = jsOrigins
-						}
-
-						if logoutURL, ok := client["logout_url"].(string); ok {
-							oidcClient.LogoutURL = logoutURL
-						}
-
-						if logoutSessionRequired, ok := client["logout_session_required"].(bool); ok {
-							oidcClient.LogoutSessionRequired = logoutSessionRequired
-						}
-
-						// Process post_logout_redirect_uri
-						if postLogoutURIsData, ok := client["post_logout_redirect_uri"].([]interface{}); ok {
-							var postLogoutURIs []string
-							for _, uri := range postLogoutURIsData {
-								if uriStr, ok := uri.(string); ok {
-									postLogoutURIs = append(postLogoutURIs, uriStr)
-								}
-							}
-							oidcClient.PostLogoutRedirectURI = postLogoutURIs
-						}
-
-						if metadata, ok := client["metadata"].(string); ok {
-							oidcClient.Metadata = metadata
-						}
-
-						// Process claims
-						if claimsData, ok := client["claims"].([]interface{}); ok {
-							var claims []OIDCClaim
-							for _, claimData := range claimsData {
-								if claim, ok := claimData.(map[string]interface{}); ok {
-									oidcClaim := OIDCClaim{}
-									if name, ok := claim["name"].(string); ok {
-										oidcClaim.Name = name
-									}
-									if scope, ok := claim["scope"].(string); ok {
-										oidcClaim.Scope = scope
-									}
-									if val, ok := claim["val"].(string); ok {
-										oidcClaim.Val = val
-									}
-									if src, ok := claim["src"].(string); ok {
-										oidcClaim.Src = src
-									}
-									if rule, ok := claim["rule"].(string); ok {
-										oidcClaim.Rule = rule
-									}
-									claims = append(claims, oidcClaim)
-								}
-							}
-							oidcClient.Claims = claims
-						}
-
-						oidcClients = append(oidcClients, oidcClient)
-					}
+	if appUpdateReq.Oidc {
+		if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
+			ec.Logger.Info("UPDATE FLOW: Found oidc_settings as JSON string")
+			if oidcSettingsJSON, ok := oidcSettingsData.(string); ok && oidcSettingsJSON != "" {
+				if err := json.Unmarshal([]byte(oidcSettingsJSON), &oidcConfig); err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to parse oidc_settings JSON:", err)
+					return fmt.Errorf("failed to parse oidc_settings JSON: %w", err)
 				}
-				oidcConfig.OIDCClients = oidcClients
+				ec.Logger.Info("UPDATE FLOW: Successfully parsed OIDC settings from JSON")
+			}
+		} else {
+			ec.Logger.Info("UPDATE FLOW: No oidc_settings found, creating defaults")
+			oidcConfig = &OIDCConfig{
+				OIDCClients: []OIDCClient{
+					{
+						ClientName:            "default_client",
+						ClientID:              "default_client_id",
+						ResponseType:          []string{"code"},
+						ImplicitGrant:         false,
+						Type:                  "standard",
+						RedirectURIs:          []string{},
+						JavaScriptOrigins:     []string{},
+						Claims:                []OIDCClaim{},
+					},
+				},
 			}
 		}
-	} else if appUpdateReq.Oidc { // This condition ensures it only runs if app_auth was oidc
-		// No oidc_settings provided but app_auth = "oidc" - create empty OIDCConfig
-		// This will result in "oidc_settings": {} in the payload
-		oidcConfig = &OIDCConfig{
-			OIDCClients: []OIDCClient{}, // empty slice
-		}
+	} else {
+		oidcConfig = nil
 	}
 
 	// Set the OIDC settings in the application update request if we have any
 	if oidcConfig != nil {
 		appUpdateReq.OIDCSettings = oidcConfig
 	}
+
 	appUpdateReq.Servers = []Server{}
 	if servers, ok := d.GetOk("servers"); ok {
 		if serversList, ok := servers.([]interface{}); ok {
@@ -1275,9 +923,6 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		appUpdateReq.Domain = strconv.Itoa(int(APP_DOMAIN_WAPP))
 	}
 
-	fmt.Printf("updating application - advanced settings")
-	fmt.Printf("%+v\n", appUpdateReq)
-	fmt.Printf("%+v\n", appUpdateReq.AdvancedSettings)
 	return nil
 }
 func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, d *schema.ResourceData, ctx context.Context) error {
@@ -1359,7 +1004,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Context, ec *EaaClient) error {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
 	ec.Logger.Info("API URL: ", apiURL)
-	
+
 	// Log the request payload
 	b, _ := json.MarshalIndent(appUpdateReq, "", "  ")
 	fmt.Println("=== REQUEST PAYLOAD ===")
@@ -1371,24 +1016,54 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 		ec.Logger.Error("update application failed. err: ", err)
 		return err
 	}
-	
+
 	// Log the response
 	fmt.Println("=== RESPONSE STATUS ===")
 	fmt.Printf("Status Code: %d\n", appUpdResp.StatusCode)
 	fmt.Println("=== END RESPONSE STATUS ===")
-	
+
 	// Log the response body
 	fmt.Println("=== RESPONSE BODY ===")
 	bodyBytes, _ := io.ReadAll(appUpdResp.Body)
 	fmt.Println(string(bodyBytes))
 	fmt.Println("=== END RESPONSE BODY ===")
-	
+
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
 		ec.Logger.Error("update application failed. appUpdResp.StatusCode: desc ", appUpdResp.StatusCode, desc)
 		return updErrMsg
+	}
+
+	// Parse the response to show the returned values
+	responseBody, _ := io.ReadAll(appUpdResp.Body)
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(responseBody, &responseData); err == nil {
+		ec.Logger.Info("API RESPONSE:")
+		responseJSON, _ := json.MarshalIndent(responseData, "", "  ")
+		ec.Logger.Info(string(responseJSON))
+
+		// Show specific advanced settings from response
+		if advancedSettings, ok := responseData["advanced_settings"].(map[string]interface{}); ok {
+			ec.Logger.Info("ADVANCED SETTINGS FROM RESPONSE:")
+			if appAuthDomain, exists := advancedSettings["app_auth_domain"]; exists {
+				ec.Logger.Info(fmt.Sprintf("app_auth_domain: %v (type: %T)", appAuthDomain, appAuthDomain))
+			} else {
+				ec.Logger.Info("app_auth_domain: not present in response")
+			}
+			if appClientCertAuth, exists := advancedSettings["app_client_cert_auth"]; exists {
+				ec.Logger.Info(fmt.Sprintf("app_client_cert_auth: %v (type: %T)", appClientCertAuth, appClientCertAuth))
+			} else {
+				ec.Logger.Info("app_client_cert_auth: not present in response")
+			}
+			if acceleration, exists := advancedSettings["acceleration"]; exists {
+				ec.Logger.Info(fmt.Sprintf("acceleration: %v (type: %T)", acceleration, acceleration))
+			} else {
+				ec.Logger.Info("acceleration: not present in response")
+			}
+		}
+		ec.Logger.Info("")
 	}
 
 	return nil
@@ -1464,6 +1139,7 @@ type ApplicationResponse struct {
 	WSFED                  bool                 `json:"wsfed"`
 	WSFEDSettings          []WSFEDConfig        `json:"wsfed_settings,omitempty"`
 	OIDCSettings           *OIDCSettings        `json:"oidc_settings,omitempty"`
+	OIDCClients            []OIDCClient         `json:"oidcclients,omitempty"`
 }
 
 type ResourceStatus struct {
@@ -1490,174 +1166,296 @@ type EdgeAuth_Response struct {
 	SlaObjectUrl  string `json:"sla_object_url,omitempty"`
 }
 
+// CustomHeader represents a custom header configuration
 type CustomHeader struct {
-	Attribute     string `json:"attribute"`
-	AttributeType string `json:"attribute_type"`
-	Header        string `json:"header"`
+	AttributeType string `json:"attribute_type,omitempty"`
+	Header        string `json:"header,omitempty"`
+	Attribute     string `json:"attribute,omitempty"`
 }
 
 type AdvancedSettings struct {
-	IsSSLVerificationEnabled  string         `json:"is_ssl_verification_enabled,omitempty"`
-	IgnoreCnameResolution     string         `json:"ignore_cname_resolution,omitempty"`
-	EdgeAuthenticationEnabled string         `json:"edge_authentication_enabled,omitempty"`
-	G2OEnabled                string         `json:"g2o_enabled,omitempty"`
-	G2ONonce                  *string        `json:"g2o_nonce,omitempty"`
-	G2OKey                    *string        `json:"g2o_key,omitempty"`
-	XWappReadTimeout          string         `json:"x_wapp_read_timeout,omitempty"`
-	InternalHostname          *string        `json:"internal_hostname,omitempty"`
-	InternalHostPort          string         `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname  string         `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow             string         `json:"ip_access_allow,omitempty"`
-	EdgeCookieKey             *string        `json:"edge_cookie_key,omitempty"`
-	SlaObjectUrl              *string        `json:"sla_object_url,omitempty"`
-	AllowCORS                 string         `json:"allow_cors,omitempty"`
-	CORSOriginList            string         `json:"cors_origin_list,omitempty"`
-	CORSMethodList            string         `json:"cors_method_list,omitempty"`
-	CORSHeaderList            string         `json:"cors_header_list,omitempty"`
-	CORSSupportCredential     string         `json:"cors_support_credential,omitempty"`
-	CORSMaxAge                string         `json:"cors_max_age,omitempty"`
-	WebSocketEnabled          string         `json:"websocket_enabled,omitempty"`
-	StickyAgent               string         `json:"sticky_agent,omitempty"`
-	AppCookieDomain           *string        `json:"app_cookie_domain,omitempty"`
-	LogoutURL                 *string        `json:"logout_url,omitempty"`
-	SentryRedirect401         string         `json:"sentry_redirect_401,omitempty"`
-	AppAuth                   string         `json:"app_auth,omitempty"`
-	WappAuth                  string         `json:"wapp_auth,omitempty"`
-	JWTIssuers                string         `json:"jwt_issuers,omitempty"`
-	JWTAudience                string         `json:"jwt_audience,omitempty"`
-	JWTGracePeriod            string         `json:"jwt_grace_period,omitempty"`
-	JWTReturnOption           string         `json:"jwt_return_option,omitempty"`
-	JWTUsername                string         `json:"jwt_username,omitempty"`
-	JWTReturnURL               string         `json:"jwt_return_url,omitempty"`
-	AppAuthDomain             string         `json:"app_auth_domain,omitempty"`
-	AppClientCertAuth         string         `json:"app_client_cert_auth,omitempty"`
-	ForwardTicketGrantingTicket string       `json:"forward_ticket_granting_ticket,omitempty"`
-	Keytab                    string         `json:"keytab,omitempty"`
-	ServicePrincipalName      *string        `json:"service_principle_name,omitempty"`
-	CustomHeaders             []CustomHeader `json:"custom_headers,omitempty"`
+	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
+	IgnoreCnameResolution        string                 `json:"ignore_cname_resolution,omitempty"`
+	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
+	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
+	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
+	G2OKey                       *string                `json:"g2o_key,omitempty"`
+	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
+	InternalHostname             *string                `json:"internal_hostname,omitempty"`
+	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
+	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
+	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
+	EdgeCookieKey                *string                `json:"edge_cookie_key,omitempty"`
+	SlaObjectUrl                 *string                `json:"sla_object_url,omitempty"`
+	AllowCORS                    string                 `json:"allow_cors,omitempty"`
+	CORSOriginList               string                 `json:"cors_origin_list,omitempty"`
+	CORSMethodList               string                 `json:"cors_method_list,omitempty"`
+	CORSHeaderList               string                 `json:"cors_header_list,omitempty"`
+	CORSSupportCredential        string                 `json:"cors_support_credential,omitempty"`
+	CORSMaxAge                   string                 `json:"cors_max_age,omitempty"`
+	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
+	StickyAgent                  string                 `json:"sticky_agent,omitempty"`
+	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
+	LogoutURL                    *string                `json:"logout_url,omitempty"`
+	SentryRedirect401            string                 `json:"sentry_redirect_401,omitempty"`
+	AppAuth                      string                 `json:"app_auth"`
+	WappAuth                     string                 `json:"wapp_auth,omitempty"`
+	JWTIssuers                   string                 `json:"jwt_issuers,omitempty"`
+	JWTAudience                  string                 `json:"jwt_audience,omitempty"`
+	JWTGracePeriod               string                 `json:"jwt_grace_period,omitempty"`
+	JWTReturnOption              string                 `json:"jwt_return_option,omitempty"`
+	JWTUsername                  string                 `json:"jwt_username,omitempty"`
+	JWTReturnURL                 string                 `json:"jwt_return_url,omitempty"`
+	AppAuthDomain                *string                `json:"app_auth_domain,omitempty"`
+	AppClientCertAuth            string                 `json:"app_client_cert_auth,omitempty"`
+	ForwardTicketGrantingTicket  string                 `json:"forward_ticket_granting_ticket,omitempty"`
+	Keytab                       string                 `json:"keytab,omitempty"`
+	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
+	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
+	Acceleration                 string                 `json:"acceleration,omitempty"`
+	AnonymousServerConnLimit     string                 `json:"anonymous_server_conn_limit,omitempty"`
+	AnonymousServerReqLimit      string                 `json:"anonymous_server_request_limit,omitempty"`
+	AppLocation                  *string                `json:"app_location"`
+	AppServerReadTimeout         string                 `json:"app_server_read_timeout,omitempty"`
+	AuthenticatedServerConnLimit string                 `json:"authenticated_server_conn_limit,omitempty"`
+	AuthenticatedServerReqLimit  string                 `json:"authenticated_server_request_limit,omitempty"`
+	ClientCertAuth               string                 `json:"client_cert_auth,omitempty"`
+	ClientCertUserParam          string                 `json:"client_cert_user_param,omitempty"`
+	CookieDomain                 *string                `json:"cookie_domain"`
+	DisableUserAgentCheck        string                 `json:"disable_user_agent_check,omitempty"`
+	DomainExceptionList          string                 `json:"domain_exception_list,omitempty"`
+	EdgeTransportManualMode      string                 `json:"edge_transport_manual_mode,omitempty"`
+	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id"`
+	EnableClientSideXHRRewrite   string                 `json:"enable_client_side_xhr_rewrite,omitempty"`
+	ExternalCookieDomain         *string                `json:"external_cookie_domain"`
+	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
+	ForceMFA                     string                 `json:"force_mfa,omitempty"`
+	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+	FormPostURL                  string                 `json:"form_post_url,omitempty"`
+	HealthCheckFall              string                 `json:"health_check_fall,omitempty"`
+	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header"`
+	HealthCheckHTTPURL           string                 `json:"health_check_http_url,omitempty"`
+	HealthCheckHTTPVersion       string                 `json:"health_check_http_version,omitempty"`
+	HealthCheckInterval          string                 `json:"health_check_interval,omitempty"`
+	HealthCheckRise              string                 `json:"health_check_rise,omitempty"`
+	HealthCheckTimeout           string                 `json:"health_check_timeout,omitempty"`
+	HealthCheckType              string                 `json:"health_check_type,omitempty"`
+	HiddenApp                    string                 `json:"hidden_app,omitempty"`
+	HostKey                      *string                `json:"host_key"`
+	HSTSage                      string                 `json:"hsts_age,omitempty"`
+	HTTPOnlyCookie               string                 `json:"http_only_cookie,omitempty"`
+	HTTPSSSLV3                   string                 `json:"https_sslv3,omitempty"`
+	IdleCloseTimeSeconds         string                 `json:"idle_close_time_seconds,omitempty"`
+	IdleConnCeil                 string                 `json:"idle_conn_ceil,omitempty"`
+	IdleConnFloor                string                 `json:"idle_conn_floor,omitempty"`
+	IdleConnStep                 string                 `json:"idle_conn_step,omitempty"`
+	IDPIdleExpiry                *string                `json:"idp_idle_expiry"`
+	IDPMaxExpiry                 *string                `json:"idp_max_expiry"`
+	IgnoreBypassMFA              string                 `json:"ignore_bypass_mfa,omitempty"`
+	InjectAjaxJavascript         string                 `json:"inject_ajax_javascript,omitempty"`
+	InterceptURL                 string                 `json:"intercept_url,omitempty"`
+	IsBrotliEnabled              string                 `json:"is_brotli_enabled,omitempty"`
+	KeepaliveConnectionPool      string                 `json:"keepalive_connection_pool,omitempty"`
+	KeepaliveEnable              string                 `json:"keepalive_enable,omitempty"`
+	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
+	LoadBalancingMetric          string                 `json:"load_balancing_metric,omitempty"`
+	LoggingEnabled               string                 `json:"logging_enabled,omitempty"`
+	LoginTimeout                 string                 `json:"login_timeout,omitempty"`
+	LoginURL                     *string                `json:"login_url"`
+	MDCEnable                    string                 `json:"mdc_enable,omitempty"`
+	MFA                          string                 `json:"mfa,omitempty"`
+	OffloadOnpremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
+	Onramp                       string                 `json:"onramp,omitempty"`
+	PassPhrase                   *string                `json:"pass_phrase"`
+	PreauthConsent               string                 `json:"preauth_consent,omitempty"`
+	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
+	PrivateKey                   *string                `json:"private_key"`
+	RemoteSparkAudio             string                 `json:"remote_spark_audio,omitempty"`
+	RemoteSparkDisk              string                 `json:"remote_spark_disk,omitempty"`
+	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
+	RemoteSparkMapDisk           string                 `json:"remote_spark_mapDisk,omitempty"`
+	RemoteSparkMapPrinter        string                 `json:"remote_spark_mapPrinter,omitempty"`
+	RemoteSparkPrinter           string                 `json:"remote_spark_printer,omitempty"`
+	RemoteSparkRecording         string                 `json:"remote_spark_recording,omitempty"`
+	RequestBodyRewrite           string                 `json:"request_body_rewrite,omitempty"`
+	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	SaaSEnabled                  string                 `json:"saas_enabled,omitempty"`
+	SegmentationPolicyEnable     string                 `json:"segmentation_policy_enable,omitempty"`
+	SentryRestoreFormPost        string                 `json:"sentry_restore_form_post,omitempty"`
+	ServerCertValidate           string                 `json:"server_cert_validate,omitempty"`
+	ServerRequestBurst           string                 `json:"server_request_burst,omitempty"`
+	ServicePrincipleName         *string                `json:"service_principle_name"`
+	SessionSticky                string                 `json:"session_sticky,omitempty"`
+	SessionStickyCookieMaxAge    string                 `json:"session_sticky_cookie_maxage,omitempty"`
+	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie"`
+	SingleHostContentRW          string                 `json:"single_host_content_rw,omitempty"`
+	SingleHostCookieDomain       string                 `json:"single_host_cookie_domain,omitempty"`
+	SingleHostEnable             string                 `json:"single_host_enable,omitempty"`
+	SingleHostFQDN               string                 `json:"single_host_fqdn,omitempty"`
+	SingleHostPath               string                 `json:"single_host_path,omitempty"`
+	SPDYEnabled                  string                 `json:"spdy_enabled,omitempty"`
+	SSHAuditEnabled              string                 `json:"ssh_audit_enabled,omitempty"`
+	SSO                          string                 `json:"sso,omitempty"`
+	UserName                     *string                `json:"user_name"`
+	XWappPoolEnabled             string                 `json:"x_wapp_pool_enabled,omitempty"`
+	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
+	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
+	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
+	RDPRemoteApps                []string               `json:"rdp_remote_apps,omitempty"`
+	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
+	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
+	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
+
+	// JWT fields
+	JwtAudience     string `json:"jwt_audience,omitempty"`
+	JwtGracePeriod  string `json:"jwt_grace_period,omitempty"`
+	JwtIssuers      string `json:"jwt_issuers,omitempty"`
+	JwtReturnOption string `json:"jwt_return_option,omitempty"`
+	JwtReturnUrl    string `json:"jwt_return_url,omitempty"`
+	JwtUsername     string `json:"jwt_username,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
-	LoginURL                     *string        `json:"login_url,omitempty"`
-	LogoutURL                    *string        `json:"logout_url,omitempty"`
-	InternalHostname             *string        `json:"internal_hostname,omitempty"`
-	InternalHostPort             string         `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname     string         `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow                string         `json:"ip_access_allow,omitempty"`
-	CookieDomain                 *string        `json:"cookie_domain,omitempty"`
-	RequestParameters            *string        `json:"request_parameters,omitempty"`
-	LoggingEnabled               string         `json:"logging_enabled,omitempty"`
-	LoginTimeout                 string         `json:"login_timeout,omitempty"`
-	AppAuth                      string         `json:"app_auth,omitempty"`
-	WappAuth                     string         `json:"wapp_auth,omitempty"`
-	JWTIssuers                   string         `json:"jwt_issuers,omitempty"`
-	JWTAudience                  string         `json:"jwt_audience,omitempty"`
-	JWTGracePeriod               string         `json:"jwt_grace_period,omitempty"`
-	JWTReturnOption              string         `json:"jwt_return_option,omitempty"`
-	JWTUsername                  string         `json:"jwt_username,omitempty"`
-	JWTReturnURL                 string         `json:"jwt_return_url,omitempty"`
-	SSO                          string         `json:"sso,omitempty"`
-	HTTPOnlyCookie               string         `json:"http_only_cookie,omitempty"`
-	RequestBodyRewrite           string         `json:"request_body_rewrite,omitempty"`
-	IDPIdleExpiry                *string        `json:"idp_idle_expiry,omitempty"`
-	IDPMaxExpiry                 *string        `json:"idp_max_expiry,omitempty"`
-	HTTPSSSLV3                   string         `json:"https_sslv3,omitempty"`
-	SPDYEnabled                  string         `json:"spdy_enabled,omitempty"`
-	WebSocketEnabled             string         `json:"websocket_enabled,omitempty"`
-	HiddenApp                    string         `json:"hidden_app,omitempty"`
-	AppLocation                  *string        `json:"app_location,omitempty"`
-	AppCookieDomain              *string        `json:"app_cookie_domain,omitempty"`
-	AppAuthDomain                string         `json:"app_auth_domain,omitempty"`
-	LoadBalancingMetric          string         `json:"load_balancing_metric,omitempty"`
-	HealthCheckType              string         `json:"health_check_type,omitempty"`
-	HealthCheckHTTPURL           string         `json:"health_check_http_url,omitempty"`
-	HealthCheckHTTPVersion       string         `json:"health_check_http_version,omitempty"`
-	HealthCheckHTTPHostHeader    *string        `json:"health_check_http_host_header,omitempty"`
-	ProxyBufferSizeKB            string         `json:"proxy_buffer_size_kb,omitempty"`
-	SessionSticky                string         `json:"session_sticky,omitempty"`
-	SessionStickyCookieMaxAge    string         `json:"session_sticky_cookie_maxage,omitempty"`
-	SessionStickyServerCookie    *string        `json:"session_sticky_server_cookie,omitempty"`
-	PassPhrase                   *string        `json:"pass_phrase,omitempty"`
-	PrivateKey                   *string        `json:"private_key,omitempty"`
-	HostKey                      *string        `json:"host_key,omitempty"`
-	UserName                     *string        `json:"user_name,omitempty"`
-	ExternalCookieDomain         *string        `json:"external_cookie_domain,omitempty"`
-	ServicePrincipalName         *string        `json:"service_principle_name,omitempty"`
-	ServerCertValidate           string         `json:"server_cert_validate,omitempty"`
-	IgnoreCnameResolution        string         `json:"ignore_cname_resolution,omitempty"`
-	SSHAuditEnabled              string         `json:"ssh_audit_enabled,omitempty"`
-	MFA                          string         `json:"mfa,omitempty"`
-	RefreshStickyCookie          string         `json:"refresh_sticky_cookie,omitempty"`
-	AppServerReadTimeout         string         `json:"app_server_read_timeout,omitempty"`
-	IdleConnFloor                string         `json:"idle_conn_floor,omitempty"`
-	IdleConnCeil                 string         `json:"idle_conn_ceil,omitempty"`
-	IdleConnStep                 string         `json:"idle_conn_step,omitempty"`
-	IdleCloseTimeSeconds         string         `json:"idle_close_time_seconds,omitempty"`
-	RateLimit                    string         `json:"rate_limit,omitempty"`
-	AuthenticatedServerReqLimit  string         `json:"authenticated_server_request_limit,omitempty"`
-	AnonymousServerReqLimit      string         `json:"anonymous_server_request_limit,omitempty"`
-	AuthenticatedServerConnLimit string         `json:"authenticated_server_conn_limit,omitempty"`
-	AnonymousServerConnLimit     string         `json:"anonymous_server_conn_limit,omitempty"`
-	ServerRequestBurst           string         `json:"server_request_burst,omitempty"`
-	HealthCheckRise              string         `json:"health_check_rise,omitempty"`
-	HealthCheckFall              string         `json:"health_check_fall,omitempty"`
-	HealthCheckTimeout           string         `json:"health_check_timeout,omitempty"`
-	HealthCheckInterval          string         `json:"health_check_interval,omitempty"`
-	KerberosNegotiateOnce        string         `json:"kerberos_negotiate_once,omitempty"`
-	InjectAjaxJavascript         string         `json:"inject_ajax_javascript,omitempty"`
-	SentryRedirect401            string         `json:"sentry_redirect_401,omitempty"`
-	ProxyDisableClipboard        string         `json:"proxy_disable_clipboard,omitempty"`
-	PreauthEnforceURL            string         `json:"preauth_enforce_url,omitempty"`
-	ForceMFA                     string         `json:"force_mfa,omitempty"`
-	IgnoreBypassMFA              string         `json:"ignore_bypass_mfa,omitempty"`
-	StickyAgent                  string         `json:"sticky_agent,omitempty"`
-	SaaSEnabled                  string         `json:"saas_enabled,omitempty"`
-	AllowCORS                    string         `json:"allow_cors,omitempty"`
-	CORSOriginList               string         `json:"cors_origin_list,omitempty"`
-	CORSMethodList               string         `json:"cors_method_list,omitempty"`
-	CORSHeaderList               string         `json:"cors_header_list,omitempty"`
-	CORSSupportCredential        string         `json:"cors_support_credential,omitempty"`
-	CORSMaxAge                   string         `json:"cors_max_age,omitempty"`
-	KeepaliveEnable              string         `json:"keepalive_enable,omitempty"`
-	KeepaliveConnectionPool      string         `json:"keepalive_connection_pool,omitempty"`
-	KeepaliveTimeout             string         `json:"keepalive_timeout,omitempty"`
-	KeyedKeepaliveEnable         string         `json:"keyed_keepalive_enable,omitempty"`
-	Keytab                       string         `json:"keytab,omitempty"`
-	EdgeCookieKey                string         `json:"edge_cookie_key,omitempty"`
-	SLAObjectURL                 string         `json:"sla_object_url,omitempty"`
-	ForwardTicketGrantingTicket  string         `json:"forward_ticket_granting_ticket,omitempty"`
-	EdgeAuthenticationEnabled    string         `json:"edge_authentication_enabled,omitempty"`
-	HSTSage                      string         `json:"hsts_age,omitempty"`
-	RDPInitialProgram            *string        `json:"rdp_initial_program,omitempty"`
-	RemoteSparkMapClipboard      string         `json:"remote_spark_mapClipboard,omitempty"`
-	RDPLegacyMode                string         `json:"rdp_legacy_mode,omitempty"`
-	RemoteSparkAudio             string         `json:"remote_spark_audio,omitempty"`
-	RemoteSparkMapPrinter        string         `json:"remote_spark_mapPrinter,omitempty"`
-	RemoteSparkPrinter           string         `json:"remote_spark_printer,omitempty"`
-	RemoteSparkMapDisk           string         `json:"remote_spark_mapDisk,omitempty"`
-	RemoteSparkDisk              string         `json:"remote_spark_disk,omitempty"`
-	RemoteSparkRecording         string         `json:"remote_spark_recording,omitempty"`
-	ClientCertAuth               string         `json:"client_cert_auth,omitempty"`
-	ClientCertUserParam          string         `json:"client_cert_user_param,omitempty"`
-	G2OEnabled                   string         `json:"g2o_enabled,omitempty"`
-	G2ONonce                     *string        `json:"g2o_nonce,omitempty"`
-	G2OKey                       *string        `json:"g2o_key,omitempty"`
-	RDPTLS1                      string         `json:"rdp_tls1,omitempty"`
-	DomainExceptionList          string         `json:"domain_exception_list,omitempty"`
-	Acceleration                 string         `json:"acceleration,omitempty"`
-	OffloadOnPremiseTraffic      string         `json:"offload_onpremise_traffic,omitempty"`
-	AppClientCertAuth            string         `json:"app_client_cert_auth,omitempty"`
-	PreauthConsent               string         `json:"preauth_consent,omitempty"`
-	MDCEnable                    string         `json:"mdc_enable,omitempty"`
-	SingleHostEnable             string         `json:"single_host_enable,omitempty"`
-	SingleHostFQDN               string         `json:"single_host_fqdn,omitempty"`
-	SingleHostPath               string         `json:"single_host_path,omitempty"`
-	SingleHostContentRW          string         `json:"single_host_content_rw,omitempty"`
-	IsSSLVerificationEnabled     string         `json:"is_ssl_verification_enabled,omitempty"`
-	SingleHostCookieDomain       string         `json:"single_host_cookie_domain,omitempty"`
-	XWappReadTimeout             string         `json:"x_wapp_read_timeout,omitempty"`
-	ForceIPRoute                 string         `json:"force_ip_route,omitempty"`
-	CustomHeaders                []CustomHeader `json:"custom_headers,omitempty"`
+	LoginURL                     *string                `json:"login_url,omitempty"`
+	LogoutURL                    *string                `json:"logout_url,omitempty"`
+	InternalHostname             *string                `json:"internal_hostname,omitempty"`
+	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
+	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
+	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
+	CookieDomain                 *string                `json:"cookie_domain"`
+	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	LoggingEnabled               string                 `json:"logging_enabled,omitempty"`
+	LoginTimeout                 string                 `json:"login_timeout,omitempty"`
+	AppAuth                      string                 `json:"app_auth"`
+	WappAuth                     string                 `json:"wapp_auth,omitempty"`
+	JWTIssuers                   string                 `json:"jwt_issuers,omitempty"`
+	JWTAudience                  string                 `json:"jwt_audience,omitempty"`
+	JWTGracePeriod               string                 `json:"jwt_grace_period,omitempty"`
+	JWTReturnOption              string                 `json:"jwt_return_option,omitempty"`
+	JWTUsername                  string                 `json:"jwt_username,omitempty"`
+	JWTReturnURL                 string                 `json:"jwt_return_url,omitempty"`
+	SSO                          string                 `json:"sso,omitempty"`
+	HTTPOnlyCookie               string                 `json:"http_only_cookie,omitempty"`
+	RequestBodyRewrite           string                 `json:"request_body_rewrite,omitempty"`
+	IDPIdleExpiry                *string                `json:"idp_idle_expiry,omitempty"`
+	IDPMaxExpiry                 *string                `json:"idp_max_expiry,omitempty"`
+	HTTPSSSLV3                   string                 `json:"https_sslv3,omitempty"`
+	SPDYEnabled                  string                 `json:"spdy_enabled,omitempty"`
+	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
+	HiddenApp                    string                 `json:"hidden_app,omitempty"`
+	AppLocation                  *string                `json:"app_location"`
+	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
+	AppAuthDomain                string                 `json:"app_auth_domain,omitempty"`
+	LoadBalancingMetric          string                 `json:"load_balancing_metric,omitempty"`
+	HealthCheckType              string                 `json:"health_check_type,omitempty"`
+	HealthCheckHTTPURL           string                 `json:"health_check_http_url,omitempty"`
+	HealthCheckHTTPVersion       string                 `json:"health_check_http_version,omitempty"`
+	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header,omitempty"`
+	ProxyBufferSizeKB            string                 `json:"proxy_buffer_size_kb,omitempty"`
+	SessionSticky                string                 `json:"session_sticky,omitempty"`
+	SessionStickyCookieMaxAge    string                 `json:"session_sticky_cookie_maxage,omitempty"`
+	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie,omitempty"`
+	PassPhrase                   *string                `json:"pass_phrase,omitempty"`
+	PrivateKey                   *string                `json:"private_key,omitempty"`
+	HostKey                      *string                `json:"host_key,omitempty"`
+	UserName                     *string                `json:"user_name,omitempty"`
+	ExternalCookieDomain         *string                `json:"external_cookie_domain,omitempty"`
+	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
+	ServerCertValidate           string                 `json:"server_cert_validate,omitempty"`
+	IgnoreCnameResolution        string                 `json:"ignore_cname_resolution,omitempty"`
+	SSHAuditEnabled              string                 `json:"ssh_audit_enabled,omitempty"`
+	MFA                          string                 `json:"mfa,omitempty"`
+	RefreshStickyCookie          string                 `json:"refresh_sticky_cookie,omitempty"`
+	AppServerReadTimeout         string                 `json:"app_server_read_timeout,omitempty"`
+	IdleConnFloor                string                 `json:"idle_conn_floor,omitempty"`
+	IdleConnCeil                 string                 `json:"idle_conn_ceil,omitempty"`
+	IdleConnStep                 string                 `json:"idle_conn_step,omitempty"`
+	IdleCloseTimeSeconds         string                 `json:"idle_close_time_seconds,omitempty"`
+	RateLimit                    string                 `json:"rate_limit,omitempty"`
+	AuthenticatedServerReqLimit  string                 `json:"authenticated_server_request_limit,omitempty"`
+	AnonymousServerReqLimit      string                 `json:"anonymous_server_request_limit,omitempty"`
+	AuthenticatedServerConnLimit string                 `json:"authenticated_server_conn_limit,omitempty"`
+	AnonymousServerConnLimit     string                 `json:"anonymous_server_conn_limit,omitempty"`
+	ServerRequestBurst           string                 `json:"server_request_burst,omitempty"`
+	HealthCheckRise              string                 `json:"health_check_rise,omitempty"`
+	HealthCheckFall              string                 `json:"health_check_fall,omitempty"`
+	HealthCheckTimeout           string                 `json:"health_check_timeout,omitempty"`
+	HealthCheckInterval          string                 `json:"health_check_interval,omitempty"`
+	KerberosNegotiateOnce        string                 `json:"kerberos_negotiate_once,omitempty"`
+	InjectAjaxJavascript         string                 `json:"inject_ajax_javascript,omitempty"`
+	SentryRedirect401            string                 `json:"sentry_redirect_401,omitempty"`
+	ProxyDisableClipboard        string                 `json:"proxy_disable_clipboard,omitempty"`
+	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
+	ForceMFA                     string                 `json:"force_mfa,omitempty"`
+	IgnoreBypassMFA              string                 `json:"ignore_bypass_mfa,omitempty"`
+	StickyAgent                  string                 `json:"sticky_agent,omitempty"`
+	SaaSEnabled                  string                 `json:"saas_enabled,omitempty"`
+	AllowCORS                    string                 `json:"allow_cors,omitempty"`
+	CORSOriginList               string                 `json:"cors_origin_list,omitempty"`
+	CORSMethodList               string                 `json:"cors_method_list,omitempty"`
+	CORSHeaderList               string                 `json:"cors_header_list,omitempty"`
+	CORSSupportCredential        string                 `json:"cors_support_credential,omitempty"`
+	CORSMaxAge                   string                 `json:"cors_max_age,omitempty"`
+	KeepaliveEnable              string                 `json:"keepalive_enable,omitempty"`
+	KeepaliveConnectionPool      string                 `json:"keepalive_connection_pool,omitempty"`
+	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
+	KeyedKeepaliveEnable         string                 `json:"keyed_keepalive_enable,omitempty"`
+	Keytab                       string                 `json:"keytab,omitempty"`
+	EdgeCookieKey                string                 `json:"edge_cookie_key,omitempty"`
+	SLAObjectURL                 string                 `json:"sla_object_url,omitempty"`
+	ForwardTicketGrantingTicket  string                 `json:"forward_ticket_granting_ticket,omitempty"`
+	InterceptURL                 string                 `json:"intercept_url,omitempty"`
+	IsBrotliEnabled              string                 `json:"is_brotli_enabled,omitempty"`
+	Onramp                       string                 `json:"onramp,omitempty"`
+	SegmentationPolicyEnable     string                 `json:"segmentation_policy_enable,omitempty"`
+	SentryRestoreFormPost        string                 `json:"sentry_restore_form_post,omitempty"`
+	ServicePrincipleName         *string                `json:"service_principle_name,omitempty"`
+	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+	FormPostURL                  string                 `json:"form_post_url,omitempty"`
+	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
+	HSTSage                      string                 `json:"hsts_age,omitempty"`
+	RDPInitialProgram            *string                `json:"rdp_initial_program,omitempty"`
+	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
+	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
+	RemoteSparkAudio             string                 `json:"remote_spark_audio,omitempty"`
+	RemoteSparkMapPrinter        string                 `json:"remote_spark_mapPrinter,omitempty"`
+	RemoteSparkPrinter           string                 `json:"remote_spark_printer,omitempty"`
+	RemoteSparkMapDisk           string                 `json:"remote_spark_mapDisk,omitempty"`
+	RemoteSparkDisk              string                 `json:"remote_spark_disk,omitempty"`
+	RemoteSparkRecording         string                 `json:"remote_spark_recording,omitempty"`
+	ClientCertAuth               string                 `json:"client_cert_auth,omitempty"`
+	ClientCertUserParam          string                 `json:"client_cert_user_param,omitempty"`
+	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
+	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
+	G2OKey                       *string                `json:"g2o_key,omitempty"`
+	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
+	DomainExceptionList          string                 `json:"domain_exception_list,omitempty"`
+	DisableUserAgentCheck        string                 `json:"disable_user_agent_check,omitempty"`
+	EdgeTransportManualMode      string                 `json:"edge_transport_manual_mode,omitempty"`
+	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id,omitempty"`
+	EnableClientSideXHRRewrite   string                 `json:"enable_client_side_xhr_rewrite,omitempty"`
+	Acceleration                 string                 `json:"acceleration,omitempty"`
+	OffloadOnPremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
+	AppClientCertAuth            string                 `json:"app_client_cert_auth,omitempty"`
+	PreauthConsent               string                 `json:"preauth_consent,omitempty"`
+	MDCEnable                    string                 `json:"mdc_enable,omitempty"`
+	SingleHostEnable             string                 `json:"single_host_enable,omitempty"`
+	SingleHostFQDN               string                 `json:"single_host_fqdn,omitempty"`
+	SingleHostPath               string                 `json:"single_host_path,omitempty"`
+	SingleHostContentRW          string                 `json:"single_host_content_rw,omitempty"`
+	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
+	SingleHostCookieDomain       string                 `json:"single_host_cookie_domain,omitempty"`
+	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
+	XWappPoolEnabled             string                 `json:"x_wapp_pool_enabled,omitempty"`
+	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
+	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
+	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
+	RDPRemoteApps                []string               `json:"rdp_remote_apps,omitempty"`
+	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
+	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
+	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
+	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
+	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
 }
 
 type OIDCSettings struct {
@@ -1745,11 +1543,11 @@ type WSFEDSPConfig struct {
 }
 
 type WSFEDIDPConfig struct {
-	EntityID  string `json:"entity_id"`
-	SignAlgo  string `json:"sign_algo"`
-	SignCert  string `json:"sign_cert"`
-	SignKey   string `json:"sign_key"`
-	SelfSigned bool  `json:"self_signed"`
+	EntityID   string `json:"entity_id"`
+	SignAlgo   string `json:"sign_algo"`
+	SignCert   string `json:"sign_cert"`
+	SignKey    string `json:"sign_key"`
+	SelfSigned bool   `json:"self_signed"`
 }
 
 type WSFEDSubjectConfig struct {
@@ -1775,19 +1573,19 @@ type OIDCConfig struct {
 }
 
 type OIDCClient struct {
-	ClientName                string                    `json:"client_name"`
-	ClientID                  string                    `json:"client_id"`
-	ClientSecret              []OIDCClientSecret        `json:"client_secret"`
-	ResponseType              []string                  `json:"response_type"`
-	ImplicitGrant             bool                      `json:"implicit_grant"`
-	Type                      string                    `json:"type"`
-	RedirectURIs              []string                  `json:"redirect_uris"`
-	JavaScriptOrigins         []string                  `json:"javascript_origins"`
-	LogoutURL                 string                    `json:"logout_url"`
-	LogoutSessionRequired     bool                      `json:"logout_session_required"`
-	PostLogoutRedirectURI     []string                  `json:"post_logout_redirect_uri"`
-	Metadata                  string                    `json:"metadata"`
-	Claims                    []OIDCClaim               `json:"claims"`
+	ClientName            string             `json:"client_name"`
+	ClientID              string             `json:"client_id"`
+	ClientSecret          []OIDCClientSecret `json:"client_secret"`
+	ResponseType          []string           `json:"response_type"`
+	ImplicitGrant         bool               `json:"implicit_grant"`
+	Type                  string             `json:"type"`
+	RedirectURIs          []string           `json:"redirect_uris"`
+	JavaScriptOrigins     []string           `json:"javascript_origins"`
+	LogoutURL             string             `json:"logout_url"`
+	LogoutSessionRequired bool               `json:"logout_session_required"`
+	PostLogoutRedirectURI []string           `json:"post_logout_redirect_uri"`
+	Metadata              string             `json:"metadata"`
+	Claims                []OIDCClaim        `json:"claims"`
 }
 
 type OIDCClientSecret struct {
@@ -1878,9 +1676,9 @@ type SubjectProperties struct {
 }
 
 type AttrMapSchema struct {
-	Type       string        `json:"type"`
-	UniqueItems bool         `json:"uniqueItems"`
-	Items      AttrMapItem   `json:"items"`
+	Type         string            `json:"type"`
+	UniqueItems  bool              `json:"uniqueItems"`
+	Items        AttrMapItem       `json:"items"`
 	AttributeMap map[string]string `json:"attribute_map"`
 }
 
@@ -1891,12 +1689,12 @@ type AttrMapItem struct {
 }
 
 type AttrMapItemProperties struct {
-	Name AttrMapField `json:"name"`
+	Name  AttrMapField `json:"name"`
 	Fname AttrMapField `json:"fname"`
-	Fmt  AttrMapField `json:"fmt"`
-	Val  AttrMapField `json:"val"`
-	Src  AttrMapField `json:"src"`
-	Rule AttrMapField `json:"rule"`
+	Fmt   AttrMapField `json:"fmt"`
+	Val   AttrMapField `json:"val"`
+	Src   AttrMapField `json:"src"`
+	Rule  AttrMapField `json:"rule"`
 }
 
 type AttrMapField struct {
@@ -1952,4 +1750,454 @@ type AppsResponse struct {
 	} `json:"meta"`
 	Applications []ApplicationDataModel `json:"objects"`
 }
+
+// ParseAdvancedSettingsWithDefaults parses JSON advanced settings and applies sensible defaults
+func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error) {
+	var userSettings map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &userSettings); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Create advanced settings with defaults matching the exact payload values
+	advSettings := &AdvancedSettings{
+		// Core defaults matching your payload exactly
+		Acceleration:                 "false",
+		AllowCORS:                    "true",
+		AnonymousServerConnLimit:     "50",
+		AnonymousServerReqLimit:      "100",
+		AppAuth:                      "none",
+		AppAuthDomain:                nil,
+		AppCookieDomain:              nil,
+		AppClientCertAuth:            "false",
+		AppLocation:                  nil,
+		AppServerReadTimeout:         "60",
+		AuthenticatedServerConnLimit: "50",
+		AuthenticatedServerReqLimit:  "100",
+		ClientCertAuth:               "false",
+		ClientCertUserParam:          "",
+		CookieDomain:                 nil,
+		CORSHeaderList:               "header1,header2,header3",
+		CORSMaxAge:                   "86400",
+		CORSMethodList:               "method1,method2",
+		CORSOriginList:               "origin1,origin2,orign3",
+		CORSSupportCredential:        "off",
+		CustomHeaders:                []CustomHeader{},
+		DisableUserAgentCheck:        "false",
+		EdgeAuthenticationEnabled:    "false",
+		EdgeCookieKey:                nil,
+		EdgeTransportManualMode:      "true",
+		EdgeTransportPropertyID:      nil,
+		EnableClientSideXHRRewrite:   "false",
+		ExternalCookieDomain:         nil,
+		ForceIPRoute:                 "false",
+		ForceMFA:                     "off",
+		FormPostAttributes:           []string{},
+		FormPostURL:                  "",
+		ForwardTicketGrantingTicket:  "false",
+		G2OEnabled:                   "true",
+		G2OKey:                       nil,
+		G2ONonce:                     nil,
+		HealthCheckFall:              "3",
+		HealthCheckHTTPURL:           "/",
+		HealthCheckHTTPVersion:       "1.1",
+		HealthCheckInterval:          "30000",
+		HealthCheckRise:              "2",
+		HealthCheckTimeout:           "50000",
+		HealthCheckType:              "Default",
+		HealthCheckHTTPHostHeader:    nil,
+		HiddenApp:                    "false",
+		HostKey:                      nil,
+		HSTSage:                      "15552000",
+		HTTPOnlyCookie:               "true",
+		HTTPSSSLV3:                   "false",
+		IdleCloseTimeSeconds:         "1200",
+		IdleConnCeil:                 "75",
+		IdleConnFloor:                "50",
+		IdleConnStep:                 "10",
+		IDPIdleExpiry:                nil,
+		IDPMaxExpiry:                 nil,
+		IgnoreBypassMFA:              "off",
+		IgnoreCnameResolution:        "true",
+		InjectAjaxJavascript:         "off",
+		InterceptURL:                 "",
+		InternalHostPort:             "0",
+
+		// JWT defaults
+		JwtAudience:              "",
+		JwtGracePeriod:           "60",
+		JwtIssuers:               "",
+		JwtReturnOption:          "401",
+		JwtReturnUrl:             "",
+		JwtUsername:              "",
+		IPAccessAllow:            "false",
+		IsBrotliEnabled:          "false",
+		IsSSLVerificationEnabled: "false",
+		KeepaliveConnectionPool:  "50",
+		KeepaliveEnable:          "true",
+		KeepaliveTimeout:         "300",
+
+		LoadBalancingMetric:     "round-robin",
+		LoggingEnabled:          "true",
+		LoginTimeout:            "5",
+		LoginURL:                nil,
+		MDCEnable:               "false",
+		OffloadOnpremiseTraffic: "false",
+		Onramp:                  "inherit",
+		PassPhrase:              nil,
+		PreauthConsent:          "false",
+		PreauthEnforceURL:       "",
+		PrivateKey:              nil,
+
+		RDPKeyboardLang: "",
+
+		RDPRemoteApps:       []string{},
+		RDPWindowColorDepth: "",
+		RDPWindowHeight:     "",
+		RDPWindowWidth:      "",
+
+		RemoteSparkAudio:          "true",
+		RemoteSparkDisk:           "LOCALSHARE",
+		RemoteSparkMapClipboard:   "on",
+		RemoteSparkMapDisk:        "true",
+		RemoteSparkMapPrinter:     "true",
+		RemoteSparkPrinter:        "LOCALPRINTER",
+		RemoteSparkRecording:      "false",
+		RequestBodyRewrite:        "false",
+		RequestParameters:         nil,
+		SaaSEnabled:               "false",
+		SegmentationPolicyEnable:  "false",
+		SentryRedirect401:         "off",
+		SentryRestoreFormPost:     "off",
+		ServerCertValidate:        "true",
+		ServerRequestBurst:        "100",
+		ServicePrincipleName:      nil,
+		SessionSticky:             "false",
+		SessionStickyCookieMaxAge: "0",
+		SessionStickyServerCookie: nil,
+		SlaObjectUrl:              nil,
+		SingleHostContentRW:       "false",
+		SingleHostCookieDomain:    "single.example.com",
+		SingleHostEnable:          "false",
+		SingleHostFQDN:            "",
+		SingleHostPath:            "",
+		SPDYEnabled:               "true",
+		SSHAuditEnabled:           "false",
+		SSO:                       "true",
+		StickyAgent:               "false",
+		UserName:                  nil,
+		WappAuth:                  "form",
+		WebSocketEnabled:          "false",
+		WildcardInternalHostname:  "false",
+		XWappPoolEnabled:          "inherit",
+		XWappPoolSize:             "20",
+		XWappPoolTimeout:          "120",
+		XWappReadTimeout:          "900",
+	}
+
+	// Apply user-specified values, overriding defaults using reflection
+	applyAdvancedSettingsWithReflection(advSettings, userSettings)
+
+	return advSettings, nil
+}
+
+// applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
+// This eliminates the need for the massive switch statement and makes the code much more maintainable
+func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
+	// Field mapping: JSON key -> struct field name
+	fieldMapping := map[string]string{
+		"is_ssl_verification_enabled":        "IsSSLVerificationEnabled",
+		"g2o_enabled":                        "G2OEnabled",
+		"edge_authentication_enabled":        "EdgeAuthenticationEnabled",
+		"ignore_cname_resolution":            "IgnoreCnameResolution",
+		"allow_cors":                         "AllowCORS",
+		"cors_origin_list":                   "CORSOriginList",
+		"cors_method_list":                   "CORSMethodList",
+		"cors_header_list":                   "CORSHeaderList",
+		"cors_max_age":                       "CORSMaxAge",
+		"cors_support_credential":            "CORSSupportCredential",
+		"websocket_enabled":                  "WebSocketEnabled",
+		"sticky_agent":                       "StickyAgent",
+		"acceleration":                       "Acceleration",
+		"spdy_enabled":                       "SPDYEnabled",
+		"keepalive_enable":                   "KeepaliveEnable",
+		"keepalive_timeout":                  "KeepaliveTimeout",
+		"keepalive_connection_pool":          "KeepaliveConnectionPool",
+		"health_check_type":                  "HealthCheckType",
+		"health_check_http_url":              "HealthCheckHTTPURL",
+		"health_check_interval":              "HealthCheckInterval",
+		"health_check_timeout":               "HealthCheckTimeout",
+		"kerberos_negotiate_once":            "KerberosNegotiateOnce",
+		"health_check_rise":                  "HealthCheckRise",
+		"health_check_fall":                  "HealthCheckFall",
+		"health_check_http_version":          "HealthCheckHTTPVersion",
+		"anonymous_server_conn_limit":        "AnonymousServerConnLimit",
+		"anonymous_server_request_limit":     "AnonymousServerReqLimit",
+		"app_auth":                           "AppAuth",
+		"authenticated_server_conn_limit":    "AuthenticatedServerConnLimit",
+		"authenticated_server_request_limit": "AuthenticatedServerReqLimit",
+		"sso":                                "SSO",
+		"mfa":                                "MFA",
+		"logging_enabled":                    "LoggingEnabled",
+		"login_timeout":                      "LoginTimeout",
+		"hidden_app":                         "HiddenApp",
+		"http_only_cookie":                   "HTTPOnlyCookie",
+		"hsts_age":                           "HSTSage",
+		"server_cert_validate":               "ServerCertValidate",
+		"server_request_burst":               "ServerRequestBurst",
+		"load_balancing_metric":              "LoadBalancingMetric",
+		"idle_close_time_seconds":            "IdleCloseTimeSeconds",
+		"idle_conn_ceil":                     "IdleConnCeil",
+		"rate_limit":                          "RateLimit",
+		"refresh_sticky_cookie":               "RefreshStickyCookie",
+		"idle_conn_floor":                    "IdleConnFloor",
+		"idle_conn_step":                     "IdleConnStep",
+		"x_wapp_pool_size":                   "XWappPoolSize",
+		"x_wapp_pool_timeout":                "XWappPoolTimeout",
+		"x_wapp_pool_enabled":                "XWappPoolEnabled",
+		"x_wapp_read_timeout":                "XWappReadTimeout",
+		"edge_transport_manual_mode":         "EdgeTransportManualMode",
+		"edge_cookie_key":                    "EdgeCookieKey",
+		"force_mfa":                          "ForceMFA",
+		"ignore_bypass_mfa":                  "IgnoreBypassMFA",
+		"inject_ajax_javascript":             "InjectAjaxJavascript",
+		"is_brotli_enabled":                  "IsBrotliEnabled",
+		"mdc_enable":                         "MDCEnable",
+		"offload_onpremise_traffic":          "OffloadOnpremiseTraffic",
+		"onramp":                             "Onramp",
+		"preauth_consent":                    "PreauthConsent",
+		"remote_spark_audio":                 "RemoteSparkAudio",
+		"remote_spark_disk":                  "RemoteSparkDisk",
+		"remote_spark_map_clipboard":         "RemoteSparkMapClipboard",
+		"remote_spark_map_disk":              "RemoteSparkMapDisk",
+		"remote_spark_map_printer":           "RemoteSparkMapPrinter",
+		"remote_spark_recording":             "RemoteSparkRecording",
+		"request_body_rewrite":               "RequestBodyRewrite",
+		"saas_enabled":                       "SaaSEnabled",
+		"segmentation_policy_enable":         "SegmentationPolicyEnable",
+		"sentry_restore_form_post":           "SentryRestoreFormPost",
+		"sentry_redirect_401":                "SentryRedirect401",
+		"single_host_content_rw":             "SingleHostContentRW",
+		"single_host_cookie_domain":          "SingleHostCookieDomain",
+		"single_host_enable":                 "SingleHostEnable",
+		"ssh_audit_enabled":                  "SSHAuditEnabled",
+		// Additional fields
+		"app_auth_domain":                "AppAuthDomain",
+		"app_client_cert_auth":           "AppClientCertAuth",
+		"app_cookie_domain":              "AppCookieDomain",
+		"app_server_read_timeout":        "AppServerReadTimeout",
+		"client_cert_auth":               "ClientCertAuth",
+		"client_cert_user_param":         "ClientCertUserParam",
+		"cookie_domain":                  "CookieDomain",
+		"disable_user_agent_check":       "DisableUserAgentCheck",
+		"domain_exception_list":          "DomainExceptionList",
+		"enable_client_side_xhr_rewrite": "EnableClientSideXHRRewrite",
+		"external_cookie_domain":         "ExternalCookieDomain",
+		"force_ip_route":                 "ForceIPRoute",
+		"form_post_attributes":           "FormPostAttributes",
+		"form_post_url":                  "FormPostURL",
+		"keyed_keepalive_enable":        "KeyedKeepaliveEnable",
+		"keytab":                         "Keytab",
+		"forward_ticket_granting_ticket": "ForwardTicketGrantingTicket",
+		"health_check_http_host_header":  "HealthCheckHTTPHostHeader",
+		"host_key":                       "HostKey",
+		"https_sslv3":                    "HTTPSSSLV3",
+		"idp_idle_expiry":                "IDPIdleExpiry",
+		"idp_max_expiry":                 "IDPMaxExpiry",
+		"intercept_url":                  "InterceptURL",
+		"internal_host_port":             "InternalHostPort",
+		"ip_access_allow":                "IPAccessAllow",
+		"login_url":                      "LoginURL",
+		"logout_url":                     "LogoutURL",
+		"pass_phrase":                    "PassPhrase",
+		"preauth_enforce_url":            "PreauthEnforceURL",
+		"private_key":                    "PrivateKey",
+		"proxy_buffer_size_kb":           "ProxyBufferSizeKB",
+		"proxy_disable_clipboard":        "ProxyDisableClipboard",
+		"rdp_keyboard_lang":              "RDPKeyboardLang",
+		"custom_headers":                 "CustomHeaders",
+		"rdp_remote_apps":                "RDPRemoteApps",
+		"rdp_window_color_depth":         "RDPWindowColorDepth",
+		"rdp_window_height":              "RDPWindowHeight",
+		"rdp_window_width":               "RDPWindowWidth",
+		"rdp_initial_program":            "RDPInitialProgram",
+		"rdp_legacy_mode":                "RDPLegacyMode",
+		"rdp_tls1":                       "RDPTLS1",
+		"remote_spark_printer":           "RemoteSparkPrinter",
+		"request_parameters":             "RequestParameters",
+		"service_principle_name":         "ServicePrincipleName",
+		"session_sticky":                  "SessionSticky",
+		"session_sticky_cookie_maxage":   "SessionStickyCookieMaxAge",
+		"session_sticky_server_cookie":   "SessionStickyServerCookie",
+		"single_host_fqdn":               "SingleHostFQDN",
+		"single_host_path":               "SingleHostPath",
+		"user_name":                      "UserName",
+		"wildcard_internal_hostname":     "WildcardInternalHostname",
+
+		// JWT fields
+		"jwt_audience":      "JwtAudience",
+		"jwt_grace_period":  "JwtGracePeriod",
+		"jwt_issuers":       "JwtIssuers",
+		"jwt_return_option": "JwtReturnOption",
+		"jwt_return_url":    "JwtReturnUrl",
+		"jwt_username":      "JwtUsername",
+		"wapp_auth":         "WappAuth",
+	}
+
+	// Use reflection to set fields dynamically - handle both string and *string types
+	val := reflect.ValueOf(advSettings).Elem()
+
+	for jsonKey, value := range userSettings {
+		if fieldName, exists := fieldMapping[jsonKey]; exists {
+			field := val.FieldByName(fieldName)
+			if field.IsValid() && field.CanSet() {
+				// Special handling for health_check_type mapping
+				if jsonKey == "health_check_type" {
+					if strVal, ok := value.(string); ok {
+						// Map descriptive values to numeric values for health_check_type
+						switch strVal {
+						case "Default":
+							value = "0"
+						case "HTTP":
+							value = "1"
+						case "HTTPS":
+							value = "2"
+						case "SSL":
+							value = "3"
+						case "TCP":
+							value = "4"
+						case "None":
+							value = "5"
+						default:
+							// Keep original value if it's already numeric
+							value = strVal
+						}
+					}
+				}
+
+				// Handle different field types
+				switch field.Kind() {
+				case reflect.String:
+					// For string fields, check if automatic conversion is allowed
+					if jsonKey == "app_auth" {
+						// Strict validation for app_auth: only accept strings
+						if strVal, ok := value.(string); ok {
+							field.SetString(strVal)
+						} else {
+							// Reject non-string values for app_auth
+							fmt.Fprintf(os.Stderr, "ERROR: app_auth must be a string, got %T (value: %v). No automatic conversion allowed.\n", value, value)
+							continue // Skip this field
+						}
+					} else {
+						// For other string fields, allow automatic conversion (handle both string and numeric inputs)
+						var strVal string
+						switch v := value.(type) {
+						case string:
+							strVal = v
+						case int, int32, int64:
+							strVal = fmt.Sprintf("%v", v)
+						case float32, float64:
+							strVal = fmt.Sprintf("%v", v)
+						default:
+							strVal = fmt.Sprintf("%v", v)
+						}
+						field.SetString(strVal)
+					}
+				case reflect.Ptr:
+					// For pointer fields (like *string), create a pointer to the value
+					if field.Type().Elem().Kind() == reflect.String {
+						var strVal string
+						switch v := value.(type) {
+						case string:
+							strVal = v
+						case int, int32, int64:
+							strVal = fmt.Sprintf("%v", v)
+						case float32, float64:
+							strVal = fmt.Sprintf("%v", v)
+						default:
+							strVal = fmt.Sprintf("%v", v)
+						}
+						field.Set(reflect.ValueOf(&strVal))
+					}
+				case reflect.Int, reflect.Int32, reflect.Int64:
+					// For integer fields, convert from various numeric types
+					var intVal int64
+					switch v := value.(type) {
+					case int:
+						intVal = int64(v)
+					case int32:
+						intVal = int64(v)
+					case int64:
+						intVal = v
+					case float32:
+						intVal = int64(v)
+					case float64:
+						intVal = int64(v)
+					case string:
+						if parsedInt, err := strconv.ParseInt(v, 10, 64); err == nil {
+							intVal = parsedInt
+						} else {
+							fmt.Fprintf(os.Stderr, "WARNING: Cannot convert string %s to integer for field %s, skipping\n", v, jsonKey)
+							continue
+						}
+					default:
+						fmt.Fprintf(os.Stderr, "WARNING: Cannot convert value type %T to integer for field %s, skipping\n", value, jsonKey)
+						continue
+					}
+					field.SetInt(intVal)
+				case reflect.Slice:
+					// For slice fields, handle type conversion properly
+					if field.Type().Elem().Kind() == reflect.String {
+						// Special handling for form_post_attributes: convert string to string slice
+						if jsonKey == "form_post_attributes" {
+							if strVal, ok := value.(string); ok {
+								// Split the comma-separated string into a slice
+								stringSlice := strings.Split(strVal, ",")
+								// Trim whitespace from each element
+								for i, s := range stringSlice {
+									stringSlice[i] = strings.TrimSpace(s)
+								}
+								field.Set(reflect.ValueOf(stringSlice))
+								continue
+							}
+						}
+
+						// Convert []interface{} to []string
+						if interfaceSlice, ok := value.([]interface{}); ok {
+							stringSlice := make([]string, len(interfaceSlice))
+							for i, v := range interfaceSlice {
+								if strVal, ok := v.(string); ok {
+									stringSlice[i] = strVal
+								} else {
+									stringSlice[i] = fmt.Sprintf("%v", v)
+								}
+							}
+							field.Set(reflect.ValueOf(stringSlice))
+						} else if stringSlice, ok := value.([]string); ok {
+							// Already a string slice
+							field.Set(reflect.ValueOf(stringSlice))
+						} else {
+							// For form_post_attributes, default to empty slice if conversion fails
+							if jsonKey == "form_post_attributes" {
+
+								field.Set(reflect.ValueOf([]string{}))
+							} else {
+								fmt.Fprintf(os.Stderr, "WARNING: Cannot convert value type %T to string slice for field %s, skipping\n", value, jsonKey)
+							}
+							continue
+						}
+					} else {
+						// For non-string slices, handle type conversion properly
+						if reflect.TypeOf(value).AssignableTo(field.Type()) {
+							field.Set(reflect.ValueOf(value))
+						} else {
+							fmt.Fprintf(os.Stderr, "WARNING: Cannot assign value type %T to field type %v for %s, skipping\n", value, field.Type(), jsonKey)
+							continue
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 

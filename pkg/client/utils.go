@@ -34,15 +34,18 @@ func SetAdvancedSettings(d *schema.ResourceData, settings AdvancedSettings) erro
 		tag := t.Field(i).Tag.Get("json")
 		tagName := strings.Split(tag, ",")[0]
 
-		// Skip fields with empty values
-		if field.Kind() == reflect.Ptr && field.IsNil() {
-			continue
-		}
-
+		// Include ALL fields, even if they have empty values
+		// This ensures the complete configuration is visible in Terraform state
 		if field.Kind() == reflect.Ptr {
-			// Dereference pointer fields
-			advancedSettingsMap[tagName] = field.Elem().Interface()
+			if field.IsNil() {
+				// Include null pointers as null in the map
+				advancedSettingsMap[tagName] = nil
+			} else {
+				// Dereference pointer fields
+				advancedSettingsMap[tagName] = field.Elem().Interface()
+			}
 		} else {
+			// Include all non-pointer fields, even if they're empty
 			advancedSettingsMap[tagName] = field.Interface()
 		}
 	}
@@ -88,24 +91,44 @@ func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedS
 	completeVal := reflect.ValueOf(complete).Elem()
 	deltaVal := reflect.ValueOf(delta)
 
+	// Debug logging
+	fmt.Printf("DEBUG: Updating AdvancedSettings from delta to complete\n")
+	fmt.Printf("DEBUG: Delta AppAuth value: %v\n", delta.AppAuth)
+
 	for i := 0; i < deltaVal.NumField(); i++ {
 		deltaField := deltaVal.Field(i)
-		completeField := completeVal.FieldByName(deltaVal.Type().Field(i).Name)
+		fieldName := deltaVal.Type().Field(i).Name
+		completeField := completeVal.FieldByName(fieldName)
+
+		// Debug logging for AppAuth field
+		if fieldName == "AppAuth" {
+			fmt.Printf("DEBUG: Found AppAuth field, delta value: %v, complete field valid: %v, can set: %v\n", 
+				deltaField.Interface(), completeField.IsValid(), completeField.CanSet())
+		}
 
 		if !deltaField.IsValid() || !completeField.IsValid() || !completeField.CanSet() {
 			continue
 		}
 
-		if completeField.Kind() == reflect.String || completeField.Kind() == reflect.Ptr {
+		// Always copy the field value, regardless of whether it's zero or not
+		// This ensures ALL fields (including defaults) are included in the final payload
+		if completeField.Kind() == reflect.String {
+			// Handle string fields - convert pointer to string if needed
 			if deltaField.Kind() == reflect.Ptr && !deltaField.IsNil() {
-				completeField.Set(deltaField)
+				completeField.SetString(deltaField.Elem().String())
 			} else if deltaField.Kind() == reflect.String {
-				completeField.Set(deltaField)
+				completeField.SetString(deltaField.String())
 			}
+		} else if completeField.Kind() == reflect.Ptr {
+			// Handle pointer fields - copy the pointer directly
+			completeField.Set(deltaField)
 		} else if completeField.Kind() == reflect.Slice {
-			if deltaField.IsValid() && deltaField.Kind() == reflect.Slice && !deltaField.IsNil() {
-				completeField.Set(deltaField)
-			}
+			completeField.Set(deltaField)
+		} else if completeField.Kind() == reflect.Map {
+			completeField.Set(deltaField)
+		} else {
+			// For other types (int, bool, etc.), copy directly
+			completeField.Set(deltaField)
 		}
 	}
 }

@@ -19,7 +19,7 @@ provider "eaa" {
 # JWT Authentication Application with Default Settings
 resource "eaa_application" "jwt_basic" {
   name        = "jwt-basic-app"
-  description = "JWT authentication application with default settings"
+  description = "JWT authentication aspplication with default settings"
   host        = "jwt-basic.example.com"
   app_profile = "http"
   app_type    = "enterprise"
@@ -37,13 +37,13 @@ resource "eaa_application" "jwt_basic" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     wapp_auth = "jwt"
     # Default JWT settings will be applied:
     # jwt_grace_period = "60"
     # jwt_return_option = "401"
     # Other JWT fields default to empty strings
-  }
+  })
 }
 
 # JWT Authentication Application with Custom Settings
@@ -67,7 +67,7 @@ resource "eaa_application" "jwt_custom" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     wapp_auth = "jwt"
     jwt_issuers = "https://auth.example.com"
     jwt_audience = "my-app"
@@ -75,6 +75,6 @@ resource "eaa_application" "jwt_custom" {
     jwt_return_option = "401"
     jwt_username = "sub"
     jwt_return_url = "https://jwt-custom.example.com/return"
-  }
+  })
 }
 

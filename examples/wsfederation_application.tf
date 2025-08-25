@@ -37,10 +37,10 @@ resource "eaa_application" "wsfed_basic" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "WS-Federation"
     # No wsfed_settings needed - defaults will be applied
-  }
+  })
 
   # No app_authentication block needed for first-time creation
   # API will automatically assign default IDP and create default WS-Federation settings
@@ -48,7 +48,7 @@ resource "eaa_application" "wsfed_basic" {
 
 # WS-Federation Application with Custom Settings
 resource "eaa_application" "wsfed_custom" {
-  name        = "wsfed-custom-app"
+  name        = "wsfed-custom-apps"
   description = "WS-Federation application with custom settings"
   host        = "wsfed-custom.example.com"
   app_profile = "http"
@@ -67,61 +67,64 @@ resource "eaa_application" "wsfed_custom" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "WS-Federation"
-  }
+  })
 
-  wsfed_settings {
-    sp {
-      entity_id = "https://wsfed-custom.example.com"
-      slo_url   = "https://wsfed-custom.example.com/wsfed/slo"
-      dst_url   = "https://wsfed-custom.example.com/wsfed/dst"
-      resp_bind = "post"
-      token_life = 7200
-      encr_algo  = "aes128-cbc"
+  # WS-Federation settings using JSON approach with jsonencode()
+  wsfed_settings = jsonencode([
+    {
+      sp = {
+        entity_id = "https://wsfed-custom.example.com"
+        slo_url   = "https://wsfed-custom.example.com/wsfed/slo"
+        dst_url   = "https://wsfed-custom.example.com/wsfed/dst"
+        resp_bind = "post"
+        token_life = 7200
+        encr_algo  = "aes128-cbc"
+      }
+      
+      idp = {
+        entity_id = "https://test-idp.example.com/wsfed/idp/sso"
+        sign_algo = "SHA1"
+        
+        sign_key  = ""
+        self_signed = false
+      }
+      
+      subject = {
+        fmt = "persistent"
+        custom_fmt = ""
+        src = "user.persistentId"
+        val = ""
+        rule = ""
+      }
+      
+      attrmap = [
+        {
+          name = "email"
+          fmt  = "email"
+          custom_fmt = ""
+          val  = ""
+          src  = "user.email"
+          rule = ""
+        },
+        {
+          name = "firstName"
+          fmt  = "firstName"
+          custom_fmt = ""
+          val  = ""
+          src  = "user.firstName"
+          rule = ""
+        },
+        {
+          name = "lastName"
+          fmt  = "lastName"
+          custom_fmt = ""
+          val  = ""
+          src  = "user.lastName"
+          rule = ""
+        }
+      ]
     }
-    
-    idp {
-      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
-      sign_algo = "SHA1"
-      sign_cert = ""
-      sign_key  = ""
-      self_signed = false
-    }
-    
-    subject {
-      fmt = "persistent"
-      custom_fmt = ""
-      src = "user.persistentId"
-      val = ""
-      rule = ""
-    }
-    
-    attrmap {
-      name = "email"
-      fmt  = "email"
-      custom_fmt = ""
-      val  = ""
-      src  = "user.email"
-      rule = ""
-    }
-    
-    attrmap {
-      name = "firstName"
-      fmt  = "firstName"
-      custom_fmt = ""
-      val  = ""
-      src  = "user.firstName"
-      rule = ""
-    }
-    
-    attrmap {
-      name = "lastName"
-      fmt  = "lastName"
-      custom_fmt = ""
-      val  = ""
-      src  = "user.lastName"
-      rule = ""
-    }
-  }
+  ])
 }

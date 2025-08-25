@@ -37,7 +37,7 @@ resource "eaa_application" "jira-app" {
         origin_host     = "jira-app.example.com"
     }
 
-    advanced_settings {
+    advanced_settings = jsonencode({
         is_ssl_verification_enabled = "false"
         ignore_cname_resolution = "true"
         g2o_enabled = "true"
@@ -52,16 +52,18 @@ resource "eaa_application" "jira-app" {
         sentry_redirect_401 = "off"
         logout_url = "logout_url"
         app_auth = "SAML2.0"
-        custom_headers {
-            attribute_type = "custom"
-            header = "myheader"
-            attribute = "attributevalue"
-        }
-        custom_headers {
-            attribute_type = "user"
-            header = "myuser"
-        }
-	}
+        custom_headers = [
+            {
+                attribute_type = "custom"
+                header = "myheader"
+                attribute = "attributevalue"
+            },
+            {
+                attribute_type = "user"
+                header = "myuser"
+            }
+        ]
+    })
 
     auth_enabled = "true"
 

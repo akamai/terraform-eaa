@@ -37,14 +37,14 @@ resource "eaa_application" "kerberos_basic" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "kerberos"
     app_auth_domain = "EXAMPLE.COM"
     app_client_cert_auth = "false"
     forward_ticket_granting_ticket = "false"
     keytab = ""
     service_principal_name = "HTTP/kerberos-basic.example.com"
-  }
+  })
 }
 
 # Kerberos Authentication Application with Client Certificate Auth
@@ -68,12 +68,12 @@ resource "eaa_application" "kerberos_client_cert" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "kerberos"
     app_auth_domain = "EXAMPLE.COM"
     app_client_cert_auth = "true"
     forward_ticket_granting_ticket = "true"
     keytab = ""
     service_principal_name = "HTTP/kerberos-client-cert.example.com"
-  }
+  })
 }

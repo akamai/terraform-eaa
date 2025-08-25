@@ -2,16 +2,17 @@ package eaaprovider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 var (
@@ -145,227 +146,10 @@ func resourceEaaApplication() *schema.Resource {
 				Computed: true,
 			},
 			"saml_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MinItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"sp": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"entity_id": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"acs_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"slo_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"req_bind": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "redirect",
-										ValidateFunc: validation.StringInSlice([]string{"redirect", "post"}, false),
-									},
-									"metadata": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"default_relay_state": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"force_auth": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-									"req_verify": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-									"sign_cert": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"resp_encr": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-									"encr_cert": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"encr_algo": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "aes256-cbc",
-										ValidateFunc: validation.StringInSlice([]string{"aes256-cbc", "aes128-cbc"}, false),
-									},
-									"slo_req_verify": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  true,
-									},
-									"dst_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"slo_bind": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "post",
-										ValidateFunc: validation.StringInSlice([]string{"post", "redirect"}, false),
-									},
-								},
-							},
-						},
-						"idp": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"entity_id": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"metadata": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"sign_cert": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"sign_key": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"self_signed": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  true,
-									},
-									"sign_algo": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "SHA256",
-										ValidateFunc: validation.StringInSlice([]string{"SHA256", "SHA1"}, false),
-									},
-									"resp_bind": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "post",
-										ValidateFunc: validation.StringInSlice([]string{"post"}, false),
-									},
-									"slo_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"ecp_enable": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-									"ecp_resp_signature": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-								},
-							},
-						},
-						"subject": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"fmt": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice([]string{"email", "persistent", "unspecified", "transient"}, false),
-									},
-									"src": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validateSubjectFmtSrc,
-									},
-									"val": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"rule": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-						"attrmap": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"fname": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"fmt": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice([]string{
-											"email",
-											"phone",
-											"country",
-											"firstName",
-											"lastName",
-											"groups",
-											"netbios",
-											"persistentId",
-											"samAccountName",
-											"userPrincipleName",
-										}, false),
-									},
-									"val": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"src": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validateAttrmapFmtSrc,
-									},
-									"rule": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-					},
-				},
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "SAML settings as a JSON string. Example: '{\"sp\":{\"entity_id\":\"test\",\"acs_url\":\"https://example.com/acs\"},\"idp\":{\"entity_id\":\"test\"},\"subject\":{\"fmt\":\"email\",\"src\":\"user.email\"},\"attrmap\":[]}'",
 			},
 			"wsfed": {
 				Type:     schema.TypeBool,
@@ -373,153 +157,10 @@ func resourceEaaApplication() *schema.Resource {
 				Computed: true,
 			},
 			"wsfed_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MinItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"sp": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"entity_id": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"slo_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"dst_url": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"resp_bind": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "post",
-										ValidateFunc: validation.StringInSlice([]string{"post"}, false),
-									},
-									"token_life": {
-										Type:     schema.TypeInt,
-										Optional: true,
-										Default:  3600,
-									},
-									"encr_algo": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "aes256-cbc",
-										ValidateFunc: validation.StringInSlice([]string{"aes256-cbc", "aes128-cbc"}, false),
-									},
-								},
-							},
-						},
-						"idp": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"entity_id": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"sign_algo": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										Default:      "SHA256",
-										ValidateFunc: validation.StringInSlice([]string{"SHA256", "SHA1"}, false),
-									},
-									"sign_cert": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"sign_key": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "",
-									},
-									"self_signed": {
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  true,
-									},
-								},
-							},
-						},
-						"subject": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"fmt": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"custom_fmt": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"src": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"val": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"rule": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-						"attrmap": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"fmt": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice([]string{"email", "phone", "country", "firstName", "lastName", "groups", "netbios", "persistentId", "samAccountName", "userPrincipleName"}, false),
-									},
-									"custom_fmt": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"val": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"src": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										ValidateFunc: validateWSFEDAttrmapFmtSrc,
-									},
-									"rule": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-					},
-				},
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "WS-Federation settings as a JSON string. Example: '{\"sp\":{\"entity_id\":\"test\",\"slo_url\":\"https://example.com/slo\"},\"idp\":{\"entity_id\":\"test\",\"self_signed\":true},\"subject\":{\"fmt\":\"email\",\"src\":\"user.email\"},\"attrmap\":[]}'",
 			},
 
 			"oidc": {
@@ -528,59 +169,10 @@ func resourceEaaApplication() *schema.Resource {
 				Computed: true,
 			},
 			"oidc_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MinItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"authorization_endpoint": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"certs_uri": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"check_session_iframe": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"discovery_url": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"end_session_endpoint": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"jwks_uri": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"openid_metadata": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"token_endpoint": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"userinfo_endpoint": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-					},
-				},
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "OpenID Connect settings as a JSON string. Example: '{\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"oidc_clients\":[{\"client_name\":\"test\",\"client_id\":\"test_id\",\"response_type\":[\"code\"]}]}'",
 			},
 
 			"app_operational": {
@@ -640,233 +232,11 @@ func resourceEaaApplication() *schema.Resource {
 				Optional: true,
 			},
 			"advanced_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"is_ssl_verification_enabled": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"edge_authentication_enabled": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"ignore_cname_resolution": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"g2o_enabled": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"g2o_nonce": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"g2o_key": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"x_wapp_read_timeout": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "900",
-						},
-						"internal_hostname": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"internal_host_port": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "0",
-						},
-						"ip_access_allow": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"wildcard_internal_hostname": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"edge_cookie_key": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"sla_object_url": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"websocket_enabled": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"sticky_agent": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"sentry_redirect_401": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "off",
-							ValidateFunc: validation.StringInSlice([]string{"on", "off"}, false),
-						},
-						"app_cookie_domain": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"logout_url": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"allow_cors": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"cors_origin_list": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "unbounded",
-						},
-						"cors_method_list": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "unbounded",
-						},
-						"cors_header_list": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "unbounded",
-						},
-						"cors_max_age": {
-							Type:     schema.TypeInt,
-							Optional: true,
-							Default:  86400,
-						},
-						"cors_support_credential": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "on",
-							ValidateFunc: validation.StringInSlice([]string{"on", "off"}, false),
-						},
-						"app_auth": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "none",
-							ValidateFunc: validation.StringInSlice([]string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "WS-Federation", "oidc", "OpenID Connect 1.0"}, false),
-						},
-						"app_auth_domain": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"app_client_cert_auth": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"forward_ticket_granting_ticket": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "false",
-							ValidateFunc: validation.StringInSlice([]string{"true", "false"}, false),
-						},
-						"keytab": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"service_principle_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"custom_headers": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"attribute_type": {
-										Type:         schema.TypeString,
-										Optional:     true,
-										ValidateFunc: validation.StringInSlice([]string{"user", "group", "clientip", "fixed", "custom"}, false),
-									},
-									"attribute": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"header": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-						"wapp_auth": {
-    Type:         schema.TypeString,
-    Optional:     true,
-    Computed:     true,
-    ValidateFunc: validation.StringInSlice([]string{"form", "basic", "basic_cookie", "jwt"}, false),
-},
-"jwt_issuers": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-"jwt_audience": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-"jwt_grace_period": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-"jwt_return_option": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-"jwt_username": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-"jwt_return_url": {
-    Type:     schema.TypeString,
-    Optional: true,
-    Computed: true,
-},
-					},
-				},
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Advanced settings in JSON format or as HCL map.",
+				Default:     "{}",
 			},
-
 			"service": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -968,286 +338,21 @@ func resourceEaaApplication() *schema.Resource {
 	}
 }
 
-// validateAttrmapFmtSrc validates that src values are valid user attributes
-func validateAttrmapFmtSrc(i interface{}, k string) (warnings []string, errors []error) {
-	v, ok := i.(string)
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
-		return warnings, errors
-	}
 
-	// Define the allowed src values
-	allowedSrcs := []string{
-		"user.phoneNumber",
-		"user.countryCode", 
-		"user.firstName",
-		"user.email",
-		"user.lastName",
-		"user.groups",
-		"user.netbios",
-		"user.persistentId",
-		"user.samAccountName",
-		"user.userPrincipleName",
-	}
 
-	// Check if the value is in the allowed src values
-	for _, allowedSrc := range allowedSrcs {
-		if v == allowedSrc {
-			return warnings, errors
-		}
-	}
 
-	errors = append(errors, fmt.Errorf("invalid src value: %s. Must be one of: user.email, user.phoneNumber, user.countryCode, user.firstName, user.lastName, user.groups, user.netbios, user.persistentId, user.samAccountName, user.userPrincipleName", v))
-	return warnings, errors
-}
 
-// validateAttrmapBlock validates that fmt and src values are properly matched within each attrmap block
-func validateAttrmapBlock(i interface{}, k string) (warnings []string, errors []error) {
-	attrmapList, ok := i.([]interface{})
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
-		return warnings, errors
-	}
 
-	// Define the mapping of fmt values to allowed src values
-	fmtToSrcMap := map[string]string{
-		"email":         "user.email",
-		"phone":         "user.phoneNumber",
-		"country":       "user.countryCode",
-		"firstName":     "user.firstName",
-		"lastName":      "user.lastName",
-		"groups":        "user.groups",
-		"netbios":       "user.netbios",
-		"persistentId":  "user.persistentId",
-		"samAccountName": "user.samAccountName",
-		"userPrincipleName": "user.userPrincipleName",
-	}
 
-	for _, attrmapItem := range attrmapList {
-		if attrmapMap, ok := attrmapItem.(map[string]interface{}); ok {
-			if fmtVal, fmtOk := attrmapMap["fmt"].(string); fmtOk {
-				if srcVal, srcOk := attrmapMap["src"].(string); srcOk {
-					expectedSrc, exists := fmtToSrcMap[fmtVal]
-					if !exists {
-						errors = append(errors, fmt.Errorf("invalid fmt value: %s", fmtVal))
-						continue
-					}
-					if srcVal != expectedSrc {
-						errors = append(errors, fmt.Errorf("fmt value '%s' must be paired with src value '%s', but got '%s'", fmtVal, expectedSrc, srcVal))
-					}
-				}
-			}
-		}
-	}
 
-	return warnings, errors
-}
 
-// validateSubjectFmtSrc validates that src values are valid user attributes for subject
-func validateSubjectFmtSrc(i interface{}, k string) (warnings []string, errors []error) {
-	v, ok := i.(string)
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
-		return warnings, errors
-	}
 
-	// Define the allowed src values for subject
-	allowedSrcs := []string{
-		"user.email",
-		"user.persistentId",
-		"user.samAccountName",
-		"user.userPrincipleName",
-	}
 
-	// Check if the value is in the allowed src values
-	for _, allowedSrc := range allowedSrcs {
-		if v == allowedSrc {
-			return warnings, errors
-		}
-	}
 
-	errors = append(errors, fmt.Errorf("invalid src value for subject: %s. Must be one of: user.email, user.persistentId, user.samAccountName, user.userPrincipleName", v))
-	return warnings, errors
-}
 
-// validateSubjectBlock validates that fmt and src values are properly matched within the subject block
-func validateSubjectBlock(i interface{}, k string) (warnings []string, errors []error) {
-	subjectList, ok := i.([]interface{})
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
-		return warnings, errors
-	}
 
-	// Define the mapping of fmt values to allowed src values for subject
-	fmtToSrcMap := map[string]string{
-		"email":      "user.email",
-		"persistent": "user.persistentId",
-		"transient":  "user.samAccountName",
-		"unspecified": "user.userPrincipleName",
-	}
 
-	for _, subjectItem := range subjectList {
-		if subjectMap, ok := subjectItem.(map[string]interface{}); ok {
-			if fmtVal, fmtOk := subjectMap["fmt"].(string); fmtOk {
-				if srcVal, srcOk := subjectMap["src"].(string); srcOk {
-					expectedSrc, exists := fmtToSrcMap[fmtVal]
-					if !exists {
-						errors = append(errors, fmt.Errorf("invalid fmt value for subject: %s", fmtVal))
-						continue
-					}
-					if srcVal != expectedSrc {
-						errors = append(errors, fmt.Errorf("subject fmt value '%s' must be paired with src value '%s', but got '%s'", fmtVal, expectedSrc, srcVal))
-					}
-				}
-			}
-		}
-	}
 
-	return warnings, errors
-}
-
-// validateWSFEDAttrmapFmtSrc validates that src values are valid user attributes for WS-Federation attrmap
-func validateWSFEDAttrmapFmtSrc(i interface{}, k string) (warnings []string, errors []error) {
-	v, ok := i.(string)
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
-		return warnings, errors
-	}
-
-	// Define the allowed src values for WS-Federation attrmap (same as SAML)
-	allowedSrcs := []string{
-		"user.phoneNumber",
-		"user.countryCode",
-		"user.firstName",
-		"user.email",
-		"user.lastName",
-		"user.groups",
-		"user.netbios",
-		"user.persistentId",
-		"user.samAccountName",
-		"user.userPrincipleName",
-	}
-
-	// Check if the value is in the allowed src values
-	for _, allowedSrc := range allowedSrcs {
-		if v == allowedSrc {
-			return warnings, errors
-		}
-	}
-
-	errors = append(errors, fmt.Errorf("invalid src value for WS-Federation attrmap: %s. Must be one of: user.phoneNumber, user.countryCode, user.firstName, user.email, user.lastName, user.groups, user.netbios, user.persistentId, user.samAccountName, user.userPrincipleName", v))
-	return warnings, errors
-}
-
-// validateWSFEDAttrmapBlock validates that fmt and src values are properly matched within the WS-Federation attrmap block
-func validateWSFEDAttrmapBlock(i interface{}, k string) (warnings []string, errors []error) {
-	attrmapList, ok := i.([]interface{})
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
-		return warnings, errors
-	}
-
-	// Define the mapping of fmt values to allowed src values (same as SAML)
-	fmtToSrcMap := map[string]string{
-		"email":         "user.email",
-		"phone":         "user.phoneNumber",
-		"country":       "user.countryCode",
-		"firstName":     "user.firstName",
-		"lastName":      "user.lastName",
-		"groups":        "user.groups",
-		"netbios":       "user.netbios",
-		"persistentId":  "user.persistentId",
-		"samAccountName": "user.samAccountName",
-		"userPrincipleName": "user.userPrincipleName",
-	}
-
-	for _, attrmapItem := range attrmapList {
-		if attrmapMap, ok := attrmapItem.(map[string]interface{}); ok {
-			if fmtVal, fmtOk := attrmapMap["fmt"].(string); fmtOk {
-				if srcVal, srcOk := attrmapMap["src"].(string); srcOk {
-					expectedSrc, exists := fmtToSrcMap[fmtVal]
-					if !exists {
-						errors = append(errors, fmt.Errorf("invalid fmt value for WS-Federation attrmap: %s", fmtVal))
-						continue
-					}
-					if srcVal != expectedSrc {
-						errors = append(errors, fmt.Errorf("WS-Federation attrmap fmt value '%s' must be paired with src value '%s', but got '%s'", fmtVal, expectedSrc, srcVal))
-					}
-				}
-			}
-		}
-	}
-
-	return warnings, errors
-}
-
-// validateOIDCClaim validates OIDC claim fields based on the schema requirements
-func validateOIDCClaim(i interface{}, k string) (warnings []string, errors []error) {
-	claimList, ok := i.([]interface{})
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
-		return warnings, errors
-	}
-
-	for _, claimItem := range claimList {
-		if claimMap, ok := claimItem.(map[string]interface{}); ok {
-			// Check required fields: name and scope
-			if name, nameOk := claimMap["name"].(string); !nameOk || name == "" {
-				errors = append(errors, fmt.Errorf("claim name is required and cannot be blank"))
-			}
-			if scope, scopeOk := claimMap["scope"].(string); !scopeOk || scope == "" {
-				errors = append(errors, fmt.Errorf("claim scope is required and cannot be blank"))
-			}
-
-			// Check that at least one of src, rule, or val is provided
-			src, srcOk := claimMap["src"].(string)
-			rule, ruleOk := claimMap["rule"].(string)
-			val, valOk := claimMap["val"].(string)
-
-			if (!srcOk || src == "") && (!ruleOk || rule == "") && (!valOk || val == "") {
-				errors = append(errors, fmt.Errorf("claim must have at least one of: src, rule, or val"))
-			}
-		}
-	}
-
-	return warnings, errors
-}
-
-// validateOIDCClaimFmtSrc validates that src values are valid for OIDC claims
-func validateOIDCClaimFmtSrc(i interface{}, k string) (warnings []string, errors []error) {
-	v, ok := i.(string)
-	if !ok {
-		errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
-		return warnings, errors
-	}
-
-	// Define the allowed src values for OIDC claims
-	allowedSrcs := []string{
-		"user.email",
-		"user.name", 
-		"user.id",
-		"user.attribute",
-		"user.firstName",
-		"user.lastName",
-		"user.groups",
-		"user.phoneNumber",
-		"user.countryCode",
-		"user.netbios",
-		"user.persistentId",
-		"user.samAccountName",
-		"user.userPrincipleName",
-	}
-
-	// Check if the value is in the allowed src values
-	for _, allowedSrc := range allowedSrcs {
-		if v == allowedSrc {
-			return warnings, errors
-		}
-	}
-
-	errors = append(errors, fmt.Errorf("invalid src value for OIDC claim: %s. Must be one of: user.email, user.name, user.id, user.attribute, user.firstName, user.lastName, user.groups, user.phoneNumber, user.countryCode, user.netbios, user.persistentId, user.samAccountName, user.userPrincipleName", v))
-	return warnings, errors
-}
 
 // resourceEaaApplicationCreate function is responsible for creating a new EAA application.
 // constructs the application creation request using data from the schema and creates the application.
@@ -1466,11 +571,32 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	attrs["app_operational"] = appResp.AppOperational
 	attrs["app_status"] = appResp.AppStatus
 	attrs["saml"] = appResp.SAML
+	attrs["oidc"] = appResp.Oidc
 	attrs["wsfed"] = appResp.WSFED
 
 	if appResp.CName != nil {
 		attrs["cname"] = *appResp.CName
 	}
+
+	// Add missing fields that are showing as null in state
+	// Always set app_category, even if empty, to avoid null in state
+	if appResp.AppCategory.Name != "" {
+		attrs["app_category"] = appResp.AppCategory.Name
+	} else {
+		attrs["app_category"] = ""
+	}
+	
+	// Always set cert, even if empty, to avoid null in state
+	if appResp.Cert != nil {
+		attrs["cert"] = *appResp.Cert
+	} else {
+		attrs["cert"] = ""
+	}
+	
+	attrs["uuid_url"] = appResp.UUIDURL
+	
+	// Add more fields to populate null values
+	// Note: ssl_ca_cert is not in the schema, so we can't set it
 
 	if err := client.SetAttrs(d, attrs); err != nil {
 		return diag.FromErr(err)
@@ -1507,64 +633,165 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 
-	advSettings := make([]map[string]interface{}, 1)
+	// Convert advanced settings to JSON format
+	advSettingsMap := make(map[string]interface{})
 
-	advSettings[0] = map[string]interface{}{
-		"g2o_enabled":                 appResp.AdvancedSettings.G2OEnabled,
-		"g2o_nonce":                   appResp.AdvancedSettings.G2ONonce,
-		"g2o_key":                     appResp.AdvancedSettings.G2OKey,
-		"is_ssl_verification_enabled": appResp.AdvancedSettings.IsSSLVerificationEnabled,
-		"ignore_cname_resolution":     appResp.AdvancedSettings.IgnoreCnameResolution,
-		"edge_authentication_enabled": appResp.AdvancedSettings.EdgeAuthenticationEnabled,
-		"edge_cookie_key":             appResp.AdvancedSettings.EdgeCookieKey,
-		"sla_object_url":              appResp.AdvancedSettings.SLAObjectURL,
-
-		"x_wapp_read_timeout":        appResp.AdvancedSettings.XWappReadTimeout,
-		"internal_hostname":          appResp.AdvancedSettings.InternalHostname,
-		"internal_host_port":         appResp.AdvancedSettings.InternalHostPort,
-		"wildcard_internal_hostname": appResp.AdvancedSettings.WildcardInternalHostname,
-		"ip_access_allow":            appResp.AdvancedSettings.IPAccessAllow,
-
-		"allow_cors":              appResp.AdvancedSettings.AllowCORS,
-		"cors_origin_list":        appResp.AdvancedSettings.CORSOriginList,
-		"cors_method_list":        appResp.AdvancedSettings.CORSMethodList,
-		"cors_header_list":        appResp.AdvancedSettings.CORSHeaderList,
-		"cors_support_credential": appResp.AdvancedSettings.CORSSupportCredential,
-
-		"websocket_enabled":   appResp.AdvancedSettings.WebSocketEnabled,
-		"sticky_agent":        appResp.AdvancedSettings.StickyAgent,
-		"app_cookie_domain":   appResp.AdvancedSettings.AppCookieDomain,
-		"logout_url":          appResp.AdvancedSettings.LogoutURL,
-		"sentry_redirect_401": appResp.AdvancedSettings.SentryRedirect401,
-		"app_auth":            appResp.AdvancedSettings.AppAuth,
-		"app_auth_domain":     appResp.AdvancedSettings.AppAuthDomain,
-		"app_client_cert_auth": appResp.AdvancedSettings.AppClientCertAuth,
-		"forward_ticket_granting_ticket": appResp.AdvancedSettings.ForwardTicketGrantingTicket,
-		"keytab":              appResp.AdvancedSettings.Keytab,
-		"service_principle_name": appResp.AdvancedSettings.ServicePrincipalName,
-		"wapp_auth":             appResp.AdvancedSettings.WappAuth,
-		"jwt_issuers":           appResp.AdvancedSettings.JWTIssuers,
-		"jwt_audience":          appResp.AdvancedSettings.JWTAudience,
-		"jwt_grace_period":      appResp.AdvancedSettings.JWTGracePeriod,
-		"jwt_return_option":     appResp.AdvancedSettings.JWTReturnOption,
-		"jwt_username":          appResp.AdvancedSettings.JWTUsername,
-		"jwt_return_url":        appResp.AdvancedSettings.JWTReturnURL,
+	// Add all the advanced settings fields
+	advSettingsMap["g2o_enabled"] = appResp.AdvancedSettings.G2OEnabled
+	if appResp.AdvancedSettings.G2ONonce != nil {
+		advSettingsMap["g2o_nonce"] = *appResp.AdvancedSettings.G2ONonce
 	}
-	var corsAge int
-	corsAge, err = strconv.Atoi(appResp.AdvancedSettings.CORSMaxAge)
-	if err != nil {
-		advSettings[0]["cors_max_age"] = corsAge
+	if appResp.AdvancedSettings.G2OKey != nil {
+		advSettingsMap["g2o_key"] = *appResp.AdvancedSettings.G2OKey
 	}
-	custom_headers := make([]map[string]interface{}, len(appResp.AdvancedSettings.CustomHeaders))
-	for i, ch := range appResp.AdvancedSettings.CustomHeaders {
-		custom_headers[i] = map[string]interface{}{
-			"attribute_type": ch.AttributeType,
-			"header":         ch.Header,
-			"attribute":      ch.Attribute,
+	advSettingsMap["is_ssl_verification_enabled"] = appResp.AdvancedSettings.IsSSLVerificationEnabled
+	advSettingsMap["ignore_cname_resolution"] = appResp.AdvancedSettings.IgnoreCnameResolution
+	advSettingsMap["edge_authentication_enabled"] = appResp.AdvancedSettings.EdgeAuthenticationEnabled
+	advSettingsMap["edge_cookie_key"] = appResp.AdvancedSettings.EdgeCookieKey
+	advSettingsMap["sla_object_url"] = appResp.AdvancedSettings.SLAObjectURL
+
+	advSettingsMap["x_wapp_read_timeout"] = appResp.AdvancedSettings.XWappReadTimeout
+	if appResp.AdvancedSettings.InternalHostname != nil {
+		advSettingsMap["internal_hostname"] = *appResp.AdvancedSettings.InternalHostname
+	}
+	advSettingsMap["internal_host_port"] = appResp.AdvancedSettings.InternalHostPort
+	advSettingsMap["wildcard_internal_hostname"] = appResp.AdvancedSettings.WildcardInternalHostname
+	advSettingsMap["ip_access_allow"] = appResp.AdvancedSettings.IPAccessAllow
+
+	advSettingsMap["allow_cors"] = appResp.AdvancedSettings.AllowCORS
+	advSettingsMap["cors_origin_list"] = appResp.AdvancedSettings.CORSOriginList
+	advSettingsMap["cors_method_list"] = appResp.AdvancedSettings.CORSMethodList
+	advSettingsMap["cors_header_list"] = appResp.AdvancedSettings.CORSHeaderList
+	advSettingsMap["cors_support_credential"] = appResp.AdvancedSettings.CORSSupportCredential
+
+	advSettingsMap["websocket_enabled"] = appResp.AdvancedSettings.WebSocketEnabled
+	advSettingsMap["sticky_agent"] = appResp.AdvancedSettings.StickyAgent
+	if appResp.AdvancedSettings.AppCookieDomain != nil {
+		advSettingsMap["app_cookie_domain"] = *appResp.AdvancedSettings.AppCookieDomain
+	}
+	if appResp.AdvancedSettings.LogoutURL != nil {
+		advSettingsMap["logout_url"] = *appResp.AdvancedSettings.LogoutURL
+	}
+	advSettingsMap["sentry_redirect_401"] = appResp.AdvancedSettings.SentryRedirect401
+
+	advSettingsMap["acceleration"] = appResp.AdvancedSettings.Acceleration
+	advSettingsMap["anonymous_server_conn_limit"] = appResp.AdvancedSettings.AnonymousServerConnLimit
+	advSettingsMap["anonymous_server_request_limit"] = appResp.AdvancedSettings.AnonymousServerReqLimit
+	advSettingsMap["app_auth"] = appResp.AdvancedSettings.AppAuth
+	advSettingsMap["app_auth_domain"] = appResp.AdvancedSettings.AppAuthDomain
+	advSettingsMap["app_client_cert_auth"] = appResp.AdvancedSettings.AppClientCertAuth
+	advSettingsMap["app_location"] = appResp.AdvancedSettings.AppLocation
+	advSettingsMap["app_server_read_timeout"] = appResp.AdvancedSettings.AppServerReadTimeout
+	advSettingsMap["authenticated_server_conn_limit"] = appResp.AdvancedSettings.AuthenticatedServerConnLimit
+	advSettingsMap["authenticated_server_request_limit"] = appResp.AdvancedSettings.AuthenticatedServerReqLimit
+	advSettingsMap["client_cert_auth"] = appResp.AdvancedSettings.ClientCertAuth
+	advSettingsMap["client_cert_user_param"] = appResp.AdvancedSettings.ClientCertUserParam
+	advSettingsMap["cookie_domain"] = convertStringPointerToString(appResp.AdvancedSettings.CookieDomain)
+	advSettingsMap["disable_user_agent_check"] = appResp.AdvancedSettings.DisableUserAgentCheck
+	advSettingsMap["domain_exception_list"] = appResp.AdvancedSettings.DomainExceptionList
+	advSettingsMap["edge_transport_manual_mode"] = appResp.AdvancedSettings.EdgeTransportManualMode
+	advSettingsMap["edge_transport_property_id"] = appResp.AdvancedSettings.EdgeTransportPropertyID
+	advSettingsMap["enable_client_side_xhr_rewrite"] = appResp.AdvancedSettings.EnableClientSideXHRRewrite
+	advSettingsMap["external_cookie_domain"] = appResp.AdvancedSettings.ExternalCookieDomain
+	advSettingsMap["force_ip_route"] = appResp.AdvancedSettings.ForceIPRoute
+	advSettingsMap["force_mfa"] = appResp.AdvancedSettings.ForceMFA
+	advSettingsMap["form_post_attributes"] = appResp.AdvancedSettings.FormPostAttributes
+	advSettingsMap["form_post_url"] = appResp.AdvancedSettings.FormPostURL
+	advSettingsMap["forward_ticket_granting_ticket"] = appResp.AdvancedSettings.ForwardTicketGrantingTicket
+	advSettingsMap["health_check_fall"] = appResp.AdvancedSettings.HealthCheckFall
+	advSettingsMap["health_check_http_host_header"] = appResp.AdvancedSettings.HealthCheckHTTPHostHeader
+	advSettingsMap["health_check_http_url"] = appResp.AdvancedSettings.HealthCheckHTTPURL
+	advSettingsMap["health_check_http_version"] = appResp.AdvancedSettings.HealthCheckHTTPVersion
+	advSettingsMap["health_check_interval"] = appResp.AdvancedSettings.HealthCheckInterval
+	advSettingsMap["health_check_rise"] = appResp.AdvancedSettings.HealthCheckRise
+	advSettingsMap["health_check_timeout"] = appResp.AdvancedSettings.HealthCheckTimeout
+	advSettingsMap["health_check_type"] = mapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
+	advSettingsMap["hidden_app"] = appResp.AdvancedSettings.HiddenApp
+	advSettingsMap["host_key"] = appResp.AdvancedSettings.HostKey
+	advSettingsMap["hsts_age"] = appResp.AdvancedSettings.HSTSage
+	advSettingsMap["http_only_cookie"] = appResp.AdvancedSettings.HTTPOnlyCookie
+	advSettingsMap["https_sslv3"] = appResp.AdvancedSettings.HTTPSSSLV3
+	advSettingsMap["idle_close_time_seconds"] = appResp.AdvancedSettings.IdleCloseTimeSeconds
+	advSettingsMap["idle_conn_ceil"] = appResp.AdvancedSettings.IdleConnCeil
+	advSettingsMap["idle_conn_floor"] = appResp.AdvancedSettings.IdleConnFloor
+	advSettingsMap["idle_conn_step"] = appResp.AdvancedSettings.IdleConnStep
+	advSettingsMap["idp_idle_expiry"] = appResp.AdvancedSettings.IDPIdleExpiry
+	advSettingsMap["idp_max_expiry"] = appResp.AdvancedSettings.IDPMaxExpiry
+	advSettingsMap["ignore_bypass_mfa"] = appResp.AdvancedSettings.IgnoreBypassMFA
+	advSettingsMap["inject_ajax_javascript"] = appResp.AdvancedSettings.InjectAjaxJavascript
+	advSettingsMap["intercept_url"] = appResp.AdvancedSettings.InterceptURL
+	advSettingsMap["is_brotli_enabled"] = appResp.AdvancedSettings.IsBrotliEnabled
+	advSettingsMap["keepalive_connection_pool"] = appResp.AdvancedSettings.KeepaliveConnectionPool
+	advSettingsMap["keepalive_enable"] = appResp.AdvancedSettings.KeepaliveEnable
+	advSettingsMap["keepalive_timeout"] = appResp.AdvancedSettings.KeepaliveTimeout
+	advSettingsMap["load_balancing_metric"] = appResp.AdvancedSettings.LoadBalancingMetric
+	advSettingsMap["logging_enabled"] = appResp.AdvancedSettings.LoggingEnabled
+	advSettingsMap["login_timeout"] = appResp.AdvancedSettings.LoginTimeout
+	advSettingsMap["login_url"] = appResp.AdvancedSettings.LoginURL
+	advSettingsMap["mdc_enable"] = appResp.AdvancedSettings.MDCEnable
+	advSettingsMap["mfa"] = appResp.AdvancedSettings.MFA
+	advSettingsMap["offload_onpremise_traffic"] = appResp.AdvancedSettings.OffloadOnPremiseTraffic
+	advSettingsMap["onramp"] = appResp.AdvancedSettings.Onramp
+	advSettingsMap["pass_phrase"] = appResp.AdvancedSettings.PassPhrase
+	advSettingsMap["preauth_consent"] = appResp.AdvancedSettings.PreauthConsent
+	advSettingsMap["preauth_enforce_url"] = appResp.AdvancedSettings.PreauthEnforceURL
+	advSettingsMap["private_key"] = appResp.AdvancedSettings.PrivateKey
+	advSettingsMap["remote_spark_audio"] = appResp.AdvancedSettings.RemoteSparkAudio
+	advSettingsMap["remote_spark_disk"] = appResp.AdvancedSettings.RemoteSparkDisk
+	advSettingsMap["remote_spark_map_clipboard"] = appResp.AdvancedSettings.RemoteSparkMapClipboard
+	advSettingsMap["remote_spark_map_disk"] = appResp.AdvancedSettings.RemoteSparkMapDisk
+	advSettingsMap["remote_spark_map_printer"] = appResp.AdvancedSettings.RemoteSparkMapPrinter
+	advSettingsMap["remote_spark_printer"] = appResp.AdvancedSettings.RemoteSparkPrinter
+	advSettingsMap["remote_spark_recording"] = appResp.AdvancedSettings.RemoteSparkRecording
+	advSettingsMap["request_body_rewrite"] = appResp.AdvancedSettings.RequestBodyRewrite
+	advSettingsMap["request_parameters"] = appResp.AdvancedSettings.RequestParameters
+	advSettingsMap["saas_enabled"] = appResp.AdvancedSettings.SaaSEnabled
+	advSettingsMap["segmentation_policy_enable"] = appResp.AdvancedSettings.SegmentationPolicyEnable
+	advSettingsMap["sentry_restore_form_post"] = appResp.AdvancedSettings.SentryRestoreFormPost
+	advSettingsMap["server_cert_validate"] = appResp.AdvancedSettings.ServerCertValidate
+	advSettingsMap["server_request_burst"] = appResp.AdvancedSettings.ServerRequestBurst
+	advSettingsMap["service_principle_name"] = appResp.AdvancedSettings.ServicePrincipleName
+	advSettingsMap["session_sticky"] = appResp.AdvancedSettings.SessionSticky
+	advSettingsMap["session_sticky_cookie_maxage"] = appResp.AdvancedSettings.SessionStickyCookieMaxAge
+	advSettingsMap["session_sticky_server_cookie"] = appResp.AdvancedSettings.SessionStickyServerCookie
+	advSettingsMap["single_host_content_rw"] = appResp.AdvancedSettings.SingleHostContentRW
+	advSettingsMap["single_host_cookie_domain"] = appResp.AdvancedSettings.SingleHostCookieDomain
+	advSettingsMap["single_host_enable"] = appResp.AdvancedSettings.SingleHostEnable
+	advSettingsMap["single_host_fqdn"] = appResp.AdvancedSettings.SingleHostFQDN
+	advSettingsMap["single_host_path"] = appResp.AdvancedSettings.SingleHostPath
+	advSettingsMap["spdy_enabled"] = appResp.AdvancedSettings.SPDYEnabled
+	advSettingsMap["ssh_audit_enabled"] = appResp.AdvancedSettings.SSHAuditEnabled
+	advSettingsMap["sso"] = appResp.AdvancedSettings.SSO
+	advSettingsMap["user_name"] = appResp.AdvancedSettings.UserName
+	advSettingsMap["wapp_auth"] = appResp.AdvancedSettings.WappAuth
+	advSettingsMap["x_wapp_pool_enabled"] = appResp.AdvancedSettings.XWappPoolEnabled
+	advSettingsMap["x_wapp_pool_size"] = convertStringToInt(appResp.AdvancedSettings.XWappPoolSize)
+	advSettingsMap["x_wapp_pool_timeout"] = convertStringToInt(appResp.AdvancedSettings.XWappPoolTimeout)
+	advSettingsMap["rdp_keyboard_lang"] = appResp.AdvancedSettings.RDPKeyboardLang
+	advSettingsMap["rdp_remote_apps"] = appResp.AdvancedSettings.RDPRemoteApps
+	advSettingsMap["rdp_window_color_depth"] = appResp.AdvancedSettings.RDPWindowColorDepth
+	advSettingsMap["rdp_window_height"] = appResp.AdvancedSettings.RDPWindowHeight
+	advSettingsMap["rdp_window_width"] = appResp.AdvancedSettings.RDPWindowWidth
+
+	// Handle CORS max age
+	if appResp.AdvancedSettings.CORSMaxAge != "" {
+		if corsAge, err := strconv.Atoi(appResp.AdvancedSettings.CORSMaxAge); err == nil {
+			advSettingsMap["cors_max_age"] = corsAge
 		}
 	}
 
-	err = d.Set("advanced_settings", advSettings)
+	// Handle custom headers - now just strings
+	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
+		advSettingsMap["custom_headers"] = appResp.AdvancedSettings.CustomHeaders
+	}
+
+	// Convert to JSON string
+	advSettingsJSON, err := json.Marshal(advSettingsMap)
+	if err != nil {
+		return diag.Errorf("failed to marshal advanced settings to JSON: %v", err)
+	}
+
+	err = d.Set("advanced_settings", string(advSettingsJSON))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -1572,7 +799,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	// Create Application struct from response to call methods
 	app := client.Application{}
 	app.FromResponse(&appResp)
-	
+
 	appAgents, err := app.GetAppAgents(eaaclient)
 	if err == nil {
 		err = d.Set("agents", appAgents)
@@ -1613,73 +840,21 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 
-	// Set SAML settings in state
+	// Set SAML settings in state as JSON string
 	// Always set saml_settings to ensure it appears in state (empty array if no settings)
-	var samlSettings []map[string]interface{}
-	
+	var samlSettings string
 
 	if len(appResp.SAMLSettings) > 0 {
-		samlSettings = make([]map[string]interface{}, len(appResp.SAMLSettings))
-		for i, samlConfig := range appResp.SAMLSettings {
-			samlSettings[i] = map[string]interface{}{
-				"sp": []map[string]interface{}{
-					{
-						"entity_id":          samlConfig.SP.EntityID,
-						"acs_url":            samlConfig.SP.ACSURL,
-						"slo_url":            samlConfig.SP.SLOURL,
-						"req_bind":           samlConfig.SP.ReqBind,
-						"metadata":           samlConfig.SP.Metadata,
-						"default_relay_state": samlConfig.SP.DefaultRelayState,
-						"force_auth":         samlConfig.SP.ForceAuth,
-						"req_verify":         samlConfig.SP.ReqVerify,
-						"sign_cert":          samlConfig.SP.SignCert,
-						"resp_encr":          samlConfig.SP.RespEncr,
-						"encr_cert":          samlConfig.SP.EncrCert,
-						"encr_algo":          samlConfig.SP.EncrAlgo,
-						"slo_req_verify":     samlConfig.SP.SLOReqVerify,
-						"dst_url":            samlConfig.SP.DSTURL,
-						"slo_bind":           samlConfig.SP.SLOBind,
-					},
-				},
-				"idp": []map[string]interface{}{
-					{
-						"entity_id":         samlConfig.IDP.EntityID,
-						"metadata":          samlConfig.IDP.Metadata,
-						"sign_cert":         samlConfig.IDP.SignCert,
-						"sign_key":          samlConfig.IDP.SignKey,
-						"self_signed":       samlConfig.IDP.SelfSigned,
-						"sign_algo":         samlConfig.IDP.SignAlgo,
-						"resp_bind":         samlConfig.IDP.RespBind,
-						"slo_url":           samlConfig.IDP.SLOURL,
-						"ecp_enable":        samlConfig.IDP.ECPIsEnabled,
-						"ecp_resp_signature": samlConfig.IDP.ECPRespSignature,
-					},
-				},
-				"subject": []map[string]interface{}{
-					{
-						"fmt":  samlConfig.Subject.Fmt,
-						"src":  samlConfig.Subject.Src,
-						"val":  samlConfig.Subject.Val,
-						"rule": samlConfig.Subject.Rule,
-					},
-				},
-				"attrmap": func() []map[string]interface{} {
-					attrMaps := make([]map[string]interface{}, len(samlConfig.Attrmap))
-					for j, attrMap := range samlConfig.Attrmap {
-						attrMaps[j] = map[string]interface{}{
-							"name":  attrMap.Name,
-							"fname": attrMap.Fname,
-							"fmt":   attrMap.Fmt,
-							"val":   attrMap.Val,
-							"src":   attrMap.Src,
-							"rule":  attrMap.Rule,
-						}
-					}
-					return attrMaps
-				}(),
-			}
+		// Use MarshalIndent to create beautifully formatted JSON for the state file
+		samlSettingsBytes, err := json.MarshalIndent(appResp.SAMLSettings, "", "  ")
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to marshal SAML settings to JSON: %w", err))
 		}
+		samlSettings = string(samlSettingsBytes)
+	} else {
+		samlSettings = "[]"
 	}
+	
 	// Always set saml_settings (empty array if no settings)
 	err = d.Set("saml_settings", samlSettings)
 	if err != nil {
@@ -1703,10 +878,10 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				},
 				"idp": []map[string]interface{}{
 					{
-						"entity_id":  wsfedConfig.IDP.EntityID,
-						"sign_algo":  wsfedConfig.IDP.SignAlgo,
-						"sign_cert":  wsfedConfig.IDP.SignCert,
-						"sign_key":   wsfedConfig.IDP.SignKey,
+						"entity_id":   wsfedConfig.IDP.EntityID,
+						"sign_algo":   wsfedConfig.IDP.SignAlgo,
+						"sign_cert":   wsfedConfig.IDP.SignCert,
+						"sign_key":    wsfedConfig.IDP.SignKey,
 						"self_signed": wsfedConfig.IDP.SelfSigned,
 					},
 				},
@@ -1735,29 +910,82 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				}(),
 			}
 		}
-		err = d.Set("wsfed_settings", wsfedSettings)
+		// Format wsfed_settings as JSON string for better readability
+		var wsfedSettingsJSON string
+		if len(wsfedSettings) > 0 {
+			wsfedSettingsBytes, err := json.MarshalIndent(wsfedSettings, "", "  ")
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("failed to marshal WS-Federation settings to JSON: %w", err))
+			}
+			wsfedSettingsJSON = string(wsfedSettingsBytes)
+		} else {
+			wsfedSettingsJSON = "[]"
+		}
+		err = d.Set("wsfed_settings", wsfedSettingsJSON)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
+		// Always set wsfed_settings (empty array if no settings)
+		err = d.Set("wsfed_settings", "[]")
 		if err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
-	// Set OIDC settings in state
+	// Format oidc_settings as JSON string for better readability
+	var oidcSettingsJSON string
 	if appResp.OIDCSettings != nil {
-		oidcSetting := map[string]interface{}{
-			"authorization_endpoint": appResp.OIDCSettings.AuthorizationEndpoint,
-			"certs_uri":              appResp.OIDCSettings.CertsURI,
-			"check_session_iframe":   appResp.OIDCSettings.CheckSessionIframe,
-			"discovery_url":          appResp.OIDCSettings.DiscoveryURL,
-			"end_session_endpoint":   appResp.OIDCSettings.EndSessionEndpoint,
-			"jwks_uri":               appResp.OIDCSettings.JWKSURI,
-			"openid_metadata":        appResp.OIDCSettings.OpenIDMetadata,
-			"token_endpoint":         appResp.OIDCSettings.TokenEndpoint,
-			"userinfo_endpoint":      appResp.OIDCSettings.UserinfoEndpoint,
+		// Create OIDC config structure for JSON marshalling
+		oidcConfig := &client.OIDCConfig{
+			OIDCClients: appResp.OIDCClients,
 		}
-		err = d.Set("oidc_settings", []map[string]interface{}{oidcSetting})
-		if err != nil {
-			return diag.FromErr(err)
+		
+		// Add endpoint fields if they exist
+		if appResp.OIDCSettings.AuthorizationEndpoint != "" ||
+		   appResp.OIDCSettings.TokenEndpoint != "" ||
+		   appResp.OIDCSettings.UserinfoEndpoint != "" ||
+		   appResp.OIDCSettings.JWKSURI != "" ||
+		   appResp.OIDCSettings.DiscoveryURL != "" ||
+		   appResp.OIDCSettings.CertsURI != "" ||
+		   appResp.OIDCSettings.CheckSessionIframe != "" ||
+		   appResp.OIDCSettings.EndSessionEndpoint != "" ||
+		   appResp.OIDCSettings.OpenIDMetadata != "" {
+			
+			// Create a map with all OIDC settings
+			oidcSettingsMap := map[string]interface{}{
+				"authorization_endpoint": appResp.OIDCSettings.AuthorizationEndpoint,
+				"certs_uri":              appResp.OIDCSettings.CertsURI,
+				"check_session_iframe":   appResp.OIDCSettings.CheckSessionIframe,
+				"discovery_url":          appResp.OIDCSettings.DiscoveryURL,
+				"end_session_endpoint":   appResp.OIDCSettings.EndSessionEndpoint,
+				"jwks_uri":               appResp.OIDCSettings.JWKSURI,
+				"openid_metadata":        appResp.OIDCSettings.OpenIDMetadata,
+				"token_endpoint":         appResp.OIDCSettings.TokenEndpoint,
+				"userinfo_endpoint":      appResp.OIDCSettings.UserinfoEndpoint,
+				"oidc_clients":           oidcConfig.OIDCClients,
+			}
+			
+			oidcSettingsBytes, err := json.MarshalIndent(oidcSettingsMap, "", "  ")
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("failed to marshal OIDC settings to JSON: %w", err))
+			}
+			oidcSettingsJSON = string(oidcSettingsBytes)
+		} else {
+			// Only OIDC clients, no endpoints
+			oidcSettingsBytes, err := json.MarshalIndent(oidcConfig, "", "  ")
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("failed to marshal OIDC settings to JSON: %w", err))
+			}
+			oidcSettingsJSON = string(oidcSettingsBytes)
 		}
+	} else {
+		oidcSettingsJSON = "{}"
+	}
+	
+	err = d.Set("oidc_settings", oidcSettingsJSON)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	return nil
@@ -2002,6 +1230,369 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 
 	// Set the resource ID to mark it as deleted
 	d.SetId("")
+
+	return nil
+}
+
+// mapHealthCheckTypeToDescriptive converts numeric health check type values to descriptive values
+func mapHealthCheckTypeToDescriptive(numericValue string) string {
+	switch numericValue {
+	case "0":
+		return "Default"
+	case "1":
+		return "HTTP"
+	case "2":
+		return "HTTPS"
+	case "3":
+		return "SSL"
+	case "4":
+		return "TCP"
+	case "5":
+		return "None"
+	default:
+		return numericValue // fallback to original value
+	}
+}
+
+// convertStringToInt converts string to int, returns 0 if conversion fails
+func convertStringToInt(value string) int {
+	if value == "" {
+		return 0
+	}
+	if i, err := strconv.Atoi(value); err == nil {
+		return i
+	}
+	return 0
+}
+
+// convertStringPointerToString converts *string to string, returns null string for nil
+func convertStringPointerToString(value *string) string {
+	if value == nil {
+		return "null"
+	}
+	return *value
+}
+
+// ValidationRule defines a validation rule for a field
+type ValidationRule struct {
+	FieldName string
+	Type      string
+	Types     []string // Support multiple types
+	Enum      []string
+	Pattern   string
+	Required  bool
+	Nullable  bool
+	Min       int // Minimum value for numeric fields
+	Max       int // Maximum value for numeric fields
+}
+
+// validateAdvancedSettings validates the advanced_settings JSON string using a configuration-driven approach
+func validateAdvancedSettings(v interface{}, k string) (ws []string, errors []error) {
+	value, ok := v.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", v))
+		return
+	}
+
+	// If empty, it's valid (will use defaults)
+	if value == "" || value == "{}" {
+		return
+	}
+
+	// Parse the JSON to validate structure
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		errors = append(errors, fmt.Errorf("invalid JSON format: %v", err))
+		return
+	}
+
+	// Define validation rules in a single place - easy to maintain and extend
+	validationRules := []ValidationRule{
+		{FieldName: "acceleration", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "allow_cors", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "anonymous_server_conn_limit", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "anonymous_server_request_limit", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "app_auth", Type: "string", Required: true},
+		{FieldName: "app_auth_domain", Type: "string", Required: false, Nullable: true},
+		{FieldName: "app_client_cert_auth", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "app_cookie_domain", Type: "string", Required: false, Nullable: true},
+		{FieldName: "app_location", Type: "string", Required: false, Nullable: true},
+		{FieldName: "app_server_read_timeout", Types: []string{"string", "integer"}, Pattern: "^[0-9]+$"},
+		{FieldName: "authenticated_server_conn_limit", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "authenticated_server_request_limit", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "client_cert_auth", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "client_cert_user_param", Type: "string"},
+		{FieldName: "cookie_domain", Type: "string"},
+		{FieldName: "cors_header_list", Type: "string"},
+		{FieldName: "cors_max_age", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "cors_method_list", Type: "string"},
+		{FieldName: "cors_origin_list", Type: "string"},
+		{FieldName: "cors_support_credential", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "disable_user_agent_check", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "domain_exception_list", Type: "string"},
+		{FieldName: "edge_authentication_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "edge_cookie_key", Type: "string"},
+		{FieldName: "edge_transport_manual_mode", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "edge_transport_property_id", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "enable_client_side_xhr_rewrite", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "external_cookie_domain", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "force_ip_route", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "force_mfa", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "form_post_url", Type: "string"},
+		{FieldName: "forward_ticket_granting_ticket", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "g2o_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "g2o_key", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "g2o_nonce", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "health_check_fall", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "health_check_http_host_header", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "health_check_http_url", Type: "string"},
+		{FieldName: "health_check_http_version", Type: "string"},
+		{FieldName: "health_check_interval", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "health_check_rise", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "health_check_timeout", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "health_check_type", Type: "string", Pattern: "^(Default|HTTP|HTTPS|SSL|TCP|None|[0-9]+)$"},
+		{FieldName: "hidden_app", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "host_key", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "hsts_age", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "http_only_cookie", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "https_sslv3", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "idle_close_time_seconds", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "idle_conn_ceil", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "idle_conn_floor", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "idle_conn_step", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "idp_idle_expiry", Types: []string{"string", "null"}, Pattern: "^[0-9]+$", Nullable: true},
+		{FieldName: "idp_max_expiry", Types: []string{"string", "null"}, Pattern: "^[0-9]+$", Nullable: true},
+		{FieldName: "ignore_bypass_mfa", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "ignore_cname_resolution", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "inject_ajax_javascript", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "intercept_url", Type: "string"},
+		{FieldName: "internal_host_port", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "ip_access_allow", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "is_brotli_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "is_ssl_verification_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "jwt_audience", Type: "string"},
+		{FieldName: "jwt_grace_period", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "jwt_issuers", Type: "string"},
+		{FieldName: "jwt_return_option", Type: "string"},
+		{FieldName: "jwt_return_url", Type: "string"},
+		{FieldName: "jwt_username", Type: "string"},
+		{FieldName: "keepalive_connection_pool", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "keepalive_enable", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "keepalive_timeout", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "kerberos_negotiate_once", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "keyed_keepalive_enable", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "keytab", Type: "string"},
+		{FieldName: "load_balancing_metric", Type: "string"},
+		{FieldName: "logging_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "login_timeout", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "login_url", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "logout_url", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "mdc_enable", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "mfa", Type: "string"},
+		{FieldName: "offload_onpremise_traffic", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "onramp", Type: "string"},
+		{FieldName: "pass_phrase", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "preauth_consent", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "preauth_enforce_url", Type: "string"},
+		{FieldName: "private_key", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "proxy_buffer_size_kb", Types: []string{"string", "null"}, Pattern: "^[0-9]+$", Nullable: true},
+		{FieldName: "proxy_disable_clipboard", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "rate_limit", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "rdp_initial_program", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "rdp_keyboard_lang", Type: "string"},
+		{FieldName: "rdp_legacy_mode", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "rdp_tls1", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "rdp_window_color_depth", Type: "string"},
+		{FieldName: "rdp_window_height", Type: "string"},
+		{FieldName: "rdp_window_width", Type: "string"},
+		{FieldName: "refresh_sticky_cookie", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "remote_spark_audio", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "remote_spark_disk", Type: "string"},
+		{FieldName: "remote_spark_mapClipboard", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "remote_spark_mapDisk", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "remote_spark_mapPrinter", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "remote_spark_printer", Type: "string"},
+		{FieldName: "remote_spark_recording", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "request_body_rewrite", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "saas_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "segmentation_policy_enable", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "sentry_redirect_401", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "sentry_restore_form_post", Type: "string", Enum: []string{"on", "off"}},
+		{FieldName: "server_cert_validate", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "server_request_burst", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "service_principle_name", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "session_sticky", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "session_sticky_cookie_maxage", Type: "string", Pattern: "^[0-9]+$"},
+		{FieldName: "session_sticky_server_cookie", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "single_host_content_rw", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "single_host_cookie_domain", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "single_host_enable", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "single_host_fqdn", Type: "string"},
+		{FieldName: "single_host_path", Type: "string"},
+		{FieldName: "sla_object_url", Type: "string"},
+		{FieldName: "spdy_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "ssh_audit_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "sso", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "sticky_agent", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "user_name", Types: []string{"string", "null"}, Nullable: true},
+		{FieldName: "wapp_auth", Type: "string"},
+		{FieldName: "websocket_enabled", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "wildcard_internal_hostname", Type: "string", Enum: []string{"true", "false"}},
+		{FieldName: "x_wapp_pool_enabled", Type: "string", Enum: []string{"true", "false", "inherit"}},
+		{FieldName: "x_wapp_pool_size", Types: []string{"integer"}, Min: 1, Max: 50},
+		{FieldName: "x_wapp_pool_timeout", Types: []string{"integer"}, Min: 60, Max: 3600},
+		{FieldName: "x_wapp_read_timeout", Types: []string{"string", "integer"}, Min: 1, Max: 3600},
+	}
+
+	// Apply validation rules
+	for _, rule := range validationRules {
+		if fieldValue, exists := settings[rule.FieldName]; exists {
+			if err := validateField(fieldValue, rule); err != nil {
+				errors = append(errors, err)
+			}
+		}
+	}
+
+	return
+}
+
+// validateField validates a single field against its rule
+func validateField(value interface{}, rule ValidationRule) error {
+	// Handle null values for nullable fields
+	if value == nil {
+		if rule.Nullable {
+			return nil // null is valid for nullable fields
+		}
+		return fmt.Errorf("%s cannot be null", rule.FieldName)
+	}
+
+	// Check if multiple types are supported
+	if len(rule.Types) > 0 {
+		validType := false
+		for _, allowedType := range rule.Types {
+			switch allowedType {
+			case "string":
+				if _, ok := value.(string); ok {
+					validType = true
+					break
+				}
+			case "integer":
+				switch value.(type) {
+				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+					validType = true
+					break
+				case float32, float64:
+					// JSON numbers become float64, so accept them and convert to int
+					validType = true
+					break
+				}
+			}
+		}
+		if !validType {
+			return fmt.Errorf("%s must be one of types %v, got %T (value: %v)", rule.FieldName, rule.Types, value, value)
+		}
+	} else {
+		// Fall back to single type validation
+		switch rule.Type {
+		case "string":
+			if strVal, ok := value.(string); ok {
+				// Check enum values if specified
+				if len(rule.Enum) > 0 {
+					valid := false
+					for _, validValue := range rule.Enum {
+						if strVal == validValue {
+							valid = true
+							break
+						}
+					}
+					if !valid {
+						return fmt.Errorf("%s must be one of %v, got '%s'", rule.FieldName, rule.Enum, strVal)
+					}
+				}
+
+				// Check pattern if specified
+				if rule.Pattern != "" {
+					matched, err := regexp.MatchString(rule.Pattern, strVal)
+					if err != nil {
+						return fmt.Errorf("validation error for %s: %v", rule.FieldName, err)
+					}
+					if !matched {
+						return fmt.Errorf("%s must match pattern '%s', got '%s'", rule.FieldName, rule.Pattern, strVal)
+					}
+				}
+			} else {
+				// Strict validation: reject any non-string values
+				return fmt.Errorf("%s must be a string, got %T (value: %v). No automatic conversion allowed.", rule.FieldName, value, value)
+			}
+		}
+	}
+
+	// Apply pattern validation for all types if specified
+	if rule.Pattern != "" {
+		var strVal string
+		switch v := value.(type) {
+		case string:
+			strVal = v
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			strVal = fmt.Sprintf("%v", v)
+		default:
+			return fmt.Errorf("%s cannot apply pattern validation to type %T", rule.FieldName, value)
+		}
+
+		matched, err := regexp.MatchString(rule.Pattern, strVal)
+		if err != nil {
+			return fmt.Errorf("validation error for %s: %v", rule.FieldName, err)
+		}
+		if !matched {
+			return fmt.Errorf("%s must match pattern '%s', got '%s'", rule.FieldName, rule.Pattern, strVal)
+		}
+	}
+
+	// Apply range validation for numeric fields if specified
+	if rule.Min > 0 || rule.Max > 0 {
+		var numVal int64
+		switch v := value.(type) {
+		case string:
+			if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+				numVal = parsed
+			} else {
+				return fmt.Errorf("%s must be a valid integer for range validation, got '%s'", rule.FieldName, v)
+			}
+		case int:
+			numVal = int64(v)
+		case int8:
+			numVal = int64(v)
+		case int16:
+			numVal = int64(v)
+		case int32:
+			numVal = int64(v)
+		case int64:
+			numVal = v
+		case uint:
+			numVal = int64(v)
+		case uint8:
+			numVal = int64(v)
+		case uint16:
+			numVal = int64(v)
+		case uint32:
+			numVal = int64(v)
+		case uint64:
+			numVal = int64(v)
+		case float32:
+			numVal = int64(v)
+		case float64:
+			numVal = int64(v)
+		default:
+			return fmt.Errorf("%s cannot apply range validation to type %T", rule.FieldName, value)
+		}
+
+		if rule.Min > 0 && numVal < int64(rule.Min) {
+			return fmt.Errorf("%s must be at least %d, got %d", rule.FieldName, rule.Min, numVal)
+		}
+		if rule.Max > 0 && numVal > int64(rule.Max) {
+			return fmt.Errorf("%s must be at most %d, got %d", rule.FieldName, rule.Max, numVal)
+		}
+	}
 
 	return nil
 }

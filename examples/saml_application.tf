@@ -18,8 +18,8 @@ provider "eaa" {
 
 # Basic SAML2.0 Application with Default Settings
 resource "eaa_application" "saml_basic" {
-  name        = "saml-basic-app"
-  description = "SAML2.0 application with default settings"
+  name        = "saml-basic-app-new"
+  description = "SAML2.0 application with UPDATED description - testing JSON approach"
   host        = "saml-basic.example.com"
   app_profile = "http"
   app_type    = "enterprise"
@@ -37,19 +37,17 @@ resource "eaa_application" "saml_basic" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "SAML2.0"
-    # No saml_settings needed - defaults will be applied
-  }
+  })
 
-  # No app_authentication block needed for first-time creation
-  # API will automatically assign default IDP and create default SAML settings
+  # No saml_settings needed - defaults will be applied
 }
 
-# SAML2.0 Application with Custom Settings
-resource "eaa_application" "saml_custom" {
-  name        = "saml-custom-app"
-  description = "SAML2.0 application with custom settings"
+# SAML2.0 Application with Custom Settings using JSON approach
+resource "eaa_application" "saml_custom_example_1" {
+  name        = "saml-custom-json-test-v3"
+  description = "SAML2.0 application with comprehensive custom settings using JSON approach"
   host        = "saml-custom.example.com"
   app_profile = "http"
   app_type    = "enterprise"
@@ -67,71 +65,71 @@ resource "eaa_application" "saml_custom" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
 
-  advanced_settings {
+  advanced_settings = jsonencode({
     app_auth = "SAML2.0"
-  }
+  })
 
-  saml_settings {
-    sp {
-      entity_id = "https://saml-custom.example.com"
-      acs_url   = "https://saml-custom.example.com/saml/acs"
-      slo_url   = "https://saml-custom.example.com/saml/slo"
-      req_bind  = "redirect"
-      force_auth = false
-      req_verify = false
-      sign_cert  = ""
-      resp_encr  = false
-      encr_cert  = ""
-      encr_algo  = "aes256-cbc"
-      slo_req_verify = true
-      dst_url    = ""
+  # Comprehensive SAML settings using JSON approach with jsonencode()
+  saml_settings = jsonencode([
+    {
+      sp = {
+        entity_id = "https://saml-custom.example.com/sp"
+        acs_url   = "https://saml-custom.example.com/acs"
+        slo_url   = "https://saml-custom.example.com/slo"
+        req_bind  = "post"
+        force_auth = true
+        req_verify = true
+        sign_cert  = ""
+        resp_encr  = true
+        encr_cert  = ""
+        encr_algo  = "aes256-cbc"
+        slo_req_verify = true
+        dst_url    = "https://saml-custom.example.com/dst"
+        slo_bind   = "post"
+        metadata   = "https://saml-custom.example.com/metadata"
+      }
+      idp = {
+        entity_id = "https://custom-idp.example.com"
+        metadata  = "https://custom-idp.example.com/metadata"
+        self_signed = true
+        sign_algo   = "SHA256"
+        resp_bind   = "post"
+        slo_url     = "https://custom-idp.example.com/slo"
+        ecp_enable  = true
+        ecp_resp_signature = true
+      }
+      subject = {
+        fmt = "email"
+        src = "user.email"
+        val = ""
+        rule = ""
+      }
+      attrmap = [
+        {
+          name = "email"
+          fname = "Email"
+          fmt  = "email"
+          val  = ""
+          src  = "user.email"
+          rule = ""
+        },
+        {
+          name = "firstName"
+          fname = "First Name"
+          fmt  = "firstName"
+          val  = ""
+          src  = "user.firstName"
+          rule = ""
+        },
+        {
+          name = "lastName"
+          fname = "Last Name"
+          fmt  = "lastName"
+          val  = ""
+          src  = "user.lastName"
+          rule = ""
+        }
+      ]
     }
-    
-    idp {
-      entity_id = "https://test-idp.example.com"
-      metadata  = ""
-      sign_cert = ""
-      sign_key  = ""
-      self_signed = false
-      sign_algo   = "SHA256"
-      resp_bind   = "post"
-      slo_url     = "https://test-idp.example.com/saml/slo"
-      ecp_enable  = false
-      ecp_resp_signature = false
-    }
-    
-    subject {
-      fmt = "email"
-      src = "user.email"
-      val = ""
-      rule = ""
-    }
-    
-    attrmap {
-      name = "email"
-      fname = "Email"
-      fmt  = "email"
-      val  = ""
-      src  = "user.email"
-      rule = ""
-    }
-    
-    attrmap {
-      name = "firstName"
-      fname = "First Name"
-      fmt  = "firstName"
-      val  = ""
-      src  = "user.firstName"
-      rule = ""
-    }
-    
-    attrmap {
-      name = "lastName"
-      fname = "Last Name"
-      fmt  = "lastName"
-      val  = ""
-      src  = "user.lastName"
-      rule = ""
-    }
-  }
-} 
+  ])
+}
