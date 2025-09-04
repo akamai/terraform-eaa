@@ -35,13 +35,15 @@ resource "eaa_application" "sql-lab-dc1-app" {
 
     agents = ["EAA_DC1_US1_TCP_01"]
 
-    advanced_settings {
+    advanced_settings = jsonencode({
         is_ssl_verification_enabled = "false"
         ip_access_allow = "false"
         x_wapp_read_timeout = "300"
         internal_host_port = "300"
         internal_hostname = "myhost999.com"
-	  }
+        
+        
+    })
 
     auth_enabled = "true"
 

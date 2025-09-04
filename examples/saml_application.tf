@@ -36,6 +36,19 @@ resource "eaa_application" "saml_basic" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "employees-idp"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     app_auth = "SAML2.0"
@@ -64,6 +77,19 @@ resource "eaa_application" "saml_custom_example_1" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "employees-idp"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     app_auth = "SAML2.0"
@@ -89,8 +115,8 @@ resource "eaa_application" "saml_custom_example_1" {
         metadata   = "https://saml-custom.example.com/metadata"
       }
       idp = {
-        entity_id = "https://custom-idp.example.com"
-        metadata  = "https://custom-idp.example.com/metadata"
+        entity_id = ""
+        metadata  = ""
         self_signed = true
         sign_algo   = "SHA256"
         resp_bind   = "post"

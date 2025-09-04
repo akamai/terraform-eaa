@@ -36,6 +36,19 @@ resource "eaa_application" "oidc_basic" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "employees-idp"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     app_auth = "OpenID Connect 1.0"

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -399,14 +400,10 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		logger.Info("create Application: assigning agents succeeded.")
 	}
 
+	// Store the update request for later use after IDP assignment
 	appUpdateReq := client.ApplicationUpdateRequest{}
 	appUpdateReq.Application = app
 	err = appUpdateReq.UpdateAppRequestFromSchema(ctx, d, eaaclient)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -439,28 +436,100 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 					}
 					logger.Info("app.Name: ", app.Name, "app_idp_name: ", app_idp_name, "idpData.UUIDURL: ", idpData.UUIDURL)
 
+					logger.Info("=== DEBUG: Starting IDP assignment ===")
+					logger.Info("DEBUG: Assigning IDP to application")
+					logger.Info("DEBUG: app_uuid_url = ", app_uuid_url)
+					logger.Info("DEBUG: idpData.UUIDURL = ", idpData.UUIDURL)
+					
 					appIdp := client.AppIdp{
 						App: app_uuid_url,
 						IDP: idpData.UUIDURL,
 					}
 					err = appIdp.AssignIDP(eaaclient)
 					if err != nil {
-						logger.Error("idp assign error err ", err)
+						logger.Error("DEBUG: IDP assign error: ", err)
 						return diag.FromErr(err)
 					}
-					logger.Info("idp assigned successfully, app.Name ", app.Name, "idp ", app_idp_name)
+					logger.Info("DEBUG: IDP assigned successfully, app.Name = ", app.Name, "idp = ", app_idp_name)
 
 					// check if app_directories are present
 					if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
+						logger.Info("DEBUG: Starting directory assignment...")
 						err := idpData.AssignIdpDirectories(ctx, appDirs, app_uuid_url, eaaclient)
 						if err != nil {
+							logger.Error("DEBUG: Directory assignment error: ", err)
 							return diag.FromErr(err)
 						}
+						logger.Info("DEBUG: Directory assignment completed successfully")
+					} else {
+						logger.Info("DEBUG: No app_directories found, skipping directory assignment")
 					}
+					
+					logger.Info("=== DEBUG: IDP assignment complete ===")
 				}
 			}
 		}
 	}
+	
+	// Verify IDP assignment is complete before proceeding
+	if auth_enabled == "true" {
+		logger.Info("=== DEBUG: Starting IDP assignment verification ===")
+		logger.Info("DEBUG: auth_enabled = ", auth_enabled)
+		logger.Info("DEBUG: app_uuid_url = ", app_uuid_url)
+		
+		logger.Info("DEBUG: Waiting 30 seconds for IDP assignment to propagate...")
+		time.Sleep(30 * time.Second) // Give time for IDP assignment to propagate
+		
+		// Verify the application has the correct authentication settings
+		apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, app_uuid_url)
+		logger.Info("DEBUG: Fetching application details from: ", apiURL)
+		
+		var appResp client.ApplicationResponse
+		getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+		if err != nil {
+			logger.Error("DEBUG: Failed to verify authentication settings: ", err)
+			return diag.FromErr(err)
+		}
+		if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+			logger.Error("DEBUG: Failed to verify authentication settings - bad status code: ", getResp.StatusCode)
+			return diag.FromErr(fmt.Errorf("failed to verify authentication settings"))
+		}
+		
+		logger.Info("DEBUG: Application response received successfully")
+		logger.Info("DEBUG: appResp.AuthEnabled = ", appResp.AuthEnabled)
+		logger.Info("DEBUG: appResp.Name = ", appResp.Name)
+		logger.Info("DEBUG: appResp.SAML = ", appResp.SAML)
+		logger.Info("DEBUG: appResp.Oidc = ", appResp.Oidc)
+		logger.Info("DEBUG: appResp.WSFED = ", appResp.WSFED)
+		
+		// Check if the application has authentication enabled
+		if appResp.AuthEnabled != "true" {
+			logger.Info("DEBUG: Authentication not yet enabled, waiting additional 30 seconds...")
+			time.Sleep(30 * time.Second) // Additional wait if needed
+			
+			// Check again after additional wait
+			_, err = eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+			if err != nil {
+				logger.Error("DEBUG: Failed to verify authentication settings after additional wait: ", err)
+				return diag.FromErr(err)
+			}
+			logger.Info("DEBUG: After additional wait - appResp.AuthEnabled = ", appResp.AuthEnabled)
+		} else {
+			logger.Info("DEBUG: Authentication is properly enabled!")
+		}
+		
+		logger.Info("=== DEBUG: IDP assignment verification complete ===")
+	}
+	
+	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
+	logger.Info("=== DEBUG: Performing PUT call after IDP assignment ===")
+	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
+	if err != nil {
+		logger.Error("DEBUG: PUT call failed after IDP assignment: ", err)
+		return diag.FromErr(err)
+	}
+	logger.Info("=== DEBUG: PUT call completed successfully ===")
+	
 	_, ok := d.Get("service").([]interface{})
 	if ok {
 		aclSrv, err := client.ExtractACLService(ctx, d, eaaclient)
@@ -488,8 +557,8 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	logger.Info("deploying application after all configuration steps are complete...")
 	err = app.DeployApplication(eaaclient)
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -871,33 +940,27 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		wsfedSettings := make([]map[string]interface{}, len(appResp.WSFEDSettings))
 		for i, wsfedConfig := range appResp.WSFEDSettings {
 			wsfedSettings[i] = map[string]interface{}{
-				"sp": []map[string]interface{}{
-					{
-						"entity_id":  wsfedConfig.SP.EntityID,
-						"slo_url":    wsfedConfig.SP.SLOURL,
-						"dst_url":    wsfedConfig.SP.DSTURL,
-						"resp_bind":  wsfedConfig.SP.RespBind,
-						"token_life": wsfedConfig.SP.TokenLife,
-						"encr_algo":  wsfedConfig.SP.EncrAlgo,
-					},
+				"sp": map[string]interface{}{
+					"entity_id":  wsfedConfig.SP.EntityID,
+					"slo_url":    wsfedConfig.SP.SLOURL,
+					"dst_url":    wsfedConfig.SP.DSTURL,
+					"resp_bind":  wsfedConfig.SP.RespBind,
+					"token_life": wsfedConfig.SP.TokenLife,
+					"encr_algo":  wsfedConfig.SP.EncrAlgo,
 				},
-				"idp": []map[string]interface{}{
-					{
-						"entity_id":   wsfedConfig.IDP.EntityID,
-						"sign_algo":   wsfedConfig.IDP.SignAlgo,
-						"sign_cert":   wsfedConfig.IDP.SignCert,
-						"sign_key":    wsfedConfig.IDP.SignKey,
-						"self_signed": wsfedConfig.IDP.SelfSigned,
-					},
+				"idp": map[string]interface{}{
+					"entity_id":   wsfedConfig.IDP.EntityID,
+					"sign_algo":   wsfedConfig.IDP.SignAlgo,
+					"sign_cert":   wsfedConfig.IDP.SignCert,
+					"sign_key":    wsfedConfig.IDP.SignKey,
+					"self_signed": wsfedConfig.IDP.SelfSigned,
 				},
-				"subject": []map[string]interface{}{
-					{
-						"fmt":        wsfedConfig.Subject.Fmt,
-						"custom_fmt": wsfedConfig.Subject.CustomFmt,
-						"src":        wsfedConfig.Subject.Src,
-						"val":        wsfedConfig.Subject.Val,
-						"rule":       wsfedConfig.Subject.Rule,
-					},
+				"subject": map[string]interface{}{
+					"fmt":        wsfedConfig.Subject.Fmt,
+					"custom_fmt": wsfedConfig.Subject.CustomFmt,
+					"src":        wsfedConfig.Subject.Src,
+					"val":        wsfedConfig.Subject.Val,
+					"rule":       wsfedConfig.Subject.Rule,
 				},
 				"attrmap": func() []map[string]interface{} {
 					attrMaps := make([]map[string]interface{}, len(wsfedConfig.Attrmap))
@@ -1018,14 +1081,10 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(getAppErrMsg)
 	}
 
+	// Store the update request for later use after IDP assignment
 	appUpdateReq := client.ApplicationUpdateRequest{}
 	appUpdateReq.Application = appResp
 	err = appUpdateReq.UpdateAppRequestFromSchema(ctx, d, eaaclient)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -1109,23 +1168,36 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 							return diag.FromErr(err)
 						}
 
+						eaaclient.Logger.Info("=== DEBUG: Starting IDP assignment in UPDATE flow ===")
+						eaaclient.Logger.Info("DEBUG: Assigning IDP to application in UPDATE")
+						eaaclient.Logger.Info("DEBUG: app_uuid_url = ", app_uuid_url)
+						eaaclient.Logger.Info("DEBUG: idpData.UUIDURL = ", idpData.UUIDURL)
+						
 						appIdp := client.AppIdp{
 							App: app_uuid_url,
 							IDP: idpData.UUIDURL,
 						}
 						err = appIdp.AssignIDP(eaaclient)
 						if err != nil {
-							eaaclient.Logger.Error("idp assign error err ", err)
+							eaaclient.Logger.Error("DEBUG: IDP assign error in UPDATE: ", err)
 							return diag.FromErr(err)
 						}
+						eaaclient.Logger.Info("DEBUG: IDP assigned successfully in UPDATE, app.Name = ", appResp.Name, "idp = ", app_idp_name)
 
 						// check if app_directories are present
 						if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
+							eaaclient.Logger.Info("DEBUG: Starting directory assignment in UPDATE...")
 							err := idpData.AssignIdpDirectories(ctx, appDirs, app_uuid_url, eaaclient)
 							if err != nil {
+								eaaclient.Logger.Error("DEBUG: Directory assignment error in UPDATE: ", err)
 								return diag.FromErr(err)
 							}
+							eaaclient.Logger.Info("DEBUG: Directory assignment completed successfully in UPDATE")
+						} else {
+							eaaclient.Logger.Info("DEBUG: No app_directories found in UPDATE, skipping directory assignment")
 						}
+						
+						eaaclient.Logger.Info("=== DEBUG: IDP assignment complete in UPDATE flow ===")
 					}
 				}
 			}
@@ -1201,6 +1273,19 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 	}
+	
+	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
+	eaaclient.Logger.Info("=== DEBUG: Performing PUT call after IDP assignment in UPDATE flow ===")
+	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
+	if err != nil {
+		eaaclient.Logger.Error("DEBUG: PUT call failed after IDP assignment in UPDATE: ", err)
+		return diag.FromErr(err)
+	}
+	eaaclient.Logger.Info("=== DEBUG: PUT call completed successfully in UPDATE flow ===")
+
+	// Add delay before deploy in UPDATE flow to ensure all operations are complete
+	eaaclient.Logger.Info("waiting before deploy in UPDATE flow...")
+	time.Sleep(10 * time.Second)
 
 	err = appUpdateReq.DeployApplication(eaaclient)
 	if err != nil {
@@ -1249,13 +1334,37 @@ func mapHealthCheckTypeToDescriptive(numericValue string) string {
 	case "2":
 		return "HTTPS"
 	case "3":
-		return "SSL"
+		return "TLS"
 	case "4":
-		return "TCP"
+		return "SSLv3"
 	case "5":
+		return "TCP"
+	case "6":
 		return "None"
 	default:
 		return numericValue // fallback to original value
+	}
+}
+
+// mapHealthCheckTypeToNumeric converts descriptive health check type values to numeric values
+func mapHealthCheckTypeToNumeric(descriptiveValue string) string {
+	switch descriptiveValue {
+	case "Default":
+		return "0"
+	case "HTTP":
+		return "1"
+	case "HTTPS":
+		return "2"
+	case "TLS":
+		return "3"
+	case "SSLv3":
+		return "4"
+	case "TCP":
+		return "5"
+	case "None":
+		return "6"
+	default:
+		return descriptiveValue // fallback to original value (assumes it's already numeric)
 	}
 }
 

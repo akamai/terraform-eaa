@@ -36,6 +36,19 @@ resource "eaa_application" "wsfed_basic" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "employees-idp"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     app_auth = "WS-Federation"
@@ -66,6 +79,19 @@ resource "eaa_application" "wsfed_custom" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "employees-idp"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     app_auth = "WS-Federation"
@@ -88,7 +114,7 @@ resource "eaa_application" "wsfed_custom" {
         sign_algo = "SHA1"
         
         sign_key  = ""
-        self_signed = false
+        self_signed = true
       }
       
       subject = {

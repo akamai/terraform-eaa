@@ -1306,13 +1306,6 @@ type AdvancedSettings struct {
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
 
-	// JWT fields
-	JwtAudience     string `json:"jwt_audience,omitempty"`
-	JwtGracePeriod  string `json:"jwt_grace_period,omitempty"`
-	JwtIssuers      string `json:"jwt_issuers,omitempty"`
-	JwtReturnOption string `json:"jwt_return_option,omitempty"`
-	JwtReturnUrl    string `json:"jwt_return_url,omitempty"`
-	JwtUsername     string `json:"jwt_username,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
@@ -1803,7 +1796,7 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 		HealthCheckInterval:          "30000",
 		HealthCheckRise:              "2",
 		HealthCheckTimeout:           "50000",
-		HealthCheckType:              "Default",
+		HealthCheckType:              "0",
 		HealthCheckHTTPHostHeader:    nil,
 		HiddenApp:                    "false",
 		HostKey:                      nil,
@@ -1823,12 +1816,12 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 		InternalHostPort:             "0",
 
 		// JWT defaults
-		JwtAudience:              "",
-		JwtGracePeriod:           "60",
-		JwtIssuers:               "",
-		JwtReturnOption:          "401",
-		JwtReturnUrl:             "",
-		JwtUsername:              "",
+		JWTAudience:              "",
+		JWTGracePeriod:           "60",
+		JWTIssuers:               "",
+		JWTReturnOption:          "401",
+		JWTReturnURL:             "",
+		JWTUsername:              "",
 		IPAccessAllow:            "false",
 		IsBrotliEnabled:          "false",
 		IsSSLVerificationEnabled: "false",
@@ -2041,12 +2034,12 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 		"wildcard_internal_hostname":     "WildcardInternalHostname",
 
 		// JWT fields
-		"jwt_audience":      "JwtAudience",
-		"jwt_grace_period":  "JwtGracePeriod",
-		"jwt_issuers":       "JwtIssuers",
-		"jwt_return_option": "JwtReturnOption",
-		"jwt_return_url":    "JwtReturnUrl",
-		"jwt_username":      "JwtUsername",
+		"jwt_audience":      "JWTAudience",
+		"jwt_grace_period":  "JWTGracePeriod",
+		"jwt_issuers":       "JWTIssuers",
+		"jwt_return_option": "JWTReturnOption",
+		"jwt_return_url":    "JWTReturnURL",
+		"jwt_username":      "JWTUsername",
 		"wapp_auth":         "WappAuth",
 	}
 
@@ -2075,12 +2068,14 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 							value = "1"
 						case "HTTPS":
 							value = "2"
-						case "SSL":
+						case "TLS":
 							value = "3"
-						case "TCP":
+						case "SSLv3":
 							value = "4"
-						case "None":
+						case "TCP":
 							value = "5"
+						case "None":
+							value = "6"
 						default:
 							// Keep original value if it's already numeric
 							value = strVal

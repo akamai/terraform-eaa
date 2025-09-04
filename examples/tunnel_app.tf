@@ -40,11 +40,12 @@ resource "eaa_application" "sap-prod-dc1-app" {
         host       = "192.168.2.2"
     }
 
-    advanced_settings {
+    advanced_settings = jsonencode({
         is_ssl_verification_enabled = "false"
         ip_access_allow = "false"
         x_wapp_read_timeout = "300"
-	  }
+        
+    })
 
     auth_enabled = "true"
 

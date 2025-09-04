@@ -16,36 +16,6 @@ provider "eaa" {
   edgerc           = ".edgerc"
 }
 
-# JWT Authentication Application with Default Settings
-resource "eaa_application" "jwt_basic" {
-  name        = "jwt-basic-app"
-  description = "JWT authentication aspplication with default settings"
-  host        = "jwt-basic.example.com"
-  app_profile = "http"
-  app_type    = "enterprise"
-  domain      = "wapp"
-  client_app_mode = "tcp"
-  
-  servers {
-    orig_tls        = true
-    origin_protocol = "https"
-    origin_port     = 443
-    origin_host     = "backend.example.com"
-  }
-  
-  popregion = "us-east-1"
-  agents = ["EAA_DC1_US1_Access_01"]
-  auth_enabled = "true"
-
-  advanced_settings = jsonencode({
-    wapp_auth = "jwt"
-    # Default JWT settings will be applied:
-    # jwt_grace_period = "60"
-    # jwt_return_option = "401"
-    # Other JWT fields default to empty strings
-  })
-}
-
 # JWT Authentication Application with Custom Settings
 resource "eaa_application" "jwt_custom" {
   name        = "jwt-custom-app"
@@ -66,6 +36,19 @@ resource "eaa_application" "jwt_custom" {
   popregion = "us-east-1"
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+  app_authentication {
+       app_idp = "idp_to_assign"
+
+       app_directories {
+            name = "Cloud Directory"
+            app_groups {
+                name = "Engineering"
+            }
+            app_groups {
+                name = "SQA"
+            }
+        }
+    }
 
   advanced_settings = jsonencode({
     wapp_auth = "jwt"
