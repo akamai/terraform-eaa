@@ -41,7 +41,8 @@ resource "eaa_application" "sql-lab-dc1-app" {
         x_wapp_read_timeout = "300"
         internal_host_port = "300"
         internal_hostname = "myhost999.com"
-        
+        health_check_type = "TCP"
+        websocket_enabled = "true"
         
     })
 

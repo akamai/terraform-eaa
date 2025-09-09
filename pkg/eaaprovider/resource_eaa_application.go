@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
-	"time"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -23,7 +22,7 @@ var (
 
 func resourceEaaApplication() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceEaaApplicationCreate,
+		CreateContext: resourceEaaApplicationCreateWrapper,
 		ReadContext:   resourceEaaApplicationRead,
 		UpdateContext: resourceEaaApplicationUpdate,
 		DeleteContext: resourceEaaApplicationDelete,
@@ -338,22 +337,100 @@ func resourceEaaApplication() *schema.Resource {
 		},
 	}
 }
+// Wrapper function that handles cleanup on failure
+func resourceEaaApplicationCreateWrapper(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+    // Step 1: Call the original create function
+    diags := resourceEaaApplicationCreate(ctx, d, m)
+    
+    // Step 2: Check if creation was successful
+    if len(diags) == 0 {
+        // Success - nothing to do
+        return diags
+    }
+    
+    // Step 3: Check if we have any errors
+    hasError := false
+    for _, diagnostic := range diags {
+        if diagnostic.Severity == diag.Error {
+            hasError = true
+            break
+        }
+    }
+    
+    if !hasError {
+        // Only warnings, no errors - return as is
+        return diags
+    }
+    
+    // Step 4: We have errors - check if app was created
+    appID := d.Id()
+    if appID == "" {
+        // No ID set, original function failed early - return original error
+        return diags
+    }
+    
+    // Step 5: App was created but something failed later
+    // This is our problem case - clean up the orphaned app
+    eaaclient := m.(*client.EaaClient)
+    logger := eaaclient.Logger
+    
+    logger.Warn("App creation failed but app exists in EAA, cleaning up...")
+    
+    // Clean up the orphaned app
+    cleanupSuccess := cleanupOrphanedApp(ctx, eaaclient, appID)
+    
+    // Clear the state
+    d.SetId("")
+    
+    if cleanupSuccess {
+        logger.Info("Successfully cleaned up orphaned app:", appID)
+    } else {
+        logger.Error("Failed to clean up orphaned app:", appID)
+        // Add a warning about manual cleanup needed
+        diags = append(diags, diag.Diagnostic{
+            Severity: diag.Warning,
+            Summary:  "App creation failed and cleanup was incomplete",
+            Detail:   fmt.Sprintf("App %s may still exist in EAA and needs manual cleanup", appID),
+        })
+    }
+    
+    // Return the original error
+    return diags
+}
 
+// Cleanup function for orphaned apps
+func cleanupOrphanedApp(ctx context.Context, eaaclient *client.EaaClient, appID string) bool {
+    logger := eaaclient.Logger
+    logger.Info("Starting cleanup for orphaned app:", appID)
+    
+    // Check if app exists in EAA
+    var appResp client.ApplicationDataModel
+    apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, appID)
+    
+    getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+    if err != nil || getResp.StatusCode != 200 {
+        logger.Info("App not found in EAA, no cleanup needed")
+        return true
+    }
+    
+    logger.Info("App found in EAA, proceeding with deletion...")
+    
+    // Delete the app directly
+    deleteErr := appResp.DeleteApplication(eaaclient)
+    if deleteErr != nil {
+        logger.Error("Failed to delete app during cleanup:", deleteErr)
+        return false
+    }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    verifyResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+    if err == nil && verifyResp.StatusCode == 200 {
+        logger.Error("App still exists after deletion attempt")
+        return false
+    }
+    
+    logger.Info("App successfully deleted and verified")
+    return true
+}
 
 // resourceEaaApplicationCreate function is responsible for creating a new EAA application.
 // constructs the application creation request using data from the schema and creates the application.
@@ -383,6 +460,9 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 	app_uuid_url := appResp.UUIDURL
 	app := client.Application{}
 	app.FromResponse(appResp)
+	
+	// Set the resource ID early so cleanup can work if later steps fail
+	d.SetId(app_uuid_url)
 
 	if agentsRaw, ok := d.GetOk("agents"); ok {
 		agentsList := agentsRaw.([]interface{})
@@ -436,10 +516,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 					}
 					logger.Info("app.Name: ", app.Name, "app_idp_name: ", app_idp_name, "idpData.UUIDURL: ", idpData.UUIDURL)
 
-					logger.Info("=== DEBUG: Starting IDP assignment ===")
-					logger.Info("DEBUG: Assigning IDP to application")
-					logger.Info("DEBUG: app_uuid_url = ", app_uuid_url)
-					logger.Info("DEBUG: idpData.UUIDURL = ", idpData.UUIDURL)
+					logger.Info("Assigning IDP to application")
 					
 					appIdp := client.AppIdp{
 						App: app_uuid_url,
@@ -447,25 +524,23 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 					}
 					err = appIdp.AssignIDP(eaaclient)
 					if err != nil {
-						logger.Error("DEBUG: IDP assign error: ", err)
-						return diag.FromErr(err)
+						logger.Error("IDP assign error: ", err)
+						return diag.Errorf("assigning IDP to the app failed: %v", err)
 					}
-					logger.Info("DEBUG: IDP assigned successfully, app.Name = ", app.Name, "idp = ", app_idp_name)
+					logger.Info("IDP assigned successfully, app.Name = ", app.Name, "idp = ", app_idp_name)
 
 					// check if app_directories are present
 					if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
-						logger.Info("DEBUG: Starting directory assignment...")
+						logger.Info("Starting directory assignment...")
 						err := idpData.AssignIdpDirectories(ctx, appDirs, app_uuid_url, eaaclient)
 						if err != nil {
-							logger.Error("DEBUG: Directory assignment error: ", err)
+							logger.Error("Directory assignment error: ", err)
 							return diag.FromErr(err)
 						}
-						logger.Info("DEBUG: Directory assignment completed successfully")
+						logger.Info("Directory assignment completed successfully")
 					} else {
-						logger.Info("DEBUG: No app_directories found, skipping directory assignment")
+						logger.Info("No app_directories found, skipping directory assignment")
 					}
-					
-					logger.Info("=== DEBUG: IDP assignment complete ===")
 				}
 			}
 		}
@@ -478,7 +553,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		logger.Info("DEBUG: app_uuid_url = ", app_uuid_url)
 		
 		logger.Info("DEBUG: Waiting 30 seconds for IDP assignment to propagate...")
-		time.Sleep(30 * time.Second) // Give time for IDP assignment to propagate
+		//time.Sleep(30 * time.Second) // Give time for IDP assignment to propagate
 		
 		// Verify the application has the correct authentication settings
 		apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, app_uuid_url)
@@ -505,7 +580,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		// Check if the application has authentication enabled
 		if appResp.AuthEnabled != "true" {
 			logger.Info("DEBUG: Authentication not yet enabled, waiting additional 30 seconds...")
-			time.Sleep(30 * time.Second) // Additional wait if needed
+			//time.Sleep(30 * time.Second) // Additional wait if needed
 			
 			// Check again after additional wait
 			_, err = eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
@@ -563,8 +638,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	// Set the resource ID
-	d.SetId(app_uuid_url)
+	// Resource ID already set earlier, just return the read result
 	return resourceEaaApplicationRead(ctx, d, m)
 }
 
@@ -1285,7 +1359,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	// Add delay before deploy in UPDATE flow to ensure all operations are complete
 	eaaclient.Logger.Info("waiting before deploy in UPDATE flow...")
-	time.Sleep(10 * time.Second)
+	//time.Sleep(10 * time.Second)
 
 	err = appUpdateReq.DeployApplication(eaaclient)
 	if err != nil {
