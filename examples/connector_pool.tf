@@ -50,9 +50,9 @@ resource "eaa_connector_pool" "example" {
 
 
 # Example: Get all connector pools
-data "eaa_connector_pools" "all" {
+#data "eaa_connector_pools" "all" {
   # Optional filters can be added here
-}
+#}
 
 # Example: Get agents (connectors)
 #data "eaa_data_source_agents" "all" {

@@ -50,8 +50,6 @@ type CreateRegistrationTokenRequest struct {
 	GenerateEmbeddedImg bool   `json:"generate_embedded_img"`
 }
 
-
-
 // CreateRegistrationTokenRequestFromSchema creates a CreateRegistrationTokenRequest from Terraform schema data
 func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchema(ctx context.Context, d *schema.ResourceData, client *EaaClient) error {
 	// Get the registration tokens from the schema
@@ -93,14 +91,14 @@ func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchem
 		if err != nil {
 			return err
 		}
-		
+
 		now := time.Now().UTC()
 		expiresAt := now.AddDate(0, 0, expiresInDays)
 		r.ExpiresAt = expiresAt.Format(time.RFC3339)
 	} else {
 		// Default to 30 days if not specified
 		now := time.Now().UTC()
-		expiresAt := now.AddDate(0, 0, 30)
+		expiresAt := now.AddDate(0, 0, DEFAULT_TOKEN_EXPIRATION_DAYS)
 		r.ExpiresAt = expiresAt.Format(time.RFC3339)
 	}
 
@@ -226,7 +224,7 @@ func (r *CreateRegistrationTokenRequest) parseAndFindToken(client *EaaClient, bo
 // findExactMatches finds tokens that exactly match our request
 func (r *CreateRegistrationTokenRequest) findExactMatches(tokens []RegistrationToken, client *EaaClient) []*RegistrationToken {
 	var exactMatches []*RegistrationToken
-	
+
 	for i := range tokens {
 		token := &tokens[i]
 
@@ -250,7 +248,7 @@ func (r *CreateRegistrationTokenRequest) findExactMatches(tokens []RegistrationT
 // findTokenByName finds a token by name when no exact matches are found
 func (r *CreateRegistrationTokenRequest) findTokenByName(tokens []RegistrationToken, client *EaaClient) (*RegistrationToken, error) {
 	client.Logger.Info("=== NO EXACT MATCHES - LOOKING FOR NAME MATCH ===")
-	
+
 	for i := range tokens {
 		token := &tokens[i]
 		if token.Name == r.Name {
@@ -258,7 +256,7 @@ func (r *CreateRegistrationTokenRequest) findTokenByName(tokens []RegistrationTo
 			return token, nil
 		}
 	}
-	
+
 	client.Logger.Error("=== NO TOKEN FOUND WITH MATCHING NAME ===")
 	return nil, fmt.Errorf("no registration token found with matching name: %s", r.Name)
 }
@@ -433,4 +431,4 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 	}
 
 	return nil
-} 
+}

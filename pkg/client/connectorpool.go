@@ -110,7 +110,7 @@ type ConnectorPool struct {
 	Applications            json.RawMessage `json:"applications,omitempty"`
 	Connectors              json.RawMessage `json:"connectors,omitempty"`
 	CreatedAt               string          `json:"created_at,omitempty"`
-	Directories             []string        `json:"directories,omitempty"`
+	Directories             json.RawMessage `json:"directories,omitempty"`
 	DNSList                 []string        `json:"dns_list,omitempty"`
 	DNSOverride             bool            `json:"dns_override,omitempty"`
 	EDNS                    json.RawMessage `json:"edns,omitempty"`
@@ -285,7 +285,7 @@ func buildConnectorAssociationRequest(connectorUUIDs []string) *ConnectorPoolAss
 	var agents []AgentAssociation
 	for _, connectorUUID := range connectorUUIDs {
 		agent := AgentAssociation{
-			AgentInfraType: 1, // Default value, adjust as needed
+			AgentInfraType: int(INFRA_TYPE_EAA), 
 			UUIDURL:        connectorUUID,
 		}
 		agents = append(agents, agent)
@@ -334,7 +334,7 @@ func UnassignConnectorsFromPool(ec *EaaClient, connectorPoolUUID string, connect
 	var agents []AgentAssociation
 	for _, connectorUUID := range connectorUUIDs {
 		agent := AgentAssociation{
-			AgentInfraType: 1, // Default agent infrastructure type
+			AgentInfraType: int(INFRA_TYPE_EAA),
 			UUIDURL:        connectorUUID,
 		}
 		agents = append(agents, agent)
@@ -581,7 +581,7 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 		
 		// Move to next page
 		offset += apiLimit
-		time.Sleep(100 * time.Millisecond) // Prevent overwhelming API
+		
 	}
 	
 

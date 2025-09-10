@@ -32,6 +32,11 @@ const (
 	URL_SCHEME                        = "https"
 )
 
+// Token expiration constants
+const (
+	DEFAULT_TOKEN_EXPIRATION_DAYS = 30 // Default expiration days for registration tokens
+)
+
 var (
 	ErrInvalidArgument = errors.New("invalid arguments provided")
 	ErrMarshaling      = errors.New("marshaling input")
