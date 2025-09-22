@@ -25,7 +25,7 @@ resource "eaa_application" "wsfed_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  
+  wsfed           = true
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -51,7 +51,7 @@ resource "eaa_application" "wsfed_basic" {
     }
 
   advanced_settings = jsonencode({
-    app_auth = "WS-Federation"
+    
     # No wsfed_settings needed - defaults will be applied
   })
 
@@ -68,6 +68,7 @@ resource "eaa_application" "wsfed_custom" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
+  wsfed           = true
   
   servers {
     orig_tls        = true
@@ -80,7 +81,7 @@ resource "eaa_application" "wsfed_custom" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "employees-idp"
+       app_idp = "SQA-SC-5"
 
        app_directories {
             name = "Cloud Directory"
@@ -94,63 +95,60 @@ resource "eaa_application" "wsfed_custom" {
     }
 
   advanced_settings = jsonencode({
-    app_auth = "WS-Federation"
+    
   })
 
-  # WS-Federation settings using JSON approach with jsonencode()
-  wsfed_settings = jsonencode([
-    {
-      sp = {
-        entity_id = "https://wsfed-custom.example.com"
-        slo_url   = "https://wsfed-custom.example.com/wsfed/slo"
-        dst_url   = "https://wsfed-custom.example.com/wsfed/dst"
-        resp_bind = "post"
-        token_life = 7200
-        encr_algo  = "aes128-cbc"
-      }
-      
-      idp = {
-        entity_id = "https://test-idp.example.com/wsfed/idp/sso"
-        sign_algo = "SHA1"
-        
-        sign_key  = ""
-        self_signed = true
-      }
-      
-      subject = {
-        fmt = "persistent"
-        custom_fmt = ""
-        src = "user.persistentId"
-        val = ""
-        rule = ""
-      }
-      
-      attrmap = [
-        {
-          name = "email"
-          fmt  = "email"
-          custom_fmt = ""
-          val  = ""
-          src  = "user.email"
-          rule = ""
-        },
-        {
-          name = "firstName"
-          fmt  = "firstName"
-          custom_fmt = ""
-          val  = ""
-          src  = "user.firstName"
-          rule = ""
-        },
-        {
-          name = "lastName"
-          fmt  = "lastName"
-          custom_fmt = ""
-          val  = ""
-          src  = "user.lastName"
-          rule = ""
-        }
-      ]
+  # WS-Federation settings using Terraform resource schema
+  wsfed_settings {
+    sp {
+      entity_id = "https://wsfed-custom.example.com"
+      slo_url   = "https://wsfed-custom.example.com/wsfed/slo"
+      dst_url   = "https://wsfed-custom.example.com/wsfed/dst"
+      resp_bind = "post"
+      token_life = 7200
+      encr_algo  = "aes128-cbc"
     }
-  ])
+    
+    idp {
+      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
+      sign_algo = "SHA1"
+      sign_key  = ""
+      self_signed = true
+    }
+    
+    subject {
+      fmt = "persistent"
+      custom_fmt = ""
+      src = "user.persistentId"
+      val = ""
+      rule = ""
+    }
+    
+    attrmap {
+      name = "email"
+      fmt  = "email"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.email"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "firstName"
+      fmt  = "firstName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.firstName"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "lastName"
+      fmt  = "lastName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.lastName"
+      rule = ""
+    }
+  }
 }

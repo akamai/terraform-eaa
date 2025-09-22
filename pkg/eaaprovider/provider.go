@@ -43,10 +43,11 @@ func Provider() *schema.Provider {
 			"eaa_connector":   resourceEaaConnector(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"eaa_data_source_pops":          dataSourcePops(),
-			"eaa_data_source_appcategories": dataSourceAppCategories(),
-			"eaa_data_source_agents":        dataSourceAgents(),
-			"eaa_data_source_idps":          dataSourceIdps(),
+			"eaa_data_source_pops":              dataSourcePops(),
+			"eaa_data_source_appcategories":     dataSourceAppCategories(),
+			"eaa_data_source_agents":            dataSourceAgents(),
+			"eaa_data_source_idps":              dataSourceIdps(),
+			"eaa_data_source_tls_cipher_suites": dataSourceTLSCipherSuites(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}

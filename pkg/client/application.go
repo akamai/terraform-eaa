@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -27,6 +24,8 @@ type CreateAppRequest struct {
 	SAMLSettings     []SAMLConfig     `json:"saml_settings"`
 	OIDCSettings     *OIDCConfig      `json:"oidc_settings"`
 	WSFEDSettings    []WSFEDConfig    `json:"wsfed_settings"`
+	TLSSuiteType     *int             `json:"tlsSuiteType,omitempty"`
+	TLSSuiteName     *string          `json:"tls_suite_name,omitempty"`
 }
 
 func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -130,100 +129,114 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
 	}
 
-	// Parse the JSON again to handle app_auth special cases for CREATE flow
-	var advSettingsDataMap map[string]interface{}
-	if err := json.Unmarshal([]byte(advSettingsJSON), &advSettingsDataMap); err == nil {
-		if app_auth, ok := advSettingsDataMap["app_auth"].(string); ok {
-			logger.Info("CREATE FLOW: Found app_auth in advanced settings:", app_auth)
-			// Handle special authentication types that require setting boolean flags
-			switch app_auth {
-			case "SAML2.0":
-				// For SAML2.0, set app_auth to "none" in payload
-				advSettings.AppAuth = "none"
-				car.SAML = true
-				car.Oidc = false
-				car.WSFED = false
-			case "oidc", "OpenID Connect 1.0":
-				// For oidc, set app_auth to "oidc" in payload and oidc = true
-				advSettings.AppAuth = "oidc"
-				car.SAML = false
-				car.Oidc = true
-				car.WSFED = false
-			case "wsfed", "WS-Federation":
-				// For wsfed, include app_auth in payload
-				advSettings.AppAuth = "none"
-				car.SAML = false
-				car.Oidc = false
-				car.WSFED = true
+	// Extract TLS Suite fields from advanced_settings and set them at the top level
+	// Parse the advanced_settings JSON to extract TLS Suite fields
+	logger.Info("CREATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
+	var userSettings map[string]interface{}
+	if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
+		logger.Info("CREATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
+
+		// Extract tlsSuiteType
+		if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
+			logger.Info("CREATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
+
+			var tlsSuiteTypeInt int
+			switch v := tlsSuiteTypeVal.(type) {
+			case string:
+				// Handle string values: "default" -> 1, "custom" -> 2
+				switch v {
+				case "default":
+					tlsSuiteTypeInt = 1
+				case "custom":
+					tlsSuiteTypeInt = 2
+				default:
+					logger.Error("CREATE FLOW: Invalid tlsSuiteType string value:", v)
+				}
+			case float64:
+				// Handle numeric values (for backward compatibility)
+				tlsSuiteTypeInt = int(v)
 			default:
-				// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
-				advSettings.AppAuth = app_auth
-				car.SAML = false
-				car.Oidc = false
-				car.WSFED = false
+				logger.Error("CREATE FLOW: Invalid tlsSuiteType type:", v)
+				return fmt.Errorf("invalid tlsSuiteType type: %T", v)
+			}
+
+			car.TLSSuiteType = &tlsSuiteTypeInt
+			logger.Info("CREATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
+		} else {
+			logger.Info("CREATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
+		}
+
+		// Extract tls_suite_name
+		if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
+			logger.Info("CREATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
+			if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
+				car.TLSSuiteName = &tlsSuiteNameStr
+				logger.Info("CREATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
 			}
 		} else {
-			logger.Info("CREATE FLOW: No app_auth found in advanced settings, explicitly setting to 'none'")
-			advSettings.AppAuth = "none"
+			logger.Info("CREATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
+		}
+	} else {
+		logger.Error("CREATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
+	}
+
+	// Set authentication flags based on Terraform boolean flags for CREATE flow
+	// Preserve user-provided app_auth value from advanced_settings
+	logger.Info("CREATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
+
+	// Set authentication flags based on Terraform boolean flags
+	// Reset all auth types to false first
+	car.SAML = false
+	car.Oidc = false
+	car.WSFED = false
+
+	// Then set the specific one based on flags
+	if samlFlag, ok := d.GetOk("saml"); ok {
+		if samlBool, ok := samlFlag.(bool); ok && samlBool {
+			logger.Info("CREATE FLOW: Found saml=true in Terraform config")
+			car.SAML = true
 		}
 	}
+
+	if oidcFlag, ok := d.GetOk("oidc"); ok {
+		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
+			logger.Info("CREATE FLOW: Found oidc=true in Terraform config")
+			car.Oidc = true
+			// Override app_auth only when oidc=true
+		}
+	}
+
+	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
+		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
+			logger.Info("CREATE FLOW: Found wsfed=true in Terraform config")
+			car.WSFED = true
+		}
+	}
+
 	logger.Info("CREATE FLOW: Final app_auth value in payload:", advSettings.AppAuth)
-	
 	logger.Info("CREATE FLOW: After setting flags - SAML:", car.SAML)
 	logger.Info("CREATE FLOW: After setting flags - Oidc:", car.Oidc)
 	logger.Info("CREATE FLOW: After setting flags - WSFED:", car.WSFED)
 
 	// Handle SAML settings for CREATE flow
 	if car.SAML {
-		if samlSettingsData, ok := d.GetOk("saml_settings"); ok {
-			// User provided saml_settings as JSON string - parse it
-			logger.Info("CREATE FLOW: Found saml_settings as JSON string")
-			if samlSettingsJSON, ok := samlSettingsData.(string); ok && samlSettingsJSON != "" {
-				// Parse the JSON string into SAMLConfig slice
-				if err := json.Unmarshal([]byte(samlSettingsJSON), &car.SAMLSettings); err != nil {
-					logger.Error("CREATE FLOW: Failed to parse saml_settings JSON:", err)
-					return fmt.Errorf("failed to parse saml_settings JSON: %w", err)
+		// Use schema approach (nested blocks)
+		if samlSettings, ok := d.GetOk("saml_settings"); ok {
+			logger.Info("CREATE FLOW: Found saml_settings blocks")
+			if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
+				// Convert nested blocks to SAMLConfig
+				samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
+				if err != nil {
+					logger.Error("CREATE FLOW: Failed to convert nested blocks to SAML config:", err)
+					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
-				logger.Info("CREATE FLOW: Successfully parsed", len(car.SAMLSettings), "SAML configs from JSON")
+				car.SAMLSettings = []SAMLConfig{samlConfig}
+				logger.Info("CREATE FLOW: Successfully converted nested blocks to SAML config")
 			}
 		} else {
 			// No saml_settings provided but SAML is enabled - create default structure
 			logger.Info("CREATE FLOW: No saml_settings found, creating defaults")
-			defaultSAMLConfig := SAMLConfig{
-				SP: SPConfig{
-					EntityID:     "",
-					ACSURL:       "",
-					SLOURL:       "",
-					ReqBind:      "redirect",
-					ForceAuth:    false,
-					ReqVerify:    false,
-					SignCert:     "",
-					RespEncr:     false,
-					EncrCert:     "",
-					EncrAlgo:     "aes256-cbc",
-					SLOReqVerify: true,
-					DSTURL:       "",
-					SLOBind:      "post",
-				},
-				IDP: IDPConfig{
-					EntityID:         "",
-					Metadata:         "",
-					SignCert:         nil,
-					SignKey:          "",
-					SelfSigned:       true,
-					SignAlgo:         "SHA256",
-					RespBind:         "post",
-					SLOURL:           "",
-					ECPIsEnabled:     false,
-					ECPRespSignature: false,
-				},
-				Subject: SubjectConfig{
-					Fmt: "email",
-					Src: "user.email",
-				},
-				Attrmap: []AttrMapping{},
-			}
-			car.SAMLSettings = []SAMLConfig{defaultSAMLConfig}
+			car.SAMLSettings = []SAMLConfig{DefaultSAMLConfig}
 		}
 	} else {
 		car.SAMLSettings = []SAMLConfig{}
@@ -234,79 +247,161 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		car.OIDCSettings = nil
 	} else {
 		// Handle OIDC settings for CREATE flow
-		if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
-			logger.Info("CREATE FLOW: Found oidc_settings as JSON string")
-			if oidcSettingsJSON, ok := oidcSettingsData.(string); ok && oidcSettingsJSON != "" {
-				if err := json.Unmarshal([]byte(oidcSettingsJSON), &car.OIDCSettings); err != nil {
-					logger.Error("CREATE FLOW: Failed to parse oidc_settings JSON:", err)
-					return fmt.Errorf("failed to parse oidc_settings JSON: %w", err)
+		if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
+			logger.Info("CREATE FLOW: Found oidc_settings blocks")
+			if oidcSettingsList, ok := oidcSettings.([]interface{}); ok && len(oidcSettingsList) > 0 {
+				// Convert nested blocks to OIDCConfig
+				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
+				if err != nil {
+					logger.Error("CREATE FLOW: Failed to convert nested blocks to OIDC config:", err)
+					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
-				logger.Info("CREATE FLOW: Successfully parsed OIDC settings from JSON")
+				car.OIDCSettings = oidcConfig
+				logger.Info("CREATE FLOW: Successfully converted nested blocks to OIDC config")
 			}
 		} else {
 			logger.Info("CREATE FLOW: No oidc_settings found, creating defaults")
 			car.OIDCSettings = &OIDCConfig{
 				OIDCClients: []OIDCClient{
 					{
-						ClientName:            "default_client",
-						ClientID:              "default_client_id",
-						ResponseType:          []string{"code"},
-						ImplicitGrant:         false,
-						Type:                  "standard",
-						RedirectURIs:          []string{},
-						JavaScriptOrigins:     []string{},
-						Claims:                []OIDCClaim{},
+						ClientName:        "default_client",
+						ClientID:          "default_client_id",
+						ResponseType:      []string{"code"},
+						ImplicitGrant:     false,
+						Type:              "standard",
+						RedirectURIs:      []string{},
+						JavaScriptOrigins: []string{},
+						Claims:            []OIDCClaim{},
 					},
 				},
 			}
 		}
 	}
-	if !car.WSFED {
-		car.WSFEDSettings = []WSFEDConfig{}
-	} else {
-		// Handle WS-Federation settings for CREATE flow
+	// Handle WS-Federation settings for CREATE flow
+	if car.WSFED {
 		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
-			logger.Info("CREATE FLOW: Found wsfed_settings as JSON string")
-			if wsfedSettingsJSON, ok := wsfedSettingsData.(string); ok && wsfedSettingsJSON != "" {
-				if err := json.Unmarshal([]byte(wsfedSettingsJSON), &car.WSFEDSettings); err != nil {
-					logger.Error("CREATE FLOW: Failed to parse wsfed_settings JSON:", err)
-					return fmt.Errorf("failed to parse wsfed_settings JSON: %w", err)
+			// User provided wsfed_settings as nested blocks - parse them
+			logger.Info("CREATE FLOW: Found wsfed_settings as nested blocks")
+			if wsfedSettingsList, ok := wsfedSettingsData.([]interface{}); ok && len(wsfedSettingsList) > 0 {
+				// Get the first (and only) wsfed_settings block
+				wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
+
+				// Start with DefaultWSFEDConfig as base
+				wsfedConfig := DefaultWSFEDConfig
+
+				// Merge SP settings
+				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
+					spBlock := spBlocks[0].(map[string]interface{})
+
+					if entityID, ok := spBlock["entity_id"].(string); ok && entityID != "" {
+						wsfedConfig.SP.EntityID = entityID
+					}
+					if sloURL, ok := spBlock["slo_url"].(string); ok && sloURL != "" {
+						wsfedConfig.SP.SLOURL = sloURL
+					}
+					if dstURL, ok := spBlock["dst_url"].(string); ok && dstURL != "" {
+						wsfedConfig.SP.DSTURL = dstURL
+					}
+					if respBind, ok := spBlock["resp_bind"].(string); ok && respBind != "" {
+						wsfedConfig.SP.RespBind = respBind
+					}
+					if tokenLife, ok := spBlock["token_life"].(int); ok {
+						wsfedConfig.SP.TokenLife = tokenLife
+					}
+					if encrAlgo, ok := spBlock["encr_algo"].(string); ok && encrAlgo != "" {
+						wsfedConfig.SP.EncrAlgo = encrAlgo
+					}
 				}
-				logger.Info("CREATE FLOW: Successfully parsed", len(car.WSFEDSettings), "WS-Federation configs from JSON")
+
+				// Merge IDP settings
+				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
+					idpBlock := idpBlocks[0].(map[string]interface{})
+
+					if entityID, ok := idpBlock["entity_id"].(string); ok && entityID != "" {
+						wsfedConfig.IDP.EntityID = entityID
+					}
+					if signAlgo, ok := idpBlock["sign_algo"].(string); ok && signAlgo != "" {
+						wsfedConfig.IDP.SignAlgo = signAlgo
+					}
+					if signCert, ok := idpBlock["sign_cert"].(string); ok && signCert != "" {
+						wsfedConfig.IDP.SignCert = signCert
+					}
+					if signKey, ok := idpBlock["sign_key"].(string); ok && signKey != "" {
+						wsfedConfig.IDP.SignKey = signKey
+					}
+					if selfSigned, ok := idpBlock["self_signed"].(bool); ok {
+						wsfedConfig.IDP.SelfSigned = selfSigned
+					}
+				}
+
+				// Merge Subject settings
+				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
+					subjectBlock := subjectBlocks[0].(map[string]interface{})
+
+					if fmtVal, ok := subjectBlock["fmt"].(string); ok && fmtVal != "" {
+						wsfedConfig.Subject.Fmt = fmtVal
+					}
+					if customFmt, ok := subjectBlock["custom_fmt"].(string); ok && customFmt != "" {
+						wsfedConfig.Subject.CustomFmt = customFmt
+					}
+					if src, ok := subjectBlock["src"].(string); ok && src != "" {
+						wsfedConfig.Subject.Src = src
+					}
+					if val, ok := subjectBlock["val"].(string); ok && val != "" {
+						wsfedConfig.Subject.Val = val
+					}
+					if rule, ok := subjectBlock["rule"].(string); ok && rule != "" {
+						wsfedConfig.Subject.Rule = rule
+					}
+				}
+
+				// Merge Attrmap settings
+				if attrmapBlocks, ok := wsfedBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
+					var attrmap []WSFEDAttrMapping
+					for _, attrBlock := range attrmapBlocks {
+						if attrMap, ok := attrBlock.(map[string]interface{}); ok {
+							attr := WSFEDAttrMapping{}
+							if name, ok := attrMap["name"].(string); ok {
+								attr.Name = name
+							}
+							if fmtVal, ok := attrMap["fmt"].(string); ok {
+								attr.Fmt = fmtVal
+							}
+							if customFmt, ok := attrMap["custom_fmt"].(string); ok {
+								attr.CustomFmt = customFmt
+							}
+							if val, ok := attrMap["val"].(string); ok {
+								attr.Val = val
+							}
+							if src, ok := attrMap["src"].(string); ok {
+								attr.Src = src
+							}
+							if rule, ok := attrMap["rule"].(string); ok {
+								attr.Rule = rule
+							}
+							attrmap = append(attrmap, attr)
+						}
+					}
+					wsfedConfig.Attrmap = attrmap
+				}
+
+				// Use the merged configuration
+				car.WSFEDSettings = []WSFEDConfig{wsfedConfig}
+				logger.Info("CREATE FLOW: Successfully merged WSFED config from nested blocks")
 			}
 		} else {
-			logger.Info("CREATE FLOW: No wsfed_settings found, creating defaults")
-			defaultWSFEDConfig := WSFEDConfig{
-				SP: WSFEDSPConfig{
-					EntityID:  "",
-					SLOURL:    "",
-					DSTURL:    "",
-					RespBind:  "post",
-					TokenLife: 3600,
-					EncrAlgo:  "aes256-cbc",
-				},
-				IDP: WSFEDIDPConfig{
-					EntityID:   "",
-					SignAlgo:   "SHA256",
-					SignCert:   "",
-					SignKey:    "",
-					SelfSigned: true,
-				},
-				Subject: WSFEDSubjectConfig{
-					Fmt:       "email",
-					CustomFmt: "",
-					Src:       "user.email",
-					Val:       "",
-					Rule:      "",
-				},
-				Attrmap: []WSFEDAttrMapping{},
-			}
-			car.WSFEDSettings = []WSFEDConfig{defaultWSFEDConfig}
+			// No wsfed_settings provided but WSFED is enabled - use default structure
+			logger.Info("CREATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
+			car.WSFEDSettings = []WSFEDConfig{DefaultWSFEDConfig}
 		}
+	} else {
+		car.WSFEDSettings = []WSFEDConfig{}
 	}
 
 	logger.Info("CREATE FLOW: Setting car.AdvancedSettings with malformed defaults")
+	logger.Info("CREATE FLOW: advSettings.AppAuth before assignment:", advSettings.AppAuth)
 	car.AdvancedSettings = *advSettings
+	logger.Info("CREATE FLOW: car.AdvancedSettings.AppAuth after assignment:", car.AdvancedSettings.AppAuth)
 
 	return nil
 }
@@ -376,6 +471,7 @@ type Application struct {
 
 	UUIDURL string `json:"uuid_url"`
 
+	TLSSuiteType           *int    `json:"tlsSuiteType,omitempty"`
 	TLSSuiteName           *string `json:"tls_suite_name"`
 	AppProfileID           *string `json:"app_profile_id"`
 	RDPVersion             string  `json:"rdp_version"`
@@ -533,40 +629,38 @@ type ApplicationUpdateRequest struct {
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
 	ec.Logger.Info("updating application")
-	
+
 	// Handle basic application fields
 	if description, ok := d.GetOk("description"); ok {
 		if descriptionStr, ok := description.(string); ok && descriptionStr != "" {
 			appUpdateReq.Description = &descriptionStr
 		}
 	}
-	
+
 	if name, ok := d.GetOk("name"); ok {
 		if nameStr, ok := name.(string); ok && nameStr != "" {
 			appUpdateReq.Name = nameStr
 		}
 	}
-	
+
 	if host, ok := d.GetOk("host"); ok {
 		if hostStr, ok := host.(string); ok && hostStr != "" {
 			appUpdateReq.Host = &hostStr
 		}
 	}
-	
+
 	if domain, ok := d.GetOk("domain"); ok {
 		if domainStr, ok := domain.(string); ok && domainStr != "" {
 			appUpdateReq.Domain = domainStr
 		}
 	}
-	
+
 	if popregion, ok := d.GetOk("popregion"); ok {
 		if popregionStr, ok := popregion.(string); ok && popregionStr != "" {
 			appUpdateReq.POPRegion = popregionStr
 		}
 	}
-	
 
-	
 	appUpdateReq.TunnelInternalHosts = []TunnelInternalHost{}
 	if tunnelInternalHosts, ok := d.GetOk("tunnel_internal_hosts"); ok {
 		if tunnelInternalHostsList, ok := tunnelInternalHosts.([]interface{}); ok {
@@ -611,58 +705,63 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
 			}
 
-			// Parse the JSON again to handle app_auth special cases
-			var advSettingsData map[string]interface{}
-			if err := json.Unmarshal([]byte(advSettingsJSON), &advSettingsData); err == nil {
-				if app_auth, ok := advSettingsData["app_auth"].(string); ok {
-					ec.Logger.Info("UPDATE FLOW: Found app_auth in advanced settings:", app_auth)
-					// Handle special authentication types that require setting boolean flags
-					switch app_auth {
-					case "SAML2.0":
-						// For SAML2.0, set app_auth to "none" in payload
-						advSettings.AppAuth = "none"
-						appUpdateReq.SAML = true
-						appUpdateReq.Oidc = false
-						appUpdateReq.WSFED = false
-					case "oidc", "OpenID Connect 1.0":
-						// For oidc, set app_auth to "oidc" in payload and oidc = true
-						advSettings.AppAuth = "oidc"
-						appUpdateReq.SAML = false
-						appUpdateReq.Oidc = true
-						appUpdateReq.WSFED = false
-					case "wsfed", "WS-Federation":
-						// For wsfed, include app_auth in payload
-						advSettings.AppAuth = "none"
-						appUpdateReq.SAML = false
-						appUpdateReq.Oidc = false
-						appUpdateReq.WSFED = true
+			// Preserve user-provided app_auth value from advanced_settings
+			ec.Logger.Info("UPDATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
+
+			// Extract TLS Suite fields from advanced_settings and set them at the top level
+			// Parse the advanced_settings JSON to extract TLS Suite fields
+			ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
+			var userSettings map[string]interface{}
+			if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
+				ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
+
+				// Extract tlsSuiteType
+				if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
+					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
+
+					var tlsSuiteTypeInt int
+					switch v := tlsSuiteTypeVal.(type) {
+					case string:
+						// Handle string values: "default" -> 1, "custom" -> 2
+						switch v {
+						case "default":
+							tlsSuiteTypeInt = 1
+						case "custom":
+							tlsSuiteTypeInt = 2
+						default:
+							ec.Logger.Error("UPDATE FLOW: Invalid tlsSuiteType string value:", v)
+							return fmt.Errorf("invalid tlsSuiteType string value: %s", v)
+						}
+					case float64:
+						// Handle numeric values (for backward compatibility)
+						tlsSuiteTypeInt = int(v)
 					default:
-						// For "none", "kerberos", "basic", "NTLMv1", "NTLMv2", include app_auth in payload
-						advSettings.AppAuth = app_auth
-						appUpdateReq.SAML = false
-						appUpdateReq.Oidc = false
-						appUpdateReq.WSFED = false
+						ec.Logger.Error("UPDATE FLOW: Invalid tlsSuiteType type:", v)
+						return fmt.Errorf("invalid tlsSuiteType type: %T", v)
+					}
+
+					appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
+					ec.Logger.Info("UPDATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
+				} else {
+					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
+				}
+
+				// Extract tls_suite_name
+				if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
+					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
+					if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
+						appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
+						ec.Logger.Info("UPDATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
 					}
 				} else {
-					ec.Logger.Info("UPDATE FLOW: No app_auth found in advanced settings, explicitly setting to 'none'")
-					advSettings.AppAuth = "none"
+					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
 				}
+			} else {
+				ec.Logger.Error("UPDATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
 			}
-			ec.Logger.Info("UPDATE FLOW: Final app_auth value in payload:", advSettings.AppAuth)
-			ec.Logger.Info("UPDATE FLOW: SAML flag:", appUpdateReq.SAML)
-			ec.Logger.Info("UPDATE FLOW: Oidc flag:", appUpdateReq.Oidc)
-			ec.Logger.Info("UPDATE FLOW: WSFED flag:", appUpdateReq.WSFED)
 
-			// Always set the settings fields to ensure they appear in payload
-			if !appUpdateReq.SAML {
-				appUpdateReq.SAMLSettings = []SAMLConfig{}
-			}
-			if !appUpdateReq.Oidc {
-				appUpdateReq.OIDCSettings = nil
-			}
-			if !appUpdateReq.WSFED {
-				appUpdateReq.WSFEDSettings = []WSFEDConfig{}
-			}
+			// Note: SAML/OIDC/WS-FED settings are now handled outside this block
+			// to ensure they run regardless of whether advanced_settings is provided
 
 			// Handle special cases that require API calls
 			if advSettings.G2OEnabled == STR_TRUE {
@@ -687,125 +786,228 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 			// Use the UpdateAdvancedSettings function to properly update the struct
 			UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, *advSettings)
-			
+
 			// Explicitly set the AppAuth field to ensure it's preserved
 			appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
-			
+
 			// Log the final advanced settings to see what's being sent
 			ec.Logger.Info("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
-		}
 
-		// Handle SAML settings - always create structure when app_auth = "SAML2.0"
-		var samlConfigs []SAMLConfig
+			// Debug output for RDP fields
 
-		if samlSettingsData, ok := d.GetOk("saml_settings"); ok {
-			// User provided saml_settings as JSON string - parse it
-			ec.Logger.Info("UPDATE FLOW: Found saml_settings as JSON string")
-			if samlSettingsJSON, ok := samlSettingsData.(string); ok && samlSettingsJSON != "" {
-				// Parse the JSON string into SAMLConfig slice
-				if err := json.Unmarshal([]byte(samlSettingsJSON), &samlConfigs); err != nil {
-					ec.Logger.Error("UPDATE FLOW: Failed to parse saml_settings JSON:", err)
-					return fmt.Errorf("failed to parse saml_settings JSON: %w", err)
-				}
-				ec.Logger.Info("UPDATE FLOW: Successfully parsed", len(samlConfigs), "SAML configs from JSON")
-			}
-		} else if appUpdateReq.SAML { // This condition ensures it only runs if app_auth was SAML2.0
-			// No saml_settings provided but app_auth = "SAML2.0" - create default structure
-			// This ensures mandatory SAML fields are always in the payload
-			ec.Logger.Info("UPDATE FLOW: No saml_settings found, creating defaults")
-			defaultSAMLConfig := SAMLConfig{
-				SP: SPConfig{
-					EntityID:     "",
-					ACSURL:       "",
-					SLOURL:       "",
-					ReqBind:      "redirect",
-					ForceAuth:    false,
-					ReqVerify:    false,
-					SignCert:     "",
-					RespEncr:     false,
-					EncrCert:     "",
-					EncrAlgo:     "aes256-cbc",
-					SLOReqVerify: true,
-					DSTURL:       "",
-					SLOBind:      "post",
-				},
-				IDP: IDPConfig{
-					EntityID:         "",
-					Metadata:         "",
-					SignCert:         nil,
-					SignKey:          "",
-					SelfSigned:       true,
-					SignAlgo:         "SHA256",
-					RespBind:         "post",
-					SLOURL:           "",
-					ECPIsEnabled:     false,
-					ECPRespSignature: false,
-				},
-				Subject: SubjectConfig{
-					Fmt: "email",
-					Src: "user.email",
-				},
-				Attrmap: []AttrMapping{},
-			}
-
-			samlConfigs = append(samlConfigs, defaultSAMLConfig)
-		}
-
-		// Set the SAML settings in the application update request if we have any
-		if len(samlConfigs) > 0 {
-			appUpdateReq.SAMLSettings = samlConfigs
 		}
 	}
+
+	// Set authentication flags based on Terraform boolean flags for UPDATE flow
+	// This logic runs regardless of whether advanced_settings is provided
+
+	samlFlag, samlOk := d.GetOk("saml")
+	if samlOk {
+		if samlBool, ok := samlFlag.(bool); ok && samlBool {
+			ec.Logger.Info("UPDATE FLOW: Found saml=true in Terraform config")
+			appUpdateReq.SAML = true
+			appUpdateReq.Oidc = false
+			appUpdateReq.WSFED = false
+
+			// Use schema approach (nested blocks)
+			if samlSettings, ok := d.GetOk("saml_settings"); ok {
+				ec.Logger.Info("UPDATE FLOW: Found saml_settings blocks")
+				if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
+					// Convert nested blocks to SAMLConfig
+					samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
+					if err != nil {
+						ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to SAML config:", err)
+						return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
+					}
+					appUpdateReq.SAMLSettings = []SAMLConfig{samlConfig}
+					ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to SAML config")
+				}
+			} else {
+				// No saml_settings provided but SAML is enabled - use DefaultSAMLConfig
+				ec.Logger.Info("UPDATE FLOW: No saml_settings found, using DefaultSAMLConfig")
+				appUpdateReq.SAMLSettings = []SAMLConfig{DefaultSAMLConfig}
+				ec.Logger.Info("UPDATE FLOW: Set SAMLSettings with DefaultSAMLConfig")
+			}
+		}
+	}
+
+	if oidcFlag, ok := d.GetOk("oidc"); ok {
+		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
+			ec.Logger.Info("UPDATE FLOW: Found oidc=true in Terraform config")
+			appUpdateReq.SAML = false
+			appUpdateReq.Oidc = true
+			appUpdateReq.WSFED = false
+			// Override app_auth only when oidc=true
+			appUpdateReq.AdvancedSettings.AppAuth = "oidc"
+			appUpdateReq.SAMLSettings = []SAMLConfig{} // Clear SAML settings when OIDC is enabled
+
+			// Handle OIDC settings for UPDATE flow
+			if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
+				ec.Logger.Info("UPDATE FLOW: Found oidc_settings blocks")
+				if oidcSettingsList, ok := oidcSettings.([]interface{}); ok && len(oidcSettingsList) > 0 {
+					// Convert nested blocks to OIDCConfig
+					oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
+					if err != nil {
+						ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to OIDC config:", err)
+						return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
+					}
+					appUpdateReq.OIDCSettings = oidcConfig
+					ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
+				}
+			} else {
+				ec.Logger.Info("UPDATE FLOW: No oidc_settings found, creating defaults")
+				appUpdateReq.OIDCSettings = &OIDCConfig{
+					OIDCClients: []OIDCClient{
+						{
+							ClientName:        "default_client",
+							ClientID:          "default_client_id",
+							ResponseType:      []string{"code"},
+							ImplicitGrant:     false,
+							Type:              "standard",
+							RedirectURIs:      []string{},
+							JavaScriptOrigins: []string{},
+							Claims:            []OIDCClaim{},
+						},
+					},
+				}
+			}
+		}
+	}
+
+	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
+		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
+			ec.Logger.Info("UPDATE FLOW: Found wsfed=true in Terraform config")
+			appUpdateReq.SAML = false
+			appUpdateReq.Oidc = false
+			appUpdateReq.WSFED = true
+			appUpdateReq.SAMLSettings = []SAMLConfig{} // Clear SAML settings when WS-FED is enabled
+		}
+	}
+
+	ec.Logger.Info("UPDATE FLOW: Final SAML flag:", appUpdateReq.SAML)
+	ec.Logger.Info("UPDATE FLOW: Final Oidc flag:", appUpdateReq.Oidc)
+	ec.Logger.Info("UPDATE FLOW: Final WSFED flag:", appUpdateReq.WSFED)
+	ec.Logger.Info("UPDATE FLOW: Final SAMLSettings length:", len(appUpdateReq.SAMLSettings))
 
 	// Handle WS-Federation settings for UPDATE flow
-	var wsfedConfigs []WSFEDConfig
-
 	if appUpdateReq.WSFED {
 		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
-			ec.Logger.Info("UPDATE FLOW: Found wsfed_settings as JSON string")
-			if wsfedSettingsJSON, ok := wsfedSettingsData.(string); ok && wsfedSettingsJSON != "" {
-				if err := json.Unmarshal([]byte(wsfedSettingsJSON), &wsfedConfigs); err != nil {
-					ec.Logger.Error("UPDATE FLOW: Failed to parse wsfed_settings JSON:", err)
-					return fmt.Errorf("failed to parse wsfed_settings JSON: %w", err)
+			// User provided wsfed_settings as nested blocks - parse them
+			ec.Logger.Info("UPDATE FLOW: Found wsfed_settings as nested blocks")
+			if wsfedSettingsList, ok := wsfedSettingsData.([]interface{}); ok && len(wsfedSettingsList) > 0 {
+				// Get the first (and only) wsfed_settings block
+				wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
+
+				// Start with DefaultWSFEDConfig as base
+				wsfedConfig := DefaultWSFEDConfig
+
+				// Merge SP settings
+				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
+					spBlock := spBlocks[0].(map[string]interface{})
+
+					if entityID, ok := spBlock["entity_id"].(string); ok && entityID != "" {
+						wsfedConfig.SP.EntityID = entityID
+					}
+					if sloURL, ok := spBlock["slo_url"].(string); ok && sloURL != "" {
+						wsfedConfig.SP.SLOURL = sloURL
+					}
+					if dstURL, ok := spBlock["dst_url"].(string); ok && dstURL != "" {
+						wsfedConfig.SP.DSTURL = dstURL
+					}
+					if respBind, ok := spBlock["resp_bind"].(string); ok && respBind != "" {
+						wsfedConfig.SP.RespBind = respBind
+					}
+					if tokenLife, ok := spBlock["token_life"].(int); ok {
+						wsfedConfig.SP.TokenLife = tokenLife
+					}
+					if encrAlgo, ok := spBlock["encr_algo"].(string); ok && encrAlgo != "" {
+						wsfedConfig.SP.EncrAlgo = encrAlgo
+					}
 				}
-				ec.Logger.Info("UPDATE FLOW: Successfully parsed", len(wsfedConfigs), "WS-Federation configs from JSON")
+
+				// Merge IDP settings
+				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
+					idpBlock := idpBlocks[0].(map[string]interface{})
+
+					if entityID, ok := idpBlock["entity_id"].(string); ok && entityID != "" {
+						wsfedConfig.IDP.EntityID = entityID
+					}
+					if signAlgo, ok := idpBlock["sign_algo"].(string); ok && signAlgo != "" {
+						wsfedConfig.IDP.SignAlgo = signAlgo
+					}
+					if signCert, ok := idpBlock["sign_cert"].(string); ok && signCert != "" {
+						wsfedConfig.IDP.SignCert = signCert
+					}
+					if signKey, ok := idpBlock["sign_key"].(string); ok && signKey != "" {
+						wsfedConfig.IDP.SignKey = signKey
+					}
+					if selfSigned, ok := idpBlock["self_signed"].(bool); ok {
+						wsfedConfig.IDP.SelfSigned = selfSigned
+					}
+				}
+
+				// Merge Subject settings
+				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
+					subjectBlock := subjectBlocks[0].(map[string]interface{})
+
+					if fmtVal, ok := subjectBlock["fmt"].(string); ok && fmtVal != "" {
+						wsfedConfig.Subject.Fmt = fmtVal
+					}
+					if customFmt, ok := subjectBlock["custom_fmt"].(string); ok && customFmt != "" {
+						wsfedConfig.Subject.CustomFmt = customFmt
+					}
+					if src, ok := subjectBlock["src"].(string); ok && src != "" {
+						wsfedConfig.Subject.Src = src
+					}
+					if val, ok := subjectBlock["val"].(string); ok && val != "" {
+						wsfedConfig.Subject.Val = val
+					}
+					if rule, ok := subjectBlock["rule"].(string); ok && rule != "" {
+						wsfedConfig.Subject.Rule = rule
+					}
+				}
+
+				// Merge Attrmap settings
+				if attrmapBlocks, ok := wsfedBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
+					var attrmap []WSFEDAttrMapping
+					for _, attrBlock := range attrmapBlocks {
+						if attrMap, ok := attrBlock.(map[string]interface{}); ok {
+							attr := WSFEDAttrMapping{}
+							if name, ok := attrMap["name"].(string); ok {
+								attr.Name = name
+							}
+							if fmtVal, ok := attrMap["fmt"].(string); ok {
+								attr.Fmt = fmtVal
+							}
+							if customFmt, ok := attrMap["custom_fmt"].(string); ok {
+								attr.CustomFmt = customFmt
+							}
+							if val, ok := attrMap["val"].(string); ok {
+								attr.Val = val
+							}
+							if src, ok := attrMap["src"].(string); ok {
+								attr.Src = src
+							}
+							if rule, ok := attrMap["rule"].(string); ok {
+								attr.Rule = rule
+							}
+							attrmap = append(attrmap, attr)
+						}
+					}
+					wsfedConfig.Attrmap = attrmap
+				}
+
+				// Use the merged configuration
+				appUpdateReq.WSFEDSettings = []WSFEDConfig{wsfedConfig}
+				ec.Logger.Info("UPDATE FLOW: Successfully merged WSFED config from nested blocks")
 			}
 		} else {
-			ec.Logger.Info("UPDATE FLOW: No wsfed_settings found, creating defaults")
-			defaultWSFEDConfig := WSFEDConfig{
-				SP: WSFEDSPConfig{
-					EntityID:  "",
-					SLOURL:    "",
-					DSTURL:    "",
-					RespBind:  "post",
-					TokenLife: 3600,
-					EncrAlgo:  "aes256-cbc",
-				},
-				IDP: WSFEDIDPConfig{
-					EntityID:   "",
-					SignAlgo:   "SHA256",
-					SignCert:   "",
-					SignKey:    "",
-					SelfSigned: true,
-				},
-				Subject: WSFEDSubjectConfig{
-					Fmt:       "email",
-					CustomFmt: "",
-					Src:       "user.email",
-					Val:       "",
-					Rule:      "",
-				},
-				Attrmap: []WSFEDAttrMapping{},
-			}
-			wsfedConfigs = append(wsfedConfigs, defaultWSFEDConfig)
+			// No wsfed_settings provided but WSFED is enabled - use default structure
+			ec.Logger.Info("UPDATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
+			appUpdateReq.WSFEDSettings = []WSFEDConfig{DefaultWSFEDConfig}
 		}
 	} else {
-		wsfedConfigs = []WSFEDConfig{}
-	}
-
-	// Set the WS-Federation settings in the application update request if we have any
-	if len(wsfedConfigs) > 0 {
-		appUpdateReq.WSFEDSettings = wsfedConfigs
+		appUpdateReq.WSFEDSettings = []WSFEDConfig{}
 	}
 
 	// Handle OIDC settings for UPDATE flow
@@ -826,14 +1028,14 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			oidcConfig = &OIDCConfig{
 				OIDCClients: []OIDCClient{
 					{
-						ClientName:            "default_client",
-						ClientID:              "default_client_id",
-						ResponseType:          []string{"code"},
-						ImplicitGrant:         false,
-						Type:                  "standard",
-						RedirectURIs:          []string{},
-						JavaScriptOrigins:     []string{},
-						Claims:                []OIDCClaim{},
+						ClientName:        "default_client",
+						ClientID:          "default_client_id",
+						ResponseType:      []string{"code"},
+						ImplicitGrant:     false,
+						Type:              "standard",
+						RedirectURIs:      []string{},
+						JavaScriptOrigins: []string{},
+						Claims:            []OIDCClaim{},
 					},
 				},
 			}
@@ -1005,28 +1207,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
 	ec.Logger.Info("API URL: ", apiURL)
 
-	// Log the request payload
-	b, _ := json.MarshalIndent(appUpdateReq, "", "  ")
-	fmt.Println("=== REQUEST PAYLOAD ===")
-	fmt.Println(string(b))
-	fmt.Println("=== END REQUEST PAYLOAD ===")
-
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
 		ec.Logger.Error("update application failed. err: ", err)
 		return err
 	}
-
-	// Log the response
-	fmt.Println("=== RESPONSE STATUS ===")
-	fmt.Printf("Status Code: %d\n", appUpdResp.StatusCode)
-	fmt.Println("=== END RESPONSE STATUS ===")
-
-	// Log the response body
-	fmt.Println("=== RESPONSE BODY ===")
-	bodyBytes, _ := io.ReadAll(appUpdResp.Body)
-	fmt.Println(string(bodyBytes))
-	fmt.Println("=== END RESPONSE BODY ===")
 
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appUpdResp)
@@ -1170,7 +1355,13 @@ type EdgeAuth_Response struct {
 type CustomHeader struct {
 	AttributeType string `json:"attribute_type,omitempty"`
 	Header        string `json:"header,omitempty"`
-	Attribute     string `json:"attribute,omitempty"`
+	Attribute     string `json:"attribute"`
+}
+
+type RemoteApp struct {
+	RemoteApp     string `json:"remote_app"`
+	RemoteAppArgs string `json:"remote_app_args"`
+	RemoteAppDir  string `json:"remote_app_dir"`
 }
 
 type AdvancedSettings struct {
@@ -1301,11 +1492,16 @@ type AdvancedSettings struct {
 	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
 	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
 	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
-	RDPRemoteApps                []string               `json:"rdp_remote_apps,omitempty"`
 	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
-
+	RefreshStickyCookie          string                 `json:"refresh_sticky_cookie,omitempty"`
+	DynamicIP                    string                 `json:"dynamic_ip,omitempty"`
+	StickyCookies                string                 `json:"sticky_cookies,omitempty"`
+	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
+	RDPInitialProgram            string                 `json:"rdp_initial_program,omitempty"`
+	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
+	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
@@ -1408,8 +1604,10 @@ type AdvancedSettings_Complete struct {
 	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
 	HSTSage                      string                 `json:"hsts_age,omitempty"`
 	RDPInitialProgram            *string                `json:"rdp_initial_program,omitempty"`
+	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
 	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
 	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
+	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
 	RemoteSparkAudio             string                 `json:"remote_spark_audio,omitempty"`
 	RemoteSparkMapPrinter        string                 `json:"remote_spark_mapPrinter,omitempty"`
 	RemoteSparkPrinter           string                 `json:"remote_spark_printer,omitempty"`
@@ -1421,7 +1619,6 @@ type AdvancedSettings_Complete struct {
 	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
 	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
 	G2OKey                       *string                `json:"g2o_key,omitempty"`
-	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
 	DomainExceptionList          string                 `json:"domain_exception_list,omitempty"`
 	DisableUserAgentCheck        string                 `json:"disable_user_agent_check,omitempty"`
 	EdgeTransportManualMode      string                 `json:"edge_transport_manual_mode,omitempty"`
@@ -1443,12 +1640,13 @@ type AdvancedSettings_Complete struct {
 	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
 	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
 	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
-	RDPRemoteApps                []string               `json:"rdp_remote_apps,omitempty"`
 	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
 	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
 	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
+	TLSSuiteType                 *int                   `json:"tlsSuiteType,omitempty"`
+	TLSSuiteName                 *string                `json:"tls_suite_name,omitempty"`
 }
 
 type OIDCSettings struct {
@@ -1737,6 +1935,175 @@ type IDP struct {
 	Type                int    `json:"type"`
 }
 
+// convertNestedBlocksToSAMLConfig converts Terraform nested blocks to SAMLConfig
+func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLConfig, error) {
+	config := DefaultSAMLConfig
+
+	// Convert SP block
+	if spBlocks, ok := nestedData["sp"].([]interface{}); ok && len(spBlocks) > 0 {
+		spData := spBlocks[0].(map[string]interface{})
+
+		if entityID, ok := spData["entity_id"].(string); ok {
+			config.SP.EntityID = entityID
+		}
+		if acsURL, ok := spData["acs_url"].(string); ok {
+			config.SP.ACSURL = acsURL
+		}
+		if sloURL, ok := spData["slo_url"].(string); ok {
+			config.SP.SLOURL = sloURL
+		}
+		if dstURL, ok := spData["dst_url"].(string); ok {
+			config.SP.DSTURL = dstURL
+		}
+		if respBind, ok := spData["resp_bind"].(string); ok {
+			config.SP.ReqBind = respBind
+		}
+		// Note: SPConfig doesn't have TokenLife field
+		if encrAlgo, ok := spData["encr_algo"].(string); ok {
+			config.SP.EncrAlgo = encrAlgo
+		}
+	}
+
+	// Convert IDP block
+	if idpBlocks, ok := nestedData["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
+		idpData := idpBlocks[0].(map[string]interface{})
+
+		if entityID, ok := idpData["entity_id"].(string); ok {
+			config.IDP.EntityID = entityID
+		}
+		if signAlgo, ok := idpData["sign_algo"].(string); ok {
+			config.IDP.SignAlgo = signAlgo
+		}
+		if signCert, ok := idpData["sign_cert"].(string); ok {
+			config.IDP.SignCert = &signCert
+		}
+		if signKey, ok := idpData["sign_key"].(string); ok {
+			config.IDP.SignKey = signKey
+		}
+		if selfSigned, ok := idpData["self_signed"].(bool); ok {
+			config.IDP.SelfSigned = selfSigned
+		}
+	}
+
+	// Convert Subject block
+	if subjectBlocks, ok := nestedData["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
+		subjectData := subjectBlocks[0].(map[string]interface{})
+
+		if fmt, ok := subjectData["fmt"].(string); ok {
+			config.Subject.Fmt = fmt
+		}
+		if src, ok := subjectData["src"].(string); ok {
+			config.Subject.Src = src
+		}
+		if val, ok := subjectData["val"].(string); ok {
+			config.Subject.Val = val
+		}
+		if rule, ok := subjectData["rule"].(string); ok {
+			config.Subject.Rule = rule
+		}
+	}
+
+	// Convert Attrmap block
+	if attrmapBlocks, ok := nestedData["attrmap"].([]interface{}); ok {
+		config.Attrmap = make([]AttrMapping, 0, len(attrmapBlocks))
+		for _, attrmapData := range attrmapBlocks {
+			if attrmapMap, ok := attrmapData.(map[string]interface{}); ok {
+				attrMapping := AttrMapping{}
+				if name, ok := attrmapMap["name"].(string); ok {
+					attrMapping.Name = name
+				}
+				if val, ok := attrmapMap["value"].(string); ok {
+					attrMapping.Val = val
+				}
+				config.Attrmap = append(config.Attrmap, attrMapping)
+			}
+		}
+	}
+
+	return config, nil
+}
+
+// convertNestedBlocksToOIDCConfig converts Terraform nested blocks to OIDCConfig
+func convertNestedBlocksToOIDCConfig(nestedData map[string]interface{}) (*OIDCConfig, error) {
+	config := &OIDCConfig{}
+
+	// Note: OIDC endpoints are handled elsewhere (probably in advanced_settings)
+	// This function only handles OIDC clients
+
+	// Convert OIDC clients
+	if oidcClients, ok := nestedData["oidc_clients"].([]interface{}); ok {
+		config.OIDCClients = make([]OIDCClient, 0, len(oidcClients))
+		for _, clientData := range oidcClients {
+			if clientMap, ok := clientData.(map[string]interface{}); ok {
+				client := OIDCClient{}
+				if clientName, ok := clientMap["client_name"].(string); ok {
+					client.ClientName = clientName
+				}
+				if clientID, ok := clientMap["client_id"].(string); ok {
+					client.ClientID = clientID
+				}
+				if responseType, ok := clientMap["response_type"].([]interface{}); ok {
+					client.ResponseType = make([]string, 0, len(responseType))
+					for _, rt := range responseType {
+						if rtStr, ok := rt.(string); ok {
+							client.ResponseType = append(client.ResponseType, rtStr)
+						}
+					}
+				}
+				if implicitGrant, ok := clientMap["implicit_grant"].(bool); ok {
+					client.ImplicitGrant = implicitGrant
+				}
+				if clientType, ok := clientMap["type"].(string); ok {
+					client.Type = clientType
+				}
+				if redirectURIs, ok := clientMap["redirect_uris"].([]interface{}); ok {
+					client.RedirectURIs = make([]string, 0, len(redirectURIs))
+					for _, uri := range redirectURIs {
+						if uriStr, ok := uri.(string); ok {
+							client.RedirectURIs = append(client.RedirectURIs, uriStr)
+						}
+					}
+				}
+				if jsOrigins, ok := clientMap["javascript_origins"].([]interface{}); ok {
+					client.JavaScriptOrigins = make([]string, 0, len(jsOrigins))
+					for _, origin := range jsOrigins {
+						if originStr, ok := origin.(string); ok {
+							client.JavaScriptOrigins = append(client.JavaScriptOrigins, originStr)
+						}
+					}
+				}
+				if claims, ok := clientMap["claims"].([]interface{}); ok {
+					client.Claims = make([]OIDCClaim, 0, len(claims))
+					for _, claimData := range claims {
+						if claimMap, ok := claimData.(map[string]interface{}); ok {
+							claim := OIDCClaim{}
+							if name, ok := claimMap["name"].(string); ok {
+								claim.Name = name
+							}
+							if scope, ok := claimMap["scope"].(string); ok {
+								claim.Scope = scope
+							}
+							if val, ok := claimMap["val"].(string); ok {
+								claim.Val = val
+							}
+							if src, ok := claimMap["src"].(string); ok {
+								claim.Src = src
+							}
+							if rule, ok := claimMap["rule"].(string); ok {
+								claim.Rule = rule
+							}
+							client.Claims = append(client.Claims, claim)
+						}
+					}
+				}
+				config.OIDCClients = append(config.OIDCClients, client)
+			}
+		}
+	}
+
+	return config, nil
+}
+
 type AppsResponse struct {
 	Meta struct {
 		TotalCount int `json:"total_count"`
@@ -1745,504 +2112,78 @@ type AppsResponse struct {
 }
 
 // ParseAdvancedSettingsWithDefaults parses JSON advanced settings and applies sensible defaults
-func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error) {
-	var userSettings map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &userSettings); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
-	}
+// Moved to app_advanced_settings.go for better maintainability
 
-	// Create advanced settings with defaults matching the exact payload values
-	advSettings := &AdvancedSettings{
-		// Core defaults matching your payload exactly
-		Acceleration:                 "false",
-		AllowCORS:                    "true",
-		AnonymousServerConnLimit:     "50",
-		AnonymousServerReqLimit:      "100",
-		AppAuth:                      "none",
-		AppAuthDomain:                nil,
-		AppCookieDomain:              nil,
-		AppClientCertAuth:            "false",
-		AppLocation:                  nil,
-		AppServerReadTimeout:         "60",
-		AuthenticatedServerConnLimit: "50",
-		AuthenticatedServerReqLimit:  "100",
-		ClientCertAuth:               "false",
-		ClientCertUserParam:          "",
-		CookieDomain:                 nil,
-		CORSHeaderList:               "header1,header2,header3",
-		CORSMaxAge:                   "86400",
-		CORSMethodList:               "method1,method2",
-		CORSOriginList:               "origin1,origin2,orign3",
-		CORSSupportCredential:        "off",
-		CustomHeaders:                []CustomHeader{},
-		DisableUserAgentCheck:        "false",
-		EdgeAuthenticationEnabled:    "false",
-		EdgeCookieKey:                nil,
-		EdgeTransportManualMode:      "true",
-		EdgeTransportPropertyID:      nil,
-		EnableClientSideXHRRewrite:   "false",
-		ExternalCookieDomain:         nil,
-		ForceIPRoute:                 "false",
-		ForceMFA:                     "off",
-		FormPostAttributes:           []string{},
-		FormPostURL:                  "",
-		ForwardTicketGrantingTicket:  "false",
-		G2OEnabled:                   "true",
-		G2OKey:                       nil,
-		G2ONonce:                     nil,
-		HealthCheckFall:              "3",
-		HealthCheckHTTPURL:           "/",
-		HealthCheckHTTPVersion:       "1.1",
-		HealthCheckInterval:          "30000",
-		HealthCheckRise:              "2",
-		HealthCheckTimeout:           "50000",
-		HealthCheckType:              "0",
-		HealthCheckHTTPHostHeader:    nil,
-		HiddenApp:                    "false",
-		HostKey:                      nil,
-		HSTSage:                      "15552000",
-		HTTPOnlyCookie:               "true",
-		HTTPSSSLV3:                   "false",
-		IdleCloseTimeSeconds:         "1200",
-		IdleConnCeil:                 "75",
-		IdleConnFloor:                "50",
-		IdleConnStep:                 "10",
-		IDPIdleExpiry:                nil,
-		IDPMaxExpiry:                 nil,
-		IgnoreBypassMFA:              "off",
-		IgnoreCnameResolution:        "true",
-		InjectAjaxJavascript:         "off",
-		InterceptURL:                 "",
-		InternalHostPort:             "0",
-
-		// JWT defaults
-		JWTAudience:              "",
-		JWTGracePeriod:           "60",
-		JWTIssuers:               "",
-		JWTReturnOption:          "401",
-		JWTReturnURL:             "",
-		JWTUsername:              "",
-		IPAccessAllow:            "false",
-		IsBrotliEnabled:          "false",
-		IsSSLVerificationEnabled: "false",
-		KeepaliveConnectionPool:  "50",
-		KeepaliveEnable:          "true",
-		KeepaliveTimeout:         "300",
-
-		LoadBalancingMetric:     "round-robin",
-		LoggingEnabled:          "true",
-		LoginTimeout:            "5",
-		LoginURL:                nil,
-		MDCEnable:               "false",
-		OffloadOnpremiseTraffic: "false",
-		Onramp:                  "inherit",
-		PassPhrase:              nil,
-		PreauthConsent:          "false",
-		PreauthEnforceURL:       "",
-		PrivateKey:              nil,
-
-		RDPKeyboardLang: "",
-
-		RDPRemoteApps:       []string{},
-		RDPWindowColorDepth: "",
-		RDPWindowHeight:     "",
-		RDPWindowWidth:      "",
-
-		RemoteSparkAudio:          "true",
-		RemoteSparkDisk:           "LOCALSHARE",
-		RemoteSparkMapClipboard:   "on",
-		RemoteSparkMapDisk:        "true",
-		RemoteSparkMapPrinter:     "true",
-		RemoteSparkPrinter:        "LOCALPRINTER",
-		RemoteSparkRecording:      "false",
-		RequestBodyRewrite:        "false",
-		RequestParameters:         nil,
-		SaaSEnabled:               "false",
-		SegmentationPolicyEnable:  "false",
-		SentryRedirect401:         "off",
-		SentryRestoreFormPost:     "off",
-		ServerCertValidate:        "true",
-		ServerRequestBurst:        "100",
-		ServicePrincipleName:      nil,
-		SessionSticky:             "false",
-		SessionStickyCookieMaxAge: "0",
-		SessionStickyServerCookie: nil,
-		SlaObjectUrl:              nil,
-		SingleHostContentRW:       "false",
-		SingleHostCookieDomain:    "single.example.com",
-		SingleHostEnable:          "false",
-		SingleHostFQDN:            "",
-		SingleHostPath:            "",
-		SPDYEnabled:               "true",
-		SSHAuditEnabled:           "false",
-		SSO:                       "true",
-		StickyAgent:               "false",
-		UserName:                  nil,
-		WappAuth:                  "form",
-		WebSocketEnabled:          "false",
-		WildcardInternalHostname:  "false",
-		XWappPoolEnabled:          "inherit",
-		XWappPoolSize:             "20",
-		XWappPoolTimeout:          "120",
-		XWappReadTimeout:          "900",
-	}
-
-	// Apply user-specified values, overriding defaults using reflection
-	applyAdvancedSettingsWithReflection(advSettings, userSettings)
-
-	return advSettings, nil
+// DefaultSAMLConfig provides a default SAML configuration with sensible defaults
+var DefaultSAMLConfig = SAMLConfig{
+	SP: SPConfig{
+		EntityID:     "",
+		ACSURL:       "",
+		SLOURL:       "",
+		ReqBind:      "redirect",
+		ForceAuth:    false,
+		ReqVerify:    false,
+		SignCert:     "",
+		RespEncr:     false,
+		EncrCert:     "",
+		EncrAlgo:     "aes256-cbc",
+		SLOReqVerify: true,
+		DSTURL:       "",
+		SLOBind:      "post",
+	},
+	IDP: IDPConfig{
+		EntityID:         "",
+		Metadata:         "",
+		SignCert:         nil,
+		SignKey:          "",
+		SelfSigned:       true,
+		SignAlgo:         "SHA256",
+		RespBind:         "post",
+		SLOURL:           "",
+		ECPIsEnabled:     false,
+		ECPRespSignature: false,
+	},
+	Subject: SubjectConfig{
+		Fmt: "email",
+		Src: "user.email",
+	},
+	Attrmap: []AttrMapping{},
 }
 
-	// applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
-	// This eliminates the need for the massive switch statement and makes the code much more maintainable
-	func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
-		// Debug logging for custom_headers
-		if customHeaders, exists := userSettings["custom_headers"]; exists {
-			fmt.Printf("DEBUG: Found custom_headers in userSettings: %+v\n", customHeaders)
-		} else {
-			fmt.Printf("DEBUG: No custom_headers found in userSettings\n")
-		}
-		
-		// Field mapping: JSON key -> struct field name
-		fieldMapping := map[string]string{
-		"is_ssl_verification_enabled":        "IsSSLVerificationEnabled",
-		"g2o_enabled":                        "G2OEnabled",
-		"edge_authentication_enabled":        "EdgeAuthenticationEnabled",
-		"ignore_cname_resolution":            "IgnoreCnameResolution",
-		"allow_cors":                         "AllowCORS",
-		"cors_origin_list":                   "CORSOriginList",
-		"cors_method_list":                   "CORSMethodList",
-		"cors_header_list":                   "CORSHeaderList",
-		"cors_max_age":                       "CORSMaxAge",
-		"cors_support_credential":            "CORSSupportCredential",
-		"websocket_enabled":                  "WebSocketEnabled",
-		"sticky_agent":                       "StickyAgent",
-		"acceleration":                       "Acceleration",
-		"spdy_enabled":                       "SPDYEnabled",
-		"keepalive_enable":                   "KeepaliveEnable",
-		"keepalive_timeout":                  "KeepaliveTimeout",
-		"keepalive_connection_pool":          "KeepaliveConnectionPool",
-		"health_check_type":                  "HealthCheckType",
-		"health_check_http_url":              "HealthCheckHTTPURL",
-		"health_check_interval":              "HealthCheckInterval",
-		"health_check_timeout":               "HealthCheckTimeout",
-		"kerberos_negotiate_once":            "KerberosNegotiateOnce",
-		"health_check_rise":                  "HealthCheckRise",
-		"health_check_fall":                  "HealthCheckFall",
-		"health_check_http_version":          "HealthCheckHTTPVersion",
-		"anonymous_server_conn_limit":        "AnonymousServerConnLimit",
-		"anonymous_server_request_limit":     "AnonymousServerReqLimit",
-		"app_auth":                           "AppAuth",
-		"authenticated_server_conn_limit":    "AuthenticatedServerConnLimit",
-		"authenticated_server_request_limit": "AuthenticatedServerReqLimit",
-		"sso":                                "SSO",
-		"mfa":                                "MFA",
-		"logging_enabled":                    "LoggingEnabled",
-		"login_timeout":                      "LoginTimeout",
-		"hidden_app":                         "HiddenApp",
-		"http_only_cookie":                   "HTTPOnlyCookie",
-		"hsts_age":                           "HSTSage",
-		"server_cert_validate":               "ServerCertValidate",
-		"server_request_burst":               "ServerRequestBurst",
-		"load_balancing_metric":              "LoadBalancingMetric",
-		"idle_close_time_seconds":            "IdleCloseTimeSeconds",
-		"idle_conn_ceil":                     "IdleConnCeil",
-		"rate_limit":                          "RateLimit",
-		"refresh_sticky_cookie":               "RefreshStickyCookie",
-		"idle_conn_floor":                    "IdleConnFloor",
-		"idle_conn_step":                     "IdleConnStep",
-		"x_wapp_pool_size":                   "XWappPoolSize",
-		"x_wapp_pool_timeout":                "XWappPoolTimeout",
-		"x_wapp_pool_enabled":                "XWappPoolEnabled",
-		"x_wapp_read_timeout":                "XWappReadTimeout",
-		"edge_transport_manual_mode":         "EdgeTransportManualMode",
-		"edge_cookie_key":                    "EdgeCookieKey",
-		"force_mfa":                          "ForceMFA",
-		"ignore_bypass_mfa":                  "IgnoreBypassMFA",
-		"inject_ajax_javascript":             "InjectAjaxJavascript",
-		"is_brotli_enabled":                  "IsBrotliEnabled",
-		"mdc_enable":                         "MDCEnable",
-		"offload_onpremise_traffic":          "OffloadOnpremiseTraffic",
-		"onramp":                             "Onramp",
-		"preauth_consent":                    "PreauthConsent",
-		"remote_spark_audio":                 "RemoteSparkAudio",
-		"remote_spark_disk":                  "RemoteSparkDisk",
-		"remote_spark_map_clipboard":         "RemoteSparkMapClipboard",
-		"remote_spark_map_disk":              "RemoteSparkMapDisk",
-		"remote_spark_map_printer":           "RemoteSparkMapPrinter",
-		"remote_spark_recording":             "RemoteSparkRecording",
-		"request_body_rewrite":               "RequestBodyRewrite",
-		"saas_enabled":                       "SaaSEnabled",
-		"segmentation_policy_enable":         "SegmentationPolicyEnable",
-		"sentry_restore_form_post":           "SentryRestoreFormPost",
-		"sentry_redirect_401":                "SentryRedirect401",
-		"single_host_content_rw":             "SingleHostContentRW",
-		"single_host_cookie_domain":          "SingleHostCookieDomain",
-		"single_host_enable":                 "SingleHostEnable",
-		"ssh_audit_enabled":                  "SSHAuditEnabled",
-		// Additional fields
-		"app_auth_domain":                "AppAuthDomain",
-		"app_client_cert_auth":           "AppClientCertAuth",
-		"app_cookie_domain":              "AppCookieDomain",
-		"app_server_read_timeout":        "AppServerReadTimeout",
-		"client_cert_auth":               "ClientCertAuth",
-		"client_cert_user_param":         "ClientCertUserParam",
-		"cookie_domain":                  "CookieDomain",
-		"disable_user_agent_check":       "DisableUserAgentCheck",
-		"domain_exception_list":          "DomainExceptionList",
-		"enable_client_side_xhr_rewrite": "EnableClientSideXHRRewrite",
-		"external_cookie_domain":         "ExternalCookieDomain",
-		"force_ip_route":                 "ForceIPRoute",
-		"form_post_attributes":           "FormPostAttributes",
-		"form_post_url":                  "FormPostURL",
-		"keyed_keepalive_enable":        "KeyedKeepaliveEnable",
-		"keytab":                         "Keytab",
-		"forward_ticket_granting_ticket": "ForwardTicketGrantingTicket",
-		"health_check_http_host_header":  "HealthCheckHTTPHostHeader",
-		"host_key":                       "HostKey",
-		"https_sslv3":                    "HTTPSSSLV3",
-		"idp_idle_expiry":                "IDPIdleExpiry",
-		"idp_max_expiry":                 "IDPMaxExpiry",
-		"intercept_url":                  "InterceptURL",
-		"internal_host_port":             "InternalHostPort",
-		"ip_access_allow":                "IPAccessAllow",
-		"login_url":                      "LoginURL",
-		"logout_url":                     "LogoutURL",
-		"pass_phrase":                    "PassPhrase",
-		"preauth_enforce_url":            "PreauthEnforceURL",
-		"private_key":                    "PrivateKey",
-		"proxy_buffer_size_kb":           "ProxyBufferSizeKB",
-		"proxy_disable_clipboard":        "ProxyDisableClipboard",
-		"rdp_keyboard_lang":              "RDPKeyboardLang",
-		"custom_headers":                 "CustomHeaders",
-		"rdp_remote_apps":                "RDPRemoteApps",
-		"rdp_window_color_depth":         "RDPWindowColorDepth",
-		"rdp_window_height":              "RDPWindowHeight",
-		"rdp_window_width":               "RDPWindowWidth",
-		"rdp_initial_program":            "RDPInitialProgram",
-		"rdp_legacy_mode":                "RDPLegacyMode",
-		"rdp_tls1":                       "RDPTLS1",
-		"remote_spark_printer":           "RemoteSparkPrinter",
-		"request_parameters":             "RequestParameters",
-		"service_principle_name":         "ServicePrincipleName",
-		"session_sticky":                  "SessionSticky",
-		"session_sticky_cookie_maxage":   "SessionStickyCookieMaxAge",
-		"session_sticky_server_cookie":   "SessionStickyServerCookie",
-		"single_host_fqdn":               "SingleHostFQDN",
-		"single_host_path":               "SingleHostPath",
-		"user_name":                      "UserName",
-		"wildcard_internal_hostname":     "WildcardInternalHostname",
-
-		// JWT fields
-		"jwt_audience":      "JWTAudience",
-		"jwt_grace_period":  "JWTGracePeriod",
-		"jwt_issuers":       "JWTIssuers",
-		"jwt_return_option": "JWTReturnOption",
-		"jwt_return_url":    "JWTReturnURL",
-		"jwt_username":      "JWTUsername",
-		"wapp_auth":         "WappAuth",
-	}
-
-	// Use reflection to set fields dynamically - handle both string and *string types
-	val := reflect.ValueOf(advSettings).Elem()
-
-	for jsonKey, value := range userSettings {
-		if fieldName, exists := fieldMapping[jsonKey]; exists {
-			field := val.FieldByName(fieldName)
-			
-			// Debug logging for custom_headers
-			if jsonKey == "custom_headers" {
-				fmt.Printf("DEBUG: Processing custom_headers field: %s\n", fieldName)
-				fmt.Printf("DEBUG: Field type: %v\n", field.Type())
-				fmt.Printf("DEBUG: Value to set: %+v\n", value)
-			}
-			if field.IsValid() && field.CanSet() {
-				// Special handling for health_check_type mapping
-				if jsonKey == "health_check_type" {
-					if strVal, ok := value.(string); ok {
-						// Map descriptive values to numeric values for health_check_type
-						switch strVal {
-						case "Default":
-							value = "0"
-						case "HTTP":
-							value = "1"
-						case "HTTPS":
-							value = "2"
-						case "TLS":
-							value = "3"
-						case "SSLv3":
-							value = "4"
-						case "TCP":
-							value = "5"
-						case "None":
-							value = "6"
-						default:
-							// Keep original value if it's already numeric
-							value = strVal
-						}
-					}
-				}
-
-				// Handle different field types
-				switch field.Kind() {
-				case reflect.String:
-					// For string fields, check if automatic conversion is allowed
-					if jsonKey == "app_auth" {
-						// Strict validation for app_auth: only accept strings
-						if strVal, ok := value.(string); ok {
-							field.SetString(strVal)
-						} else {
-							// Reject non-string values for app_auth
-							fmt.Fprintf(os.Stderr, "ERROR: app_auth must be a string, got %T (value: %v). No automatic conversion allowed.\n", value, value)
-							continue // Skip this field
-						}
-					} else {
-						// For other string fields, allow automatic conversion (handle both string and numeric inputs)
-						var strVal string
-						switch v := value.(type) {
-						case string:
-							strVal = v
-						case int, int32, int64:
-							strVal = fmt.Sprintf("%v", v)
-						case float32, float64:
-							strVal = fmt.Sprintf("%v", v)
-						default:
-							strVal = fmt.Sprintf("%v", v)
-						}
-						field.SetString(strVal)
-					}
-				case reflect.Ptr:
-					// For pointer fields (like *string), create a pointer to the value
-					if field.Type().Elem().Kind() == reflect.String {
-						var strVal string
-						switch v := value.(type) {
-						case string:
-							strVal = v
-						case int, int32, int64:
-							strVal = fmt.Sprintf("%v", v)
-						case float32, float64:
-							strVal = fmt.Sprintf("%v", v)
-						default:
-							strVal = fmt.Sprintf("%v", v)
-						}
-						field.Set(reflect.ValueOf(&strVal))
-					}
-				case reflect.Int, reflect.Int32, reflect.Int64:
-					// For integer fields, convert from various numeric types
-					var intVal int64
-					switch v := value.(type) {
-					case int:
-						intVal = int64(v)
-					case int32:
-						intVal = int64(v)
-					case int64:
-						intVal = v
-					case float32:
-						intVal = int64(v)
-					case float64:
-						intVal = int64(v)
-					case string:
-						if parsedInt, err := strconv.ParseInt(v, 10, 64); err == nil {
-							intVal = parsedInt
-						} else {
-							fmt.Fprintf(os.Stderr, "WARNING: Cannot convert string %s to integer for field %s, skipping\n", v, jsonKey)
-							continue
-						}
-					default:
-						fmt.Fprintf(os.Stderr, "WARNING: Cannot convert value type %T to integer for field %s, skipping\n", value, jsonKey)
-						continue
-					}
-					field.SetInt(intVal)
-				case reflect.Slice:
-					// Special handling for CustomHeaders slice
-					if jsonKey == "custom_headers" {
-						fmt.Printf("DEBUG: Processing CustomHeaders slice\n")
-						if interfaceSlice, ok := value.([]interface{}); ok {
-							// Convert []interface{} to []CustomHeader
-							customHeaders := make([]CustomHeader, len(interfaceSlice))
-							for i, v := range interfaceSlice {
-								if headerMap, ok := v.(map[string]interface{}); ok {
-									customHeader := CustomHeader{}
-									if attrType, exists := headerMap["attribute_type"]; exists {
-										if str, ok := attrType.(string); ok {
-											customHeader.AttributeType = str
-										}
-									}
-									if header, exists := headerMap["header"]; exists {
-										if str, ok := header.(string); ok {
-											customHeader.Header = str
-										}
-									}
-									if attr, exists := headerMap["attribute"]; exists {
-										if str, ok := attr.(string); ok {
-											customHeader.Attribute = str
-										}
-									}
-									customHeaders[i] = customHeader
-									fmt.Printf("DEBUG: Created CustomHeader: %+v\n", customHeader)
-								}
-							}
-							field.Set(reflect.ValueOf(customHeaders))
-							fmt.Printf("DEBUG: Set CustomHeaders field with %d headers\n", len(customHeaders))
-							continue
-						} else {
-							fmt.Printf("DEBUG: Value is not []interface{} for custom_headers: %+v\n", value)
-						}
-					}
-					
-					// For slice fields, handle type conversion properly
-					if field.Type().Elem().Kind() == reflect.String {
-						// Special handling for form_post_attributes: convert string to string slice
-						if jsonKey == "form_post_attributes" {
-							if strVal, ok := value.(string); ok {
-								// Split the comma-separated string into a slice
-								stringSlice := strings.Split(strVal, ",")
-								// Trim whitespace from each element
-								for i, s := range stringSlice {
-									stringSlice[i] = strings.TrimSpace(s)
-								}
-								field.Set(reflect.ValueOf(stringSlice))
-								continue
-							}
-						}
-
-						// Convert []interface{} to []string
-						if interfaceSlice, ok := value.([]interface{}); ok {
-							stringSlice := make([]string, len(interfaceSlice))
-							for i, v := range interfaceSlice {
-								if strVal, ok := v.(string); ok {
-									stringSlice[i] = strVal
-								} else {
-									stringSlice[i] = fmt.Sprintf("%v", v)
-								}
-							}
-							field.Set(reflect.ValueOf(stringSlice))
-						} else if stringSlice, ok := value.([]string); ok {
-							// Already a string slice
-							field.Set(reflect.ValueOf(stringSlice))
-						} else {
-							// For form_post_attributes, default to empty slice if conversion fails
-							if jsonKey == "form_post_attributes" {
-
-								field.Set(reflect.ValueOf([]string{}))
-							} else {
-								fmt.Fprintf(os.Stderr, "WARNING: Cannot convert value type %T to string slice for field %s, skipping\n", value, jsonKey)
-							}
-							continue
-						}
-					} else {
-						// For non-string slices, handle type conversion properly
-						if reflect.TypeOf(value).AssignableTo(field.Type()) {
-							field.Set(reflect.ValueOf(value))
-						} else {
-							fmt.Fprintf(os.Stderr, "WARNING: Cannot assign value type %T to field type %v for %s, skipping\n", value, field.Type(), jsonKey)
-							continue
-						}
-					}
-				}
-			}
-		}
-	}
+// DefaultWSFEDConfig provides a default WS-Federation configuration with sensible defaults
+var DefaultWSFEDConfig = WSFEDConfig{
+	SP: WSFEDSPConfig{
+		EntityID:  "",
+		SLOURL:    "",
+		DSTURL:    "",
+		RespBind:  "post",
+		TokenLife: 3600,
+		EncrAlgo:  "aes256-cbc",
+	},
+	IDP: WSFEDIDPConfig{
+		EntityID:   "",
+		SignAlgo:   "SHA256",
+		SignCert:   "",
+		SignKey:    "",
+		SelfSigned: true,
+	},
+	Subject: WSFEDSubjectConfig{
+		Fmt:       "email",
+		CustomFmt: "",
+		Src:       "user.email",
+		Val:       "",
+		Rule:      "",
+	},
+	Attrmap: []WSFEDAttrMapping{},
 }
 
-
+// DefaultOIDCConfig provides a default OIDC configuration with sensible defaults
+var DefaultOIDCConfig = OIDCConfig{
+	OIDCClients: []OIDCClient{
+		{
+			ClientName:   "",
+			ClientID:     "",
+			ResponseType: []string{"code"},
+		},
+	},
+}

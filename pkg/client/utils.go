@@ -3,6 +3,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -88,23 +89,13 @@ func DifferenceIgnoreCase(slice1, slice2 []string) []string {
 }
 
 func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedSettings) {
+	fmt.Fprintf(os.Stderr, "🔍 DEBUG: UpdateAdvancedSettings called\n")
 	completeVal := reflect.ValueOf(complete).Elem()
 	deltaVal := reflect.ValueOf(delta)
-
-	// Debug logging
-	fmt.Printf("DEBUG: Updating AdvancedSettings from delta to complete\n")
-	fmt.Printf("DEBUG: Delta AppAuth value: %v\n", delta.AppAuth)
-
 	for i := 0; i < deltaVal.NumField(); i++ {
 		deltaField := deltaVal.Field(i)
 		fieldName := deltaVal.Type().Field(i).Name
 		completeField := completeVal.FieldByName(fieldName)
-
-		// Debug logging for AppAuth field
-		if fieldName == "AppAuth" {
-			fmt.Printf("DEBUG: Found AppAuth field, delta value: %v, complete field valid: %v, can set: %v\n", 
-				deltaField.Interface(), completeField.IsValid(), completeField.CanSet())
-		}
 
 		if !deltaField.IsValid() || !completeField.IsValid() || !completeField.CanSet() {
 			continue
@@ -120,8 +111,15 @@ func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedS
 				completeField.SetString(deltaField.String())
 			}
 		} else if completeField.Kind() == reflect.Ptr {
-			// Handle pointer fields - copy the pointer directly
-			completeField.Set(deltaField)
+			// Handle pointer fields - create pointer to the value
+			if deltaField.Kind() == reflect.String {
+				// Create a pointer to the string value
+				strVal := deltaField.String()
+				completeField.Set(reflect.ValueOf(&strVal))
+			} else {
+				// For other types, copy the pointer directly
+				completeField.Set(deltaField)
+			}
 		} else if completeField.Kind() == reflect.Slice {
 			completeField.Set(deltaField)
 		} else if completeField.Kind() == reflect.Map {

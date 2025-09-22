@@ -25,6 +25,7 @@ resource "eaa_application" "saml_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
+  saml            = true
   
   servers {
     orig_tls        = true
@@ -51,7 +52,7 @@ resource "eaa_application" "saml_basic" {
     }
 
   advanced_settings = jsonencode({
-    app_auth = "SAML2.0"
+    
   })
 
   # No saml_settings needed - defaults will be applied
@@ -66,6 +67,7 @@ resource "eaa_application" "saml_custom_example_1" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
+  saml            = true
   
   servers {
     orig_tls        = true
@@ -92,70 +94,51 @@ resource "eaa_application" "saml_custom_example_1" {
     }
 
   advanced_settings = jsonencode({
-    app_auth = "SAML2.0"
+    
   })
 
-  # Comprehensive SAML settings using JSON approach with jsonencode()
-  saml_settings = jsonencode([
-    {
-      sp = {
-        entity_id = "https://saml-custom.example.com/sp"
-        acs_url   = "https://saml-custom.example.com/acs"
-        slo_url   = "https://saml-custom.example.com/slo"
-        req_bind  = "post"
-        force_auth = true
-        req_verify = true
-        sign_cert  = ""
-        resp_encr  = true
-        encr_cert  = ""
-        encr_algo  = "aes256-cbc"
-        slo_req_verify = true
-        dst_url    = "https://saml-custom.example.com/dst"
-        slo_bind   = "post"
-        metadata   = "https://saml-custom.example.com/metadata"
-      }
-      idp = {
-        entity_id = ""
-        metadata  = ""
-        self_signed = true
-        sign_algo   = "SHA256"
-        resp_bind   = "post"
-        slo_url     = "https://custom-idp.example.com/slo"
-        ecp_enable  = true
-        ecp_resp_signature = true
-      }
-      subject = {
-        fmt = "email"
-        src = "user.email"
-        val = ""
-        rule = ""
-      }
-      attrmap = [
-        {
-          name = "email"
-          fname = "Email"
-          fmt  = "email"
-          val  = ""
-          src  = "user.email"
-          rule = ""
-        },
-        {
-          name = "firstName"
-          fname = "First Name"
-          fmt  = "firstName"
-          val  = ""
-          src  = "user.firstName"
-          rule = ""
-        },
-        {
-          name = "lastName"
-          fname = "Last Name"
-          fmt  = "lastName"
-          val  = ""
-          src  = "user.lastName"
-          rule = ""
-        }
-      ]
+  # SAML settings using schema approach (nested blocks)
+  saml_settings {
+    
+    
+    idp {
+      self_signed = false
+      sign_cert   = ""
+      
     }
-  ])
+    
+    subject {
+      fmt = "email"
+      src = "user.email"
+      val = ""
+      rule = ""
+    }
+    
+    attrmap {
+      name = "email"
+      fname = "Email"
+      fmt  = "email"
+      val  = ""
+      src  = "user.email"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "firstName"
+      fname = "First Name"
+      fmt  = "firstName"
+      val  = ""
+      src  = "user.firstName"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "lastName"
+      fname = "Last Name"
+      fmt  = "lastName"
+      val  = ""
+      src  = "user.lastName"
+      rule = ""
+    }
+  }
 }

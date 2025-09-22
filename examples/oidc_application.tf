@@ -25,7 +25,8 @@ resource "eaa_application" "oidc_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  
+  oidc            = true
+
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -51,7 +52,7 @@ resource "eaa_application" "oidc_basic" {
     }
 
   advanced_settings = jsonencode({
-    app_auth = "OpenID Connect 1.0"
+    
     # No oidc_settings needed - defaults will be applied
   })
 

@@ -43,6 +43,238 @@ var (
 
 	ErrInvalidType  = errors.New("value must be of the specified type")
 	ErrInvalidValue = errors.New("invalid value for a key")
+
+	// Application validation errors
+	ErrHealthCheckNotSupported         = errors.New("health check configuration is not supported for this app type")
+	ErrHealthCheckEnabledMustBeBoolean = errors.New("health check enabled must be a boolean")
+	ErrHealthCheckIntervalOutOfRange   = errors.New("health check interval must be between 1 and 300 seconds")
+	ErrHealthCheckIntervalMustBeNumber = errors.New("health check interval must be a number")
+	ErrHealthCheckMustBeObject         = errors.New("health check must be an object")
+	ErrLoadBalancingNotSupported       = errors.New("server load balancing is not supported for this app type")
+	ErrCustomHeadersNotSupported       = errors.New("custom headers are not supported for this app type")
+	ErrAdvancedSettingsNotAllowed      = errors.New("advanced settings are not allowed for this app type")
+	ErrRequiredFieldMissing            = errors.New("required field is missing")
+	ErrInvalidAppType                  = errors.New("invalid app type")
+	ErrInvalidAppProfile               = errors.New("invalid app profile")
+
+	// RDP configuration validation errors
+	ErrRDPNotSupportedForAppType = errors.New("RDP configuration parameters are not supported for this app type. RDP configuration is only available for Enterprise Hosted applications")
+	ErrRDPNotSupportedForProfile = errors.New("RDP configuration parameters are not supported for this app profile. RDP configuration is only available for RDP applications")
+	ErrRDPInvalidParameterType   = errors.New("RDP parameter must be of the specified type")
+	ErrRDPInvalidParameterValue  = errors.New("invalid value for RDP parameter")
+
+	// Health check validation errors
+	ErrHealthCheckTypeInvalid            = errors.New("health_check_type must be a string")
+	ErrHealthCheckTypeUnsupported        = errors.New("health_check_type must be one of: Default, HTTP, HTTPS, TLS, SSLv3, TCP, None")
+	ErrHealthCheckHTTPURLRequired        = errors.New("health_check_http_url is required when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPURLInvalid         = errors.New("health_check_http_url must be a string")
+	ErrHealthCheckHTTPURLEmpty           = errors.New("health_check_http_url cannot be empty when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPVersionRequired    = errors.New("health_check_http_version is required when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPVersionInvalid     = errors.New("health_check_http_version must be a string")
+	ErrHealthCheckHTTPVersionEmpty       = errors.New("health_check_http_version cannot be empty when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPHostHeaderRequired = errors.New("health_check_http_host_header is required when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPHostHeaderNull     = errors.New("health_check_http_host_header cannot be null when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPHostHeaderInvalid  = errors.New("health_check_http_host_header must be a string")
+	ErrHealthCheckHTTPFieldNotAllowed    = errors.New("HTTP-specific fields are only allowed for HTTP and HTTPS health check types")
+	ErrHealthCheckFieldEmpty             = errors.New("health check field cannot be empty")
+	ErrHealthCheckFieldNotNumeric        = errors.New("health check field must be a numeric string")
+	ErrHealthCheckFieldNotString         = errors.New("health check field must be a string")
+
+	// Server load balancing validation errors
+	ErrLoadBalancingMetricInvalid     = errors.New("load_balancing_metric must be a string")
+	ErrLoadBalancingMetricUnsupported = errors.New("load_balancing_metric must be one of: round-robin, ip-hash, least-conn, weighted-rr")
+	ErrSessionStickyInvalid           = errors.New("session_sticky must be a boolean")
+	ErrCookieAgeRequired              = errors.New("cookie_age must be a number when session_sticky is enabled")
+	ErrCookieAgeNotAllowed            = errors.New("cookie_age should only be set when session_sticky is enabled")
+	ErrCookieAgeNotSupportedTunnel    = errors.New("cookie_age is not supported for tunnel apps")
+	ErrTCPOptimizationInvalid         = errors.New("tcp_optimization must be a boolean")
+	ErrTCPOptimizationTunnelOnly      = errors.New("tcp_optimization is only available for tunnel apps")
+
+	// Custom headers validation errors
+	ErrCustomHeadersNotArray                = errors.New("custom_headers must be an array")
+	ErrCustomHeaderNotObject                = errors.New("custom header must be an object")
+	ErrCustomHeaderMissingHeader            = errors.New("custom header missing required field 'header'")
+	ErrCustomHeaderHeaderInvalid            = errors.New("custom header header must be a string")
+	ErrCustomHeaderHeaderEmpty              = errors.New("custom header header cannot be empty")
+	ErrCustomHeaderAttributeTypeInvalid     = errors.New("custom header attribute_type must be a string")
+	ErrCustomHeaderAttributeTypeUnsupported = errors.New("custom header attribute_type must be one of: user, group, clientip, fixed, custom")
+	ErrCustomHeaderAttributeRequired        = errors.New("custom header attribute is required when attribute_type is fixed/custom")
+	ErrCustomHeaderAttributeInvalid         = errors.New("custom header attribute must be a string")
+	ErrCustomHeaderAttributeEmpty           = errors.New("custom header attribute cannot be empty when attribute_type is fixed/custom")
+	ErrCustomHeaderAttributeNotAllowed      = errors.New("custom header attribute should not be provided when attribute_type is not specified")
+
+	// Miscellaneous validation errors
+	ErrSSHFieldNotAvailable        = errors.New("field is only available for SSH applications")
+	ErrTunnelFieldNotAvailable     = errors.New("field is not available for tunnel applications")
+	ErrCORSUrlRequired             = errors.New("cors_origin_list is required when allow_cors is true")
+	ErrOffloadTrafficNotAvailable  = errors.New("offload_onpremise_traffic is not available for this application type")
+	ErrTunnelFieldOnly             = errors.New("field is only available for tunnel applications")
+	ErrWebSocketNotAvailableForRDP = errors.New("WebSocket fields are not available for RDP applications")
+
+	// Enterprise connectivity validation errors
+	ErrEnterpriseConnectivityNotSupportedForClientMode = errors.New("enterprise connectivity parameters are not supported for this app type and client app mode combination")
+	ErrEnterpriseConnectivityNotSupportedForSaaS       = errors.New("enterprise connectivity parameters are not supported for SaaS and Bookmark applications")
+	ErrEnterpriseConnectivityNotSupportedForAppType    = errors.New("enterprise connectivity parameters are not supported for this app type")
+	ErrAppServerReadTimeoutTooLow                      = errors.New("app_server_read_timeout must be at least 60 seconds")
+	ErrEnterpriseConnectivityFieldNull                 = errors.New("enterprise connectivity field cannot be null")
+	ErrEnterpriseConnectivityFieldInvalidType          = errors.New("enterprise connectivity field must be a string or number")
+	ErrEnterpriseConnectivityFieldEmpty                = errors.New("enterprise connectivity field cannot be empty")
+	ErrEnterpriseConnectivityFieldInvalidNumber        = errors.New("enterprise connectivity field must be a valid number")
+	ErrIdleCloseTimeTooHigh                            = errors.New("idle_close_time_seconds cannot exceed 1800 seconds (30 minutes)")
+
+	// Miscellaneous parameters validation errors
+	ErrMiscParametersNotSupportedForClientMode = errors.New("miscellaneous parameters are not supported for this app type and client app mode combination")
+	ErrMiscParametersNotSupportedForSaaS       = errors.New("miscellaneous parameters are not supported for SaaS and Bookmark applications")
+	ErrMiscParametersNotSupportedForAppType    = errors.New("miscellaneous parameters are not supported for this app type")
+	ErrProxyBufferSizeOutOfRange               = errors.New("proxy_buffer_size_kb must be between 4 and 256 KB")
+	ErrProxyBufferSizeNotMultipleOf4           = errors.New("proxy_buffer_size_kb must be a multiple of 4")
+	ErrProxyBufferSizeInvalidNumber            = errors.New("proxy_buffer_size_kb must be a valid numeric string")
+	ErrProxyBufferSizeNotString                = errors.New("proxy_buffer_size_kb must be a string")
+	ErrSSHAuditNotBoolean                      = errors.New("ssh_audit_enabled must be a boolean")
+	ErrSSHAuditOnlyForSSH                      = errors.New("ssh_audit_enabled is only available for SSH applications")
+	ErrAllowCorsNotBoolean                     = errors.New("allow_cors must be a boolean")
+	ErrAllowCorsNotAvailableForTunnel          = errors.New("allow_cors is not available for tunnel applications")
+	ErrCorsParameterNotString                  = errors.New("CORS parameter must be a string")
+	ErrCorsSupportCredentialNotBoolean         = errors.New("cors_support_credential must be a boolean")
+	ErrWebSocketEnabledNotBoolean              = errors.New("websocket_enabled must be a boolean")
+	ErrHTTPSSSLv3NotBoolean                    = errors.New("https_sslv3 must be a boolean")
+	ErrLoggingEnabledNotBoolean                = errors.New("logging_enabled must be a boolean")
+	ErrHiddenAppNotBoolean                     = errors.New("hidden_app must be a boolean")
+	ErrHiddenAppNotAvailableForTunnel          = errors.New("hidden_app is not available for tunnel applications")
+	ErrSaasEnabledNotBoolean                   = errors.New("saas_enabled must be a boolean")
+	ErrStickyAgentNotBoolean                   = errors.New("sticky_agent must be a boolean")
+	ErrXWappReadTimeoutNotPositive             = errors.New("x_wapp_read_timeout must be a positive number")
+	ErrXWappReadTimeoutInvalidNumber           = errors.New("x_wapp_read_timeout must be a valid numeric string")
+	ErrXWappReadTimeoutNotString               = errors.New("x_wapp_read_timeout must be a string")
+	ErrXWappReadTimeoutOnlyForTunnel           = errors.New("x_wapp_read_timeout is only available for tunnel applications")
+	ErrDynamicIpNotBoolean                     = errors.New("dynamic_ip must be a boolean")
+	ErrStickyCookiesNotBoolean                 = errors.New("sticky_cookies must be a boolean")
+	ErrOffloadOnpremiseTrafficNotBoolean       = errors.New("offload_onpremise_traffic must be a boolean")
+
+	// RDP configuration validation errors
+	ErrRDPConfigurationNotSupportedForAppType = errors.New("RDP configuration parameters are not supported for this app type")
+	ErrRDPConfigurationNotSupportedForProfile = errors.New("RDP configuration parameters are not supported for this app profile")
+	ErrRDPInitialProgramNotString             = errors.New("rdp_initial_program must be a string")
+	ErrRDPParameterNotString                  = errors.New("RDP parameter must be a string")
+	ErrRDPTLS1NotBoolean                      = errors.New("rdp_tls1 must be a boolean")
+	ErrRDPParameterNotStringOrBoolean         = errors.New("RDP parameter must be a string or boolean")
+	ErrRemoteSparkRecordingNotBoolean         = errors.New("remote_spark_recording must be a boolean")
+	ErrRDPPrinterRequiresMapPrinter           = errors.New("remote_spark_printer requires remote_spark_mapPrinter to be enabled")
+	ErrRDPDiskRequiresMapDisk                 = errors.New("remote_spark_disk requires remote_spark_mapDisk to be enabled")
+
+	// Resource validation errors
+	ErrAdvancedSettingsNotString                       = errors.New("advanced_settings must be a string")
+	ErrAdvancedSettingsInvalidJSON                     = errors.New("invalid JSON format in advanced_settings")
+	ErrAppTypeRequired                                 = errors.New("app_type is required")
+	ErrAppProfileRequired                              = errors.New("app_profile is required")
+	ErrAdvancedSettingsNotAllowedForAppType            = errors.New("advanced_settings are not allowed for this app type")
+	ErrAdvancedSettingsInvalidJSONFormat               = errors.New("invalid JSON in advanced_settings")
+	ErrWappAuthConflictsValidationFailed               = errors.New("wapp_auth field conflicts validation failed")
+	ErrTLSSuiteRestrictionsValidationFailed            = errors.New("TLS Suite restrictions validation failed")
+	ErrTLSCustomSuiteNameValidationFailed              = errors.New("TLS custom suite name validation failed")
+	ErrHealthCheckValidationFailed                     = errors.New("health check validation failed")
+	ErrServerLoadBalancingValidationFailed             = errors.New("server load balancing validation failed")
+	ErrTunnelClientParametersValidationFailed          = errors.New("tunnel client parameters validation failed")
+	ErrTunnelClientParametersNotSupportedForAppType    = errors.New("EAA Client Parameters are not supported for this app type")
+	ErrTunnelClientParametersNotSupportedForClientMode = errors.New("EAA Client Parameters are not supported for this client app mode")
+	ErrDomainExceptionListRequiresWildcard             = errors.New("domain_exception_list is only available when wildcard_internal_hostname is enabled")
+	ErrDomainExceptionListValidationFailed             = errors.New("domain_exception_list validation failed")
+	ErrAccelerationValidationFailed                    = errors.New("acceleration validation failed")
+	ErrForceIPRouteValidationFailed                    = errors.New("force_ip_route validation failed")
+	ErrXWappPoolEnabledValidationFailed                = errors.New("x_wapp_pool_enabled validation failed")
+	ErrXWappPoolSizeValidationFailed                   = errors.New("x_wapp_pool_size validation failed")
+	ErrXWappPoolTimeoutValidationFailed                = errors.New("x_wapp_pool_timeout validation failed")
+
+	// Tunnel client parameters detailed validation errors
+	ErrInvalidDomainInExceptionList   = errors.New("invalid domain in exception list")
+	ErrDomainMustBeString             = errors.New("domain must be a string")
+	ErrDomainExceptionListInvalidType = errors.New("domain_exception_list must be a string or array")
+	ErrDomainCannotBeEmpty            = errors.New("domain cannot be empty")
+	ErrInvalidDomainNameFormat        = errors.New("invalid domain name format")
+	ErrAccelerationInvalidValue       = errors.New("acceleration must be 'true' or 'false'")
+	ErrAccelerationInvalidType        = errors.New("acceleration must be a string or boolean")
+	ErrForceIPRouteInvalidValue       = errors.New("force_ip_route must be 'true' or 'false'")
+	ErrForceIPRouteInvalidType        = errors.New("force_ip_route must be a string or boolean")
+	ErrXWappPoolEnabledInvalidValue   = errors.New("x_wapp_pool_enabled must be one of: 'true', 'false', 'inherit'")
+	ErrXWappPoolEnabledInvalidType    = errors.New("x_wapp_pool_enabled must be a string")
+	ErrXWappPoolSizeCannotBeEmpty     = errors.New("x_wapp_pool_size cannot be empty")
+	ErrXWappPoolSizeInvalidNumber     = errors.New("x_wapp_pool_size must be a valid number")
+	ErrXWappPoolSizeInvalidType       = errors.New("x_wapp_pool_size must be a number")
+	ErrXWappPoolSizeOutOfRange        = errors.New("x_wapp_pool_size must be between 1 and 50")
+	ErrXWappPoolTimeoutCannotBeEmpty  = errors.New("x_wapp_pool_timeout cannot be empty")
+	ErrXWappPoolTimeoutInvalidNumber  = errors.New("x_wapp_pool_timeout must be a valid number")
+	ErrXWappPoolTimeoutInvalidType    = errors.New("x_wapp_pool_timeout must be a number")
+	ErrXWappPoolTimeoutOutOfRange     = errors.New("x_wapp_pool_timeout must be between 60 and 3600 seconds")
+
+	ErrCustomHeadersValidationFailed = errors.New("custom headers validation failed")
+	ErrMiscellaneousValidationFailed = errors.New("miscellaneous validation failed")
+
+	// App authentication validation errors
+	ErrAppAuthDisabledForEnterpriseSSH = errors.New("app_auth is disabled for enterprise SSH apps")
+	ErrAppAuthNotAllowedForSaaS        = errors.New("app_auth should not be present in advanced_settings for SaaS apps")
+	ErrAppAuthNotAllowedForBookmark    = errors.New("app_auth should not be present in advanced_settings for bookmark apps")
+	ErrAppAuthNotAllowedForTunnel      = errors.New("app_auth should not be present in advanced_settings for tunnel apps")
+	ErrAppAuthDisabledForEnterpriseVNC = errors.New("app_auth is disabled for enterprise VNC apps")
+	ErrInvalidAppAuthValue             = errors.New("invalid app_auth value")
+	ErrInvalidWappAuthValue            = errors.New("invalid wapp_auth value")
+	ErrWappAuthFieldConflict           = errors.New("wapp_auth field conflicts with other authentication fields")
+
+	// TLS Suite validation errors
+	ErrTLSSuiteNotAvailableForAppType           = errors.New("TLS Suite configuration is not available for this app type")
+	ErrTLSSuiteNotAvailableForSMBProfile        = errors.New("TLS Suite configuration is not available for SMB profile")
+	ErrTLSSuiteNotAvailableForEnterpriseProfile = errors.New("TLS Suite configuration is not available for this enterprise profile")
+	ErrTLSSuiteNameRequired                     = errors.New("tls_suite_name is required for custom TLS Suite")
+	ErrTLSSuiteNameNotString                    = errors.New("tls_suite_name must be a string")
+	ErrTLSSuiteNameInvalid                      = errors.New("invalid tls_suite_name for custom TLS Suite")
+
+	// App cleanup errors
+	ErrAppCleanupIncomplete           = errors.New("app may still exist in EAA and needs manual cleanup")
+	ErrGetAppFailed                   = errors.New("failed to get app")
+	ErrAuthSettingsVerificationFailed = errors.New("failed to verify authentication settings")
+
+	// Authentication validation errors
+	ErrSAMLSettingEmpty               = errors.New("SAML setting must have at least one field")
+	ErrSAMLSPNotObject                = errors.New("SAML SP must be an object")
+	ErrSAMLSPEmpty                    = errors.New("SAML SP object cannot be empty")
+	ErrSAMLIDPNotObject               = errors.New("SAML IDP must be an object")
+	ErrSAMLIDPEmpty                   = errors.New("SAML IDP object cannot be empty")
+	ErrSAMLSubjectNotObject           = errors.New("SAML Subject must be an object")
+	ErrSAMLSubjectEmpty               = errors.New("SAML Subject object cannot be empty")
+	ErrSAMLSignCertRequired           = errors.New("SAML sign_cert is required when self_signed = false")
+	ErrSAMLAttrMapNotArray            = errors.New("SAML AttrMap must be an array")
+	ErrWSFEDSettingEmpty              = errors.New("WS-Federation setting must have at least one field")
+	ErrWSFEDSPNotObject               = errors.New("WS-Federation SP must be an object")
+	ErrWSFEDSPEmpty                   = errors.New("WS-Federation SP object cannot be empty")
+	ErrWSFEDIDPNotObject              = errors.New("WS-Federation IDP must be an object")
+	ErrWSFEDIDPEmpty                  = errors.New("WS-Federation IDP object cannot be empty")
+	ErrWSFEDSubjectNotObject          = errors.New("WS-Federation Subject must be an object")
+	ErrWSFEDSubjectEmpty              = errors.New("WS-Federation Subject object cannot be empty")
+	ErrWSFEDSignCertRequired          = errors.New("WS-Federation sign_cert is required when self_signed = false")
+	ErrWSFEDAttrMapNotArray           = errors.New("WS-Federation AttrMap must be an array")
+	ErrWSFEDSettingValidation         = errors.New("WS-Federation setting validation failed")
+	ErrOIDCClientNotObject            = errors.New("OIDC client must be an object")
+	ErrOIDCClientEmpty                = errors.New("OIDC client cannot be empty")
+	ErrOIDCClientValidation           = errors.New("OIDC client validation failed")
+	ErrOIDCClientsNotArray            = errors.New("oidc_clients must be an array")
+	ErrOIDCResponseTypeNotArray       = errors.New("response_type must be an array")
+	ErrOIDCRedirectURIsNotArray       = errors.New("redirect_uris must be an array")
+	ErrOIDCJavaScriptOriginsNotArray  = errors.New("javascript_origins must be an array")
+	ErrOIDCPostLogoutRedirectNotArray = errors.New("post_logout_redirect_uri must be an array")
+	ErrOIDCPostLogoutURIsNotArray     = errors.New("post_logout_redirect_uri must be an array")
+	ErrOIDCClaimsNotArray             = errors.New("claims must be an array")
+	ErrOIDCClaimNotObject             = errors.New("OIDC claim must be an object")
+	ErrOIDCClaimEmpty                 = errors.New("OIDC claim cannot be empty")
+	ErrOIDCClaimValidation            = errors.New("OIDC claim validation failed")
+
+	// General validation errors
+	ErrInvalidJSONFormat    = errors.New("invalid JSON format")
+	ErrExpectedString       = errors.New("expected string, got different type")
+	ErrMissingRequiredField = errors.New("missing required field")
+
+	// Tunnel app authentication validation errors
+	ErrTunnelAppSAMLNotAllowed  = errors.New("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+	ErrTunnelAppOIDCNotAllowed  = errors.New("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+	ErrTunnelAppWSFEDNotAllowed = errors.New("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 )
 
 type Domain string
@@ -484,3 +716,147 @@ func (cat ConnPackageStateInt) String() (string, error) {
 		return "", errors.New("unknown connector state value")
 	}
 }
+
+type HealthCheckType string
+
+const (
+	HealthCheckTypeDefault HealthCheckType = "Default"
+	HealthCheckTypeHTTP    HealthCheckType = "HTTP"
+	HealthCheckTypeHTTPS   HealthCheckType = "HTTPS"
+	HealthCheckTypeTLS     HealthCheckType = "TLS"
+	HealthCheckTypeSSLv3   HealthCheckType = "SSLv3"
+	HealthCheckTypeTCP     HealthCheckType = "TCP"
+	HealthCheckTypeNone    HealthCheckType = "None"
+)
+
+func (hct HealthCheckType) ToNumeric() string {
+	switch hct {
+	case HealthCheckTypeDefault:
+		return "0"
+	case HealthCheckTypeHTTP:
+		return "1"
+	case HealthCheckTypeHTTPS:
+		return "2"
+	case HealthCheckTypeTLS:
+		return "3"
+	case HealthCheckTypeSSLv3:
+		return "4"
+	case HealthCheckTypeTCP:
+		return "5"
+	case HealthCheckTypeNone:
+		return "6"
+	default:
+		return string(hct) // fallback to original value (assumes it's already numeric)
+	}
+}
+
+type HealthCheckTypeInt int
+
+const (
+	HEALTH_CHECK_TYPE_DEFAULT HealthCheckTypeInt = 0 + iota
+	HEALTH_CHECK_TYPE_HTTP
+	HEALTH_CHECK_TYPE_HTTPS
+	HEALTH_CHECK_TYPE_TLS
+	HEALTH_CHECK_TYPE_SSLV3
+	HEALTH_CHECK_TYPE_TCP
+	HEALTH_CHECK_TYPE_NONE
+)
+
+func (hct HealthCheckTypeInt) ToDescriptive() string {
+	switch hct {
+	case HEALTH_CHECK_TYPE_DEFAULT:
+		return string(HealthCheckTypeDefault)
+	case HEALTH_CHECK_TYPE_HTTP:
+		return string(HealthCheckTypeHTTP)
+	case HEALTH_CHECK_TYPE_HTTPS:
+		return string(HealthCheckTypeHTTPS)
+	case HEALTH_CHECK_TYPE_TLS:
+		return string(HealthCheckTypeTLS)
+	case HEALTH_CHECK_TYPE_SSLV3:
+		return string(HealthCheckTypeSSLv3)
+	case HEALTH_CHECK_TYPE_TCP:
+		return string(HealthCheckTypeTCP)
+	case HEALTH_CHECK_TYPE_NONE:
+		return string(HealthCheckTypeNone)
+	default:
+		return "" // fallback to empty string
+	}
+}
+
+// MapHealthCheckTypeToDescriptive converts numeric health check type values to descriptive values
+func MapHealthCheckTypeToDescriptive(numericValue string) string {
+	switch numericValue {
+	case "0":
+		return string(HealthCheckTypeDefault)
+	case "1":
+		return string(HealthCheckTypeHTTP)
+	case "2":
+		return string(HealthCheckTypeHTTPS)
+	case "3":
+		return string(HealthCheckTypeTLS)
+	case "4":
+		return string(HealthCheckTypeSSLv3)
+	case "5":
+		return string(HealthCheckTypeTCP)
+	case "6":
+		return string(HealthCheckTypeNone)
+	default:
+		return numericValue // fallback to original value
+	}
+}
+
+// MapHealthCheckTypeToNumeric converts descriptive health check type values to numeric values
+func MapHealthCheckTypeToNumeric(descriptiveValue string) string {
+	switch descriptiveValue {
+	case string(HealthCheckTypeDefault):
+		return "0"
+	case string(HealthCheckTypeHTTP):
+		return "1"
+	case string(HealthCheckTypeHTTPS):
+		return "2"
+	case string(HealthCheckTypeTLS):
+		return "3"
+	case string(HealthCheckTypeSSLv3):
+		return "4"
+	case string(HealthCheckTypeTCP):
+		return "5"
+	case string(HealthCheckTypeNone):
+		return "6"
+	default:
+		return descriptiveValue // fallback to original value (assumes it's already numeric)
+	}
+}
+
+// Load balancing validation errors
+var (
+	ErrLoadBalancingNotSupportedForRDP       = errors.New("load balancing is not supported for RDP profile")
+	ErrLoadBalancingNotSupportedForSaaS      = errors.New("load balancing is not supported for SaaS apps")
+	ErrLoadBalancingNotSupportedForTunnelSMB = errors.New("load balancing is not supported for tunnel apps with SMB profile")
+	ErrLoadBalancingNotSupportedForAppType   = errors.New("load balancing is not supported for this app type")
+	ErrLoadBalancingMetricNotString          = errors.New("load balancing metric must be a string")
+
+	// Session sticky validation errors
+	ErrSessionStickyNotBoolean        = errors.New("session_sticky must be a boolean")
+	ErrCookieAgeNotNumber             = errors.New("cookie_age must be a number")
+	ErrCookieAgeRequiresStickySession = errors.New("cookie_age requires session_sticky to be true")
+	ErrCookieAgeNotSupportedForTunnel = errors.New("cookie_age is not supported for tunnel apps")
+	ErrTCPOptimizationNotBoolean      = errors.New("tcp_optimization must be a boolean")
+	ErrTCPOptimizationOnlyForTunnel   = errors.New("tcp_optimization is only supported for tunnel apps")
+
+	// Custom headers validation errors
+	ErrCustomHeadersNotSupportedForSaaS    = errors.New("custom headers are not supported for SaaS apps")
+	ErrCustomHeadersNotSupportedForTunnel  = errors.New("custom headers are not supported for tunnel apps")
+	ErrCustomHeadersNotSupportedForAppType = errors.New("custom headers are not supported for this app type")
+	ErrCustomHeaderValidation              = errors.New("custom header validation failed")
+	ErrCustomHeaderHeaderNotString         = errors.New("custom header name must be a string")
+	ErrCustomHeaderAttributeTypeNotString  = errors.New("custom header attribute_type must be a string")
+	ErrCustomHeaderAttributeNotString      = errors.New("custom header attribute must be a string")
+
+	// Miscellaneous validation errors
+	ErrMiscFieldOnlyForSSH               = errors.New("this field is only available for SSH profile")
+	ErrMiscFieldNotAvailableForTunnel    = errors.New("this field is not available for tunnel apps")
+	ErrMiscCORSFieldRequired             = errors.New("CORS field is required when CORS is enabled")
+	ErrMiscOffloadNotAvailableForProfile = errors.New("offload_onpremise_traffic is not available for this profile")
+	ErrMiscOffloadNotAvailableForType    = errors.New("offload_onpremise_traffic is not available for this app type")
+	ErrMiscFieldOnlyForTunnel            = errors.New("this field is only available for tunnel apps")
+)
