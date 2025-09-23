@@ -1015,13 +1015,16 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 	if appUpdateReq.Oidc {
 		if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
-			ec.Logger.Info("UPDATE FLOW: Found oidc_settings as JSON string")
-			if oidcSettingsJSON, ok := oidcSettingsData.(string); ok && oidcSettingsJSON != "" {
-				if err := json.Unmarshal([]byte(oidcSettingsJSON), &oidcConfig); err != nil {
-					ec.Logger.Error("UPDATE FLOW: Failed to parse oidc_settings JSON:", err)
-					return fmt.Errorf("failed to parse oidc_settings JSON: %w", err)
+			ec.Logger.Info("UPDATE FLOW: Found oidc_settings blocks")
+			if oidcSettingsList, ok := oidcSettingsData.([]interface{}); ok && len(oidcSettingsList) > 0 {
+				// Convert nested blocks to OIDCConfig (consistent with CREATE flow)
+				convertedConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
+				if err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to OIDC config:", err)
+					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
-				ec.Logger.Info("UPDATE FLOW: Successfully parsed OIDC settings from JSON")
+				oidcConfig = convertedConfig
+				ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
 			}
 		} else {
 			ec.Logger.Info("UPDATE FLOW: No oidc_settings found, creating defaults")
