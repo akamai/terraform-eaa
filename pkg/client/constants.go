@@ -11,18 +11,30 @@ const (
 )
 
 const (
-	MGMT_POP_URL       = "crux/v1/mgmt-pop"
-	APPS_URL           = "crux/v1/mgmt-pop/apps"
-	POPS_URL           = "crux/v1/mgmt-pop/pops"
-	APPIDP_URL         = "crux/v1/mgmt-pop/appidp"
-	APPDIRECTORIES_URL = "crux/v1/mgmt-pop/appdirectories"
-	APPGROUPS_URL      = "crux/v1/mgmt-pop/appgroups"
-	AGENTS_URL         = "crux/v1/mgmt-pop/agents"
-	APP_CATEGORIES_URL = "crux/v1/mgmt-pop/appcategories"
-	IDP_URL            = "crux/v1/mgmt-pop/idp"
-	CERTIFICATES_URL   = "crux/v1/mgmt-pop/certificates"
-	SERVICES_URL       = "crux/v1/mgmt-pop/services"
-	URL_SCHEME         = "https"
+	MGMT_POP_URL                      = "crux/v1/mgmt-pop"
+	APPS_URL                          = "crux/v1/mgmt-pop/apps"
+	POPS_URL                          = "crux/v1/mgmt-pop/pops"
+	APPIDP_URL                        = "crux/v1/mgmt-pop/appidp"
+	APPDIRECTORIES_URL                = "crux/v1/mgmt-pop/appdirectories"
+	APPGROUPS_URL                     = "crux/v1/mgmt-pop/appgroups"
+	AGENTS_URL                        = "crux/v1/mgmt-pop/agents"
+	APP_CATEGORIES_URL                = "crux/v1/mgmt-pop/appcategories"
+	IDP_URL                           = "crux/v1/mgmt-pop/idp"
+	CERTIFICATES_URL                  = "crux/v1/mgmt-pop/certificates"
+	SERVICES_URL                      = "crux/v1/mgmt-pop/services"
+	CONNECTOR_POOLS_URL               = "crux/v1/zt/connector-pools"
+	CONNECTOR_POOLS_MGMT_URL          = "crux/v1/mgmt-pop/connector-pools"
+	APP_ACCESS_GROUPS_URL             = "crux/v1/mgmt-pop/app-access-groups"
+	APP_CONNECTOR_POOLS_ASSOCIATE_URL = "crux/v1/mgmt-pop/apps/%s/connector-pools/associate"
+	APPS_V3_URL                       = "crux/v3/mgmt-pop/apps"
+	REGISTRATION_TOKEN_URL            = "crux/v1/zt/registration-token"
+	REGISTRATION_TOKEN_GET_URL        = "crux/v3/mgmt-pop/registrationtokens"
+	URL_SCHEME                        = "https"
+)
+
+// Token expiration constants
+const (
+	DEFAULT_TOKEN_EXPIRATION_DAYS = 30 // Default expiration days for registration tokens
 )
 
 var (
@@ -40,6 +52,9 @@ var (
 	ErrDeploy                 = errors.New("app deploy failed")
 	ErrAssignGroupFailure     = errors.New("assigning groups to the app failed")
 	ErrGetApp                 = errors.New("app deploy failed")
+
+	ErrAgentAssociationCreate = errors.New("associating the connector to the connector pool failed")
+	ErrAgentAssociationDelete = errors.New("disassociating the connector from the connector pool failed")
 
 	ErrInvalidType  = errors.New("value must be of the specified type")
 	ErrInvalidValue = errors.New("invalid value for a key")
@@ -860,3 +875,113 @@ var (
 	ErrMiscOffloadNotAvailableForType    = errors.New("offload_onpremise_traffic is not available for this app type")
 	ErrMiscFieldOnlyForTunnel            = errors.New("this field is only available for tunnel apps")
 )
+
+// InfraType represents the infrastructure type for connector pools
+type InfraType string
+
+const (
+	InfraTypeEAA     InfraType = "eaa"
+	InfraTypeUnified InfraType = "unified"
+	InfraTypeBroker  InfraType = "broker"
+	InfraTypeCPAG    InfraType = "cpag"
+)
+
+func (it InfraType) ToInt() (int, error) {
+	switch it {
+	case InfraTypeEAA:
+		return int(INFRA_TYPE_EAA), nil
+	case InfraTypeUnified:
+		return int(INFRA_TYPE_UNIFIED), nil
+	case InfraTypeBroker:
+		return int(INFRA_TYPE_BROKER), nil
+	case InfraTypeCPAG:
+		return int(INFRA_TYPE_CPAG), nil
+	default:
+		return 0, errors.New("unknown infra type value")
+	}
+}
+
+type InfraTypeInt int
+
+const (
+	INFRA_TYPE_EAA InfraTypeInt = 1 + iota
+	INFRA_TYPE_UNIFIED
+	INFRA_TYPE_BROKER
+	INFRA_TYPE_CPAG
+)
+
+func (it InfraTypeInt) String() (string, error) {
+	switch it {
+	case INFRA_TYPE_EAA:
+		return string(InfraTypeEAA), nil
+	case INFRA_TYPE_UNIFIED:
+		return string(InfraTypeUnified), nil
+	case INFRA_TYPE_BROKER:
+		return string(InfraTypeBroker), nil
+	case INFRA_TYPE_CPAG:
+		return string(InfraTypeCPAG), nil
+	default:
+		return "", errors.New("unknown infra type value")
+	}
+}
+
+// OperatingMode represents the operating mode for connector pools
+type OperatingMode string
+
+const (
+	OperatingModeConnector               OperatingMode = "connector"
+	OperatingModePEB                     OperatingMode = "peb"
+	OperatingModeCombined                OperatingMode = "combined"
+	OperatingModeCPAGPublic              OperatingMode = "cpag_public"
+	OperatingModeCPAGPrivate             OperatingMode = "cpag_private"
+	OperatingModeConnectorWithChinaAccel OperatingMode = "connector_with_china_acceleration"
+)
+
+func (om OperatingMode) ToInt() (int, error) {
+	switch om {
+	case OperatingModeConnector:
+		return int(OPERATING_MODE_CONNECTOR), nil
+	case OperatingModePEB:
+		return int(OPERATING_MODE_PEB), nil
+	case OperatingModeCombined:
+		return int(OPERATING_MODE_COMBINED), nil
+	case OperatingModeCPAGPublic:
+		return int(OPERATING_MODE_CPAG_PUBLIC), nil
+	case OperatingModeCPAGPrivate:
+		return int(OPERATING_MODE_CPAG_PRIVATE), nil
+	case OperatingModeConnectorWithChinaAccel:
+		return int(OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION), nil
+	default:
+		return 0, errors.New("unknown operating mode value")
+	}
+}
+
+type OperatingModeInt int
+
+const (
+	OPERATING_MODE_CONNECTOR OperatingModeInt = 1 + iota
+	OPERATING_MODE_PEB
+	OPERATING_MODE_COMBINED
+	OPERATING_MODE_CPAG_PUBLIC
+	OPERATING_MODE_CPAG_PRIVATE
+	OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION
+)
+
+func (om OperatingModeInt) String() (string, error) {
+	switch om {
+	case OPERATING_MODE_CONNECTOR:
+		return string(OperatingModeConnector), nil
+	case OPERATING_MODE_PEB:
+		return string(OperatingModePEB), nil
+	case OPERATING_MODE_COMBINED:
+		return string(OperatingModeCombined), nil
+	case OPERATING_MODE_CPAG_PUBLIC:
+		return string(OperatingModeCPAGPublic), nil
+	case OPERATING_MODE_CPAG_PRIVATE:
+		return string(OperatingModeCPAGPrivate), nil
+	case OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION:
+		return string(OperatingModeConnectorWithChinaAccel), nil
+	default:
+		return "", errors.New("unknown operating mode value")
+	}
+}
