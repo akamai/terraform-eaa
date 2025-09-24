@@ -21,62 +21,7 @@ var (
 	ErrInvalidData = errors.New("invalid data in schema")
 )
 
-// validateAdvancedSettingsWithAppType validates advanced settings with app_type context
-func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.ResourceDiff, meta interface{}) error {
-	// Get client logger from meta
-	eaaclient, err := Client(meta)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
-	}
-	logger := eaaclient.Logger
 
-	// Get advanced_settings value
-	advancedSettings, ok := diff.GetOk("advanced_settings")
-	if !ok {
-		return nil // No advanced settings, nothing to validate
-	}
-
-	advancedSettingsStr, ok := advancedSettings.(string)
-	if !ok {
-		return client.ErrAdvancedSettingsNotString
-	}
-
-	// If empty, it's valid (will use defaults)
-	if advancedSettingsStr == "" || advancedSettingsStr == "{}" {
-		return nil
-	}
-
-	// Parse the JSON
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
-		return client.ErrAdvancedSettingsInvalidJSON
-	}
-
-	// Get app_type
-	appType := ""
-	if at, ok := diff.GetOk("app_type"); ok {
-		appType = at.(string)
-	} else {
-		// No app_type found - will be validated at schema level
-	}
-
-	// Get app_profile
-	appProfile := ""
-	if ap, ok := diff.GetOk("app_profile"); ok {
-		appProfile = ap.(string)
-	} else {
-		// No app_profile found - will be validated at schema level
-	}
-
-	// Validate health check settings with app_type context (skip for tunnel apps)
-	if appType != "tunnel" {
-		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
 
 func resourceEaaApplication() *schema.Resource {
 	return &schema.Resource{
@@ -970,18 +915,42 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 	}
 	logger.Debug("Generic validation passed")
 
+	// STEP 1.5: Validate conflicts between advanced settings and resource-level settings
+	logger.Debug("Running conflict validation for advanced settings")
+	if err := ValidateAdvancedSettingsConflicts(settings, logger); err != nil {
+		logger.Error("Conflict validation failed: %v", err)
+		return err
+	}
+	logger.Debug("Conflict validation passed")
+
+	// STEP 1.6: Validate app_auth conflicts with resource-level authentication settings
+	logger.Debug("Running app_auth conflict validation")
+	if err := validateAppAuthConflictsWithResourceLevelAuth(settings, diff, logger); err != nil {
+		logger.Error("App auth conflict validation failed: %v", err)
+		return err
+	}
+	logger.Debug("App auth conflict validation passed")
+
+	// STEP 1.7: Validate context-dependent rules
+	logger.Debug("Running context-dependent validation")
+	if err := ValidateAdvancedSettingsContext(settings, appType, appProfile, clientAppMode, logger); err != nil {
+		logger.Error("Context-dependent validation failed: %v", err)
+		return err
+	}
+	logger.Debug("Context-dependent validation passed")
+
+	// STEP 1.8: Validate field dependencies
+	logger.Debug("Running field dependencies validation")
+	if err := ValidateAdvancedSettingsDependencies(settings, logger); err != nil {
+		logger.Error("Field dependencies validation failed: %v", err)
+		return err
+	}
+	logger.Debug("Field dependencies validation passed")
+
 	// STEP 2: API-dependent validations (cannot be handled by generic system)
-	// Validate TLS custom suite name when tlsSuiteType = 2 (CUSTOM)
-	// Fetch valid cipher suites from API response
-	cipherSuites, err := getValidCipherSuitesFromAPI(m)
-	if err != nil {
-		// If API call fails, skip TLS validation with a warning
-		// This prevents validation from blocking when API is unavailable
-		logger.Warn("Failed to fetch TLS cipher suites from API, skipping TLS custom suite validation: %v", err)
-	} else {
-		if err := validateTLSCustomSuiteName(settings, cipherSuites); err != nil {
-			return client.ErrTLSCustomSuiteNameValidationFailed
-		}
+	// Validate API-dependent settings (TLS custom suite name, etc.)
+	if err := ValidateAdvancedSettingsAPIDependent(settings, m, logger); err != nil {
+		return err
 	}
 
 	// Validate custom headers configuration (complex custom logic)
@@ -992,6 +961,27 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 	// Validate miscellaneous configuration (complex custom logic)
 	if err := validateMiscellaneousConfiguration(settings, appType, appProfile, logger); err != nil {
 		return client.ErrMiscellaneousValidationFailed
+	}
+
+	// Validate health check configuration (skip for tunnel apps)
+	if appType != "tunnel" {
+		logger.Debug("Validating health check for app_type: %s", appType)
+		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
+			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
+			return err
+		}
+	} else {
+		logger.Debug("Skipping health check validation for tunnel app")
+	}
+
+	// Validate server load balancing configuration (complex custom logic)
+	if err := validateServerLoadBalancingConfiguration(settings, appType, appProfile, logger); err != nil {
+		return client.ErrServerLoadBalancingValidationFailed
+	}
+
+	// Validate related applications configuration (complex custom logic)
+	if err := validateRelatedApplications(settings, appType, appProfile, logger); err != nil {
+		return client.ErrRelatedApplicationsNotSupportedForProfile
 	}
 
 	return nil
@@ -2695,6 +2685,56 @@ func isRDPField(fieldName string) bool {
 		}
 	}
 	return false
+}
+
+// validateAppAuthConflictsWithResourceLevelAuth validates app_auth conflicts with resource-level auth settings
+func validateAppAuthConflictsWithResourceLevelAuth(settings map[string]interface{}, diff *schema.ResourceDiff, logger hclog.Logger) error {
+	// Check if app_auth is present in advanced_settings
+	appAuth, exists := settings["app_auth"]
+	if !exists {
+		logger.Debug("No app_auth field found, skipping conflict validation")
+		return nil
+	}
+
+	appAuthStr, ok := appAuth.(string)
+	if !ok {
+		logger.Debug("app_auth is not a string, skipping conflict validation")
+		return nil
+	}
+
+	logger.Debug("Validating app_auth conflicts for value: %s", appAuthStr)
+
+	// Check for SAML/OIDC/WSFED conflicts - when these are enabled, app_auth must be "none"
+	if appAuthStr != "none" {
+		// Check if SAML is enabled
+		if saml, ok := diff.GetOk("saml"); ok && saml.(bool) {
+			return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
+		}
+
+		// Check if OIDC is enabled
+		if oidc, ok := diff.GetOk("oidc"); ok && oidc.(bool) {
+			return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
+		}
+
+		// Check if WSFED is enabled
+		if wsfed, ok := diff.GetOk("wsfed"); ok && wsfed.(bool) {
+			return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
+		}
+	}
+
+	// Additional validation: specific conflicts with SAML
+	if saml, ok := diff.GetOk("saml"); ok && saml.(bool) {
+		// When SAML is enabled, app_auth cannot be kerberos, NTLMv1, or NTLMv2
+		conflictingValues := []string{"kerberos", "NTLMv1", "NTLMv2"}
+		for _, conflictingValue := range conflictingValues {
+			if appAuthStr == conflictingValue {
+				return fmt.Errorf("when saml is enabled (saml=true), app_auth cannot be '%s' in advanced_settings. Use 'none' instead", conflictingValue)
+			}
+		}
+	}
+
+	logger.Debug("App auth conflict validation passed")
+	return nil
 }
 
 // validateAppAuthWithResourceData validates app_auth with access to resource data for SAML/OIDC/WSFED conflicts

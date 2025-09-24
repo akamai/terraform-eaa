@@ -23,7 +23,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// Authentication Settings
 	"app_auth": {
 		Type:        "string",
-		ValidValues: []string{"none", "SAML2.0", "oidc", "OpenID Connect 1.0", "wsfed", "WS-Federation", "kerberos", "basic", "NTLMv1", "NTLMv2"},
+		ValidValues: []string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2"},
 		AppTypes:    []string{"enterprise", "tunnel"},
 		Profiles:    []string{"http", "rdp", "tcp", "vnc", "ssh", "smb"},
 	},
@@ -68,7 +68,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 	},
 	"health_check_http_version": {
 		Type:        "string",
-		ValidValues: []string{"HTTP/1.0", "HTTP/1.1"},
+		ValidValues: []string{"1.0", "1.1"},
 		AppTypes:    []string{"enterprise", "tunnel"},
 		Profiles:    []string{"http", "rdp", "tcp", "vnc", "ssh", "smb"},
 	},
@@ -109,13 +109,13 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// Server Load Balancing Settings
 	"load_balancing_metric": {
 		Type:        "string",
-		ValidValues: []string{"round-robin", "least-connections", "ip-hash"},
+		ValidValues: []string{"round-robin", "ip-hash"},
 		AppTypes:    []string{"enterprise", "tunnel"},
 		Profiles:    []string{"http", "tcp", "smb"},
 	},
 	"session_sticky": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type:        "bool",
+		ValidValues: []string{"true", "false"},
 		AppTypes:    []string{"enterprise", "tunnel"},
 		Profiles:    []string{"http", "tcp", "smb"},
 	},
@@ -197,7 +197,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{"rdp"},
 	},
 	"remote_spark_mapPrinter": {
-		Type:     "bool",
+		Type:     "string",
 		AppTypes: []string{"enterprise"},
 		Profiles: []string{"rdp"},
 	},
@@ -207,7 +207,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{"rdp"},
 	},
 	"remote_spark_mapDisk": {
-		Type:     "bool",
+		Type:     "string",
 		AppTypes: []string{"enterprise"},
 		Profiles: []string{"rdp"},
 	},
@@ -224,7 +224,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 
 	// TLS Configuration Settings
 	"tlsSuiteType": {
-		Type:        "int",
+		Type:        "string",
 		ValidValues: []string{"default", "custom"},
 		AppTypes:    []string{"enterprise"},
 		Profiles:    []string{"http", "rdp", "vnc", "ssh"},
@@ -479,7 +479,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 	"app_bundle": {
 		Type:     "string",
 		AppTypes: []string{"enterprise"},
-		Profiles: []string{"http", "rdp"},
+		Profiles: []string{"http", "https", "tcp", "rdp"},
+	},
+
+	// Additional Miscellaneous Fields
+	"ignore_cname_resolution": {
+		Type:     "string",
+		AppTypes: []string{"enterprise", "tunnel"},
+		Profiles: []string{"http", "https", "tcp", "rdp", "vnc", "ssh", "smb"},
 	},
 
 	// Additional Authentication Fields (Missing from original generic system)
@@ -830,14 +837,24 @@ func validateIntSetting(value interface{}, rule SettingRule, logger hclog.Logger
 	case float64:
 		intValue = int(v)
 	case string:
-		// Handle string-to-integer mapping for TLS suite types
-		switch v {
-		case "default":
-			intValue = 1
-		case "custom":
-			intValue = 2
-		default:
-			return fmt.Errorf("expected 'default' or 'custom', got '%s'", v)
+		// Handle string-to-integer mapping only for TLS suite types
+		if rule.ValidValues != nil && len(rule.ValidValues) > 0 && rule.ValidValues[0] == "default" {
+			// This is a TLS suite type field that accepts "default" or "custom"
+			switch v {
+			case "default":
+				intValue = 1
+			case "custom":
+				intValue = 2
+			default:
+				return fmt.Errorf("expected 'default' or 'custom', got '%s'", v)
+			}
+		} else {
+			// For other integer fields, try to parse the string as an integer
+			if parsed, err := strconv.Atoi(v); err != nil {
+				return fmt.Errorf("expected integer, got '%s'", v)
+			} else {
+				intValue = parsed
+			}
 		}
 	default:
 		return fmt.Errorf("expected integer, got %T", value)

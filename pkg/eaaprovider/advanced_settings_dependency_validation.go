@@ -1,9 +1,8 @@
 package eaaprovider
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
 
 // ValidateAdvancedSettingsDependencies validates all field dependency rules
@@ -42,7 +41,7 @@ func validateRDPSpecialDependencies(settings map[string]interface{}, logger hclo
 	if _, exists := settings["remote_spark_printer"]; exists {
 		if _, mapPrinterExists := settings["remote_spark_mapPrinter"]; !mapPrinterExists {
 			logger.Warn("remote_spark_printer is set but remote_spark_mapPrinter is not enabled")
-			return fmt.Errorf("remote_spark_printer requires remote_spark_mapPrinter to be enabled")
+			return client.ErrRDPPrinterRequiresMapPrinter
 		}
 		logger.Debug("RDP printer dependency validated: remote_spark_printer requires remote_spark_mapPrinter")
 	}
@@ -51,7 +50,7 @@ func validateRDPSpecialDependencies(settings map[string]interface{}, logger hclo
 	if _, exists := settings["remote_spark_disk"]; exists {
 		if _, mapDiskExists := settings["remote_spark_mapDisk"]; !mapDiskExists {
 			logger.Warn("remote_spark_disk is set but remote_spark_mapDisk is not enabled")
-			return fmt.Errorf("remote_spark_disk requires remote_spark_mapDisk to be enabled")
+			return client.ErrRDPDiskRequiresMapDisk
 		}
 		logger.Debug("RDP disk dependency validated: remote_spark_disk requires remote_spark_mapDisk")
 	}
@@ -78,7 +77,7 @@ func validateTunnelClientSpecialDependencies(settings map[string]interface{}, lo
 
 		if !wildcardEnabled {
 			logger.Warn("domain_exception_list is set but wildcard_internal_hostname is not enabled")
-			return fmt.Errorf("domain_exception_list requires wildcard_internal_hostname to be enabled")
+			return client.ErrDomainExceptionListRequiresWildcard
 		}
 		logger.Debug("Tunnel client dependency validated: domain_exception_list requires wildcard_internal_hostname")
 	}
@@ -110,18 +109,18 @@ func validateJWTSpecialDependencies(settings map[string]interface{}, logger hclo
 	wappAuthValue, wappAuthExists := settings["wapp_auth"]
 	if !wappAuthExists {
 		logger.Warn("JWT fields are set but wapp_auth is not specified")
-		return fmt.Errorf("JWT fields require wapp_auth to be set to 'jwt'")
+		return client.ErrWappAuthFieldConflict
 	}
 
 	wappAuthStr, ok := wappAuthValue.(string)
 	if !ok {
 		logger.Warn("JWT fields are set but wapp_auth is not a string")
-		return fmt.Errorf("JWT fields require wapp_auth to be set to 'jwt'")
+		return client.ErrWappAuthFieldConflict
 	}
 
 	if wappAuthStr != "jwt" {
 		logger.Warn("JWT fields are set but wapp_auth is '%s', not 'jwt'", wappAuthStr)
-		return fmt.Errorf("JWT fields require wapp_auth to be set to 'jwt', got '%s'", wappAuthStr)
+		return client.ErrWappAuthFieldConflict
 	}
 
 	logger.Debug("JWT special dependencies validation completed")
@@ -158,7 +157,7 @@ func validateCertonlyConstraintsGeneric(settings map[string]interface{}, logger 
 			}
 			if !isValid {
 				logger.Warn("Invalid app_auth value for certonly: %s", appAuthStr)
-				return fmt.Errorf("when wapp_auth = \"certonly\", app_auth can only be one of: %v, got: \"%s\"", validCertonlyAppAuthValues, appAuthStr)
+				return client.ErrInvalidAppAuthValue
 			}
 		}
 	}

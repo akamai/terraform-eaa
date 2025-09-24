@@ -1,9 +1,8 @@
 package eaaprovider
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
 
 // ValidateAdvancedSettingsContext validates all context-dependent rules
@@ -53,23 +52,23 @@ func validateAppAuthSpecialDependencies(settings map[string]interface{}, appType
 	switch {
 	case appType == "enterprise" && appProfile == "ssh":
 		logger.Warn("app_auth is disabled for enterprise SSH apps")
-		return fmt.Errorf("app_auth is disabled for enterprise SSH apps")
+		return client.ErrAppAuthDisabledForEnterpriseSSH
 
 	case appType == "saas":
 		logger.Warn("app_auth should not be present in advanced_settings for SaaS apps")
-		return fmt.Errorf("app_auth should not be present in advanced_settings for SaaS apps")
+		return client.ErrAppAuthNotAllowedForSaaS
 
 	case appType == "bookmark":
 		logger.Warn("app_auth should not be present in advanced_settings for bookmark apps")
-		return fmt.Errorf("app_auth should not be present in advanced_settings for bookmark apps")
+		return client.ErrAppAuthNotAllowedForBookmark
 
 	case appType == "tunnel":
 		logger.Warn("app_auth should not be present in advanced_settings for tunnel apps")
-		return fmt.Errorf("app_auth should not be present in advanced_settings for tunnel apps")
+		return client.ErrAppAuthNotAllowedForTunnel
 
 	case appType == "enterprise" && appProfile == "vnc":
 		logger.Warn("app_auth is disabled for enterprise VNC apps")
-		return fmt.Errorf("app_auth is disabled for enterprise VNC apps")
+		return client.ErrAppAuthDisabledForEnterpriseVNC
 	}
 
 	logger.Debug("App auth special dependencies validation completed")
@@ -108,14 +107,14 @@ func validateTunnelClientParametersRestrictions(settings map[string]interface{},
 	if appType != "" {
 		if appType != "tunnel" {
 			logger.Warn("Tunnel client parameters are not supported for app_type='%s'", appType)
-			return fmt.Errorf("tunnel client parameters are not supported for app_type='%s'", appType)
+			return client.ErrTunnelClientParametersNotSupportedForAppType
 		}
 
 		if clientAppMode != "" {
 			// EAA Client Parameters are only available for tunnel apps with tunnel or ZTP mode
 			if clientAppMode != "tunnel" && clientAppMode != "ztp" {
 				logger.Warn("Tunnel client parameters are not supported for client_app_mode='%s'", clientAppMode)
-				return fmt.Errorf("tunnel client parameters are not supported for client_app_mode='%s'", clientAppMode)
+				return client.ErrTunnelClientParametersNotSupportedForClientMode
 			}
 			logger.Debug("Tunnel client parameters allowed for tunnel app with %s mode", clientAppMode)
 		} else {
@@ -163,7 +162,7 @@ func validateEnterpriseConnectivityParametersRestrictions(settings map[string]in
 			if clientAppMode != "" {
 				if clientAppMode != "tcp" && clientAppMode != "tunnel" {
 					logger.Warn("Enterprise connectivity parameters are not supported for client_app_mode='%s'", clientAppMode)
-					return fmt.Errorf("enterprise connectivity parameters are not supported for client_app_mode='%s'", clientAppMode)
+					return client.ErrEnterpriseConnectivityNotSupportedForClientMode
 				}
 			}
 		case "tunnel":
@@ -172,11 +171,11 @@ func validateEnterpriseConnectivityParametersRestrictions(settings map[string]in
 		case "saas", "bookmark":
 			// Advanced Settings tab hidden for SaaS and Bookmark apps
 			logger.Warn("Enterprise connectivity parameters are not supported for app_type='%s'", appType)
-			return fmt.Errorf("enterprise connectivity parameters are not supported for app_type='%s'", appType)
+			return client.ErrEnterpriseConnectivityNotSupportedForSaaS
 		default:
 			// For any other app types, enterprise connectivity should not be present
 			logger.Warn("Enterprise connectivity parameters are not supported for app_type='%s'", appType)
-			return fmt.Errorf("enterprise connectivity parameters are not supported for app_type='%s'", appType)
+			return client.ErrEnterpriseConnectivityNotSupportedForAppType
 		}
 	}
 
@@ -221,7 +220,7 @@ func validateMiscellaneousParametersRestrictions(settings map[string]interface{}
 			if clientAppMode != "" {
 				if clientAppMode != "tcp" && clientAppMode != "tunnel" {
 					logger.Warn("Miscellaneous parameters are not supported for client_app_mode='%s'", clientAppMode)
-					return fmt.Errorf("miscellaneous parameters are not supported for client_app_mode='%s'", clientAppMode)
+					return client.ErrMiscParametersNotSupportedForClientMode
 				}
 			}
 		case "tunnel":
@@ -230,11 +229,11 @@ func validateMiscellaneousParametersRestrictions(settings map[string]interface{}
 		case "saas", "bookmark":
 			// Advanced Settings tab hidden for SaaS and Bookmark apps
 			logger.Warn("Miscellaneous parameters are not supported for app_type='%s'", appType)
-			return fmt.Errorf("miscellaneous parameters are not supported for app_type='%s'", appType)
+			return client.ErrMiscParametersNotSupportedForSaaS
 		default:
 			// For any other app types, miscellaneous parameters should not be present
 			logger.Warn("Miscellaneous parameters are not supported for app_type='%s'", appType)
-			return fmt.Errorf("miscellaneous parameters are not supported for app_type='%s'", appType)
+			return client.ErrMiscParametersNotSupportedForAppType
 		}
 	}
 
@@ -273,13 +272,13 @@ func validateRDPConfigurationRestrictions(settings map[string]interface{}, appTy
 	if appType != "" {
 		if appType != "enterprise" {
 			logger.Warn("RDP configuration is not supported for app_type='%s'", appType)
-			return fmt.Errorf("RDP configuration is not supported for app_type='%s'", appType)
+			return client.ErrRDPConfigurationNotSupportedForAppType
 		}
 
 		if appProfile != "" {
 			if appProfile != "rdp" {
 				logger.Warn("RDP configuration is not supported for app_profile='%s'", appProfile)
-				return fmt.Errorf("RDP configuration is not supported for app_profile='%s'", appProfile)
+				return client.ErrRDPConfigurationNotSupportedForProfile
 			}
 		}
 	}

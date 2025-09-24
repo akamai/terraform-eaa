@@ -110,35 +110,22 @@ resource "eaa_application" "saml_custom_example_1" {
     subject {
       fmt = "email"
       src = "user.email"
-      val = ""
-      rule = ""
+      
     }
     
     attrmap {
       name = "email"
-      fname = "Email"
-      fmt  = "email"
-      val  = ""
-      src  = "user.email"
-      rule = ""
+      value = "user.email"
     }
     
     attrmap {
       name = "firstName"
-      fname = "First Name"
-      fmt  = "firstName"
-      val  = ""
-      src  = "user.firstName"
-      rule = ""
+      value = "user.firstName"
     }
     
     attrmap {
       name = "lastName"
-      fname = "Last Name"
-      fmt  = "lastName"
-      val  = ""
-      src  = "user.lastName"
-      rule = ""
+      value = "user.lastName"
     }
   }
 }

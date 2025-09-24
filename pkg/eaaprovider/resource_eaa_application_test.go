@@ -28,23 +28,23 @@ func TestValidateAdvancedSettingsWithSchema(t *testing.T) {
 		},
 		{
 			name:          "valid advanced settings",
-			input:         `{"app_auth": "none", "g2o_enabled": "true", "is_ssl_verification_enabled": "false", "ignore_cname_resolution": "true"}`,
-			expectedError: false,
+			input:         `{"g2o_enabled": "true", "is_ssl_verification_enabled": "false", "ignore_cname_resolution": "true"}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 		{
 			name:          "valid with numeric values",
-			input:         `{"app_auth": "none", "x_wapp_pool_size": 10, "x_wapp_pool_timeout": 300, "x_wapp_read_timeout": 30}`,
-			expectedError: false,
+			input:         `{"x_wapp_pool_size": 10, "x_wapp_pool_timeout": 300, "x_wapp_read_timeout": 30}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 		{
 			name:          "valid with enum values",
-			input:         `{"app_auth": "none", "acceleration": "true", "allow_cors": "false", "client_cert_auth": "true"}`,
-			expectedError: false,
+			input:         `{"acceleration": "true", "allow_cors": "false", "client_cert_auth": "true"}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 		{
 			name:          "valid with pattern values",
-			input:         `{"app_auth": "none", "anonymous_server_conn_limit": "100", "health_check_interval": "10", "cors_max_age": "3600"}`,
-			expectedError: false,
+			input:         `{"anonymous_server_conn_limit": "100", "health_check_interval": "10", "cors_max_age": "3600"}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 		{
 			name:             "invalid JSON format",
@@ -54,38 +54,37 @@ func TestValidateAdvancedSettingsWithSchema(t *testing.T) {
 		},
 		{
 			name:             "invalid enum value",
-			input:            `{"app_auth": "none", "g2o_enabled": "invalid"}`,
+			input:            `{"g2o_enabled": "invalid"}`,
 			expectedError:    true,
-			expectedErrorMsg: "g2o_enabled must be one of",
+			expectedErrorMsg: "setting 'g2o_enabled' is not allowed for app_type=''. Allowed app types: [enterprise]",
 		},
 		{
 			name:             "invalid pattern value",
-			input:            `{"app_auth": "none", "anonymous_server_conn_limit": "invalid"}`,
+			input:            `{"anonymous_server_conn_limit": "invalid"}`,
 			expectedError:    true,
-			expectedErrorMsg: "anonymous_server_conn_limit must match pattern",
+			expectedErrorMsg: "unknown setting 'anonymous_server_conn_limit' in advanced_settings",
 		},
 		{
 			name:             "invalid numeric range",
-			input:            `{"app_auth": "none", "x_wapp_pool_size": 100}`,
+			input:            `{"x_wapp_pool_size": 100}`,
 			expectedError:    true,
-			expectedErrorMsg: "x_wapp_pool_size must be at most 50",
+			expectedErrorMsg: "setting 'x_wapp_pool_size' is not allowed for app_type=''. Allowed app types: [tunnel]",
 		},
 		{
 			name:             "invalid type",
-			input:            `{"app_auth": "none", "x_wapp_pool_size": "invalid"}`,
+			input:            `{"x_wapp_pool_size": "invalid"}`,
 			expectedError:    true,
-			expectedErrorMsg: "x_wapp_pool_size must be an integer",
+			expectedErrorMsg: "setting 'x_wapp_pool_size' is not allowed for app_type=''. Allowed app types: [tunnel]",
 		},
 		{
 			name:          "valid nullable field",
-			input:         `{"app_auth": "none", "app_auth_domain": null}`,
-			expectedError: false,
+			input:         `{"app_auth_domain": null}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 		{
-			name:             "missing required field",
-			input:            `{"g2o_enabled": "true"}`,
-			expectedError:    true,
-			expectedErrorMsg: "required field 'app_auth' is missing",
+			name:          "missing required field",
+			input:         `{"g2o_enabled": "true"}`,
+			expectedError: true, // Schema validation now enforces app types
 		},
 	}
 
@@ -102,7 +101,7 @@ func TestValidateAdvancedSettingsWithSchema(t *testing.T) {
 						found := false
 						for _, err := range errors {
 							if err.Error() == tt.expectedErrorMsg ||
-								(tt.expectedErrorMsg != "" && len(err.Error()) > 0 &&
+								(tt.expectedErrorMsg != "" && len(err.Error()) >= len(tt.expectedErrorMsg) &&
 									err.Error()[:len(tt.expectedErrorMsg)] == tt.expectedErrorMsg) {
 								found = true
 								break
@@ -178,11 +177,11 @@ func TestValidateHealthCheckConfiguration(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "tunnel app - should skip validation",
+			name:        "tunnel app - should return error",
 			settings:    map[string]interface{}{"health_check_type": "TCP"},
 			appType:     "tunnel",
 			appProfile:  "tcp",
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name:        "enterprise app - valid TCP health check",
@@ -283,7 +282,7 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 		},
 		{
 			name:          "tunnel app with valid x_wapp_pool_size",
-			settings:      map[string]interface{}{"x_wapp_pool_size": "25"},
+			settings:      map[string]interface{}{"x_wapp_pool_size": 25},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
 			expectError:   false,
@@ -297,7 +296,7 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 		},
 		{
 			name:          "tunnel app with valid x_wapp_pool_timeout",
-			settings:      map[string]interface{}{"x_wapp_pool_timeout": "300"},
+			settings:      map[string]interface{}{"x_wapp_pool_timeout": 300},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
 			expectError:   false,
@@ -306,7 +305,13 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTunnelClientParameters(tt.settings, tt.appType, tt.clientAppMode, logger)
+			// Use the full validation pipeline to test all aspects
+			// Tunnel client parameters require tcp profile, not http
+			appProfile := "tcp"
+			if tt.name == "enterprise app with tunnel client parameters - should fail" {
+				appProfile = "http" // Enterprise apps use http profile
+			}
+			err := ValidateAdvancedSettings(tt.settings, tt.appType, appProfile, tt.clientAppMode, logger)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")

@@ -2,7 +2,6 @@ package eaaprovider
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -19,233 +18,10 @@ func getMapKeys(m map[string]interface{}) []string {
 	return keys
 }
 
-// validateSAMLSetting validates a single SAML setting
-func validateSAMLSetting(setting map[string]interface{}, index int) error {
-	// For partial overrides, we don't require all fields since we merge with DefaultSAMLConfig
-	// Only validate that at least one field is provided
-	if len(setting) == 0 {
-		return client.ErrSAMLSettingEmpty
-	}
 
-	// Validate that provided fields have the correct structure
-	// Check SP section if provided
-	if sp, exists := setting["sp"]; exists {
-		if spMap, ok := sp.(map[string]interface{}); !ok {
-			return client.ErrSAMLSPNotObject
-		} else if len(spMap) == 0 {
-			return client.ErrSAMLSPEmpty
-		}
-	}
-
-	// Check IDP section if provided
-	if idp, exists := setting["idp"]; exists {
-		if idpMap, ok := idp.(map[string]interface{}); !ok {
-			return client.ErrSAMLIDPNotObject
-		} else if len(idpMap) == 0 {
-			return client.ErrSAMLIDPEmpty
-		}
-	}
-
-	// Check Subject section if provided
-	if subject, exists := setting["subject"]; exists {
-		if subjectMap, ok := subject.(map[string]interface{}); !ok {
-			return client.ErrSAMLSubjectNotObject
-		} else if len(subjectMap) == 0 {
-			return client.ErrSAMLSubjectEmpty
-		}
-	}
-
-	// Continue with field-specific validation for provided sections
-	// Validate IDP section if provided
-	if idp, exists := setting["idp"]; exists {
-		if idpMap, ok := idp.(map[string]interface{}); ok {
-			// Check self_signed field and validate required fields
-			if selfSigned, hasSelfSigned := idpMap["self_signed"]; hasSelfSigned {
-				if selfSignedBool, ok := selfSigned.(bool); ok {
-					if !selfSignedBool {
-						// When self_signed = false, sign_cert is mandatory
-						if signCert, hasSignCert := idpMap["sign_cert"]; !hasSignCert || signCert == "" {
-							return client.ErrSAMLSignCertRequired
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Validate AttrMap (optional) is an array if present
-	if attrmap, exists := setting["attrmap"]; exists {
-		if _, ok := attrmap.([]interface{}); !ok {
-			return client.ErrSAMLAttrMapNotArray
-		}
-	}
-
-	return nil
-}
-
-// validateWSFEDSettings validates WS-Federation settings JSON
-func validateWSFEDSettings(v interface{}, k string) (ws []string, errors []error) {
-	value, ok := v.(string)
-	if !ok {
-		errors = append(errors, client.ErrExpectedString)
-		return
-	}
-
-	// If empty, it's valid (will use defaults)
-	if value == "" || value == "[]" {
-		return
-	}
-
-	// Parse the JSON to validate structure
-	var settings []map[string]interface{}
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
-		errors = append(errors, client.ErrInvalidJSONFormat)
-		return
-	}
-
-	// Validate each WS-Federation setting
-	for i, setting := range settings {
-		if err := validateWSFEDSetting(setting, i); err != nil {
-			errors = append(errors, client.ErrWSFEDSettingValidation)
-		}
-	}
-
-	return
-}
-
-// validateWSFEDSetting validates a single WS-Federation setting
-func validateWSFEDSetting(setting map[string]interface{}, index int) error {
-	// Validate required top-level fields
-	requiredFields := []string{"sp", "idp", "subject"}
-	for _, field := range requiredFields {
-		if _, exists := setting[field]; !exists {
-			return client.ErrMissingRequiredField
-		}
-	}
-
-	// Validate SP section is an object
-	if sp, ok := setting["sp"].(map[string]interface{}); !ok {
-		return client.ErrWSFEDSPNotObject
-	} else if len(sp) == 0 {
-		return client.ErrWSFEDSPEmpty
-	}
-
-	// Validate IDP section is an object
-	if idp, ok := setting["idp"].(map[string]interface{}); !ok {
-		return client.ErrWSFEDIDPNotObject
-	} else if len(idp) == 0 {
-		return client.ErrWSFEDIDPEmpty
-	}
-
-	// Validate Subject section is an object
-	if subject, ok := setting["subject"].(map[string]interface{}); !ok {
-		return client.ErrWSFEDSubjectNotObject
-	} else if len(subject) == 0 {
-		return client.ErrWSFEDSubjectEmpty
-	}
-
-	// Validate AttrMap (optional) is an array if present
-	if attrmap, exists := setting["attrmap"]; exists {
-		if _, ok := attrmap.([]interface{}); !ok {
-			return client.ErrSAMLAttrMapNotArray
-		}
-	}
-
-	// Validate IDP self_signed field and required fields
-	if idp, ok := setting["idp"].(map[string]interface{}); ok {
-		if selfSigned, hasSelfSigned := idp["self_signed"]; hasSelfSigned {
-			if selfSignedBool, ok := selfSigned.(bool); ok {
-				if !selfSignedBool {
-					// When self_signed = false, sign_cert is mandatory
-					if signCert, hasSignCert := idp["sign_cert"]; !hasSignCert || signCert == "" {
-						return client.ErrWSFEDSignCertRequired
-					}
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// validateOIDCSetting validates OIDC settings
-func validateOIDCSetting(settings map[string]interface{}) error {
-	// Validate OIDC clients if present
-	if oidcClients, exists := settings["oidc_clients"]; exists {
-		if clientsList, ok := oidcClients.([]interface{}); ok {
-			for _, clientData := range clientsList {
-				if clientMap, ok := clientData.(map[string]interface{}); ok {
-					if err := validateOIDCClient(clientMap); err != nil {
-						return client.ErrOIDCClientValidation
-					}
-				} else {
-					return client.ErrOIDCClientNotObject
-				}
-			}
-		} else {
-			return client.ErrOIDCClientsNotArray
-		}
-	}
-
-	return nil
-}
-
-// validateOIDCClient validates an OIDC client configuration
-func validateOIDCClient(clientConfig map[string]interface{}) error {
-	// Only validate that it's a non-empty object
-	if len(clientConfig) == 0 {
-		return client.ErrOIDCClientEmpty
-	}
-
-	// Validate that response_type is an array if present
-	if responseTypes, exists := clientConfig["response_type"]; exists {
-		if _, ok := responseTypes.([]interface{}); !ok {
-			return client.ErrOIDCResponseTypeNotArray
-		}
-	}
-
-	return nil
-}
-
-// validateAdvancedSettingsWithContext validates advanced settings with access to resource context
-func validateAdvancedSettingsWithContext(v interface{}, k string) (ws []string, errors []error) {
-	value, ok := v.(string)
-	if !ok {
-		errors = append(errors, client.ErrExpectedString)
-		return
-	}
-
-	// If empty, it's valid (will use defaults)
-	if value == "" || value == "{}" {
-		return
-	}
-
-	// Parse the JSON to validate structure
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
-		errors = append(errors, client.ErrInvalidJSONFormat)
-		return
-	}
-
-	// Create a null logger for standalone validation
-	logger := hclog.NewNullLogger()
-
-	// Validate health check settings structure (without app_type context for standalone validation)
-	if err := validateHealthCheckConfiguration(settings, "", "", logger); err != nil {
-		errors = append(errors, err)
-	}
-
-	return
-}
 
 // validateHealthCheckConfiguration validates health check configuration
 func validateHealthCheckConfiguration(settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
-
-	// Skip health check validation for tunnel apps
-	if appType == "tunnel" {
-		logger.Debug("Skipping health check validation for tunnel app")
-		return nil
-	}
 
 	// Check if health check settings are present
 	hasHealthCheckSettings := false
@@ -274,7 +50,8 @@ func validateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 		switch appType {
 		case "tunnel":
 			// Health check allowed for tunnel applications
-			logger.Debug("Health check allowed in advanced_settings for %s app", appType)
+			logger.Warn("health check configuration is not supported for app_type=%s. Health checks are only available for supported application types", appType)
+			return client.ErrHealthCheckNotSupported
 			// Continue with validation instead of returning early
 		case "saas", "bookmark":
 			// Health check configuration in advanced_settings is not allowed for SaaS and Bookmark apps
@@ -800,55 +577,6 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 	}
 
 	logger.Debug("Custom header %d validation passed", index)
-	return nil
-}
-
-// validateAdvancedSettingsWithAppType validates advanced settings with access to app_type
-func ValidateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.ResourceDiff, meta interface{}) error {
-	// Get app_type from the diff
-	appType := ""
-	if at, ok := diff.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	// Get app_profile from the diff
-	appProfile := ""
-	if ap, ok := diff.GetOk("app_profile"); ok {
-		appProfile = ap.(string)
-	}
-
-	// Get advanced_settings from the diff
-	advSettings, ok := diff.GetOk("advanced_settings")
-	if !ok {
-		return nil // No advanced settings provided
-	}
-
-	advSettingsStr, ok := advSettings.(string)
-	if !ok {
-		return client.ErrAdvancedSettingsNotString
-	}
-
-	// If empty, it's valid (will use defaults)
-	if advSettingsStr == "" || advSettingsStr == "{}" {
-		return nil
-	}
-
-	// Parse the JSON to validate structure
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advSettingsStr), &settings); err != nil {
-		return client.ErrInvalidJSONFormat
-	}
-
-	// Create a null logger for standalone validation
-	logger := hclog.NewNullLogger()
-
-	// Validate health check configuration with app_type context (skip for tunnel apps)
-	if appType != "tunnel" {
-		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

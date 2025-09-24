@@ -1,11 +1,11 @@
 package eaaprovider
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
 
 // ValidateAdvancedSettingsFormats validates all complex format validation rules
@@ -43,7 +43,7 @@ func validateDomainExceptionListFormat(settings map[string]interface{}, logger h
 			domain = strings.TrimSpace(domain)
 			if err := validateDomainNameWithExceptionGeneric(domain); err != nil {
 				logger.Warn("Invalid domain in exception list: %s", domain)
-				return fmt.Errorf("invalid domain '%s' in domain_exception_list: %v", domain, err)
+				return client.ErrInvalidDomainInExceptionList
 			}
 		}
 	case []interface{}:
@@ -52,16 +52,16 @@ func validateDomainExceptionListFormat(settings map[string]interface{}, logger h
 			domain, ok := domainInterface.(string)
 			if !ok {
 				logger.Warn("Domain must be a string in domain_exception_list")
-				return fmt.Errorf("domain in domain_exception_list must be a string, got %T", domainInterface)
+				return client.ErrDomainMustBeString
 			}
 			if err := validateDomainNameWithExceptionGeneric(domain); err != nil {
 				logger.Warn("Invalid domain in exception list: %s", domain)
-				return fmt.Errorf("invalid domain '%s' in domain_exception_list: %v", domain, err)
+				return client.ErrInvalidDomainInExceptionList
 			}
 		}
 	default:
 		logger.Warn("Invalid type for domain_exception_list: %T", v)
-		return fmt.Errorf("domain_exception_list must be a string or array, got %T", v)
+		return client.ErrDomainExceptionListInvalidType
 	}
 
 	logger.Debug("Domain exception list format validation completed")
@@ -71,13 +71,13 @@ func validateDomainExceptionListFormat(settings map[string]interface{}, logger h
 // validateDomainNameWithExceptionGeneric validates individual domain names
 func validateDomainNameWithExceptionGeneric(domain string) error {
 	if domain == "" {
-		return fmt.Errorf("domain cannot be empty")
+		return client.ErrDomainCannotBeEmpty
 	}
 
 	// Basic domain name validation regex
 	domainRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$`)
 	if !domainRegex.MatchString(domain) {
-		return fmt.Errorf("invalid domain name format")
+		return client.ErrInvalidDomainNameFormat
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
 
 // AdvancedSettingsSchema defines the JSON schema for advanced settings validation
@@ -132,11 +133,12 @@ func GetAdvancedSettingsSchema() *AdvancedSettingsSchema {
 		"hsts_age":                       numericField,
 		"http_only_cookie":               booleanField,
 		"https_sslv3":                    booleanField,
-		"ignore_cname_resolution":        nullableStringField,
+		"ignore_cname_resolution":        booleanField,
 		"is_brotli_enabled":              booleanField,
 		"is_ssl_verification_enabled":    booleanField,
 		"ip_access_allow":                booleanField,
 		"server_cert_validate":           booleanField,
+		"tlsSuiteType":                   stringFieldWithEnum([]string{"default", "custom"}),
 		"wildcard_internal_hostname":     booleanField,
 	}
 
@@ -182,8 +184,8 @@ func GetAdvancedSettingsSchema() *AdvancedSettingsSchema {
 		"remote_spark_audio":         booleanField,
 		"remote_spark_disk":          stringField,
 		"remote_spark_map_clipboard": onOffField,
-		"remote_spark_map_disk":      booleanField,
-		"remote_spark_map_printer":   booleanField,
+		"remote_spark_map_disk":      stringField,
+		"remote_spark_map_printer":   stringField,
 		"remote_spark_printer":       stringField,
 		"remote_spark_recording":     booleanField,
 	}
@@ -383,17 +385,17 @@ func validateAppAuthWithTypeAndProfile(appAuth string, d *schema.ResourceData) e
 	if appType == "bookmark" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+			return client.ErrBookmarkAppSAMLNotAllowed
 		}
 
 		// Check if OIDC is enabled
 		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+			return client.ErrBookmarkAppOIDCNotAllowed
 		}
 
 		// Check if WSFED is enabled
 		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+			return client.ErrBookmarkAppWSFEDNotAllowed
 		}
 	}
 
@@ -401,17 +403,17 @@ func validateAppAuthWithTypeAndProfile(appAuth string, d *schema.ResourceData) e
 	if appType == "tunnel" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+			return client.ErrTunnelAppSAMLNotAllowed
 		}
 
 		// Check if OIDC is enabled
 		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+			return client.ErrTunnelAppOIDCNotAllowed
 		}
 
 		// Check if WSFED is enabled
 		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+			return client.ErrTunnelAppWSFEDNotAllowed
 		}
 	}
 

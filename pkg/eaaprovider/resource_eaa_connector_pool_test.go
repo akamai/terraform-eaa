@@ -11,10 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// Helper function to create string pointer
-func stringPtr(s string) *string {
-	return &s
-}
+// Helper function to create string pointer (removed duplicate - defined in resource_eaa_application_test.go)
 
 // Helper function to create test resource data
 func createTestResourceData(data map[string]interface{}) *schema.ResourceData {
