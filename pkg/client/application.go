@@ -11,6 +11,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
+// MinimalCreateAppRequest represents the minimal fields required for basic app creation
+// This follows the two-phase approach: create app first, then configure additional settings
+type MinimalCreateAppRequest struct {
+	Name          string `json:"name"`
+	AppProfile    int    `json:"app_profile"`
+	AppType       int    `json:"app_type"`
+	ClientAppMode int    `json:"client_app_mode"`
+}
+
 type CreateAppRequest struct {
 	Name             string           `json:"name"`
 	Description      *string          `json:"description"`
@@ -26,6 +35,91 @@ type CreateAppRequest struct {
 	WSFEDSettings    []WSFEDConfig    `json:"wsfed_settings"`
 	TLSSuiteType     *int             `json:"tlsSuiteType,omitempty"`
 	TLSSuiteName     *string          `json:"tls_suite_name,omitempty"`
+}
+
+// CreateMinimalAppRequestFromSchema creates a minimal app creation request with only essential fields
+func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	// Validate and set the name field (required)
+	if name, ok := d.GetOk("name"); ok {
+		nameStr, ok := name.(string)
+		if ok && nameStr != "" {
+			mcar.Name = nameStr
+		} else {
+			logger.Error("create Application failed. name is invalid")
+			return ErrInvalidValue
+		}
+	} else {
+		logger.Error("create Application failed. name is required")
+		return ErrInvalidValue
+	}
+
+	// Set app_type with default
+	if appType, ok := d.GetOk("app_type"); ok {
+		strAppType, ok := appType.(string)
+		if !ok {
+			logger.Error("create Application failed. app_type is invalid")
+			return ErrInvalidType
+		}
+		atype := ClientAppType(strAppType)
+		value, err := atype.ToInt()
+		if err != nil {
+			logger.Error("create Application failed. app_type is invalid")
+			return ErrInvalidValue
+		}
+		mcar.AppType = value
+		logger.Info("appType", appType)
+		logger.Info("mcar.AppType", mcar.AppType)
+	} else {
+		logger.Info("appType is not present, defaulting to enterprise")
+		mcar.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
+	}
+
+	// Set app_profile with default
+	if appProfile, ok := d.GetOk("app_profile"); ok {
+		strappProfile, ok := appProfile.(string)
+		if !ok {
+			logger.Error("create Application failed. app_profile is invalid")
+			return ErrInvalidType
+		}
+		aProfile := AppProfile(strappProfile)
+		value, err := aProfile.ToInt()
+		if err != nil {
+			logger.Error("create Application failed. app_profile is invalid")
+			return ErrInvalidValue
+		}
+		mcar.AppProfile = value
+		logger.Info("appProfile", appProfile)
+		logger.Info("mcar.AppProfile", mcar.AppProfile)
+	} else {
+		logger.Info("appProfile is not present, defaulting to http")
+		mcar.AppProfile = int(APP_PROFILE_HTTP)
+	}
+
+	// Set client_app_mode with default
+	if clientAppMode, ok := d.GetOk("client_app_mode"); ok {
+		appMode, ok := clientAppMode.(string)
+		if !ok {
+			logger.Error("create Application failed. clientAppMode is invalid")
+			return ErrInvalidType
+		}
+		aMode := ClientAppMode(appMode)
+		value, err := aMode.ToInt()
+		if err != nil {
+			logger.Error("create Application failed. clientAppMode is invalid")
+			return ErrInvalidValue
+		}
+		mcar.ClientAppMode = value
+		logger.Info("appMode", clientAppMode)
+		logger.Info("mcar.ClientAppMode", mcar.ClientAppMode)
+	} else {
+		logger.Info("appMode is not present, defaulting to tcp")
+		mcar.ClientAppMode = int(CLIENT_APP_MODE_TCP)
+	}
+
+	logger.Info("Minimal app creation request prepared successfully")
+	return nil
 }
 
 func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -406,6 +500,36 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	return nil
 }
 
+// CreateMinimalApplication creates an application with minimal required fields only
+func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
+	ec.Logger.Info("create minimal application")
+
+	// Log the minimal payload being sent to API
+	payloadBytes, _ := json.MarshalIndent(mcar, "", "  ")
+	ec.Logger.Info("=== MINIMAL API PAYLOAD BEING SENT ===")
+	ec.Logger.Info(string(payloadBytes))
+	ec.Logger.Info("=== END MINIMAL API PAYLOAD ===")
+
+	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
+	var appResp ApplicationResponse
+	createAppResp, err := ec.SendAPIRequest(apiURL, "POST", mcar, &appResp, false)
+
+	if err != nil {
+		ec.Logger.Error("create minimal Application failed. err", err)
+		return nil, err
+	}
+
+	if createAppResp.StatusCode != http.StatusOK {
+		desc, _ := FormatErrorResponse(createAppResp)
+		createErrMsg := fmt.Errorf("%w: %s", ErrAppCreate, desc)
+
+		ec.Logger.Error("create minimal Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
+		return nil, createErrMsg
+	}
+	ec.Logger.Info("create minimal Application succeeded.", "name", mcar.Name)
+	return &appResp, nil
+}
+
 func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
 	ec.Logger.Info("create application")
 
@@ -433,6 +557,169 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	}
 	ec.Logger.Info("create Application succeeded.", "name", car.Name)
 	return &appResp, nil
+}
+
+// Configuration functions for Phase 2 of the two-phase approach
+
+// ConfigureAgents assigns agents to an existing application
+func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	if agentsRaw, ok := d.GetOk("agents"); ok {
+		agentsList := agentsRaw.([]interface{})
+		var agents AssignAgents
+		agents.AppId = appID
+		for _, v := range agentsList {
+			if name, ok := v.(string); ok {
+				agents.AgentNames = append(agents.AgentNames, name)
+			}
+		}
+		err := agents.AssignAgents(ctx, ec)
+		if err != nil {
+			logger.Error("configure agents failed. err", err)
+			return err
+		}
+		logger.Debug("configure agents succeeded.")
+	}
+	return nil
+}
+
+// ConfigureAuthentication configures authentication settings for an existing application
+func ConfigureAuthentication(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	auth_enabled := "false"
+	if aE, ok := d.GetOk("auth_enabled"); ok {
+		auth_enabled = aE.(string)
+	}
+
+	if auth_enabled == "true" {
+		if appAuth, ok := d.GetOk("app_authentication"); ok {
+			appAuthList := appAuth.([]interface{})
+			if appAuthList == nil {
+				return ErrInvalidValue
+			}
+			if len(appAuthList) > 0 {
+				appAuthenticationMap := appAuthList[0].(map[string]interface{})
+				if appAuthenticationMap == nil {
+					logger.Error("invalid authentication data")
+					return ErrInvalidValue
+				}
+
+				// Check if app_idp key is present
+				if app_idp_name, ok := appAuthenticationMap["app_idp"].(string); ok {
+					idpData, err := GetIdpWithName(ctx, ec, app_idp_name)
+					if err != nil || idpData == nil {
+						logger.Error("get idp with name error, err ", err)
+						return err
+					}
+					logger.Debug("appID: ", appID, "app_idp_name: ", app_idp_name, "idpData.UUIDURL: ", idpData.UUIDURL)
+
+					logger.Debug("Assigning IDP to application")
+
+					appIdp := AppIdp{
+						App: appID,
+						IDP: idpData.UUIDURL,
+					}
+					err = appIdp.AssignIDP(ec)
+					if err != nil {
+						logger.Error("IDP assign error: ", err)
+						return fmt.Errorf("assigning IDP to the app failed: %v", err)
+					}
+					logger.Debug("IDP assigned successfully, appID = ", appID, "idp = ", app_idp_name)
+
+					// check if app_directories are present
+					if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
+						logger.Debug("Starting directory assignment...")
+						err := idpData.AssignIdpDirectories(ctx, appDirs, appID, ec)
+						if err != nil {
+							logger.Error("directory assignment error: ", err)
+							return fmt.Errorf("assigning directories to the app failed: %v", err)
+						}
+						logger.Debug("Directory assignment succeeded.")
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// ConfigureAdvancedSettings configures advanced settings for an existing application
+func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	// Create update request with advanced settings
+	updateRequest := ApplicationUpdateRequest{}
+
+	// Get the current app data
+	var appResp ApplicationResponse
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
+	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	if err != nil {
+		logger.Error("failed to get app for advanced settings configuration: ", err)
+		return err
+	}
+	if getResp.StatusCode != http.StatusOK {
+		desc, _ := FormatErrorResponse(getResp)
+		logger.Error("failed to get app for advanced settings configuration. StatusCode %d %s", getResp.StatusCode, desc)
+		return fmt.Errorf("failed to get app: %s", desc)
+	}
+
+	// Convert response to Application struct
+	app := Application{}
+	app.FromResponse(&appResp)
+	updateRequest.Application = app
+
+	// Update the request with advanced settings from schema
+	err = updateRequest.UpdateAppRequestFromSchema(ctx, d, ec)
+	if err != nil {
+		logger.Error("failed to prepare advanced settings update request: ", err)
+		return err
+	}
+
+	// Apply the update
+	err = updateRequest.UpdateApplication(ctx, ec)
+	if err != nil {
+		logger.Error("failed to apply advanced settings: ", err)
+		return err
+	}
+
+	logger.Debug("configure advanced settings succeeded.")
+	return nil
+}
+
+// DeployExistingApplication deploys an existing application
+func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient) error {
+	logger := ec.Logger
+
+	// Get the current app data
+	var appResp ApplicationResponse
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
+	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	if err != nil {
+		logger.Error("failed to get app for deployment: ", err)
+		return err
+	}
+	if getResp.StatusCode != http.StatusOK {
+		desc, _ := FormatErrorResponse(getResp)
+		logger.Error("failed to get app for deployment. StatusCode %d %s", getResp.StatusCode, desc)
+		return fmt.Errorf("failed to get app: %s", desc)
+	}
+
+	// Convert response to Application struct
+	app := Application{}
+	app.FromResponse(&appResp)
+
+	// Deploy the application
+	err = app.DeployApplication(ec)
+	if err != nil {
+		logger.Error("deploy application failed: ", err)
+		return err
+	}
+
+	logger.Debug("deploy application succeeded.")
+	return nil
 }
 
 type Application struct {

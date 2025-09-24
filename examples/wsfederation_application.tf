@@ -50,10 +50,6 @@ resource "eaa_application" "wsfed_basic" {
         }
     }
 
-  advanced_settings = jsonencode({
-    
-    # No wsfed_settings needed - defaults will be applied
-  })
 
   # No app_authentication block needed for first-time creation
   # API will automatically assign default IDP and create default WS-Federation settings
@@ -94,9 +90,6 @@ resource "eaa_application" "wsfed_custom" {
         }
     }
 
-  advanced_settings = jsonencode({
-    
-  })
 
   # WS-Federation settings using Terraform resource schema
   wsfed_settings {

@@ -178,34 +178,34 @@ type Connector struct {
 	DHCP                  string               `json:"dhcp,omitempty"`
 	DiskSize              *string              `json:"disk_size,omitempty"`
 	// DNSServer             *string `json:"dns_server,omitempty"`
-	DownloadURL        *string `json:"download_url,omitempty"`
-	Gateway            *string `json:"gateway,omitempty"`
-	GeoLocation        *string `json:"geo_location,omitempty"`
-	Hostname           *string `json:"hostname,omitempty"`
-	IPAddr             *string `json:"ip_addr,omitempty"`
-	LastCheckin        *string `json:"last_checkin,omitempty"`
-	LoadStatus         *string `json:"load_status,omitempty"`
-	MAC                *string `json:"mac,omitempty"`
-	ManualOverride     bool    `json:"manual_override,omitempty"`
-	OSUpgradesUpToDate bool    `json:"os_upgrades_up_to_date,omitempty"`
-	OSVersion          *string `json:"os_version,omitempty"`
-	Package            int     `json:"package,omitempty"`
-	Policy             string  `json:"policy,omitempty"`
-	PrivateIP          *string `json:"private_ip,omitempty"`
-	PublicIP           *string `json:"public_ip,omitempty"`
-	RAMSize            *string `json:"ram_size,omitempty"`
-	Reach              int     `json:"reach,omitempty"`
-	Region             *string `json:"region,omitempty"`
-	State              int     `json:"state,omitempty"`
-	Status             int     `json:"status,omitempty"`
-	ConnectorPool       *ConnectorPool        `json:"connector_pool,omitempty"`
-	Subnet             *string `json:"subnet,omitempty"`
-	Timezone           *string `json:"tz,omitempty"`
-	UnificationStatus  int     `json:"unification_status,omitempty"`
-	UpAppsCount        int     `json:"up_apps_count,omitempty"`
-	UpDirCount         int     `json:"up_dir_count,omitempty"`
-	UUID               string  `json:"uuid,omitempty"`
-	UUIDURL            string  `json:"uuid_url,omitempty"`
+	DownloadURL        *string        `json:"download_url,omitempty"`
+	Gateway            *string        `json:"gateway,omitempty"`
+	GeoLocation        *string        `json:"geo_location,omitempty"`
+	Hostname           *string        `json:"hostname,omitempty"`
+	IPAddr             *string        `json:"ip_addr,omitempty"`
+	LastCheckin        *string        `json:"last_checkin,omitempty"`
+	LoadStatus         *string        `json:"load_status,omitempty"`
+	MAC                *string        `json:"mac,omitempty"`
+	ManualOverride     bool           `json:"manual_override,omitempty"`
+	OSUpgradesUpToDate bool           `json:"os_upgrades_up_to_date,omitempty"`
+	OSVersion          *string        `json:"os_version,omitempty"`
+	Package            int            `json:"package,omitempty"`
+	Policy             string         `json:"policy,omitempty"`
+	PrivateIP          *string        `json:"private_ip,omitempty"`
+	PublicIP           *string        `json:"public_ip,omitempty"`
+	RAMSize            *string        `json:"ram_size,omitempty"`
+	Reach              int            `json:"reach,omitempty"`
+	Region             *string        `json:"region,omitempty"`
+	State              int            `json:"state,omitempty"`
+	Status             int            `json:"status,omitempty"`
+	ConnectorPool      *ConnectorPool `json:"connector_pool,omitempty"`
+	Subnet             *string        `json:"subnet,omitempty"`
+	Timezone           *string        `json:"tz,omitempty"`
+	UnificationStatus  int            `json:"unification_status,omitempty"`
+	UpAppsCount        int            `json:"up_apps_count,omitempty"`
+	UpDirCount         int            `json:"up_dir_count,omitempty"`
+	UUID               string         `json:"uuid,omitempty"`
+	UUIDURL            string         `json:"uuid_url,omitempty"`
 }
 
 func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaClient) (*Connector, error) {
@@ -249,7 +249,7 @@ func GetAgents(ec *EaaClient) ([]Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)

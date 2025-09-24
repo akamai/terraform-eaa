@@ -217,7 +217,7 @@ func TestValidateHealthCheckConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateHealthCheckConfiguration(tt.settings, tt.appType, tt.appProfile, logger)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -307,7 +307,7 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTunnelClientParameters(tt.settings, tt.appType, tt.clientAppMode, logger)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -374,7 +374,7 @@ func TestValidateAppAuthForTypeAndProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateAppAuthForTypeAndProfile(tt.appAuth, tt.appType, tt.appProfile)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -427,7 +427,7 @@ func TestValidateAppAuthValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateAppAuthValue(tt.appAuth)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -475,7 +475,7 @@ func TestValidateWappAuthValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateWappAuthValue(tt.wappAuth)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -528,7 +528,7 @@ func TestValidateTLSSuiteRestrictions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTLSSuiteRestrictions(tt.appType, tt.appProfile, tt.settings)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -576,14 +576,14 @@ func TestValidateAdvancedSettingsJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warnings, errors := validateAdvancedSettingsJSON(tt.input, "advanced_settings")
-			
+
 			if tt.expectError && len(errors) == 0 {
 				t.Errorf("Expected error but got none")
 			}
 			if !tt.expectError && len(errors) > 0 {
 				t.Errorf("Unexpected errors: %v", errors)
 			}
-			
+
 			// Warnings should be empty for all test cases
 			if len(warnings) > 0 {
 				t.Errorf("Unexpected warnings: %v", warnings)
@@ -674,9 +674,9 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 				"oidc":     tt.oidc,
 				"wsfed":    tt.wsfed,
 			})
-			
+
 			err := validateAuthenticationMethodsForAppType(resourceData)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -705,14 +705,14 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 		{
 			name: "tunnel app with only allowed parameters - should pass",
 			settings: map[string]interface{}{
-				"health_check_type":            "TCP",
-				"websocket_enabled":            true,
-				"is_ssl_verification_enabled":  "false",
-				"load_balancing_metric":        "round_robin",
-				"session_sticky":               true,
-				"acceleration":                 true,
-				"x_wapp_read_timeout":          "300",
-				"idle_conn_floor":              "10",
+				"health_check_type":           "TCP",
+				"websocket_enabled":           true,
+				"is_ssl_verification_enabled": "false",
+				"load_balancing_metric":       "round_robin",
+				"session_sticky":              true,
+				"acceleration":                true,
+				"x_wapp_read_timeout":         "300",
+				"idle_conn_floor":             "10",
 			},
 			expectError: false,
 		},
@@ -731,8 +731,8 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 			name: "tunnel app with CORS parameters - should fail",
 			settings: map[string]interface{}{
 				"health_check_type": "TCP",
-				"allow_cors":        true,                    //  CORS
-				"cors_origin_list":  "https://example.com",  //  CORS
+				"allow_cors":        true,                  //  CORS
+				"cors_origin_list":  "https://example.com", //  CORS
 			},
 			expectError: true,
 			errorMsg:    "CORS parameters",
@@ -741,7 +741,7 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 			name: "tunnel app with TLS Suite parameters - should fail",
 			settings: map[string]interface{}{
 				"health_check_type": "TCP",
-				"tls_suite_name":    "TLS-Suite-v3",  //  TLS Suite
+				"tls_suite_name":    "TLS-Suite-v3", //  TLS Suite
 			},
 			expectError: true,
 			errorMsg:    "TLS Suite parameters",
@@ -750,9 +750,9 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 			name: "tunnel app with miscellaneous parameters - should fail",
 			settings: map[string]interface{}{
 				"health_check_type":         "TCP",
-				"custom_headers":            []string{},     //  Miscellaneous
-				"hidden_app":                false,          //  Miscellaneous
-				"offload_onpremise_traffic": true,           //  Miscellaneous
+				"custom_headers":            []string{}, //  Miscellaneous
+				"hidden_app":                false,      //  Miscellaneous
+				"offload_onpremise_traffic": true,       //  Miscellaneous
 			},
 			expectError: true,
 			errorMsg:    "miscellaneous parameters",
@@ -760,8 +760,8 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 		{
 			name: "tunnel app with RDP parameters - should fail",
 			settings: map[string]interface{}{
-				"health_check_type":        "TCP",
-				"rdp_audio_redirection":    true,  //  RDP configuration
+				"health_check_type":         "TCP",
+				"rdp_audio_redirection":     true, //  RDP configuration
 				"rdp_clipboard_redirection": true, //  RDP configuration
 			},
 			expectError: true,
@@ -770,10 +770,10 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 		{
 			name: "tunnel app with mixed allowed and blocked parameters - should fail",
 			settings: map[string]interface{}{
-				"health_check_type": "TCP",                    //  Allowed
-				"websocket_enabled": true,                     //  Allowed
-				"login_url":         "https://example.com",   //  Blocked
-				"allow_cors":        true,                     //  Blocked
+				"health_check_type": "TCP",                 //  Allowed
+				"websocket_enabled": true,                  //  Allowed
+				"login_url":         "https://example.com", //  Blocked
+				"allow_cors":        true,                  //  Blocked
 			},
 			expectError: true,
 			errorMsg:    "authentication parameters",
@@ -783,7 +783,7 @@ func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTunnelAppAdvancedSettings(tt.settings, logger)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")

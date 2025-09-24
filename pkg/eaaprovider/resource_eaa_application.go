@@ -21,7 +21,6 @@ var (
 	ErrInvalidData = errors.New("invalid data in schema")
 )
 
-
 // validateAdvancedSettingsWithAppType validates advanced settings with app_type context
 func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.ResourceDiff, meta interface{}) error {
 	// Get client logger from meta
@@ -30,7 +29,7 @@ func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.Resou
 		return fmt.Errorf("failed to get client: %w", err)
 	}
 	logger := eaaclient.Logger
-	
+
 	// Get advanced_settings value
 	advancedSettings, ok := diff.GetOk("advanced_settings")
 	if !ok {
@@ -60,7 +59,7 @@ func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.Resou
 	} else {
 		// No app_type found - will be validated at schema level
 	}
-	
+
 	// Get app_profile
 	appProfile := ""
 	if ap, ok := diff.GetOk("app_profile"); ok {
@@ -69,7 +68,6 @@ func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.Resou
 		// No app_profile found - will be validated at schema level
 	}
 
-	
 	// Validate health check settings with app_type context (skip for tunnel apps)
 	if appType != "tunnel" {
 		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
@@ -82,7 +80,7 @@ func validateAdvancedSettingsWithAppType(ctx context.Context, diff *schema.Resou
 
 func resourceEaaApplication() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceEaaApplicationCreateWrapper,
+		CreateContext: resourceEaaApplicationCreateTwoPhase,
 		ReadContext:   resourceEaaApplicationRead,
 		UpdateContext: resourceEaaApplicationUpdate,
 		DeleteContext: resourceEaaApplicationDelete,
@@ -882,34 +880,39 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 
 	// Always set a new validation trigger to force CustomizeDiff to run
 	d.SetNew("_validation_trigger", "validation-trigger")
-	
+
 	err = validateAdvancedSettingsAtPlanTime(ctx, d, m)
-	
-	// Validate authentication methods for app type
-	if err == nil {
-		err = validateAuthenticationMethodsForAppTypeWithDiff(d)
+
+	// Validate authentication methods for app type (always run this validation)
+	authErr := validateAuthenticationMethodsForAppTypeWithDiff(d)
+	if authErr != nil {
+		return authErr
 	}
-	
+
+	// If advanced settings validation failed, return that error
+	if err != nil {
+		return err
+	}
+
 	// Note: SAML validation is handled by validateSAMLSettings in the schema
-	
+
 	// Validate WSFED nested blocks
 	if err == nil {
 		err = validateWSFEDNestedBlocks(ctx, d, m, logger)
 	}
-	
+
 	// Validate SAML nested blocks
 	if err == nil {
 		err = validateSAMLNestedBlocks(ctx, d, m, logger)
 	}
-	
+
 	// Validate OIDC nested blocks
 	if err == nil {
 		err = validateOIDCNestedBlocks(ctx, d, m, logger)
 	}
-	
+
 	return err
 }
-
 
 // validateAdvancedSettingsAtPlanTime validates advanced settings during terraform plan
 func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.ResourceDiff, m interface{}) error {
@@ -919,24 +922,23 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 		return fmt.Errorf("failed to get client: %w", err)
 	}
 	logger := eaaclient.Logger
-	
+
 	// Get app_type, app_profile, and client_app_mode from the diff
 	appType, ok := diff.Get("app_type").(string)
 	if !ok {
 		return client.ErrAppTypeRequired
 	}
-	
+
 	appProfile, ok := diff.Get("app_profile").(string)
 	if !ok {
 		return client.ErrAppProfileRequired
 	}
-	
+
 	clientAppMode, ok := diff.Get("client_app_mode").(string)
 	if !ok {
 		clientAppMode = "" // Default to empty if not provided
 	}
-	
-	
+
 	// For bookmark and saas, advanced_settings should not be allowed at all
 	// These app types should use resource-level configuration instead
 	if appType == "bookmark" || appType == "saas" {
@@ -946,178 +948,114 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 		}
 		return nil
 	}
-	
+
 	// Get advanced_settings from the diff
 	advancedSettingsStr, ok := diff.Get("advanced_settings").(string)
 	if !ok || advancedSettingsStr == "" || advancedSettingsStr == "{}" {
 		// No advanced settings to validate
 		return nil
 	}
-	
+
 	// Parse the JSON
 	var settings map[string]interface{}
 	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
 		return client.ErrAdvancedSettingsInvalidJSONFormat
 	}
-	
-	
-	// Validate app_auth if present
-	if appAuth, exists := settings["app_auth"]; exists {
-		if appAuthStr, ok := appAuth.(string); ok {
-			if err := validateAppAuthForTypeAndProfile(appAuthStr, appType, appProfile); err != nil {
-				return err
-			}
-		}
+
+	// STEP 1: Use generic validation system to validate all fields
+	logger.Debug("Running generic validation for advanced settings")
+	if err := ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger); err != nil {
+		logger.Error("Generic validation failed: %v", err)
+		return err
 	}
-	
-	// Validate wapp_auth if present
-	if wappAuth, exists := settings["wapp_auth"]; exists {
-		if wappAuthStr, ok := wappAuth.(string); ok {
-			if err := validateWappAuthValue(wappAuthStr); err != nil {
-				return err
-			}
-		}
-	}
-	
-	// Validate wapp_auth field conflicts - prevent mixing User-facing authentication mechanism fields
-	if err := validateWappAuthFieldConflicts(settings); err != nil {
-		return client.ErrWappAuthConflictsValidationFailed
-	}
-	
-	// Validate TLS Suite configuration restrictions
-	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
-		return client.ErrTLSSuiteRestrictionsValidationFailed
-	}
-	
+	logger.Debug("Generic validation passed")
+
+	// STEP 2: API-dependent validations (cannot be handled by generic system)
 	// Validate TLS custom suite name when tlsSuiteType = 2 (CUSTOM)
 	// Fetch valid cipher suites from API response
 	cipherSuites, err := getValidCipherSuitesFromAPI(m)
 	if err != nil {
 		// If API call fails, skip TLS validation with a warning
 		// This prevents validation from blocking when API is unavailable
-		return nil
-	}
-	if err := validateTLSCustomSuiteName(settings, cipherSuites); err != nil {
-		return client.ErrTLSCustomSuiteNameValidationFailed
-	}
-	
-	// Validate health check configuration (skip for tunnel apps)
-	logger.Debug("Checking app_type for health check validation: %s", appType)
-	if appType != "tunnel" {
-		logger.Debug("Validating health check for app_type: %s", appType)
-		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
-			return client.ErrHealthCheckValidationFailed
-		}
+		logger.Warn("Failed to fetch TLS cipher suites from API, skipping TLS custom suite validation: %v", err)
 	} else {
-		logger.Debug("SUCCESS: Skipping health check validation for tunnel app")
-	}
-	
-	// For tunnel apps, use specialized validation that only allows specific parameter categories
-	if appType == "tunnel" {
-		if err := validateTunnelAppAdvancedSettings(settings, logger); err != nil {
-			return err
-		}
-	} else {
-		// For non-tunnel apps, use the standard validation
-		// Validate server load balancing configuration
-		if err := validateServerLoadBalancingConfiguration(settings, appType, appProfile, logger); err != nil {
-			return client.ErrServerLoadBalancingValidationFailed
-		}
-		
-		// Validate enterprise connectivity parameters
-		if err := validateEnterpriseConnectivityParameters(settings, appType, clientAppMode, logger); err != nil {
-			return err
-		}
-		
-		// Validate miscellaneous parameters
-		if err := validateMiscellaneousParameters(settings, appType, appProfile, clientAppMode, logger); err != nil {
-			return err
+		if err := validateTLSCustomSuiteName(settings, cipherSuites); err != nil {
+			return client.ErrTLSCustomSuiteNameValidationFailed
 		}
 	}
-	
-	// Validate RDP configuration parameters
-	if err := validateRDPConfiguration(settings, appType, appProfile, logger); err != nil {
-		return err
-	}
-	
-	// Validate tunnel client parameters (EAA Client Parameters - Tunnel Apps Only)
-	if err := validateTunnelClientParameters(settings, appType, clientAppMode, logger); err != nil {
-		return client.ErrTunnelClientParametersValidationFailed
-	}
-	
-	// Validate custom headers configuration
+
+	// Validate custom headers configuration (complex custom logic)
 	if err := validateCustomHeadersConfiguration(settings, appType, logger); err != nil {
 		return client.ErrCustomHeadersValidationFailed
 	}
-	
-	// Validate miscellaneous configuration
+
+	// Validate miscellaneous configuration (complex custom logic)
 	if err := validateMiscellaneousConfiguration(settings, appType, appProfile, logger); err != nil {
 		return client.ErrMiscellaneousValidationFailed
 	}
-	
+
 	return nil
 }
 
 // Wrapper function that handles cleanup on failure
 func resourceEaaApplicationCreateWrapper(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-    // Step 1: Call the original create function
-    diags := resourceEaaApplicationCreate(ctx, d, m)
-    
-    // Step 2: Check if creation was successful
-    if len(diags) == 0 {
-        // Success - nothing to do
-        return diags
-    }
-    
-    // Step 3: Check if we have any errors
-    hasError := false
-    for _, diagnostic := range diags {
-        if diagnostic.Severity == diag.Error {
-            hasError = true
-            break
-        }
-    }
-    
-    if !hasError {
-        // Only warnings, no errors - return as is
-        return diags
-    }
-    
-    // Step 4: We have errors - check if app was created
-    appID := d.Id()
-    if appID == "" {
-        // No ID set, original function failed early - return original error
-        return diags
-    }
-    
-    // Step 5: App was created but something failed later
-    // This is our problem case - clean up the orphaned app
-    eaaclient := m.(*client.EaaClient)
-    logger := eaaclient.Logger
-    
-    logger.Warn("App creation failed but app exists in EAA, cleaning up...")
-    
-    // Clean up the orphaned app
-    cleanupSuccess := cleanupOrphanedApp(ctx, eaaclient, appID)
-    
-    // Clear the state
-    d.SetId("")
-    
-    if cleanupSuccess {
-        logger.Info("Successfully cleaned up orphaned app:", appID)
-    } else {
-        logger.Error("Failed to clean up orphaned app:", appID)
-        // Add a warning about manual cleanup needed
-        diags = append(diags, diag.Diagnostic{
-            Severity: diag.Warning,
-            Summary:  "App creation failed and cleanup was incomplete",
-            Detail:   client.ErrAppCleanupIncomplete.Error(),
-        })
-    }
-    
-    // Return the original error
-    return diags
+	// Step 1: Call the original create function
+	diags := resourceEaaApplicationCreate(ctx, d, m)
+
+	// Step 2: Check if creation was successful
+	if len(diags) == 0 {
+		// Success - nothing to do
+		return diags
+	}
+
+	// Step 3: Check if we have any errors
+	hasError := false
+	for _, diagnostic := range diags {
+		if diagnostic.Severity == diag.Error {
+			hasError = true
+			break
+		}
+	}
+
+	if !hasError {
+		// Only warnings, no errors - return as is
+		return diags
+	}
+
+	// Step 4: We have errors - check if app was created
+	appID := d.Id()
+	if appID == "" {
+		// No ID set, original function failed early - return original error
+		return diags
+	}
+
+	// Step 5: App was created but something failed later
+	// This is our problem case - clean up the orphaned app
+	eaaclient := m.(*client.EaaClient)
+	logger := eaaclient.Logger
+
+	logger.Warn("App creation failed but app exists in EAA, cleaning up...")
+
+	// Clean up the orphaned app
+	cleanupSuccess := cleanupOrphanedApp(ctx, eaaclient, appID)
+
+	// Clear the state
+	d.SetId("")
+
+	if cleanupSuccess {
+		logger.Info("Successfully cleaned up orphaned app:", appID)
+	} else {
+		logger.Error("Failed to clean up orphaned app:", appID)
+		// Add a warning about manual cleanup needed
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "App creation failed and cleanup was incomplete",
+			Detail:   client.ErrAppCleanupIncomplete.Error(),
+		})
+	}
+
+	// Return the original error
+	return diags
 }
 
 // getValidCipherSuitesFromAPI fetches valid TLS cipher suites from the API
@@ -1127,59 +1065,153 @@ func getValidCipherSuitesFromAPI(meta interface{}) ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
-	
+
 	// For validation purposes, we need a dummy app UUID URL
 	// In practice, this should be the actual app UUID URL being validated
 	// For now, we'll use a placeholder that works with the API
 	dummyAppUUID := "dummy-app-uuid-for-validation"
-	
+
 	tlsResponse, err := client.GetTLSCipherSuites(eaaclient, dummyAppUUID)
 	if err != nil {
 		// Return empty slice instead of error to prevent validation blocking
 		return []string{}, nil
 	}
-	
+
 	// Extract cipher suite names from API response
 	cipherSuites := make([]string, 0, len(tlsResponse.TLSCipherSuite))
 	for name := range tlsResponse.TLSCipherSuite {
 		cipherSuites = append(cipherSuites, name)
 	}
-	
+
 	return cipherSuites, nil
 }
 
 // Cleanup function for orphaned apps
 func cleanupOrphanedApp(ctx context.Context, eaaclient *client.EaaClient, appID string) bool {
-    logger := eaaclient.Logger
-    logger.Debug("Starting cleanup for orphaned app:", appID)
-    
-    // Check if app exists in EAA
-    var appResp client.ApplicationDataModel
-    apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, appID)
-    
-    getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
-    if err != nil || getResp.StatusCode != 200 {
-        logger.Debug("App not found in EAA, no cleanup needed")
-        return true
-    }
-    
-    logger.Debug("App found in EAA, proceeding with deletion...")
-    
-    // Delete the app directly
-    deleteErr := appResp.DeleteApplication(eaaclient)
-    if deleteErr != nil {
-        logger.Error("Failed to delete app during cleanup:", deleteErr)
-        return false
-    }
+	logger := eaaclient.Logger
+	logger.Debug("Starting cleanup for orphaned app:", appID)
 
-    verifyResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
-    if err == nil && verifyResp.StatusCode == 200 {
-        logger.Error("App still exists after deletion attempt")
-        return false
-    }
-    
-    logger.Debug("App successfully deleted and verified")
-    return true
+	// Check if app exists in EAA
+	var appResp client.ApplicationDataModel
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, appID)
+
+	getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	if err != nil || getResp.StatusCode != 200 {
+		logger.Debug("App not found in EAA, no cleanup needed")
+		return true
+	}
+
+	logger.Debug("App found in EAA, proceeding with deletion...")
+
+	// Delete the app directly
+	deleteErr := appResp.DeleteApplication(eaaclient)
+	if deleteErr != nil {
+		logger.Error("Failed to delete app during cleanup:", deleteErr)
+		return false
+	}
+
+	verifyResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	if err == nil && verifyResp.StatusCode == 200 {
+		logger.Error("App still exists after deletion attempt")
+		return false
+	}
+
+	logger.Debug("App successfully deleted and verified")
+	return true
+}
+
+// resourceEaaApplicationCreateTwoPhase implements the two-phase application creation approach
+// Phase 1: Create app with minimal required fields
+// Phase 2: Configure additional settings (agents, authentication, advanced settings, deployment)
+func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	eaaclient, err := Client(m)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	logger := eaaclient.Logger
+
+	logger.Info("Starting two-phase application creation")
+
+	var app_uuid_url string
+	var phase2Steps []func() error
+
+	// ========================================
+	// PHASE 1: Create minimal application
+	// ========================================
+	logger.Info("Phase 1: Creating minimal application")
+
+	minimalRequest := client.MinimalCreateAppRequest{}
+	err = minimalRequest.CreateMinimalAppRequestFromSchema(ctx, d, eaaclient)
+	if err != nil {
+		logger.Error("Phase 1 failed: create minimal app request failed. err ", err)
+		return diag.FromErr(err)
+	}
+
+	appResp, err := minimalRequest.CreateMinimalApplication(ctx, eaaclient)
+	if err != nil {
+		logger.Error("Phase 1 failed: create minimal application failed. err ", err)
+		return diag.FromErr(err)
+	}
+
+	app_uuid_url = appResp.UUIDURL
+	logger.Info("Phase 1 succeeded: Application created with ID:", app_uuid_url)
+
+	// Set the resource ID early so cleanup can work if later steps fail
+	d.SetId(app_uuid_url)
+
+	// ========================================
+	// PHASE 2: Configure additional settings
+	// ========================================
+	logger.Info("Phase 2: Configuring additional settings")
+
+	// Prepare Phase 2 steps for potential rollback
+	phase2Steps = []func() error{
+		func() error {
+			logger.Debug("Phase 2: Configuring agents...")
+			return client.ConfigureAgents(ctx, app_uuid_url, d, eaaclient)
+		},
+		func() error {
+			logger.Debug("Phase 2: Configuring authentication...")
+			return client.ConfigureAuthentication(ctx, app_uuid_url, d, eaaclient)
+		},
+		func() error {
+			logger.Debug("Phase 2: Configuring advanced settings...")
+			return client.ConfigureAdvancedSettings(ctx, app_uuid_url, d, eaaclient)
+		},
+		func() error {
+			logger.Debug("Phase 2: Deploying application...")
+			return client.DeployExistingApplication(ctx, app_uuid_url, eaaclient)
+		},
+	}
+
+	// Execute Phase 2 steps with error handling
+	for i, step := range phase2Steps {
+		if err := step(); err != nil {
+			logger.Error("Phase 2 failed at step %d: %v", i+1, err)
+
+			// Clean up the created application
+			logger.Warn("Cleaning up created application due to Phase 2 failure...")
+			if !cleanupOrphanedApp(ctx, eaaclient, app_uuid_url) {
+				logger.Error("Failed to clean up orphaned app")
+				// Add a warning about manual cleanup needed
+				return append(diag.FromErr(err), diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Application creation failed and cleanup failed",
+					Detail:   fmt.Sprintf("Application %s was created but configuration failed. Manual cleanup may be required.", app_uuid_url),
+				})
+			}
+
+			// Clear the state
+			d.SetId("")
+			return diag.FromErr(err)
+		}
+		logger.Debug("Phase 2 step %d completed successfully", i+1)
+	}
+
+	logger.Info("Two-phase application creation completed successfully")
+
+	// Return the read result
+	return resourceEaaApplicationRead(ctx, d, m)
 }
 
 // resourceEaaApplicationCreate function is responsible for creating a new EAA application.
@@ -1194,7 +1226,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 	logger := eaaclient.Logger
 
-    // Advanced settings validation is now handled at plan time via CustomizeDiff
+	// Advanced settings validation is now handled at plan time via CustomizeDiff
 
 	createRequest := client.CreateAppRequest{}
 	err = createRequest.CreateAppRequestFromSchema(ctx, d, eaaclient)
@@ -1212,7 +1244,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 	app_uuid_url := appResp.UUIDURL
 	app := client.Application{}
 	app.FromResponse(appResp)
-	
+
 	// Set the resource ID early so cleanup can work if later steps fail
 	d.SetId(app_uuid_url)
 
@@ -1269,7 +1301,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 					logger.Debug("app.Name: ", app.Name, "app_idp_name: ", app_idp_name, "idpData.UUIDURL: ", idpData.UUIDURL)
 
 					logger.Debug("Assigning IDP to application")
-					
+
 					appIdp := client.AppIdp{
 						App: app_uuid_url,
 						IDP: idpData.UUIDURL,
@@ -1297,19 +1329,19 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 	}
-	
+
 	// Verify IDP assignment is complete before proceeding
 	if auth_enabled == "true" {
 		logger.Debug("Starting IDP assignment verification")
 		logger.Debug("auth_enabled", "value", auth_enabled)
 		logger.Debug("app_uuid_url", "value", app_uuid_url)
-		
+
 		logger.Debug("Waiting 30 seconds for IDP assignment to propagate...")
-		
+
 		// Verify the application has the correct authentication settings
 		apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, app_uuid_url)
 		logger.Debug("Fetching application details", "url", apiURL)
-		
+
 		var appResp client.ApplicationResponse
 		getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
 		if err != nil {
@@ -1320,13 +1352,11 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 			logger.Error("Failed to verify authentication settings - bad status code", "status_code", getResp.StatusCode)
 			return diag.FromErr(client.ErrAuthSettingsVerificationFailed)
 		}
-		
-		
-		
+
 		// Check if the application has authentication enabled
 		if appResp.AuthEnabled != "true" {
 			logger.Debug("Authentication not yet enabled, waiting additional 30 seconds...")
-			
+
 			// Check again after additional wait
 			_, err = eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
 			if err != nil {
@@ -1337,10 +1367,10 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		} else {
 			logger.Debug("Authentication is properly enabled!")
 		}
-		
+
 		logger.Debug("IDP assignment verification complete")
 	}
-	
+
 	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
 	logger.Debug("Performing PUT call after IDP assignment")
 	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
@@ -1349,7 +1379,7 @@ func resourceEaaApplicationCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 	logger.Debug("PUT call completed successfully")
-	
+
 	_, ok := d.Get("service").([]interface{})
 	if ok {
 		aclSrv, err := client.ExtractACLService(ctx, d, eaaclient)
@@ -1473,16 +1503,16 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	} else {
 		attrs["app_category"] = ""
 	}
-	
+
 	// Always set cert, even if empty, to avoid null in state
 	if appResp.Cert != nil {
 		attrs["cert"] = *appResp.Cert
 	} else {
 		attrs["cert"] = ""
 	}
-	
+
 	attrs["uuid_url"] = appResp.UUIDURL
-	
+
 	// Add more fields to populate null values
 	// Note: ssl_ca_cert is not in the schema, so we can't set it
 
@@ -1731,12 +1761,12 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	// Set SAML settings in state as nested blocks
 	// Always set saml_settings to ensure it appears in state (empty array if no settings)
 	var samlSettings []map[string]interface{}
-	
+
 	if len(appResp.SAMLSettings) > 0 {
 		// Convert SAML settings to nested block structure
 		for _, samlConfig := range appResp.SAMLSettings {
 			samlBlock := make(map[string]interface{})
-			
+
 			// Convert SP block (only fields that exist in schema)
 			spBlock := make(map[string]interface{})
 			spBlock["entity_id"] = samlConfig.SP.EntityID
@@ -1747,7 +1777,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 			spBlock["encr_algo"] = samlConfig.SP.EncrAlgo
 			// Note: Other fields like force_auth, req_verify, sign_cert, etc. don't exist in SP schema
 			samlBlock["sp"] = []map[string]interface{}{spBlock}
-			
+
 			// Convert IDP block (only fields that exist in schema)
 			idpBlock := make(map[string]interface{})
 			idpBlock["entity_id"] = samlConfig.IDP.EntityID
@@ -1759,14 +1789,14 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 			idpBlock["self_signed"] = samlConfig.IDP.SelfSigned
 			// Note: Other fields like metadata, resp_bind, slo_url, etc. don't exist in IDP schema
 			samlBlock["idp"] = []map[string]interface{}{idpBlock}
-			
+
 			// Convert Subject block
 			subjectBlock := make(map[string]interface{})
 			subjectBlock["fmt"] = samlConfig.Subject.Fmt
 			subjectBlock["src"] = samlConfig.Subject.Src
 			// Note: val and rule fields don't exist in SAML subject schema
 			samlBlock["subject"] = []map[string]interface{}{subjectBlock}
-			
+
 			// Convert Attrmap blocks
 			var attrmapBlocks []map[string]interface{}
 			for _, attr := range samlConfig.Attrmap {
@@ -1776,11 +1806,11 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				attrmapBlocks = append(attrmapBlocks, attrmapBlock)
 			}
 			samlBlock["attrmap"] = attrmapBlocks
-			
+
 			samlSettings = append(samlSettings, samlBlock)
 		}
 	}
-	
+
 	// Always set saml_settings (empty array if no settings)
 	err = d.Set("saml_settings", samlSettings)
 	if err != nil {
@@ -1790,15 +1820,15 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	// Set WS-Federation settings in state as nested blocks
 	// Always set wsfed_settings to ensure it appears in state (empty array if no settings)
 	var wsfedSettings []map[string]interface{}
-	
+
 	if len(appResp.WSFEDSettings) > 0 {
 		// Convert WS-Federation settings to nested block structure
 		for _, wsfedConfig := range appResp.WSFEDSettings {
 			wsfedBlock := make(map[string]interface{})
-			
+
 			// SP block
 			if wsfedConfig.SP.EntityID != "" || wsfedConfig.SP.SLOURL != "" || wsfedConfig.SP.DSTURL != "" ||
-			   wsfedConfig.SP.RespBind != "" || wsfedConfig.SP.TokenLife != 0 || wsfedConfig.SP.EncrAlgo != "" {
+				wsfedConfig.SP.RespBind != "" || wsfedConfig.SP.TokenLife != 0 || wsfedConfig.SP.EncrAlgo != "" {
 				spBlock := map[string]interface{}{
 					"entity_id":  wsfedConfig.SP.EntityID,
 					"slo_url":    wsfedConfig.SP.SLOURL,
@@ -1809,10 +1839,10 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				}
 				wsfedBlock["sp"] = []map[string]interface{}{spBlock}
 			}
-			
+
 			// IDP block
 			if wsfedConfig.IDP.EntityID != "" || wsfedConfig.IDP.SignAlgo != "" || wsfedConfig.IDP.SignCert != "" ||
-			   wsfedConfig.IDP.SignKey != "" || wsfedConfig.IDP.SelfSigned {
+				wsfedConfig.IDP.SignKey != "" || wsfedConfig.IDP.SelfSigned {
 				idpBlock := map[string]interface{}{
 					"entity_id":   wsfedConfig.IDP.EntityID,
 					"sign_algo":   wsfedConfig.IDP.SignAlgo,
@@ -1822,10 +1852,10 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				}
 				wsfedBlock["idp"] = []map[string]interface{}{idpBlock}
 			}
-			
+
 			// Subject block
 			if wsfedConfig.Subject.Fmt != "" || wsfedConfig.Subject.CustomFmt != "" || wsfedConfig.Subject.Src != "" ||
-			   wsfedConfig.Subject.Val != "" || wsfedConfig.Subject.Rule != "" {
+				wsfedConfig.Subject.Val != "" || wsfedConfig.Subject.Rule != "" {
 				subjectBlock := map[string]interface{}{
 					"fmt":        wsfedConfig.Subject.Fmt,
 					"custom_fmt": wsfedConfig.Subject.CustomFmt,
@@ -1835,7 +1865,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				}
 				wsfedBlock["subject"] = []map[string]interface{}{subjectBlock}
 			}
-			
+
 			// Attrmap block
 			if len(wsfedConfig.Attrmap) > 0 {
 				attrmapBlocks := make([]map[string]interface{}, len(wsfedConfig.Attrmap))
@@ -1851,11 +1881,11 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				}
 				wsfedBlock["attrmap"] = attrmapBlocks
 			}
-			
+
 			wsfedSettings = append(wsfedSettings, wsfedBlock)
 		}
 	}
-	
+
 	// Always set wsfed_settings (empty array if no settings)
 	err = d.Set("wsfed_settings", wsfedSettings)
 	if err != nil {
@@ -1866,7 +1896,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	var oidcSettings []map[string]interface{}
 	if appResp.OIDCSettings != nil {
 		oidcBlock := make(map[string]interface{})
-		
+
 		// Convert OIDC endpoints (if they exist in the schema)
 		if appResp.OIDCSettings.AuthorizationEndpoint != "" {
 			oidcBlock["authorization_endpoint"] = appResp.OIDCSettings.AuthorizationEndpoint
@@ -1895,7 +1925,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		if appResp.OIDCSettings.OpenIDMetadata != "" {
 			oidcBlock["openid_metadata"] = appResp.OIDCSettings.OpenIDMetadata
 		}
-		
+
 		// Convert OIDC clients
 		if len(appResp.OIDCClients) > 0 {
 			var oidcClients []map[string]interface{}
@@ -1908,7 +1938,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 				clientBlock["type"] = client.Type
 				clientBlock["redirect_uris"] = client.RedirectURIs
 				clientBlock["javascript_origins"] = client.JavaScriptOrigins
-				
+
 				// Convert claims
 				var claims []map[string]interface{}
 				for _, claim := range client.Claims {
@@ -1921,15 +1951,15 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 					claims = append(claims, claimBlock)
 				}
 				clientBlock["claims"] = claims
-				
+
 				oidcClients = append(oidcClients, clientBlock)
 			}
 			oidcBlock["oidc_clients"] = oidcClients
 		}
-		
+
 		oidcSettings = append(oidcSettings, oidcBlock)
 	}
-	
+
 	err = d.Set("oidc_settings", oidcSettings)
 	if err != nil {
 		return diag.FromErr(err)
@@ -1946,9 +1976,9 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	// Set the resource ID
 	id := d.Id()
 	eaaclient := m.(*client.EaaClient)
-	
-    // Advanced settings validation is now handled at plan time via CustomizeDiff
-	
+
+	// Advanced settings validation is now handled at plan time via CustomizeDiff
+
 	var appResp client.Application
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
@@ -2054,7 +2084,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 						eaaclient.Logger.Debug("Assigning IDP to application in UPDATE")
 						eaaclient.Logger.Debug("app_uuid_url", "value", app_uuid_url)
 						eaaclient.Logger.Debug("idpData.UUIDURL", "value", idpData.UUIDURL)
-						
+
 						appIdp := client.AppIdp{
 							App: app_uuid_url,
 							IDP: idpData.UUIDURL,
@@ -2078,7 +2108,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 						} else {
 							eaaclient.Logger.Debug("No app_directories found in UPDATE, skipping directory assignment")
 						}
-						
+
 						eaaclient.Logger.Debug("IDP assignment complete in UPDATE flow")
 					}
 				}
@@ -2155,7 +2185,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 	}
-	
+
 	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
 	eaaclient.Logger.Debug("Performing PUT call after IDP assignment in UPDATE flow")
 	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
@@ -2205,7 +2235,6 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 	return nil
 }
 
-
 // convertStringToInt converts string to int, returns 0 if conversion fails
 func convertStringToInt(value string) int {
 	if value == "" {
@@ -2230,7 +2259,7 @@ func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string,
 	// This function will be called from the resource validation context
 	// We need to get the resource data to check app_type and app_profile
 	// For now, we'll do basic validation and the detailed validation will be done in the resource
-	
+
 	value, ok := v.(string)
 	if !ok {
 		errors = append(errors, client.ErrExpectedString)
@@ -2239,7 +2268,7 @@ func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string,
 
 	// Basic validation - detailed validation will be done in the resource
 	validValues := []string{"none", "SAML2.0", "oidc", "OpenID Connect 1.0", "wsfed", "WS-Federation", "kerberos", "basic", "NTLMv1", "NTLMv2"}
-	
+
 	isValid := false
 	for _, validValue := range validValues {
 		if value == validValue {
@@ -2260,22 +2289,17 @@ func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string,
 func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error {
 	// Create a null logger for schema validation (this function doesn't have access to meta)
 	logger := hclog.NewNullLogger()
-	
-	// Get app_type, app_profile, and client_app_mode first
+
+	// Get app_type and app_profile first
 	appType := ""
 	appProfile := ""
-	clientAppMode := ""
-	
+
 	if at, ok := d.GetOk("app_type"); ok {
 		appType = at.(string)
 	}
-	
+
 	if ap, ok := d.GetOk("app_profile"); ok {
 		appProfile = ap.(string)
-	}
-	
-	if cam, ok := d.GetOk("client_app_mode"); ok {
-		clientAppMode = cam.(string)
 	}
 
 	// For bookmark and saas, advanced_settings should not be allowed at all
@@ -2327,46 +2351,33 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 		logger.Debug("Validating health check for app_type: %s", appType)
 		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
 			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
-			return client.ErrHealthCheckValidationFailed
+			return err // Return the specific error instead of generic one
 		}
 	} else {
 		logger.Debug("Skipping health check validation for tunnel app")
 	}
-	
+
 	// Validate server load balancing settings if present
 	if err := validateServerLoadBalancingConfiguration(settings, appType, appProfile, logger); err != nil {
 		return client.ErrServerLoadBalancingValidationFailed
 	}
-	
-	// Validate enterprise connectivity parameters if present
-	if err := validateEnterpriseConnectivityParameters(settings, appType, clientAppMode, logger); err != nil {
-		return err
+
+	// Validate related applications settings if present
+	if err := validateRelatedApplications(settings, appType, appProfile, logger); err != nil {
+		return client.ErrRelatedApplicationsNotSupportedForProfile
 	}
-	
-	// Validate miscellaneous parameters if present
-	if err := validateMiscellaneousParameters(settings, appType, appProfile, clientAppMode, logger); err != nil {
-		return err
-	}
-	
-	// Validate RDP configuration parameters if present
-	if err := validateRDPConfiguration(settings, appType, appProfile, logger); err != nil {
-		return err
-	}
-	
-	// Validate tunnel client parameters (EAA Client Parameters - Tunnel Apps Only)
-	if err := validateTunnelClientParameters(settings, appType, clientAppMode, logger); err != nil {
-		return client.ErrTunnelClientParametersValidationFailed
-	}
-	
+
+	// Note: Enterprise connectivity, miscellaneous parameters, RDP configuration, and tunnel client parameters
+	// are now validated by the comprehensive generic validation system in ValidateAdvancedSettings()
+
 	// Validate TLS Suite configuration restrictions
 	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
 		return client.ErrTLSSuiteRestrictionsValidationFailed
 	}
-	
+
 	// Note: TLS custom suite name validation is skipped in schema validation
 	// as this function doesn't have access to the client/meta for API calls
 	// This validation is performed in plan-time validation instead
-	
 
 	return nil
 }
@@ -2377,26 +2388,26 @@ func validateAppAuthForTypeAndProfile(appAuth, appType, appProfile string) error
 	if err := validateAppAuthValue(appAuth); err != nil {
 		return err
 	}
-	
+
 	// Apply validation rules based on the requirements
 	switch {
 	case appType == "enterprise" && appProfile == "ssh":
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseSSH
-		
+
 	case appType == "saas":
 		// app_auth should not be present in advanced_settings for SaaS apps
 		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
 		return client.ErrAppAuthNotAllowedForSaaS
-		
+
 	case appType == "bookmark":
 		// app_auth should not be present in advanced_settings - it's set at resource level
 		return client.ErrAppAuthNotAllowedForBookmark
-		
+
 	case appType == "tunnel":
 		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
 		return client.ErrAppAuthNotAllowedForTunnel
-		
+
 	case appType == "enterprise" && appProfile == "vnc":
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseVNC
@@ -2412,25 +2423,43 @@ func validateAuthenticationMethodsForAppType(d *schema.ResourceData) error {
 	if at, ok := d.GetOk("app_type"); ok {
 		appType = at.(string)
 	}
-	
+
 	// Check if tunnel app is trying to use advanced authentication methods
 	if appType == "tunnel" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
 			return fmt.Errorf("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
-		
+
 		// Check if OIDC is enabled
 		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
 			return fmt.Errorf("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
-		
+
 		// Check if WSFED is enabled
 		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
 			return fmt.Errorf("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
 	}
-	
+
+	// Check if bookmark app is trying to use advanced authentication methods
+	if appType == "bookmark" {
+		// Check if SAML is enabled
+		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
+			return fmt.Errorf("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+
+		// Check if OIDC is enabled
+		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
+			return fmt.Errorf("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+
+		// Check if WSFED is enabled
+		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
+			return fmt.Errorf("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+	}
+
 	return nil
 }
 
@@ -2442,11 +2471,15 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 		appType = at.(string)
 	}
 
+	// Debug logging
+	fmt.Printf("DEBUG: validateAuthenticationMethodsForAppTypeWithDiff called for app_type=%s\n", appType)
+
 	// Check if tunnel app is trying to use advanced authentication methods
 	if appType == "tunnel" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok {
 			if samlBool, ok := saml.(bool); ok && samlBool {
+				fmt.Printf("DEBUG: Tunnel app with SAML detected, returning error\n")
 				return client.ErrTunnelAppSAMLNotAllowed
 			}
 		}
@@ -2466,13 +2499,37 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 		}
 	}
 
+	// Check if bookmark app is trying to use advanced authentication methods
+	if appType == "bookmark" {
+		// Check if SAML is enabled
+		if saml, ok := d.GetOk("saml"); ok {
+			if samlBool, ok := saml.(bool); ok && samlBool {
+				return client.ErrBookmarkAppSAMLNotAllowed
+			}
+		}
+
+		// Check if OIDC is enabled
+		if oidc, ok := d.GetOk("oidc"); ok {
+			if oidcBool, ok := oidc.(bool); ok && oidcBool {
+				return client.ErrBookmarkAppOIDCNotAllowed
+			}
+		}
+
+		// Check if WSFED is enabled
+		if wsfed, ok := d.GetOk("wsfed"); ok {
+			if wsfedBool, ok := wsfed.(bool); ok && wsfedBool {
+				return client.ErrBookmarkAppWSFEDNotAllowed
+			}
+		}
+	}
+
 	return nil
 }
 
 // validateTunnelAppAdvancedSettings validates that tunnel apps only use allowed parameter categories
 func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger hclog.Logger) error {
 	logger.Debug("validateTunnelAppAdvancedSettings called for tunnel app")
-	
+
 	// Define allowed parameter categories for tunnel apps
 	allowedCategories := map[string][]string{
 		// Server Load Balancing Parameters
@@ -2487,7 +2544,7 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 		// Enterprise Connectivity Parameters
 		"enterprise_connectivity": {
 			"idle_conn_floor",
-			"idle_conn_ceil", 
+			"idle_conn_ceil",
 			"idle_conn_step",
 			"max_conn_floor",
 			"max_conn_ceil",
@@ -2522,7 +2579,7 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 			"wildcard_internal_hostname",
 		},
 	}
-	
+
 	// Create a map of all allowed fields
 	allowedFields := make(map[string]bool)
 	for _, fields := range allowedCategories {
@@ -2530,7 +2587,7 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 			allowedFields[field] = true
 		}
 	}
-	
+
 	// Check each field in the settings
 	var blockedFields []string
 	for fieldName := range settings {
@@ -2548,11 +2605,11 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 			} else if isRDPField(fieldName) {
 				category = "RDP configuration"
 			}
-			
+
 			blockedFields = append(blockedFields, fmt.Sprintf("'%s' (%s parameters)", fieldName, category))
 		}
 	}
-	
+
 	// If there are blocked fields, return an error
 	if len(blockedFields) > 0 {
 		errorMsg := fmt.Sprintf("Tunnel apps only support Server Load Balancing, Enterprise Connectivity, Tunnel Client Parameters, Health Check, and Basic Configuration parameters. The following fields are not allowed: %s",
@@ -2560,7 +2617,7 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 		logger.Error("Blocked fields detected for tunnel app: %s", errorMsg)
 		return fmt.Errorf(errorMsg)
 	}
-	
+
 	logger.Debug("All fields in tunnel app advanced_settings are allowed")
 	return nil
 }
@@ -2646,49 +2703,67 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 	if err := validateAppAuthValue(appAuth); err != nil {
 		return err
 	}
-	
+
 	// Get app_type for tunnel app validation
 	appType := ""
 	if at, ok := d.GetOk("app_type"); ok {
 		appType = at.(string)
 	}
-	
+
 	// Check if tunnel app is trying to use advanced authentication methods
 	if appType == "tunnel" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
 			return fmt.Errorf("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
-		
+
 		// Check if OIDC is enabled
 		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
 			return fmt.Errorf("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
-		
+
 		// Check if WSFED is enabled
 		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
 			return fmt.Errorf("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
 	}
-	
+
+	// Check if bookmark app is trying to use advanced authentication methods
+	if appType == "bookmark" {
+		// Check if SAML is enabled
+		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
+			return fmt.Errorf("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+
+		// Check if OIDC is enabled
+		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
+			return fmt.Errorf("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+
+		// Check if WSFED is enabled
+		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
+			return fmt.Errorf("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+		}
+	}
+
 	// Check for SAML/OIDC/WSFED conflicts - when these are enabled, app_auth must be "none"
 	if appAuth != "none" {
 		// Check if SAML is enabled
 		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
 			return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
 		}
-		
+
 		// Check if OIDC is enabled
 		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
 			return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
 		}
-		
+
 		// Check if WSFED is enabled
 		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
 			return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
 		}
 	}
-	
+
 	// Additional validation: specific conflicts with SAML
 	if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
 		// When SAML is enabled, app_auth cannot be kerberos, NTLMv1, or NTLMv2
@@ -2699,37 +2774,37 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 			}
 		}
 	}
-	
+
 	// Get app_profile for additional validation
 	appProfile := ""
-	
+
 	if at, ok := d.GetOk("app_type"); ok {
 		appType = at.(string)
 	}
-	
+
 	if ap, ok := d.GetOk("app_profile"); ok {
 		appProfile = ap.(string)
 	}
-	
+
 	// Apply validation rules based on the requirements
 	switch {
 	case appType == "enterprise" && appProfile == "ssh":
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseSSH
-		
+
 	case appType == "saas":
 		// app_auth should not be present in advanced_settings for SaaS apps
 		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
 		return client.ErrAppAuthNotAllowedForSaaS
-		
+
 	case appType == "bookmark":
 		// app_auth should not be present in advanced_settings - it's set at resource level
 		return client.ErrAppAuthNotAllowedForBookmark
-		
+
 	case appType == "tunnel":
 		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
 		return client.ErrAppAuthNotAllowedForTunnel
-		
+
 	case appType == "enterprise" && appProfile == "vnc":
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseVNC
@@ -2742,7 +2817,7 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 func validateAppAuthValue(appAuth string) error {
 	// Valid values for app_auth based on documentation
 	validValues := []string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "wsfed", "oidc", "OpenID Connect 1.0"}
-	
+
 	isValid := false
 	for _, validValue := range validValues {
 		if appAuth == validValue {
@@ -2762,7 +2837,7 @@ func validateAppAuthValue(appAuth string) error {
 func validateWappAuthValue(wappAuth string) error {
 	// Valid values for wapp_auth based on documentation and server validation
 	validValues := []string{"form", "basic", "basic_cookie", "jwt", "certonly"}
-	
+
 	isValid := false
 	for _, validValue := range validValues {
 		if wappAuth == validValue {
@@ -2778,63 +2853,7 @@ func validateWappAuthValue(wappAuth string) error {
 	return nil
 }
 
-// validateWappAuthFieldConflicts validates conflicts between wapp_auth and other User-facing authentication mechanism fields
-func validateWappAuthFieldConflicts(settings map[string]interface{}) error {
-	// Get wapp_auth value
-	wappAuth, exists := settings["wapp_auth"]
-	if !exists {
-		return nil // No wapp_auth to validate
-	}
-	
-	wappAuthStr, ok := wappAuth.(string)
-	if !ok {
-		return nil // Invalid wapp_auth type
-	}
-	
-	// Define User-facing authentication mechanism field groups
-	userAuthFieldGroups := map[string][]string{
-		"certonly": {
-			// Certificate Only fields - typically no specific fields, but could have certificate-related fields
-			// For now, we'll focus on preventing other auth mechanism fields
-		},
-		"basic": {
-			// Basic authentication fields - typically no specific fields in advanced_settings
-			// Basic auth is handled at resource level
-		},
-		"basic_cookie": {
-			// Basic + Cookie authentication fields - typically no specific fields in advanced_settings
-			// Basic + Cookie auth is handled at resource level
-		},
-		"jwt": {
-			// JWT authentication fields
-			"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option",
-			"jwt_return_url", "jwt_username",
-		},
-	}
-	
-	// Define restricted mechanisms for each wapp_auth value
-	restrictedMechanisms := map[string][]string{
-		"basic":       {"certonly", "basic_cookie", "jwt"}, // Basic: No Certificate Only, Basic + Cookie, JWT fields
-		"certonly":    {"basic", "basic_cookie", "jwt"},    // Certificate Only: No Basic, Basic + Cookie, JWT fields
-		"basic_cookie": {"basic", "certonly", "jwt"},      // Basic + Cookie: No Basic, Certificate Only, JWT fields
-		"jwt":         {"basic", "certonly", "basic_cookie"}, // JWT: No Basic, Certificate Only, Basic + Cookie fields
-	}
-	
-	// Check if wapp_auth has specific restrictions
-	if restrictedMechanismsList, exists := restrictedMechanisms[wappAuthStr]; exists {
-		for _, mechanism := range restrictedMechanismsList {
-			if fields, exists := userAuthFieldGroups[mechanism]; exists {
-				for _, field := range fields {
-					if _, fieldExists := settings[field]; fieldExists {
-						return client.ErrWappAuthFieldConflict
-					}
-				}
-			}
-		}
-	}
-	
-	return nil
-}
+// Note: validateWappAuthFieldConflicts is now handled by validateWappAuthFieldConflictsGeneric in advanced_settings_conflict_validation.go
 
 // validateTLSSuiteRestrictions validates TLS Suite configuration restrictions based on app_type and app_profile
 func validateTLSSuiteRestrictions(appType, appProfile string, settings map[string]interface{}) error {
@@ -2842,7 +2861,7 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 	tlsSuiteFields := []string{
 		"tlsSuiteType", "tls_suite_name", "tls_cipher_suite",
 	}
-	
+
 	// Check if any TLS Suite fields are present
 	hasTLSSuiteFields := false
 	for _, field := range tlsSuiteFields {
@@ -2851,22 +2870,22 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 			break
 		}
 	}
-	
+
 	// If no TLS Suite fields are present, no validation needed
 	if !hasTLSSuiteFields {
 		return nil
 	}
-	
+
 	// TLS Suite is NOT AVAILABLE for Tunnel, Bookmark, or SaaS app_types
 	if appType == "tunnel" || appType == "bookmark" || appType == "saas" {
 		return client.ErrTLSSuiteNotAvailableForAppType
 	}
-	
+
 	// TLS Suite is NOT AVAILABLE for SMB app_profile (regardless of app_type)
 	if appProfile == "smb" {
 		return client.ErrTLSSuiteNotAvailableForSMBProfile
 	}
-	
+
 	// TLS Suite is AVAILABLE for enterprise app_type with appropriate app_profiles
 	if appType == "enterprise" {
 		validProfiles := []string{"http", "sharepoint", "jira", "jenkins", "confluence", "rdp", "vnc", "ssh"}
@@ -2877,12 +2896,12 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 				break
 			}
 		}
-		
+
 		if !isValidProfile {
 			return client.ErrTLSSuiteNotAvailableForEnterpriseProfile
 		}
 	}
-	
+
 	return nil
 }
 
@@ -2893,28 +2912,28 @@ func validateTLSCustomSuiteName(settings map[string]interface{}, validCipherSuit
 	if !exists {
 		return nil // No TLS Suite Type to validate
 	}
-	
+
 	tlsSuiteTypeNum, ok := tlsSuiteType.(float64)
 	if !ok {
 		return nil // Invalid TLS Suite Type
 	}
-	
+
 	// Only validate when tlsSuiteType = 2 (CUSTOM)
 	if tlsSuiteTypeNum != 2 {
 		return nil
 	}
-	
+
 	// Get tls_suite_name
 	tlsSuiteName, exists := settings["tls_suite_name"]
 	if !exists {
 		return client.ErrTLSSuiteNameRequired
 	}
-	
+
 	tlsSuiteNameStr, ok := tlsSuiteName.(string)
 	if !ok {
 		return client.ErrTLSSuiteNameNotString
 	}
-	
+
 	// Check if the provided tls_suite_name is valid
 	isValid := false
 	for _, validSuite := range validCipherSuites {
@@ -2923,11 +2942,11 @@ func validateTLSCustomSuiteName(settings map[string]interface{}, validCipherSuit
 			break
 		}
 	}
-	
+
 	if !isValid {
 		return client.ErrTLSSuiteNameInvalid
 	}
-	
+
 	return nil
 }
 
@@ -2935,30 +2954,29 @@ func validateTLSCustomSuiteName(settings map[string]interface{}, validCipherSuit
 func validateAdvancedSettingsJSON(i interface{}, k string) ([]string, []error) {
 	var warnings []string
 	var errors []error
-	
+
 	// Get the advanced_settings value
 	advancedSettingsStr, ok := i.(string)
 	if !ok {
 		errors = append(errors, client.ErrAdvancedSettingsNotString)
 		return warnings, errors
 	}
-	
+
 	// If empty, it's valid (will use defaults)
 	if advancedSettingsStr == "" || advancedSettingsStr == "{}" {
 		return warnings, errors
 	}
-	
+
 	// Parse the JSON to validate it's valid
 	var settings map[string]interface{}
 	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
 		errors = append(errors, client.ErrAdvancedSettingsInvalidJSON)
 		return warnings, errors
 	}
-	
+
 	// For now, we can't access app_type from ValidateFunc
 	// This is a limitation of the Terraform SDK
 	// We'll need to use a different approach
-	
+
 	return warnings, errors
 }
-

@@ -81,14 +81,14 @@ var (
 	// Health check validation errors
 	ErrHealthCheckTypeInvalid            = errors.New("health_check_type must be a string")
 	ErrHealthCheckTypeUnsupported        = errors.New("health_check_type must be one of: Default, HTTP, HTTPS, TLS, SSLv3, TCP, None")
-	ErrHealthCheckHTTPURLRequired        = errors.New("health_check_http_url is required when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPURLRequired        = errors.New("health_check_http_url is required when health_check_type is HTTP/HTTPS (e.g., '/health')")
 	ErrHealthCheckHTTPURLInvalid         = errors.New("health_check_http_url must be a string")
-	ErrHealthCheckHTTPURLEmpty           = errors.New("health_check_http_url cannot be empty when health_check_type is HTTP/HTTPS")
-	ErrHealthCheckHTTPVersionRequired    = errors.New("health_check_http_version is required when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPURLEmpty           = errors.New("health_check_http_url cannot be empty when health_check_type is HTTP/HTTPS (e.g., '/health')")
+	ErrHealthCheckHTTPVersionRequired    = errors.New("health_check_http_version is required when health_check_type is HTTP/HTTPS (e.g., 'HTTP/1.1')")
 	ErrHealthCheckHTTPVersionInvalid     = errors.New("health_check_http_version must be a string")
-	ErrHealthCheckHTTPVersionEmpty       = errors.New("health_check_http_version cannot be empty when health_check_type is HTTP/HTTPS")
-	ErrHealthCheckHTTPHostHeaderRequired = errors.New("health_check_http_host_header is required when health_check_type is HTTP/HTTPS")
-	ErrHealthCheckHTTPHostHeaderNull     = errors.New("health_check_http_host_header cannot be null when health_check_type is HTTP/HTTPS")
+	ErrHealthCheckHTTPVersionEmpty       = errors.New("health_check_http_version cannot be empty when health_check_type is HTTP/HTTPS (e.g., 'HTTP/1.1')")
+	ErrHealthCheckHTTPHostHeaderRequired = errors.New("health_check_http_host_header is required when health_check_type is HTTP/HTTPS (e.g., 'myapp.example.com')")
+	ErrHealthCheckHTTPHostHeaderNull     = errors.New("health_check_http_host_header cannot be null when health_check_type is HTTP/HTTPS (e.g., 'myapp.example.com')")
 	ErrHealthCheckHTTPHostHeaderInvalid  = errors.New("health_check_http_host_header must be a string")
 	ErrHealthCheckHTTPFieldNotAllowed    = errors.New("HTTP-specific fields are only allowed for HTTP and HTTPS health check types")
 	ErrHealthCheckFieldEmpty             = errors.New("health check field cannot be empty")
@@ -165,6 +165,9 @@ var (
 	ErrDynamicIpNotBoolean                     = errors.New("dynamic_ip must be a boolean")
 	ErrStickyCookiesNotBoolean                 = errors.New("sticky_cookies must be a boolean")
 	ErrOffloadOnpremiseTrafficNotBoolean       = errors.New("offload_onpremise_traffic must be a boolean")
+
+	// Related Applications validation errors
+	ErrRelatedApplicationsNotSupportedForProfile = errors.New("related applications (app_bundle) are not supported for this app profile")
 
 	// RDP configuration validation errors
 	ErrRDPConfigurationNotSupportedForAppType = errors.New("RDP configuration parameters are not supported for this app type")
@@ -290,6 +293,11 @@ var (
 	ErrTunnelAppSAMLNotAllowed  = errors.New("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 	ErrTunnelAppOIDCNotAllowed  = errors.New("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 	ErrTunnelAppWSFEDNotAllowed = errors.New("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
+
+	// Bookmark app authentication validation errors
+	ErrBookmarkAppSAMLNotAllowed  = errors.New("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+	ErrBookmarkAppOIDCNotAllowed  = errors.New("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
+	ErrBookmarkAppWSFEDNotAllowed = errors.New("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
 )
 
 type Domain string

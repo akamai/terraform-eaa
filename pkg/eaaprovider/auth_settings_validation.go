@@ -416,10 +416,10 @@ func validateServerLoadBalancingConfiguration(settings map[string]interface{}, a
 	loadBalancingFields := []string{
 		"load_balancing_metric", "session_sticky", "cookie_age", "tcp_optimization",
 	}
-	
+
 	// Health check fields are separate from load balancing
 	healthCheckFields := []string{
-		"health_check_type", "health_check_http_url", "health_check_timeout", 
+		"health_check_type", "health_check_http_url", "health_check_timeout",
 		"health_check_interval", "health_check_rise", "health_check_fall",
 	}
 
@@ -994,6 +994,64 @@ func validateTrafficOffloadFields(settings map[string]interface{}, appType, appP
 	return nil
 }
 
+// validateRelatedApplications validates related applications (app_bundle) field restrictions
+func validateRelatedApplications(settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+	logger.Debug("validateRelatedApplications called with appType='%s', appProfile='%s'", appType, appProfile)
+
+	// Check if app_bundle field is present
+	if _, exists := settings["app_bundle"]; !exists {
+		logger.Debug("No related applications settings found, skipping validation")
+		return nil // No related applications settings, skip validation
+	}
+
+	logger.Debug("Related applications settings found, validating with app_type: %s, app_profile: %s", appType, appProfile)
+
+	// STEP 1: Validate app type and profile restrictions
+	if appType != "" {
+		switch appType {
+		case "enterprise":
+			// Enterprise apps - check app profile restrictions
+			if appProfile != "" {
+				switch appProfile {
+				case "vnc", "ssh", "smb":
+					// Related Applications are NOT allowed for VNC, SSH, SMB profiles
+					logger.Error("Related applications (app_bundle) are not supported for enterprise app with profile: %s", appProfile)
+					return client.ErrRelatedApplicationsNotSupportedForProfile
+				case "http", "https", "tcp", "rdp":
+					// Available for HTTP/HTTPS/TCP/RDP profiles
+					logger.Debug("Related applications allowed for enterprise app with profile: %s", appProfile)
+				default:
+					// Available for other profiles
+					logger.Debug("Related applications allowed for enterprise app with profile: %s", appProfile)
+				}
+			} else {
+				logger.Debug("Related applications allowed for enterprise app (profile not specified)")
+			}
+		case "saas", "bookmark":
+			// Advanced Settings tab hidden for SaaS and Bookmark apps
+			logger.Debug("Related applications not available for app_type: %s", appType)
+			return client.ErrRelatedApplicationsNotSupportedForProfile
+		case "tunnel":
+			// Tunnel apps - Related Applications are not available
+			logger.Debug("Related applications not available for tunnel apps")
+			return client.ErrRelatedApplicationsNotSupportedForProfile
+		default:
+			// For any other app types, related applications should not be present
+			logger.Debug("Related applications not available for app_type: %s", appType)
+			return client.ErrRelatedApplicationsNotSupportedForProfile
+		}
+	} else {
+		// When appType is empty (schema validation), we cannot validate app type restrictions
+		// but we can still validate the related applications structure
+		logger.Debug("App type not provided, skipping app type validation but continuing with related applications structure validation")
+		// During schema validation, we'll be more lenient and only validate the structure
+		// The app type validation will happen during runtime validation (terraform apply)
+	}
+
+	logger.Debug("Related applications parameters validated successfully")
+	return nil
+}
+
 // validateTunnelPoolFields validates tunnel-specific pool fields
 func validateTunnelPoolFields(settings map[string]interface{}, appType string, logger hclog.Logger) error {
 	// Tunnel pool fields are only available for tunnel apps with feature flag
@@ -1216,4 +1274,3 @@ func validateOIDCClaimNested(claim map[string]interface{}, index int, logger hcl
 
 	return nil
 }
-

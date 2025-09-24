@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 
@@ -90,7 +89,6 @@ func DifferenceIgnoreCase(slice1, slice2 []string) []string {
 }
 
 func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedSettings) {
-	fmt.Fprintf(os.Stderr, "🔍 DEBUG: UpdateAdvancedSettings called\n")
 	completeVal := reflect.ValueOf(complete).Elem()
 	deltaVal := reflect.ValueOf(delta)
 	for i := 0; i < deltaVal.NumField(); i++ {
@@ -206,16 +204,16 @@ func ConvertConnectorsToMap(connectors json.RawMessage) []map[string]interface{}
 		var result []map[string]interface{}
 		for _, connector := range connectorArray {
 			connectorMap := map[string]interface{}{
-				"name":            connector.Name,
-				"package":         connector.Package, // lowercase to match schema
-				"state":           connector.State,
-				"status":          connector.Status,
-				"uuid_url":        connector.UUIDURL,
-				"created_at":      connector.CreatedAt,
-				"description":     connector.Description,
-				"load_status":     connector.LoadStatus,
-				"localization":    connector.Localization,
-				"reach":           connector.Reach,
+				"name":             connector.Name,
+				"package":          connector.Package, // lowercase to match schema
+				"state":            connector.State,
+				"status":           connector.Status,
+				"uuid_url":         connector.UUIDURL,
+				"created_at":       connector.CreatedAt,
+				"description":      connector.Description,
+				"load_status":      connector.LoadStatus,
+				"localization":     connector.Localization,
+				"reach":            connector.Reach,
 				"agent_infra_type": connector.AgentInfraType,
 			}
 			result = append(result, connectorMap)
@@ -244,10 +242,6 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 	return []string{}
 }
 
-
-
-
-
 // ============================================================================
 // VALIDATION UTILITIES
 // ============================================================================
@@ -256,14 +250,14 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 func ValidateRequiredString(d *schema.ResourceData, fieldName string, ec *EaaClient) (string, error) {
 	value, ok := d.GetOk(fieldName)
 	if !ok {
-		ec.Logger.Error(fmt.Sprintf("create ConnectorPool failed. '%s' is required but missing", fieldName))
-		return "", fmt.Errorf("create ConnectorPool failed. '%s' is required but missing", fieldName)
+		ec.Logger.Error(fmt.Sprintf("'%s' is required but missing", fieldName))
+		return "", fmt.Errorf("'%s' is required but missing", fieldName)
 	}
 
 	valueStr, ok := value.(string)
 	if !ok || valueStr == "" {
-		ec.Logger.Error(fmt.Sprintf("create ConnectorPool failed. '%s' must be a non-empty string", fieldName))
-		return "", fmt.Errorf("create ConnectorPool failed. '%s' must be a non-empty string", fieldName)
+		ec.Logger.Error(fmt.Sprintf("'%s' must be a non-empty string", fieldName))
+		return "", fmt.Errorf("'%s' must be a non-empty string", fieldName)
 	}
 
 	return valueStr, nil
@@ -299,20 +293,20 @@ func ValidateStringInSlice(val string, key string, validValues []string) (warns 
 	return warns, errs
 }
 
-// ValidateTokenField validates a token field with type checking and range validation
-func ValidateTokenField(value interface{}, fieldName string, min, max int, client *EaaClient) (int, error) {
+// ValidateIntegerField validates an integer field with type checking and range validation
+func ValidateIntegerField(value interface{}, fieldName string, min, max int, client *EaaClient) (int, error) {
 	// Type checking
 	intValue, ok := value.(int)
 	if !ok {
 		client.Logger.Error(fmt.Sprintf("%s must be an integer", fieldName))
 		return 0, fmt.Errorf("%s must be an integer, got %T", fieldName, value)
 	}
-	
+
 	// Range validation
-	if intValue <= 0 || intValue > max {
-		client.Logger.Error(fmt.Sprintf("%s must be in the range of 1 to %d", fieldName, max))
-		return 0, fmt.Errorf("%s must be in the range of 1 to %d, got %d", fieldName, max, intValue)
+	if intValue < min || intValue > max {
+		client.Logger.Error(fmt.Sprintf("%s must be in the range of %d to %d", fieldName, min, max))
+		return 0, fmt.Errorf("%s must be in the range of %d to %d, got %d", fieldName, min, max, intValue)
 	}
-	
+
 	return intValue, nil
 }

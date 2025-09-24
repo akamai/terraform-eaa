@@ -85,7 +85,6 @@ func dataSourceAgents() *schema.Resource {
 							Optional:    true,
 							Description: "Name of the connector pool",
 						},
-
 					},
 				},
 			},
@@ -117,7 +116,7 @@ func dataSourceAgentsRead(ctx context.Context, d *schema.ResourceData, m interfa
 			"type":       conn.AgentType,
 			"region":     conn.Region,
 		}
-		
+
 		// Add connector_pool uuid_url and name if available
 		if conn.ConnectorPool != nil {
 			connData["connector_pool_uuid_url"] = conn.ConnectorPool.UUIDURL
@@ -126,7 +125,7 @@ func dataSourceAgentsRead(ctx context.Context, d *schema.ResourceData, m interfa
 			connData["connector_pool_uuid_url"] = nil
 			connData["connector_pool_name"] = nil
 		}
-		
+
 		connDataList = append(connDataList, connData)
 	}
 
