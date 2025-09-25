@@ -348,6 +348,7 @@ const (
 	AppProfileJenkins    AppProfile = "jenkins"
 	AppProfileConfluence AppProfile = "confluence"
 	AppProfileTCP        AppProfile = "tcp"
+	AppProfileSMB        AppProfile = "smb"
 )
 
 func (ap AppProfile) ToInt() (int, error) {
@@ -370,6 +371,8 @@ func (ap AppProfile) ToInt() (int, error) {
 		return int(APP_PROFILE_CONFLUENCE), nil
 	case AppProfileTCP:
 		return int(APP_PROFILE_TCP), nil
+	case AppProfileSMB:
+		return int(APP_PROFILE_SMB), nil
 	default:
 		return 0, errors.New("unknown App_Profile value")
 	}
@@ -387,6 +390,7 @@ const (
 	APP_PROFILE_JENKINS
 	APP_PROFILE_CONFLUENCE
 	APP_PROFILE_TCP
+	APP_PROFILE_SMB
 )
 
 func (cam AppProfileInt) String() (string, error) {
@@ -409,6 +413,8 @@ func (cam AppProfileInt) String() (string, error) {
 		return string(AppProfileConfluence), nil
 	case APP_PROFILE_TCP:
 		return string(AppProfileTCP), nil
+	case APP_PROFILE_SMB:
+		return string(AppProfileSMB), nil
 	default:
 		return "", errors.New("unknown app_profile value")
 	}
@@ -992,4 +998,24 @@ func (om OperatingModeInt) String() (string, error) {
 	default:
 		return "", errors.New("unknown operating mode value")
 	}
+}
+
+// Health check field names for validation
+var HealthCheckFields = []string{
+	"health_check_type",
+	"health_check_rise", 
+	"health_check_fall",
+	"health_check_timeout",
+	"health_check_interval",
+	"health_check_http_url",
+	"health_check_http_version",
+	"health_check_http_host_header",
+}
+
+// Numeric health check field names for validation
+var NumericHealthCheckFields = []string{
+	"health_check_rise",
+	"health_check_fall", 
+	"health_check_timeout",
+	"health_check_interval",
 }

@@ -25,7 +25,7 @@ Health checks monitor the availability and responsiveness of your application se
 * `health_check_type` - (Required for tunnel apps) Type of health check. Allowed values: "Default", "HTTP", "HTTPS", "TLS", "SSLv3", "TCP", "None"
 
 ### Optional Fields
-* `health_check_enabled` - (Optional) Enable health check. Default true
+* `health_check_enabled` - (Optional) Enable health check. Allowed values: "true", "false". Default "true"
 * `health_check_interval` - (Optional) Health check interval in seconds (1-300). Default 30
 * `health_check_http_url` - (Required for HTTP/HTTPS) Health check URL
 * `health_check_http_version` - (Required for HTTP/HTTPS) HTTP version. Allowed values: "1.0", "1.1", "2.0"
@@ -38,7 +38,7 @@ Health checks monitor the availability and responsiveness of your application se
 Configure how traffic is distributed across multiple application servers.
 
 * `load_balancing_metric` - (Optional) Load balancing algorithm. Allowed values: "round-robin", "ip-hash", "least-conn", "weighted-rr"
-* `session_sticky` - (Optional) Enable session stickiness. Default false
+* `session_sticky` - (Optional) Enable session stickiness. Allowed values: "true", "false". Default "false"
 * `cookie_age` - (Optional) Cookie age in seconds when session_sticky is enabled. Not supported for tunnel apps
 * `tcp_optimization` - (Optional) Enable TCP optimization. Only available for tunnel apps
 
@@ -66,9 +66,9 @@ Configure behavior specific to tunnel applications.
 Core application configuration options.
 
 * `is_ssl_verification_enabled` - (Optional) Enable SSL certificate verification. Default "true"
-* `websocket_enabled` - (Required for tunnel apps) Enable WebSocket support. Default false
+* `websocket_enabled` - (Required for tunnel apps) Enable WebSocket support. Allowed values: "true", "false". Default "false"
 * `x_wapp_read_timeout` - (Required for tunnel apps) Read timeout in seconds. Default 300
-* `ignore_cname_resolution` - (Optional) Ignore CNAME resolution for CDN access
+* `ignore_cname_resolution` - (Optional) Ignore CNAME resolution for CDN access. Allowed values: "true", "false"
 * `g2o_enabled` - (Optional) Enable G2O configuration for Akamai Edge Enforcement
 * `internal_hostname` - (Optional) Internal hostname
 * `internal_host_port` - (Optional) Internal host port
@@ -177,7 +177,7 @@ Configure Remote Desktop Protocol settings for RDP applications.
 advanced_settings = jsonencode({
   # Health Check
   health_check_type = "HTTP"
-  health_check_enabled = true
+  health_check_enabled = "true"
   health_check_interval = 30
   health_check_http_url = "https://example.com/health"
   health_check_http_version = "1.1"
@@ -185,7 +185,7 @@ advanced_settings = jsonencode({
   
   # Server Load Balancing
   load_balancing_metric = "round-robin"
-  session_sticky = true
+  session_sticky = "true"
   cookie_age = 3600
   
   # Enterprise Connectivity
@@ -233,11 +233,11 @@ advanced_settings = jsonencode({
 ### CORS Configuration
 ```hcl
 advanced_settings = jsonencode({
-  allow_cors = true
+  allow_cors = "true"
   cors_origin_list = "https://app1.example.com https://app2.example.com"
   cors_method_list = "GET POST PUT DELETE"
   cors_header_list = "Content-Type Authorization"
-  cors_support_credential = true
+  cors_support_credential = "true"
   cors_max_age = 3600
 })
 ```
@@ -245,12 +245,12 @@ advanced_settings = jsonencode({
 ### RDP Configuration
 ```hcl
 advanced_settings = jsonencode({
-  rdp_audio_redirection = true
-  rdp_clipboard_redirection = true
-  rdp_disk_redirection = false
-  rdp_printer_redirection = true
+  rdp_audio_redirection = "true"
+  rdp_clipboard_redirection = "true"
+  rdp_disk_redirection = "false"
+  rdp_printer_redirection = "true"
   rdp_initial_program = "notepad.exe"
-  rdp_tls1 = false
+  rdp_tls1 = "false"
 })
 ```
 
@@ -264,7 +264,7 @@ advanced_settings = jsonencode({
 
 ### Server Load Balancing Validation Errors
 * `ErrLoadBalancingMetricUnsupported`: "load_balancing_metric must be one of: round-robin, ip-hash, least-conn, weighted-rr"
-* `ErrSessionStickyInvalid`: "session_sticky must be a boolean"
+* `ErrSessionStickyInvalid`: "session_sticky must be a string with value 'true' or 'false'"
 * `ErrCookieAgeRequired`: "cookie_age must be a number when session_sticky is enabled"
 * `ErrCookieAgeNotSupportedTunnel`: "cookie_age is not supported for tunnel apps"
 
@@ -285,7 +285,7 @@ advanced_settings = jsonencode({
 * `ErrAllowCorsNotAvailableForTunnel`: "allow_cors is not available for tunnel applications"
 * `ErrHiddenAppNotAvailableForTunnel`: "hidden_app is not available for tunnel applications"
 * `ErrXWappReadTimeoutOnlyForTunnel`: "x_wapp_read_timeout is only available for tunnel applications"
-* `ErrOffloadOnpremiseTrafficNotBoolean`: "offload_onpremise_traffic must be a boolean"
+* `ErrOffloadOnpremiseTrafficNotBoolean`: "offload_onpremise_traffic must be a string with value 'true' or 'false'"
 
 ### RDP Configuration Validation Errors
 * `ErrRDPNotSupportedForAppType`: "RDP configuration parameters are not supported for this app type. RDP configuration is only available for Enterprise Hosted applications"

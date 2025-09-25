@@ -53,7 +53,7 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     
     # Server Load Balancing (Enterprise supported)
     load_balancing_metric = "round-robin"
-    session_sticky = true
+    session_sticky = "true"
     cookie_age = 3600
     
     # Custom Headers (Enterprise supported)
@@ -83,18 +83,18 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     
     # Miscellaneous Parameters (Enterprise supported)
     proxy_buffer_size_kb = "64"
-    allow_cors = true
+    allow_cors = "true"
     cors_origin_list = "https://app.example.com"
     cors_header_list = "Content-Type,Authorization"
     cors_method_list = "GET,POST,PUT,DELETE"
     cors_max_age = "3600"
-    cors_support_credential = true
-    websocket_enabled = true
-    logging_enabled = true
-    hidden_app = false
-    saas_enabled = false
-    sticky_agent = true
-    offload_onpremise_traffic = true
+    cors_support_credential = "true"
+    websocket_enabled = "true"
+    logging_enabled = "true"
+    hidden_app = "false"
+    saas_enabled = "false"
+    sticky_agent = "true"
+    offload_onpremise_traffic = "true"
   })
 }
 
@@ -151,8 +151,8 @@ resource "eaa_application" "enterprise_valid_rdp" {
     remote_app = "Calculator"
     remote_app_args = "/s"
     remote_app_dir = "C:\\Windows\\System32"
-    rdp_tls1 = true
-    remote_spark_recording = true
+    rdp_tls1 = "true"
+    remote_spark_recording = "true"
     
     # Enterprise Connectivity Parameters
     idle_conn_floor = "10"
@@ -162,10 +162,10 @@ resource "eaa_application" "enterprise_valid_rdp" {
     
     # Miscellaneous Parameters
     proxy_buffer_size_kb = "64"
-    logging_enabled = true
-    hidden_app = false
-    saas_enabled = false
-    sticky_agent = true
+    logging_enabled = "true"
+    hidden_app = "false"
+    saas_enabled = "false"
+    sticky_agent = "true"
   })
 }
 
@@ -193,11 +193,11 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     # Kerberos Authentication
     app_auth = "kerberos"
     app_auth_domain = "EXAMPLE.COM"
-    app_client_cert_auth = false
-    forward_ticket_granting_ticket = true
+    app_client_cert_auth = "false"
+    forward_ticket_granting_ticket = "true"
     keytab = "example.keytab"
     service_principal_name = "HTTP/valid-kerberos.example.com@EXAMPLE.COM"
-    kerberos_negotiate_once = true
+    kerberos_negotiate_once = "true"
     
     # Health Check Configuration
     health_check_type = "HTTP"
@@ -211,7 +211,7 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     
     # Server Load Balancing
     load_balancing_metric = "round-robin"
-    session_sticky = true
+    session_sticky = "true"
     cookie_age = 3600
     
     # Enterprise Connectivity Parameters
@@ -222,10 +222,10 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     
     # Miscellaneous Parameters
     proxy_buffer_size_kb = "64"
-    logging_enabled = true
-    hidden_app = false
-    saas_enabled = false
-    sticky_agent = true
+    logging_enabled = "true"
+    hidden_app = "false"
+    saas_enabled = "false"
+    sticky_agent = "true"
   })
 }
 
@@ -248,13 +248,13 @@ resource "eaa_application" "enterprise_valid_saml" {
   
   popregion = "us-east-1"
   agents    = ["EAA_DC1_US1_Access_01"]
-  saml = true  # SAML enabled at resource level
+  saml = "true"  # SAML enabled at resource level
   
   advanced_settings = jsonencode({
     # SAML Settings Block
     saml_settings = {
       idp = {
-        self_signed = true
+        self_signed = "true"
       }
     }
     
@@ -273,7 +273,7 @@ resource "eaa_application" "enterprise_valid_saml" {
     
     # Server Load Balancing
     load_balancing_metric = "round-robin"
-    session_sticky = true
+    session_sticky = "true"
     cookie_age = 3600
     
     # Enterprise Connectivity Parameters
@@ -284,9 +284,9 @@ resource "eaa_application" "enterprise_valid_saml" {
     
     # Miscellaneous Parameters
     proxy_buffer_size_kb = "64"
-    logging_enabled = true
-    hidden_app = false
-    saas_enabled = false
-    sticky_agent = true
+    logging_enabled = "true"
+    hidden_app = "false"
+    saas_enabled = "false"
+    sticky_agent = "true"
   })
 }

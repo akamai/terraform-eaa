@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "eaa" {
-  contractid       = "G-39OGYOJ"
+  contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
 
@@ -39,13 +39,13 @@ resource "eaa_application" "tunnel_valid" {
     ip_access_allow = "false"
     x_wapp_read_timeout = "300"
     health_check_type = "TCP"
-    websocket_enabled = true
+    websocket_enabled = "true"
   })
 
   auth_enabled = "true"
 
   app_authentication {
-    app_idp = "SQA-SC-5"
+    app_idp = "employees-idp"
     app_directories {
       name = "Cloud Directory"
       app_groups {

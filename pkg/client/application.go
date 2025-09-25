@@ -26,6 +26,7 @@ type CreateAppRequest struct {
 	AppProfile       int              `json:"app_profile"`
 	AppType          int              `json:"app_type"`
 	ClientAppMode    int              `json:"client_app_mode"`
+	AppBundle        string           `json:"app_bundle,omitempty"`
 	AdvancedSettings AdvancedSettings `json:"advanced_settings,omitempty"`
 	SAML             bool             `json:"saml"`
 	Oidc             bool             `json:"oidc"`
@@ -199,6 +200,24 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	} else {
 		logger.Info("appMode is not present, defaulting to tcp")
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
+	}
+
+	// Handle app_bundle field - validate name and get UUID
+	var validatedAppBundleUUID string
+	if appBundle, ok := d.GetOk("app_bundle"); ok {
+		if appBundleStr, ok := appBundle.(string); ok && appBundleStr != "" {
+			logger.Info("CREATE FLOW: Found app_bundle:", appBundleStr)
+			
+			// Validate app bundle name and get UUID
+			appBundleUUID, err := ec.GetAppBundleByName(appBundleStr)
+			if err != nil {
+				logger.Error("CREATE FLOW: Failed to validate app_bundle name '%s': %v", appBundleStr, err)
+				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
+			}
+			
+			validatedAppBundleUUID = appBundleUUID
+			logger.Info("CREATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+		}
 	}
 
 	// Handle advanced settings for CREATE flow - ALWAYS set defaults
@@ -492,6 +511,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		car.WSFEDSettings = []WSFEDConfig{}
 	}
 
+	// Handle app_bundle field from top-level resource - use validated UUID
+	if validatedAppBundleUUID != "" {
+		car.AppBundle = validatedAppBundleUUID
+		logger.Info("CREATE FLOW: Set app_bundle UUID on CreateAppRequest struct:", validatedAppBundleUUID)
+	}
+
 	logger.Info("CREATE FLOW: Setting car.AdvancedSettings with malformed defaults")
 	logger.Info("CREATE FLOW: advSettings.AppAuth before assignment:", advSettings.AppAuth)
 	car.AdvancedSettings = *advSettings
@@ -755,6 +780,7 @@ type Application struct {
 	Status         int     `json:"status"`
 
 	AppCategory AppCategory `json:"app_category"`
+	AppBundle   string      `json:"app_bundle,omitempty"`
 
 	UUIDURL string `json:"uuid_url"`
 
@@ -817,6 +843,7 @@ func (app *Application) FromResponse(ar *ApplicationResponse) {
 	}
 	app.Status = ar.Status
 	app.AppCategory = ar.AppCategory
+	app.AppBundle = ar.AppBundle
 
 	app.UUIDURL = ar.UUIDURL
 	if ar.TLSSuiteName != nil {
@@ -948,6 +975,22 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 	}
 
+	// Store app bundle UUID for later use after UpdateAdvancedSettings
+	var validatedAppBundleUUID string
+	if appBundle, ok := d.GetOk("app_bundle"); ok {
+		if appBundleStr, ok := appBundle.(string); ok && appBundleStr != "" {
+			// Validate app bundle name and get UUID
+			appBundleUUID, err := ec.GetAppBundleByName(appBundleStr)
+			if err != nil {
+				ec.Logger.Error("UPDATE FLOW: Failed to validate app_bundle name '%s': %v", appBundleStr, err)
+				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
+			}
+			
+			validatedAppBundleUUID = appBundleUUID
+			ec.Logger.Info("UPDATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+		}
+	}
+
 	appUpdateReq.TunnelInternalHosts = []TunnelInternalHost{}
 	if tunnelInternalHosts, ok := d.GetOk("tunnel_internal_hosts"); ok {
 		if tunnelInternalHostsList, ok := tunnelInternalHosts.([]interface{}); ok {
@@ -1076,6 +1119,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 			// Explicitly set the AppAuth field to ensure it's preserved
 			appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
+
+			// Set the app bundle UUID on the Application struct (top-level field)
+			if validatedAppBundleUUID != "" {
+				appUpdateReq.AppBundle = validatedAppBundleUUID
+				ec.Logger.Info("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
+			}
 
 			// Log the final advanced settings to see what's being sent
 			ec.Logger.Info("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
@@ -1497,6 +1546,13 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
 	ec.Logger.Info("API URL: ", apiURL)
 
+	// Debug: Log the final app bundle before sending to API
+	ec.Logger.Info("FINAL PAYLOAD: AppBundle = '%s'", appUpdateReq.AppBundle)
+	
+	// Debug: Log the complete request payload
+	payloadJSON, _ := json.MarshalIndent(appUpdateReq, "", "  ")
+	ec.Logger.Info("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
+
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
 		ec.Logger.Error("update application failed. err: ", err)
@@ -1571,6 +1627,7 @@ type AppCategory struct {
 type ApplicationResponse struct {
 	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
 	AppCategory      AppCategory               `json:"app_category"`
+	AppBundle        string                    `json:"app_bundle,omitempty"`
 
 	AppDeployed            bool                 `json:"app_deployed"`
 	AppLogo                *string              `json:"app_logo"`

@@ -81,7 +81,7 @@ resource "eaa_application" "kerberos_client_cert" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "EAA_MPOP_IDP_DO_NOT_TOUCH"
+       app_idp = "employees-id"
 
        app_directories {
             name = "Cloud Directory"

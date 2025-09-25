@@ -77,7 +77,7 @@ resource "eaa_application" "wsfed_custom" {
   agents = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "SQA-SC-5"
+       app_idp = "employees-idp"
 
        app_directories {
             name = "Cloud Directory"

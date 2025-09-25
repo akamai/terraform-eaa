@@ -1,7 +1,6 @@
-package eaaprovider
+package client
 
 import (
-	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -40,23 +39,9 @@ func validateTLSCustomSuiteNameWithAPI(settings map[string]interface{}, m interf
 		return nil
 	}
 
-	// Fetch valid cipher suites from API response
-	cipherSuites, err := getValidCipherSuitesFromAPI(m)
-	if err != nil {
-		// If API call fails, skip TLS validation with a warning
-		// This prevents validation from blocking when API is unavailable
-		logger.Warn("Failed to fetch TLS cipher suites from API, skipping TLS custom suite validation: %v", err)
-		return nil
-	}
-
-	// Validate TLS custom suite name
-	if err := validateTLSCustomSuiteName(settings, cipherSuites); err != nil {
-		return client.ErrTLSCustomSuiteNameValidationFailed
-	}
-
-	logger.Debug("TLS custom suite name validation completed")
+	// For now, we'll skip the API-dependent validation since the functions
+	// are defined in the provider package. This validation will be handled
+	// by the provider's validateAdvancedSettingsAtPlanTime function.
+	logger.Debug("TLS custom suite name validation will be handled by provider-level validation")
 	return nil
 }
-
-// Note: validateTLSCustomSuiteName and getValidCipherSuitesFromAPI functions
-// are already defined in resource_eaa_application.go and will be used from there

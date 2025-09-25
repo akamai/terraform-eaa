@@ -705,6 +705,11 @@ func resourceEaaApplication() *schema.Resource {
 				Default:      "{}",
 				ValidateFunc: validateAdvancedSettingsJSON,
 			},
+			"app_bundle": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Application bundle name for related applications grouping.",
+			},
 			"_validation_trigger": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -843,17 +848,17 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 
 	// Validate WSFED nested blocks
 	if err == nil {
-		err = validateWSFEDNestedBlocks(ctx, d, m, logger)
+		err = client.ValidateWSFEDNestedBlocks(ctx, d, m, logger)
 	}
 
 	// Validate SAML nested blocks
 	if err == nil {
-		err = validateSAMLNestedBlocks(ctx, d, m, logger)
+		err = client.ValidateSAMLNestedBlocks(ctx, d, m, logger)
 	}
 
 	// Validate OIDC nested blocks
 	if err == nil {
-		err = validateOIDCNestedBlocks(ctx, d, m, logger)
+		err = client.ValidateOIDCNestedBlocks(ctx, d, m, logger)
 	}
 
 	return err
@@ -909,19 +914,14 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 
 	// STEP 1: Use generic validation system to validate all fields
 	logger.Debug("Running generic validation for advanced settings")
-	if err := ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger); err != nil {
+	if err := client.ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger); err != nil {
 		logger.Error("Generic validation failed: %v", err)
 		return err
 	}
 	logger.Debug("Generic validation passed")
 
-	// STEP 1.5: Validate conflicts between advanced settings and resource-level settings
-	logger.Debug("Running conflict validation for advanced settings")
-	if err := ValidateAdvancedSettingsConflicts(settings, logger); err != nil {
-		logger.Error("Conflict validation failed: %v", err)
-		return err
-	}
-	logger.Debug("Conflict validation passed")
+	// STEP 1.5: Field conflicts validation is now handled within ValidateAdvancedSettings
+	logger.Debug("Field conflicts validation handled by SETTINGS_RULES")
 
 	// STEP 1.6: Validate app_auth conflicts with resource-level authentication settings
 	logger.Debug("Running app_auth conflict validation")
@@ -931,42 +931,30 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 	}
 	logger.Debug("App auth conflict validation passed")
 
-	// STEP 1.7: Validate context-dependent rules
-	logger.Debug("Running context-dependent validation")
-	if err := ValidateAdvancedSettingsContext(settings, appType, appProfile, clientAppMode, logger); err != nil {
-		logger.Error("Context-dependent validation failed: %v", err)
-		return err
-	}
-	logger.Debug("Context-dependent validation passed")
+	// STEP 1.7: Context-dependent validation is now handled by SETTINGS_RULES AppTypes/Profiles
+	logger.Debug("Context-dependent validation handled by SETTINGS_RULES")
 
-	// STEP 1.8: Validate field dependencies
-	logger.Debug("Running field dependencies validation")
-	if err := ValidateAdvancedSettingsDependencies(settings, logger); err != nil {
-		logger.Error("Field dependencies validation failed: %v", err)
-		return err
-	}
-	logger.Debug("Field dependencies validation passed")
+	// STEP 1.8: Field dependencies validation
+	// Dependencies are now handled by SETTINGS_RULES dependency system
+	logger.Debug("Field dependencies validation handled by SETTINGS_RULES")
 
 	// STEP 2: API-dependent validations (cannot be handled by generic system)
 	// Validate API-dependent settings (TLS custom suite name, etc.)
-	if err := ValidateAdvancedSettingsAPIDependent(settings, m, logger); err != nil {
+	if err := client.ValidateAdvancedSettingsAPIDependent(settings, m, logger); err != nil {
 		return err
 	}
 
 	// Validate custom headers configuration (complex custom logic)
-	if err := validateCustomHeadersConfiguration(settings, appType, logger); err != nil {
+	if err := client.ValidateCustomHeadersConfiguration(settings, appType, logger); err != nil {
 		return client.ErrCustomHeadersValidationFailed
 	}
 
-	// Validate miscellaneous configuration (complex custom logic)
-	if err := validateMiscellaneousConfiguration(settings, appType, appProfile, logger); err != nil {
-		return client.ErrMiscellaneousValidationFailed
-	}
+	// Miscellaneous configuration validation is now handled by SETTINGS_RULES
 
 	// Validate health check configuration (skip for tunnel apps)
 	if appType != "tunnel" {
 		logger.Debug("Validating health check for app_type: %s", appType)
-		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
+		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
 			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
 			return err
 		}
@@ -974,15 +962,9 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 		logger.Debug("Skipping health check validation for tunnel app")
 	}
 
-	// Validate server load balancing configuration (complex custom logic)
-	if err := validateServerLoadBalancingConfiguration(settings, appType, appProfile, logger); err != nil {
-		return client.ErrServerLoadBalancingValidationFailed
-	}
+	// Server load balancing configuration validation is now handled by SETTINGS_RULES
 
-	// Validate related applications configuration (complex custom logic)
-	if err := validateRelatedApplications(settings, appType, appProfile, logger); err != nil {
-		return client.ErrRelatedApplicationsNotSupportedForProfile
-	}
+	// Related applications configuration validation is now handled by SETTINGS_RULES
 
 	return nil
 }
@@ -1503,6 +1485,9 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 
 	attrs["uuid_url"] = appResp.UUIDURL
 
+	// Set app_bundle as a top-level attribute - use UUID directly
+	attrs["app_bundle"] = appResp.AppBundle
+
 	// Add more fields to populate null values
 	// Note: ssl_ca_cert is not in the schema, so we can't set it
 
@@ -1588,6 +1573,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	advSettingsMap["app_auth"] = appResp.AdvancedSettings.AppAuth
 	advSettingsMap["app_auth_domain"] = appResp.AdvancedSettings.AppAuthDomain
 	advSettingsMap["app_client_cert_auth"] = appResp.AdvancedSettings.AppClientCertAuth
+	advSettingsMap["app_bundle"] = appResp.AppBundle
 	advSettingsMap["app_location"] = appResp.AdvancedSettings.AppLocation
 	advSettingsMap["app_server_read_timeout"] = appResp.AdvancedSettings.AppServerReadTimeout
 	advSettingsMap["authenticated_server_conn_limit"] = appResp.AdvancedSettings.AuthenticatedServerConnLimit
@@ -2339,7 +2325,7 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 	// Validate health check settings if present (skip for tunnel apps)
 	if appType != "tunnel" {
 		logger.Debug("Validating health check for app_type: %s", appType)
-		if err := validateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
+		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
 			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
 			return err // Return the specific error instead of generic one
 		}
@@ -2347,15 +2333,9 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 		logger.Debug("Skipping health check validation for tunnel app")
 	}
 
-	// Validate server load balancing settings if present
-	if err := validateServerLoadBalancingConfiguration(settings, appType, appProfile, logger); err != nil {
-		return client.ErrServerLoadBalancingValidationFailed
-	}
+	// Server load balancing settings validation is now handled by SETTINGS_RULES
 
-	// Validate related applications settings if present
-	if err := validateRelatedApplications(settings, appType, appProfile, logger); err != nil {
-		return client.ErrRelatedApplicationsNotSupportedForProfile
-	}
+	// Related applications settings validation is now handled by SETTINGS_RULES
 
 	// Note: Enterprise connectivity, miscellaneous parameters, RDP configuration, and tunnel client parameters
 	// are now validated by the comprehensive generic validation system in ValidateAdvancedSettings()
