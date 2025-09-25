@@ -758,6 +758,65 @@ const (
 	HealthCheckTypeNone    HealthCheckType = "None"
 )
 
+type AppAuthType string
+
+const (
+	AppAuthNone           AppAuthType = "none"
+	AppAuthKerberos       AppAuthType = "kerberos"
+	AppAuthBasic          AppAuthType = "basic"
+	AppAuthNTLMv1         AppAuthType = "NTLMv1"
+	AppAuthNTLMv2         AppAuthType = "NTLMv2"
+	AppAuthAuto           AppAuthType = "auto"
+	AppAuthServiceAccount AppAuthType = "service account"
+)
+
+type WappAuthType string
+
+const (
+	WappAuthForm       WappAuthType = "form"
+	WappAuthBasic      WappAuthType = "basic"
+	WappAuthBasicCookie WappAuthType = "basic_cookie"
+	WappAuthJWT        WappAuthType = "jwt"
+	WappAuthCertOnly   WappAuthType = "certonly"
+)
+
+type HTTPVersion string
+
+const (
+	HTTPVersion1_0 HTTPVersion = "1.0"
+	HTTPVersion1_1 HTTPVersion = "1.1"
+)
+
+type LoadBalancingMetric string
+
+const (
+	LoadBalancingRoundRobin LoadBalancingMetric = "round-robin"
+	LoadBalancingIPHash    LoadBalancingMetric = "ip-hash"
+	LoadBalancingLeastConn LoadBalancingMetric = "least-conn"
+	LoadBalancingWeightedRR LoadBalancingMetric = "weighted-rr"
+)
+
+type TLSSuiteType string
+
+const (
+	TLSSuiteTypeDefault TLSSuiteType = "default"
+	TLSSuiteTypeCustom  TLSSuiteType = "custom"
+)
+
+type CORSValue string
+
+const (
+	CORSValueOn  CORSValue = "on"
+	CORSValueOff CORSValue = "off"
+)
+
+type HTTPStatusCode string
+
+const (
+	HTTPStatus401 HTTPStatusCode = "401"
+	HTTPStatus302 HTTPStatusCode = "302"
+)
+
 func (hct HealthCheckType) ToNumeric() string {
 	switch hct {
 	case HealthCheckTypeDefault:

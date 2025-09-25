@@ -29,7 +29,15 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// Authentication Settings
 	"app_auth": {
 		Type:        "string",
-		ValidValues: []string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2", "auto", "service account"},
+		ValidValues: []string{
+			string(AppAuthNone),
+			string(AppAuthKerberos),
+			string(AppAuthBasic),
+			string(AppAuthNTLMv1),
+			string(AppAuthNTLMv2),
+			string(AppAuthAuto),
+			string(AppAuthServiceAccount),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -47,14 +55,24 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Conditional: map[string]interface{}{
 			"wapp_auth": map[string]interface{}{
 				"certonly": map[string]interface{}{
-					"ValidValues": []string{"none", "kerberos", "oidc"},
+					"ValidValues": []string{
+						string(AppAuthNone),
+						string(AppAuthKerberos),
+						"oidc",
+					},
 				},
 			},
 		},
 	},
 	"wapp_auth": {
 		Type:        "string",
-		ValidValues: []string{"form", "basic", "basic_cookie", "jwt", "certonly"},
+		ValidValues: []string{
+			string(WappAuthForm),
+			string(WappAuthBasic),
+			string(WappAuthBasicCookie),
+			string(WappAuthJWT),
+			string(WappAuthCertOnly),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -72,35 +90,76 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Conditional: map[string]interface{}{
 			"profile": map[string]interface{}{
 				"http": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for HTTP
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for HTTP
 				},
 				"sharepoint": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for SharePoint
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for SharePoint
 				},
 				"jira": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for Jira
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Jira
 				},
 				"jenkins": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for Jenkins
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Jenkins
 				},
 				"confluence": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for Confluence
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Confluence
 				},
 				"rdp": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt", "certonly"}, // certonly allowed for RDP
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+						string(WappAuthCertOnly),
+					}, // certonly allowed for RDP
 				},
 				"vnc": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for VNC
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for VNC
 				},
 				"ssh": map[string]interface{}{
-					"ValidValues": []string{"form", "basic", "basic_cookie", "jwt"},
-					"Exclude":     []string{"certonly"}, // certonly not allowed for SSH
+					"ValidValues": []string{
+						string(WappAuthForm),
+						string(WappAuthBasic),
+						string(WappAuthBasicCookie),
+						string(WappAuthJWT),
+					},
+					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for SSH
 				},
 			},
 			// Conflict validation: JWT fields conflict with non-JWT auth types
@@ -231,7 +290,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 	},
 	"health_check_http_version": {
 		Type:        "string",
-		ValidValues: []string{"1.0", "1.1"},
+		ValidValues: []string{
+			string(HTTPVersion1_0),
+			string(HTTPVersion1_1),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -339,7 +401,12 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// Server Load Balancing Settings
 	"load_balancing_metric": {
 		Type:        "string",
-		ValidValues: []string{"round-robin", "ip-hash", "least-conn", "weighted-rr"},
+		ValidValues: []string{
+			string(LoadBalancingRoundRobin),
+			string(LoadBalancingIPHash),
+			string(LoadBalancingLeastConn),
+			string(LoadBalancingWeightedRR),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -608,7 +675,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// TLS Configuration Settings
 	"tlsSuiteType": {
 		Type:        "string",
-		ValidValues: []string{"default", "custom"},
+		ValidValues: []string{
+			string(TLSSuiteTypeDefault),
+			string(TLSSuiteTypeCustom),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1358,7 +1428,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 	},
 	"jwt_return_option": {
 		Type:        "string",
-		ValidValues: []string{"401", "302"},
+		ValidValues: []string{
+			string(HTTPStatus401),
+			string(HTTPStatus302),
+		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
 		},
