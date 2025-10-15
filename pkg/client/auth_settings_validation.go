@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -29,15 +30,15 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 		// STEP 1: Validate app type restrictions based on Table 4: Application Types and Custom HTTP Headers Support
 		if appType != "" {
 			switch appType {
-			case "enterprise":
+			case string(ClientAppTypeEnterprise):
 				// Custom headers are available for Enterprise apps (Advanced Settings)
 				logger.Debug("Custom headers allowed for %s app (Advanced Settings)", appType)
 				logger.Debug("Continuing with structure validation for enterprise app")
-			case "saas", "bookmark":
+			case string(ClientAppTypeSaaS), string(ClientAppTypeBookmark):
 				// Custom headers are disabled for SaaS and Bookmark apps
 				// Since advanced_settings are blocked for these app types, custom headers are not available
 				return ErrCustomHeadersNotSupportedForSaaS
-			case "tunnel":
+			case string(ClientAppTypeTunnel):
 				//  Custom headers are disabled for tunnel applications
 				return ErrCustomHeadersNotSupportedForTunnel
 			default:
@@ -146,7 +147,13 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 		}
 
 		// Validate attribute_type enum (Table 9: Custom Header Constants)
-		validAttributeTypes := []string{"user", "group", "clientip", "fixed", "custom"}
+		validAttributeTypes := []string{
+			string(CustomHeaderAttributeTypeUser),
+			string(CustomHeaderAttributeTypeGroup),
+			string(CustomHeaderAttributeTypeClientIP),
+			string(CustomHeaderAttributeTypeFixed),
+			string(CustomHeaderAttributeTypeCustom),
+		}
 		isValidAttributeType := false
 		for _, validType := range validAttributeTypes {
 			if attributeTypeStr == validType {
@@ -160,7 +167,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 
 		// STEP 4: Conditional validation for attribute field (Table 8: Attribute Input validation)
 		// Attribute input is required when CUSTOM or FIXED is selected
-		if attributeTypeStr == "custom" || attributeTypeStr == "fixed" {
+		if attributeTypeStr == string(CustomHeaderAttributeTypeCustom) || attributeTypeStr == string(CustomHeaderAttributeTypeFixed) {
 			attributeValue, hasAttribute := header["attribute"]
 			if !hasAttribute {
 				return ErrCustomHeaderAttributeRequired
@@ -175,7 +182,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 			}
 
 			logger.Debug("Custom header %d: validated %s attribute_type with attribute='%s'", index, attributeTypeStr, attributeStr)
-		} else if attributeTypeStr == "user" || attributeTypeStr == "group" || attributeTypeStr == "clientip" {
+		} else if attributeTypeStr == string(CustomHeaderAttributeTypeUser) || attributeTypeStr == string(CustomHeaderAttributeTypeGroup) || attributeTypeStr == string(CustomHeaderAttributeTypeClientIP) {
 			// For user, group, clientip - attribute is not required (dropdown selection)
 			logger.Debug("Custom header %d: validated %s attribute_type (no attribute input required)", index, attributeTypeStr)
 		}
@@ -296,6 +303,28 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 				}
 			}
 		}
+	}
+
+	// Validate attrmap for unique attribute names
+	if attrmapBlocks, ok := samlBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
+		logger.Debug("Validating attrmap for unique attribute names")
+		
+		attributeNames := make(map[string]bool)
+		for i, attrmapBlock := range attrmapBlocks {
+			if attrmapMap, ok := attrmapBlock.(map[string]interface{}); ok {
+				if name, hasName := attrmapMap["name"]; hasName {
+					if nameStr, ok := name.(string); ok && nameStr != "" {
+						if attributeNames[nameStr] {
+							logger.Error("Duplicate attribute name '%s' found in attrmap at index %d", nameStr, i)
+							return fmt.Errorf("duplicate attribute name '%s' found in attrmap. Each attribute name must be unique", nameStr)
+						}
+						attributeNames[nameStr] = true
+						logger.Debug("Attribute name '%s' is unique", nameStr)
+					}
+				}
+			}
+		}
+		logger.Debug("All attribute names in attrmap are unique")
 	}
 
 	return nil

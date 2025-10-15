@@ -1078,3 +1078,167 @@ var NumericHealthCheckFields = []string{
 	"health_check_timeout",
 	"health_check_interval",
 }
+
+// Custom Header Attribute Types
+type CustomHeaderAttributeType string
+
+const (
+	CustomHeaderAttributeTypeUser     CustomHeaderAttributeType = "user"
+	CustomHeaderAttributeTypeGroup    CustomHeaderAttributeType = "group"
+	CustomHeaderAttributeTypeClientIP CustomHeaderAttributeType = "clientip"
+	CustomHeaderAttributeTypeFixed    CustomHeaderAttributeType = "fixed"
+	CustomHeaderAttributeTypeCustom   CustomHeaderAttributeType = "custom"
+)
+
+// SAML Response Binding Types
+type SAMLResponseBinding string
+
+const (
+	SAMLResponseBindingPost     SAMLResponseBinding = "post"
+	SAMLResponseBindingRedirect SAMLResponseBinding = "redirect"
+)
+
+// SAML Signing Algorithms
+type SAMLSigningAlgorithm string
+
+const (
+	SAMLSigningAlgorithmSHA1   SAMLSigningAlgorithm = "SHA1"
+	SAMLSigningAlgorithmSHA256 SAMLSigningAlgorithm = "SHA256"
+	SAMLSigningAlgorithmSHA384 SAMLSigningAlgorithm = "SHA384"
+	SAMLSigningAlgorithmSHA512 SAMLSigningAlgorithm = "SHA512"
+)
+
+// SAML Encryption Algorithms
+type SAMLEncryptionAlgorithm string
+
+const (
+	SAMLEncryptionAlgorithmAES128CBC SAMLEncryptionAlgorithm = "aes128-cbc"
+	SAMLEncryptionAlgorithmAES192CBC SAMLEncryptionAlgorithm = "aes192-cbc"
+	SAMLEncryptionAlgorithmAES256CBC SAMLEncryptionAlgorithm = "aes256-cbc"
+	SAMLEncryptionAlgorithmTripleDESCBC SAMLEncryptionAlgorithm = "tripledes-cbc"
+)
+
+// SAML Subject Formats
+type SAMLSubjectFormat string
+
+const (
+	SAMLSubjectFormatEmail      SAMLSubjectFormat = "email"
+	SAMLSubjectFormatNameID     SAMLSubjectFormat = "nameid"
+	SAMLSubjectFormatPersistent SAMLSubjectFormat = "persistent"
+	SAMLSubjectFormatTransient  SAMLSubjectFormat = "transient"
+)
+
+// OIDC Client Types
+type OIDCClientType string
+
+const (
+	OIDCClientTypeStandard     OIDCClientType = "standard"
+	OIDCClientTypeConfidential OIDCClientType = "confidential"
+	OIDCClientTypePublic      OIDCClientType = "public"
+)
+
+// OIDC Response Types
+type OIDCResponseType string
+
+const (
+	OIDCResponseTypeCode                OIDCResponseType = "code"
+	OIDCResponseTypeIDToken             OIDCResponseType = "id_token"
+	OIDCResponseTypeToken               OIDCResponseType = "token"
+	OIDCResponseTypeCodeIDToken         OIDCResponseType = "code id_token"
+	OIDCResponseTypeCodeToken           OIDCResponseType = "code token"
+	OIDCResponseTypeIDTokenToken        OIDCResponseType = "id_token token"
+	OIDCResponseTypeCodeIDTokenToken    OIDCResponseType = "code id_token token"
+)
+
+// Additional constants for compatibility
+const (
+	// App Auth Type constants (for compatibility)
+	AppAuthTypeNone           = AppAuthNone
+	AppAuthTypeKerberos       = AppAuthKerberos
+	AppAuthTypeBasic          = AppAuthBasic
+	AppAuthTypeNTLMv1         = AppAuthNTLMv1
+	AppAuthTypeNTLMv2         = AppAuthNTLMv2
+	AppAuthTypeAuto           = AppAuthAuto
+	AppAuthTypeServiceAccount = AppAuthServiceAccount
+
+	// Wapp Auth Type constants (for compatibility)
+	WappAuthTypeForm       = WappAuthForm
+	WappAuthTypeBasic      = WappAuthBasic
+	WappAuthTypeBasicCookie = WappAuthBasicCookie
+	WappAuthTypeJWT        = WappAuthJWT
+	WappAuthTypeCertOnly   = WappAuthCertOnly
+
+	// Boolean String constants
+	BooleanStringTrue  = STR_TRUE
+	BooleanStringFalse = STR_FALSE
+
+	// On/Off String constants
+	OnOffStringOn  = CORSValueOn
+	OnOffStringOff = CORSValueOff
+
+	// Default Values
+	DefaultSAMLResponseBinding     = SAMLResponseBindingPost
+	DefaultSAMLSigningAlgorithm    = SAMLSigningAlgorithmSHA256
+	DefaultSAMLEncryptionAlgorithm = SAMLEncryptionAlgorithmAES256CBC
+	DefaultSAMLSubjectFormat       = SAMLSubjectFormatEmail
+	DefaultSAMLSubjectSource       = "user.email"
+	DefaultOIDCClientType          = OIDCClientTypeStandard
+	DefaultSAMLTokenLife           = 3600
+	DefaultWSFEDTokenLife          = 3600
+	
+	// Default Advanced Settings Values
+	DefaultAppAuth                  = AppAuthNone
+	DefaultWappAuth                 = WappAuthForm
+	DefaultAcceleration             = STR_FALSE
+	DefaultAllowCORS                = STR_TRUE
+	DefaultAppClientCertAuth        = STR_FALSE
+	DefaultClientCertAuth           = STR_FALSE
+	DefaultCORSSupportCredential    = CORSValueOff
+	DefaultDisableUserAgentCheck    = STR_FALSE
+	DefaultEdgeAuthenticationEnabled = STR_FALSE
+	DefaultEnableClientSideXHRRewrite = STR_FALSE
+	DefaultForceIPRoute             = STR_FALSE
+	DefaultForceMFA                 = CORSValueOff
+	DefaultForwardTicketGrantingTicket = STR_FALSE
+	DefaultHiddenApp                = STR_FALSE
+	DefaultHTTPOnlyCookie           = STR_TRUE
+	DefaultHTTPSSSLV3               = STR_FALSE
+	DefaultIgnoreBypassMFA          = CORSValueOff
+	DefaultInjectAjaxJavascript     = CORSValueOff
+	DefaultIPAccessAllow            = STR_FALSE
+	DefaultIsBrotliEnabled          = STR_FALSE
+	DefaultIsSSLVerificationEnabled = STR_FALSE
+	DefaultKeepaliveEnable          = STR_TRUE
+	DefaultLoggingEnabled           = STR_TRUE
+	DefaultMDCEnable                = STR_FALSE
+	DefaultOffloadOnpremiseTraffic  = STR_FALSE
+	DefaultOnramp                   = "inherit"
+	DefaultPreauthConsent           = STR_FALSE
+	DefaultRemoteSparkAudio         = STR_TRUE
+	DefaultRemoteSparkMapClipboard  = CORSValueOn
+	DefaultRemoteSparkMapDisk       = STR_TRUE
+	DefaultRemoteSparkMapPrinter    = STR_TRUE
+	DefaultRemoteSparkRecording     = STR_FALSE
+	DefaultRequestBodyRewrite       = STR_FALSE
+	DefaultSaaSEnabled              = STR_FALSE
+	DefaultSegmentationPolicyEnable = STR_FALSE
+	DefaultSentryRedirect401        = CORSValueOff
+	DefaultSentryRestoreFormPost    = CORSValueOff
+	DefaultServerCertValidate       = STR_TRUE
+	DefaultRefreshStickyCookie      = CORSValueOn
+	DefaultSessionSticky            = STR_FALSE
+	DefaultSingleHostContentRW      = STR_FALSE
+	DefaultSingleHostEnable         = STR_FALSE
+	DefaultSPDYEnabled              = STR_TRUE
+	DefaultSSHAuditEnabled          = STR_FALSE
+	DefaultSSO                      = STR_TRUE
+	DefaultStickyAgent              = STR_FALSE
+	DefaultWebSocketEnabled         = STR_FALSE
+	DefaultWildcardInternalHostname = STR_FALSE
+	DefaultXWappPoolEnabled         = "inherit"
+	DefaultDynamicIP                = STR_FALSE
+	DefaultStickyCookies            = STR_FALSE
+	DefaultRDPLegacyMode            = STR_FALSE
+	DefaultRDPTLS1                  = STR_FALSE
+)
+

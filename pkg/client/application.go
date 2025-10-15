@@ -70,10 +70,10 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.AppType = value
-		logger.Info("appType", appType)
-		logger.Info("mcar.AppType", mcar.AppType)
+		logger.Debug("appType", appType)
+		logger.Debug("mcar.AppType", mcar.AppType)
 	} else {
-		logger.Info("appType is not present, defaulting to enterprise")
+		logger.Debug("appType is not present, defaulting to enterprise")
 		mcar.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
 	}
 
@@ -91,10 +91,10 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.AppProfile = value
-		logger.Info("appProfile", appProfile)
-		logger.Info("mcar.AppProfile", mcar.AppProfile)
+		logger.Debug("appProfile", appProfile)
+		logger.Debug("mcar.AppProfile", mcar.AppProfile)
 	} else {
-		logger.Info("appProfile is not present, defaulting to http")
+		logger.Debug("appProfile is not present, defaulting to http")
 		mcar.AppProfile = int(APP_PROFILE_HTTP)
 	}
 
@@ -112,14 +112,14 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.ClientAppMode = value
-		logger.Info("appMode", clientAppMode)
-		logger.Info("mcar.ClientAppMode", mcar.ClientAppMode)
+		logger.Debug("appMode", clientAppMode)
+		logger.Debug("mcar.ClientAppMode", mcar.ClientAppMode)
 	} else {
-		logger.Info("appMode is not present, defaulting to tcp")
+		logger.Debug("appMode is not present, defaulting to tcp")
 		mcar.ClientAppMode = int(CLIENT_APP_MODE_TCP)
 	}
 
-	logger.Info("Minimal app creation request prepared successfully")
+	logger.Debug("Minimal app creation request prepared successfully")
 	return nil
 }
 
@@ -158,7 +158,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		logger.Info("appType", appType)
 		logger.Info("car.AppType", car.AppType)
 	} else {
-		logger.Info("appType is not present, defaulting to enterprise")
+		logger.Debug("appType is not present, defaulting to enterprise")
 		car.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
 	}
 
@@ -178,7 +178,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		logger.Info("appProfile", appProfile)
 		logger.Info("car.AppProfile", car.AppProfile)
 	} else {
-		logger.Info("appProfile is not present, defaulting to http")
+		logger.Debug("appProfile is not present, defaulting to http")
 		car.AppProfile = int(APP_PROFILE_HTTP)
 	}
 
@@ -198,7 +198,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		logger.Info("appMode", clientAppMode)
 		logger.Info("car.ClientAppMode", car.ClientAppMode)
 	} else {
-		logger.Info("appMode is not present, defaulting to tcp")
+		logger.Debug("appMode is not present, defaulting to tcp")
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
 	}
 
@@ -206,7 +206,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	var validatedAppBundleUUID string
 	if appBundle, ok := d.GetOk("app_bundle"); ok {
 		if appBundleStr, ok := appBundle.(string); ok && appBundleStr != "" {
-			logger.Info("CREATE FLOW: Found app_bundle:", appBundleStr)
+			logger.Debug("CREATE FLOW: Found app_bundle:", appBundleStr)
 			
 			// Validate app bundle name and get UUID
 			appBundleUUID, err := ec.GetAppBundleByName(appBundleStr)
@@ -216,7 +216,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			}
 			
 			validatedAppBundleUUID = appBundleUUID
-			logger.Info("CREATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+			logger.Debug("CREATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
 		}
 	}
 
@@ -234,7 +234,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		advSettingsJSON = "{}" // Force parsing with empty JSON to apply defaults
 	}
 
-	logger.Info("CREATE FLOW: Using JSON:", advSettingsJSON)
+	logger.Debug("CREATE FLOW: Using JSON:", advSettingsJSON)
 
 	// ALWAYS parse and apply malformed defaults
 	advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
@@ -244,14 +244,14 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 	// Extract TLS Suite fields from advanced_settings and set them at the top level
 	// Parse the advanced_settings JSON to extract TLS Suite fields
-	logger.Info("CREATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
+	logger.Debug("CREATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
 	var userSettings map[string]interface{}
 	if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
-		logger.Info("CREATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
+		logger.Debug("CREATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
 
 		// Extract tlsSuiteType
 		if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
-			logger.Info("CREATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
+			logger.Debug("CREATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
 
 			var tlsSuiteTypeInt int
 			switch v := tlsSuiteTypeVal.(type) {
@@ -274,20 +274,20 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			}
 
 			car.TLSSuiteType = &tlsSuiteTypeInt
-			logger.Info("CREATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
+			logger.Debug("CREATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
 		} else {
-			logger.Info("CREATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
+			logger.Debug("CREATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
 		}
 
 		// Extract tls_suite_name
 		if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
-			logger.Info("CREATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
+			logger.Debug("CREATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
 			if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
 				car.TLSSuiteName = &tlsSuiteNameStr
-				logger.Info("CREATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
+				logger.Debug("CREATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
 			}
 		} else {
-			logger.Info("CREATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
+			logger.Debug("CREATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
 		}
 	} else {
 		logger.Error("CREATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
@@ -295,7 +295,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 	// Set authentication flags based on Terraform boolean flags for CREATE flow
 	// Preserve user-provided app_auth value from advanced_settings
-	logger.Info("CREATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
+	logger.Debug("CREATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
 
 	// Set authentication flags based on Terraform boolean flags
 	// Reset all auth types to false first
@@ -306,14 +306,14 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	// Then set the specific one based on flags
 	if samlFlag, ok := d.GetOk("saml"); ok {
 		if samlBool, ok := samlFlag.(bool); ok && samlBool {
-			logger.Info("CREATE FLOW: Found saml=true in Terraform config")
+			logger.Debug("CREATE FLOW: Found saml=true in Terraform config")
 			car.SAML = true
 		}
 	}
 
 	if oidcFlag, ok := d.GetOk("oidc"); ok {
 		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
-			logger.Info("CREATE FLOW: Found oidc=true in Terraform config")
+			logger.Debug("CREATE FLOW: Found oidc=true in Terraform config")
 			car.Oidc = true
 			// Override app_auth only when oidc=true
 		}
@@ -321,21 +321,17 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
 		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
-			logger.Info("CREATE FLOW: Found wsfed=true in Terraform config")
+			logger.Debug("CREATE FLOW: Found wsfed=true in Terraform config")
 			car.WSFED = true
 		}
 	}
 
-	logger.Info("CREATE FLOW: Final app_auth value in payload:", advSettings.AppAuth)
-	logger.Info("CREATE FLOW: After setting flags - SAML:", car.SAML)
-	logger.Info("CREATE FLOW: After setting flags - Oidc:", car.Oidc)
-	logger.Info("CREATE FLOW: After setting flags - WSFED:", car.WSFED)
 
 	// Handle SAML settings for CREATE flow
 	if car.SAML {
 		// Use schema approach (nested blocks)
 		if samlSettings, ok := d.GetOk("saml_settings"); ok {
-			logger.Info("CREATE FLOW: Found saml_settings blocks")
+			logger.Debug("CREATE FLOW: Found saml_settings blocks")
 			if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
 				// Convert nested blocks to SAMLConfig
 				samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
@@ -344,11 +340,11 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
 				car.SAMLSettings = []SAMLConfig{samlConfig}
-				logger.Info("CREATE FLOW: Successfully converted nested blocks to SAML config")
+				logger.Debug("CREATE FLOW: Successfully converted nested blocks to SAML config")
 			}
 		} else {
 			// No saml_settings provided but SAML is enabled - create default structure
-			logger.Info("CREATE FLOW: No saml_settings found, creating defaults")
+			logger.Debug("CREATE FLOW: No saml_settings found, creating defaults")
 			car.SAMLSettings = []SAMLConfig{DefaultSAMLConfig}
 		}
 	} else {
@@ -361,7 +357,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	} else {
 		// Handle OIDC settings for CREATE flow
 		if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
-			logger.Info("CREATE FLOW: Found oidc_settings blocks")
+			logger.Debug("CREATE FLOW: Found oidc_settings blocks")
 			if oidcSettingsList, ok := oidcSettings.([]interface{}); ok && len(oidcSettingsList) > 0 {
 				// Convert nested blocks to OIDCConfig
 				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
@@ -370,10 +366,10 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
 				car.OIDCSettings = oidcConfig
-				logger.Info("CREATE FLOW: Successfully converted nested blocks to OIDC config")
+				logger.Debug("CREATE FLOW: Successfully converted nested blocks to OIDC config")
 			}
 		} else {
-			logger.Info("CREATE FLOW: No oidc_settings found, creating defaults")
+			logger.Debug("CREATE FLOW: No oidc_settings found, creating defaults")
 			car.OIDCSettings = &OIDCConfig{
 				OIDCClients: []OIDCClient{
 					{
@@ -394,7 +390,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	if car.WSFED {
 		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
 			// User provided wsfed_settings as nested blocks - parse them
-			logger.Info("CREATE FLOW: Found wsfed_settings as nested blocks")
+			logger.Debug("CREATE FLOW: Found wsfed_settings as nested blocks")
 			if wsfedSettingsList, ok := wsfedSettingsData.([]interface{}); ok && len(wsfedSettingsList) > 0 {
 				// Get the first (and only) wsfed_settings block
 				wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
@@ -500,11 +496,11 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 				// Use the merged configuration
 				car.WSFEDSettings = []WSFEDConfig{wsfedConfig}
-				logger.Info("CREATE FLOW: Successfully merged WSFED config from nested blocks")
+				logger.Debug("CREATE FLOW: Successfully merged WSFED config from nested blocks")
 			}
 		} else {
 			// No wsfed_settings provided but WSFED is enabled - use default structure
-			logger.Info("CREATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
+			logger.Debug("CREATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
 			car.WSFEDSettings = []WSFEDConfig{DefaultWSFEDConfig}
 		}
 	} else {
@@ -514,26 +510,23 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	// Handle app_bundle field from top-level resource - use validated UUID
 	if validatedAppBundleUUID != "" {
 		car.AppBundle = validatedAppBundleUUID
-		logger.Info("CREATE FLOW: Set app_bundle UUID on CreateAppRequest struct:", validatedAppBundleUUID)
+		logger.Debug("CREATE FLOW: Set app_bundle UUID on CreateAppRequest struct:", validatedAppBundleUUID)
 	}
 
-	logger.Info("CREATE FLOW: Setting car.AdvancedSettings with malformed defaults")
-	logger.Info("CREATE FLOW: advSettings.AppAuth before assignment:", advSettings.AppAuth)
 	car.AdvancedSettings = *advSettings
-	logger.Info("CREATE FLOW: car.AdvancedSettings.AppAuth after assignment:", car.AdvancedSettings.AppAuth)
 
 	return nil
 }
 
 // CreateMinimalApplication creates an application with minimal required fields only
 func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
-	ec.Logger.Info("create minimal application")
+	ec.Logger.Debug("create minimal application")
 
 	// Log the minimal payload being sent to API
 	payloadBytes, _ := json.MarshalIndent(mcar, "", "  ")
-	ec.Logger.Info("=== MINIMAL API PAYLOAD BEING SENT ===")
-	ec.Logger.Info(string(payloadBytes))
-	ec.Logger.Info("=== END MINIMAL API PAYLOAD ===")
+	ec.Logger.Debug("=== MINIMAL API PAYLOAD BEING SENT ===")
+	ec.Logger.Debug(string(payloadBytes))
+	ec.Logger.Debug("=== END MINIMAL API PAYLOAD ===")
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
@@ -551,18 +544,18 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 		ec.Logger.Error("create minimal Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
 		return nil, createErrMsg
 	}
-	ec.Logger.Info("create minimal Application succeeded.", "name", mcar.Name)
+	ec.Logger.Debug("create minimal Application succeeded.", "name", mcar.Name)
 	return &appResp, nil
 }
 
 func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClient) (*ApplicationResponse, error) {
-	ec.Logger.Info("create application")
+	ec.Logger.Debug("create application")
 
 	// Log the complete payload being sent to API
 	payloadBytes, _ := json.MarshalIndent(car, "", "  ")
-	ec.Logger.Info("=== COMPLETE API PAYLOAD BEING SENT ===")
-	ec.Logger.Info(string(payloadBytes))
-	ec.Logger.Info("=== END API PAYLOAD ===")
+	ec.Logger.Debug("=== COMPLETE API PAYLOAD BEING SENT ===")
+	ec.Logger.Debug(string(payloadBytes))
+	ec.Logger.Debug("=== END API PAYLOAD ===")
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
@@ -580,7 +573,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 		ec.Logger.Error("create Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
 		return nil, createErrMsg
 	}
-	ec.Logger.Info("create Application succeeded.", "name", car.Name)
+	ec.Logger.Debug("create Application succeeded.", "name", car.Name)
 	return &appResp, nil
 }
 
@@ -863,7 +856,7 @@ func (app *Application) FromResponse(ar *ApplicationResponse) {
 }
 
 func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
-	ec.Logger.Info("updateG2O")
+	ec.Logger.Debug("updateG2O")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/g2o", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
 	var g2oResp G2O_Response
@@ -883,7 +876,7 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
 }
 
 func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuth_Response, error) {
-	ec.Logger.Info("UpdateEdgeAuthentication")
+	ec.Logger.Debug("UpdateEdgeAuthentication")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/edgekey", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
 	var edgeAuthResp EdgeAuth_Response
@@ -942,7 +935,7 @@ type ApplicationUpdateRequest struct {
 }
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
-	ec.Logger.Info("updating application")
+	ec.Logger.Debug("updating application")
 
 	// Handle basic application fields
 	if description, ok := d.GetOk("description"); ok {
@@ -987,7 +980,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			}
 			
 			validatedAppBundleUUID = appBundleUUID
-			ec.Logger.Info("UPDATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+			ec.Logger.Debug("UPDATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
 		}
 	}
 
@@ -1036,18 +1029,18 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			}
 
 			// Preserve user-provided app_auth value from advanced_settings
-			ec.Logger.Info("UPDATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
+			ec.Logger.Debug("UPDATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
 
 			// Extract TLS Suite fields from advanced_settings and set them at the top level
 			// Parse the advanced_settings JSON to extract TLS Suite fields
-			ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
+			ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
 			var userSettings map[string]interface{}
 			if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
-				ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
+				ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
 
 				// Extract tlsSuiteType
 				if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
-					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
+					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
 
 					var tlsSuiteTypeInt int
 					switch v := tlsSuiteTypeVal.(type) {
@@ -1071,20 +1064,20 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					}
 
 					appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
-					ec.Logger.Info("UPDATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
+					ec.Logger.Debug("UPDATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
 				} else {
-					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
+					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
 				}
 
 				// Extract tls_suite_name
 				if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
-					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
+					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
 					if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
 						appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
-						ec.Logger.Info("UPDATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
+						ec.Logger.Debug("UPDATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
 					}
 				} else {
-					ec.Logger.Info("UPDATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
+					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
 				}
 			} else {
 				ec.Logger.Error("UPDATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
@@ -1123,11 +1116,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			// Set the app bundle UUID on the Application struct (top-level field)
 			if validatedAppBundleUUID != "" {
 				appUpdateReq.AppBundle = validatedAppBundleUUID
-				ec.Logger.Info("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
+				ec.Logger.Debug("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
 			}
 
 			// Log the final advanced settings to see what's being sent
-			ec.Logger.Info("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
+			ec.Logger.Debug("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
 
 			// Debug output for RDP fields
 
@@ -1140,14 +1133,14 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	samlFlag, samlOk := d.GetOk("saml")
 	if samlOk {
 		if samlBool, ok := samlFlag.(bool); ok && samlBool {
-			ec.Logger.Info("UPDATE FLOW: Found saml=true in Terraform config")
+			ec.Logger.Debug("UPDATE FLOW: Found saml=true in Terraform config")
 			appUpdateReq.SAML = true
 			appUpdateReq.Oidc = false
 			appUpdateReq.WSFED = false
 
 			// Use schema approach (nested blocks)
 			if samlSettings, ok := d.GetOk("saml_settings"); ok {
-				ec.Logger.Info("UPDATE FLOW: Found saml_settings blocks")
+				ec.Logger.Debug("UPDATE FLOW: Found saml_settings blocks")
 				if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
 					// Convert nested blocks to SAMLConfig
 					samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
@@ -1156,20 +1149,20 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 					}
 					appUpdateReq.SAMLSettings = []SAMLConfig{samlConfig}
-					ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to SAML config")
+					ec.Logger.Debug("UPDATE FLOW: Successfully converted nested blocks to SAML config")
 				}
 			} else {
 				// No saml_settings provided but SAML is enabled - use DefaultSAMLConfig
-				ec.Logger.Info("UPDATE FLOW: No saml_settings found, using DefaultSAMLConfig")
+				ec.Logger.Debug("UPDATE FLOW: No saml_settings found, using DefaultSAMLConfig")
 				appUpdateReq.SAMLSettings = []SAMLConfig{DefaultSAMLConfig}
-				ec.Logger.Info("UPDATE FLOW: Set SAMLSettings with DefaultSAMLConfig")
+				ec.Logger.Debug("UPDATE FLOW: Set SAMLSettings with DefaultSAMLConfig")
 			}
 		}
 	}
 
 	if oidcFlag, ok := d.GetOk("oidc"); ok {
 		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
-			ec.Logger.Info("UPDATE FLOW: Found oidc=true in Terraform config")
+			ec.Logger.Debug("UPDATE FLOW: Found oidc=true in Terraform config")
 			appUpdateReq.SAML = false
 			appUpdateReq.Oidc = true
 			appUpdateReq.WSFED = false
@@ -1179,7 +1172,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 			// Handle OIDC settings for UPDATE flow
 			if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
-				ec.Logger.Info("UPDATE FLOW: Found oidc_settings blocks")
+				ec.Logger.Debug("UPDATE FLOW: Found oidc_settings blocks")
 				if oidcSettingsList, ok := oidcSettings.([]interface{}); ok && len(oidcSettingsList) > 0 {
 					// Convert nested blocks to OIDCConfig
 					oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
@@ -1188,10 +1181,10 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 					}
 					appUpdateReq.OIDCSettings = oidcConfig
-					ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
+					ec.Logger.Debug("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
 				}
 			} else {
-				ec.Logger.Info("UPDATE FLOW: No oidc_settings found, creating defaults")
+				ec.Logger.Debug("UPDATE FLOW: No oidc_settings found, creating defaults")
 				appUpdateReq.OIDCSettings = &OIDCConfig{
 					OIDCClients: []OIDCClient{
 						{
@@ -1212,7 +1205,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
 		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
-			ec.Logger.Info("UPDATE FLOW: Found wsfed=true in Terraform config")
+			ec.Logger.Debug("UPDATE FLOW: Found wsfed=true in Terraform config")
 			appUpdateReq.SAML = false
 			appUpdateReq.Oidc = false
 			appUpdateReq.WSFED = true
@@ -1220,16 +1213,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 	}
 
-	ec.Logger.Info("UPDATE FLOW: Final SAML flag:", appUpdateReq.SAML)
-	ec.Logger.Info("UPDATE FLOW: Final Oidc flag:", appUpdateReq.Oidc)
-	ec.Logger.Info("UPDATE FLOW: Final WSFED flag:", appUpdateReq.WSFED)
-	ec.Logger.Info("UPDATE FLOW: Final SAMLSettings length:", len(appUpdateReq.SAMLSettings))
 
 	// Handle WS-Federation settings for UPDATE flow
 	if appUpdateReq.WSFED {
 		if wsfedSettingsData, ok := d.GetOk("wsfed_settings"); ok {
 			// User provided wsfed_settings as nested blocks - parse them
-			ec.Logger.Info("UPDATE FLOW: Found wsfed_settings as nested blocks")
+			ec.Logger.Debug("UPDATE FLOW: Found wsfed_settings as nested blocks")
 			if wsfedSettingsList, ok := wsfedSettingsData.([]interface{}); ok && len(wsfedSettingsList) > 0 {
 				// Get the first (and only) wsfed_settings block
 				wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
@@ -1335,11 +1324,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 				// Use the merged configuration
 				appUpdateReq.WSFEDSettings = []WSFEDConfig{wsfedConfig}
-				ec.Logger.Info("UPDATE FLOW: Successfully merged WSFED config from nested blocks")
+				ec.Logger.Debug("UPDATE FLOW: Successfully merged WSFED config from nested blocks")
 			}
 		} else {
 			// No wsfed_settings provided but WSFED is enabled - use default structure
-			ec.Logger.Info("UPDATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
+			ec.Logger.Debug("UPDATE FLOW: No wsfed_settings found, using DefaultWSFEDConfig")
 			appUpdateReq.WSFEDSettings = []WSFEDConfig{DefaultWSFEDConfig}
 		}
 	} else {
@@ -1351,7 +1340,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 	if appUpdateReq.Oidc {
 		if oidcSettingsData, ok := d.GetOk("oidc_settings"); ok {
-			ec.Logger.Info("UPDATE FLOW: Found oidc_settings blocks")
+			ec.Logger.Debug("UPDATE FLOW: Found oidc_settings blocks")
 			if oidcSettingsList, ok := oidcSettingsData.([]interface{}); ok && len(oidcSettingsList) > 0 {
 				// Convert nested blocks to OIDCConfig (consistent with CREATE flow)
 				convertedConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
@@ -1360,10 +1349,10 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
 				oidcConfig = convertedConfig
-				ec.Logger.Info("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
+				ec.Logger.Debug("UPDATE FLOW: Successfully converted nested blocks to OIDC config")
 			}
 		} else {
-			ec.Logger.Info("UPDATE FLOW: No oidc_settings found, creating defaults")
+			ec.Logger.Debug("UPDATE FLOW: No oidc_settings found, creating defaults")
 			oidcConfig = &OIDCConfig{
 				OIDCClients: []OIDCClient{
 					{
@@ -1467,7 +1456,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	return nil
 }
 func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, d *schema.ResourceData, ctx context.Context) error {
-	ec.Logger.Info("Custom domain")
+	ec.Logger.Debug("Custom domain")
 
 	// Default certificate type to "self-signed"
 	certType := "self_signed"
@@ -1483,7 +1472,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 	// Convert certificate type to CertType
 	appCert := CertType(certType)
-	ec.Logger.Info("Certificate type: ", appCert)
+	ec.Logger.Debug("Certificate type: ", appCert)
 
 	// Check if the certificate type is self-signed
 	if appCert == CertSelfSigned {
@@ -1496,10 +1485,10 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 		if certObj != nil {
 			// Use existing self-signed certificate
 			appUpdateReq.Cert = &certObj.UUIDURL
-			ec.Logger.Info("Using existing self-signed certificate: ", appUpdateReq.Cert)
+			ec.Logger.Debug("Using existing self-signed certificate: ", appUpdateReq.Cert)
 			return nil
 		} else {
-			ec.Logger.Info("Generating self-signed certificate")
+			ec.Logger.Debug("Generating self-signed certificate")
 			// Create a new self-signed certificate
 			var certReq CreateSelfSignedCertRequest
 			certReq.HostName = *appUpdateReq.Host
@@ -1511,7 +1500,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 			// Update application request with the generated certificate
 			appUpdateReq.Cert = &certResp.UUIDURL
-			ec.Logger.Info("Generated self-signed certificate: ", appUpdateReq.Cert)
+			ec.Logger.Debug("Generated self-signed certificate: ", appUpdateReq.Cert)
 			return nil
 		}
 	}
@@ -1534,7 +1523,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 		if certObj != nil {
 			// Use existing self-signed certificate
 			appUpdateReq.Cert = &certObj.UUIDURL
-			ec.Logger.Info("using uploaded cert : ", appUpdateReq.Cert)
+			ec.Logger.Debug("using uploaded cert : ", appUpdateReq.Cert)
 			return nil
 		}
 	}
@@ -1544,14 +1533,14 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Context, ec *EaaClient) error {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
-	ec.Logger.Info("API URL: ", apiURL)
+	ec.Logger.Debug("API URL: ", apiURL)
 
 	// Debug: Log the final app bundle before sending to API
-	ec.Logger.Info("FINAL PAYLOAD: AppBundle = '%s'", appUpdateReq.AppBundle)
+	ec.Logger.Debug("FINAL PAYLOAD: AppBundle = '%s'", appUpdateReq.AppBundle)
 	
 	// Debug: Log the complete request payload
 	payloadJSON, _ := json.MarshalIndent(appUpdateReq, "", "  ")
-	ec.Logger.Info("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
+	ec.Logger.Debug("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
 
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
@@ -1571,30 +1560,30 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	responseBody, _ := io.ReadAll(appUpdResp.Body)
 	var responseData map[string]interface{}
 	if err := json.Unmarshal(responseBody, &responseData); err == nil {
-		ec.Logger.Info("API RESPONSE:")
+		ec.Logger.Debug("API RESPONSE:")
 		responseJSON, _ := json.MarshalIndent(responseData, "", "  ")
-		ec.Logger.Info(string(responseJSON))
+		ec.Logger.Debug(string(responseJSON))
 
 		// Show specific advanced settings from response
 		if advancedSettings, ok := responseData["advanced_settings"].(map[string]interface{}); ok {
-			ec.Logger.Info("ADVANCED SETTINGS FROM RESPONSE:")
+			ec.Logger.Debug("ADVANCED SETTINGS FROM RESPONSE:")
 			if appAuthDomain, exists := advancedSettings["app_auth_domain"]; exists {
-				ec.Logger.Info(fmt.Sprintf("app_auth_domain: %v (type: %T)", appAuthDomain, appAuthDomain))
+				ec.Logger.Debug(fmt.Sprintf("app_auth_domain: %v (type: %T)", appAuthDomain, appAuthDomain))
 			} else {
-				ec.Logger.Info("app_auth_domain: not present in response")
+				ec.Logger.Debug("app_auth_domain: not present in response")
 			}
 			if appClientCertAuth, exists := advancedSettings["app_client_cert_auth"]; exists {
-				ec.Logger.Info(fmt.Sprintf("app_client_cert_auth: %v (type: %T)", appClientCertAuth, appClientCertAuth))
+				ec.Logger.Debug(fmt.Sprintf("app_client_cert_auth: %v (type: %T)", appClientCertAuth, appClientCertAuth))
 			} else {
-				ec.Logger.Info("app_client_cert_auth: not present in response")
+				ec.Logger.Debug("app_client_cert_auth: not present in response")
 			}
 			if acceleration, exists := advancedSettings["acceleration"]; exists {
-				ec.Logger.Info(fmt.Sprintf("acceleration: %v (type: %T)", acceleration, acceleration))
+				ec.Logger.Debug(fmt.Sprintf("acceleration: %v (type: %T)", acceleration, acceleration))
 			} else {
-				ec.Logger.Info("acceleration: not present in response")
+				ec.Logger.Debug("acceleration: not present in response")
 			}
 		}
-		ec.Logger.Info("")
+		ec.Logger.Debug("")
 	}
 
 	return nil
@@ -2359,8 +2348,20 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 				if name, ok := attrmapMap["name"].(string); ok {
 					attrMapping.Name = name
 				}
-				if val, ok := attrmapMap["value"].(string); ok {
+				if fname, ok := attrmapMap["fname"].(string); ok {
+					attrMapping.Fname = fname
+				}
+				if fmt, ok := attrmapMap["fmt"].(string); ok {
+					attrMapping.Fmt = fmt
+				}
+				if val, ok := attrmapMap["val"].(string); ok {
 					attrMapping.Val = val
+				}
+				if src, ok := attrmapMap["src"].(string); ok {
+					attrMapping.Src = src
+				}
+				if rule, ok := attrmapMap["rule"].(string); ok {
+					attrMapping.Rule = rule
 				}
 				config.Attrmap = append(config.Attrmap, attrMapping)
 			}
@@ -2467,16 +2468,16 @@ var DefaultSAMLConfig = SAMLConfig{
 		EntityID:     "",
 		ACSURL:       "",
 		SLOURL:       "",
-		ReqBind:      "redirect",
+		ReqBind:      string(SAMLResponseBindingRedirect),
 		ForceAuth:    false,
 		ReqVerify:    false,
 		SignCert:     "",
 		RespEncr:     false,
 		EncrCert:     "",
-		EncrAlgo:     "aes256-cbc",
+		EncrAlgo:     string(DefaultSAMLEncryptionAlgorithm),
 		SLOReqVerify: true,
 		DSTURL:       "",
-		SLOBind:      "post",
+		SLOBind:      string(DefaultSAMLResponseBinding),
 	},
 	IDP: IDPConfig{
 		EntityID:         "",
@@ -2484,8 +2485,8 @@ var DefaultSAMLConfig = SAMLConfig{
 		SignCert:         nil,
 		SignKey:          "",
 		SelfSigned:       true,
-		SignAlgo:         "SHA256",
-		RespBind:         "post",
+		SignAlgo:         string(DefaultSAMLSigningAlgorithm),
+		RespBind:         string(DefaultSAMLResponseBinding),
 		SLOURL:           "",
 		ECPIsEnabled:     false,
 		ECPRespSignature: false,
@@ -2503,13 +2504,13 @@ var DefaultWSFEDConfig = WSFEDConfig{
 		EntityID:  "",
 		SLOURL:    "",
 		DSTURL:    "",
-		RespBind:  "post",
-		TokenLife: 3600,
-		EncrAlgo:  "aes256-cbc",
+		RespBind:  string(DefaultSAMLResponseBinding),
+		TokenLife: DefaultSAMLTokenLife,
+		EncrAlgo:  string(DefaultSAMLEncryptionAlgorithm),
 	},
 	IDP: WSFEDIDPConfig{
 		EntityID:   "",
-		SignAlgo:   "SHA256",
+		SignAlgo:   string(DefaultSAMLSigningAlgorithm),
 		SignCert:   "",
 		SignKey:    "",
 		SelfSigned: true,

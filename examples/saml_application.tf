@@ -1,6 +1,5 @@
 # SAML Authentication Application Example
 # This example demonstrates how to create an EAA application with SAML2.0 authentication
-
 terraform {
   required_providers {
     eaa = {
@@ -99,33 +98,39 @@ resource "eaa_application" "saml_custom_example_1" {
 
   # SAML settings using schema approach (nested blocks)
   saml_settings {
+    # Service Provider (SP) Configuration
+    sp {
+      entity_id  = "https://saml-custom.example.com/sp"
+      acs_url    = "https://saml-custom.example.com/acs"
+      slo_url    = "https://saml-custom.example.com/slo"
+      dst_url    = "https://saml-custom.example.com/destination"
+      resp_bind  = "post"                    # Valid: "post", "redirect"
+      token_life = 3600                      # Token lifetime in seconds
+      encr_algo  = "aes256-cbc"             # Valid: "aes128-cbc", "aes192-cbc", "aes256-cbc", "tripledes-cbc"
+    }
     
-    
+    # Identity Provider (IDP) Configuration
     idp {
-      self_signed = false
-      sign_cert   = ""
-      
+      entity_id   = "https://idp.example.com/metadata"
+      sign_algo   = "SHA256"                # Valid: "SHA1", "SHA256", "SHA384", "SHA512"
+      sign_cert   = "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+      sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"
+      self_signed = true                   # Set to true if using self-signed certificates
     }
     
+    # Subject Configuration
     subject {
-      fmt = "email"
+      fmt = "email"                         # Valid: "email", "nameid", "persistent", "transient", "unspecified"
+      src = "user.email"                    # Source attribute for subject
+    }
+    
+    # Attribute Mapping Configuration
+    # Custom Attribute Mapping
+    attrmap {
+      name = "name"
+      fname = "name"
+      fmt = "basic"
       src = "user.email"
-      
-    }
-    
-    attrmap {
-      name = "email"
-      value = "user.email"
-    }
-    
-    attrmap {
-      name = "firstName"
-      value = "user.firstName"
-    }
-    
-    attrmap {
-      name = "lastName"
-      value = "user.lastName"
     }
   }
 }

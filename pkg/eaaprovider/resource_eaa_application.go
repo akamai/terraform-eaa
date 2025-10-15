@@ -189,20 +189,22 @@ func resourceEaaApplication() *schema.Resource {
 									"resp_bind": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "post",
+										Default:     string(client.DefaultSAMLResponseBinding),
 										Description: "SAML SP Response Binding",
+										ValidateFunc: validateSAMLResponseBinding,
 									},
 									"token_life": {
 										Type:        schema.TypeInt,
 										Optional:    true,
-										Default:     3600,
+										Default:     client.DefaultSAMLTokenLife,
 										Description: "SAML SP Token Lifetime (seconds)",
 									},
 									"encr_algo": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "aes256-cbc",
+										Default:     string(client.DefaultSAMLEncryptionAlgorithm),
 										Description: "SAML SP Encryption Algorithm",
+										ValidateFunc: validateSAMLEncryptionAlgorithm,
 									},
 								},
 							},
@@ -222,8 +224,9 @@ func resourceEaaApplication() *schema.Resource {
 									"sign_algo": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "SHA256",
+										Default:     string(client.DefaultSAMLSigningAlgorithm),
 										Description: "SAML IDP Signing Algorithm",
+										ValidateFunc: validateSAMLSigningAlgorithm,
 									},
 									"sign_cert": {
 										Type:        schema.TypeString,
@@ -254,13 +257,14 @@ func resourceEaaApplication() *schema.Resource {
 									"fmt": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "email",
+										Default:     string(client.DefaultSAMLSubjectFormat),
 										Description: "SAML Subject format",
+										ValidateFunc: validateSAMLSubjectFormat,
 									},
 									"src": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "user.email",
+										Default:     client.DefaultSAMLSubjectSource,
 										Description: "SAML Subject source",
 									},
 								},
@@ -274,13 +278,33 @@ func resourceEaaApplication() *schema.Resource {
 								Schema: map[string]*schema.Schema{
 									"name": {
 										Type:        schema.TypeString,
-										Optional:    true,
+										Required:    true,
 										Description: "SAML Attribute name",
 									},
-									"value": {
+									"fname": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "SAML Attribute friendly name",
+									},
+									"fmt": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "SAML Attribute format",
+									},
+									"val": {
 										Type:        schema.TypeString,
 										Optional:    true,
 										Description: "SAML Attribute value",
+									},
+									"src": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "SAML Attribute source",
+									},
+									"rule": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "SAML Attribute rule",
 									},
 								},
 							},
@@ -546,7 +570,8 @@ func resourceEaaApplication() *schema.Resource {
 										Optional:    true,
 										Description: "OIDC Response Types",
 										Elem: &schema.Schema{
-											Type: schema.TypeString,
+											Type:         schema.TypeString,
+											ValidateFunc: validateOIDCResponseType,
 										},
 									},
 									"implicit_grant": {
@@ -558,8 +583,9 @@ func resourceEaaApplication() *schema.Resource {
 									"type": {
 										Type:        schema.TypeString,
 										Optional:    true,
-										Default:     "standard",
+										Default:     string(client.DefaultOIDCClientType),
 										Description: "OIDC Client Type",
+										ValidateFunc: validateOIDCClientType,
 									},
 									"redirect_uris": {
 										Type:        schema.TypeList,
@@ -709,6 +735,7 @@ func resourceEaaApplication() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Application bundle name for related applications grouping.",
+				ValidateFunc: validateAppBundle,
 			},
 			"_validation_trigger": {
 				Type:        schema.TypeString,
@@ -861,6 +888,11 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 		err = client.ValidateOIDCNestedBlocks(ctx, d, m, logger)
 	}
 
+	// Validate app bundle restrictions
+	if err == nil {
+		err = validateAppBundleRestrictions(ctx, d, m, logger)
+	}
+
 	return err
 }
 
@@ -891,7 +923,7 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 
 	// For bookmark and saas, advanced_settings should not be allowed at all
 	// These app types should use resource-level configuration instead
-	if appType == "bookmark" || appType == "saas" {
+	if appType == string(client.ClientAppTypeBookmark) || appType == string(client.ClientAppTypeSaaS) {
 		advancedSettingsStr, ok := diff.Get("advanced_settings").(string)
 		if ok && advancedSettingsStr != "" && advancedSettingsStr != "{}" {
 			return client.ErrAdvancedSettingsNotAllowedForAppType
@@ -952,7 +984,7 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 	// Miscellaneous configuration validation is now handled by SETTINGS_RULES
 
 	// Validate health check configuration (skip for tunnel apps)
-	if appType != "tunnel" {
+	if appType != string(client.ClientAppTypeTunnel) {
 		logger.Debug("Validating health check for app_type: %s", appType)
 		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
 			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
@@ -964,7 +996,17 @@ func validateAdvancedSettingsAtPlanTime(ctx context.Context, diff *schema.Resour
 
 	// Server load balancing configuration validation is now handled by SETTINGS_RULES
 
-	// Related applications configuration validation is now handled by SETTINGS_RULES
+	// Related applications settings validation is now handled by SETTINGS_RULES
+
+	// Validate TLS Suite configuration restrictions
+	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
+		return client.ErrTLSSuiteRestrictionsValidationFailed
+	}
+
+	// Validate TLS Suite required dependencies
+	if err := validateTLSSuiteRequiredDependencies(settings, logger); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1015,7 +1057,7 @@ func resourceEaaApplicationCreateWrapper(ctx context.Context, d *schema.Resource
 	d.SetId("")
 
 	if cleanupSuccess {
-		logger.Info("Successfully cleaned up orphaned app:", appID)
+		logger.Debug("Successfully cleaned up orphaned app:", appID)
 	} else {
 		logger.Error("Failed to clean up orphaned app:", appID)
 		// Add a warning about manual cleanup needed
@@ -1102,7 +1144,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	}
 	logger := eaaclient.Logger
 
-	logger.Info("Starting two-phase application creation")
+	logger.Debug("Starting two-phase application creation")
 
 	var app_uuid_url string
 	var phase2Steps []func() error
@@ -1110,7 +1152,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// ========================================
 	// PHASE 1: Create minimal application
 	// ========================================
-	logger.Info("Phase 1: Creating minimal application")
+	logger.Debug("Phase 1: Creating minimal application")
 
 	minimalRequest := client.MinimalCreateAppRequest{}
 	err = minimalRequest.CreateMinimalAppRequestFromSchema(ctx, d, eaaclient)
@@ -1126,7 +1168,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	}
 
 	app_uuid_url = appResp.UUIDURL
-	logger.Info("Phase 1 succeeded: Application created with ID:", app_uuid_url)
+	logger.Debug("Phase 1 succeeded: Application created with ID:", app_uuid_url)
 
 	// Set the resource ID early so cleanup can work if later steps fail
 	d.SetId(app_uuid_url)
@@ -1134,7 +1176,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// ========================================
 	// PHASE 2: Configure additional settings
 	// ========================================
-	logger.Info("Phase 2: Configuring additional settings")
+	logger.Debug("Phase 2: Configuring additional settings")
 
 	// Prepare Phase 2 steps for potential rollback
 	phase2Steps = []func() error{
@@ -1180,7 +1222,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		logger.Debug("Phase 2 step %d completed successfully", i+1)
 	}
 
-	logger.Info("Two-phase application creation completed successfully")
+	logger.Debug("Two-phase application creation completed successfully")
 
 	// Return the read result
 	return resourceEaaApplicationRead(ctx, d, m)
@@ -1778,7 +1820,11 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 			for _, attr := range samlConfig.Attrmap {
 				attrmapBlock := make(map[string]interface{})
 				attrmapBlock["name"] = attr.Name
-				attrmapBlock["value"] = attr.Val
+				attrmapBlock["fname"] = attr.Fname
+				attrmapBlock["fmt"] = attr.Fmt
+				attrmapBlock["val"] = attr.Val
+				attrmapBlock["src"] = attr.Src
+				attrmapBlock["rule"] = attr.Rule
 				attrmapBlocks = append(attrmapBlocks, attrmapBlock)
 			}
 			samlBlock["attrmap"] = attrmapBlocks
@@ -2172,7 +2218,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	eaaclient.Logger.Debug("PUT call completed successfully in UPDATE flow")
 
 	// Add delay before deploy in UPDATE flow to ensure all operations are complete
-	eaaclient.Logger.Info("waiting before deploy in UPDATE flow...")
+	eaaclient.Logger.Debug("waiting before deploy in UPDATE flow...")
 
 	err = appUpdateReq.DeployApplication(eaaclient)
 	if err != nil {
@@ -2280,7 +2326,7 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 
 	// For bookmark and saas, advanced_settings should not be allowed at all
 	// These app types should use resource-level configuration instead
-	if appType == "bookmark" || appType == "saas" {
+	if appType == string(client.ClientAppTypeBookmark) || appType == string(client.ClientAppTypeSaaS) {
 		advSettings, ok := d.GetOk("advanced_settings")
 		if ok {
 			advSettingsStr, ok := advSettings.(string)
@@ -2323,7 +2369,7 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 	}
 
 	// Validate health check settings if present (skip for tunnel apps)
-	if appType != "tunnel" {
+	if appType != string(client.ClientAppTypeTunnel) {
 		logger.Debug("Validating health check for app_type: %s", appType)
 		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
 			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
@@ -2345,10 +2391,53 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 		return client.ErrTLSSuiteRestrictionsValidationFailed
 	}
 
+	// Validate TLS Suite required dependencies
+	if err := validateTLSSuiteRequiredDependencies(settings, logger); err != nil {
+		return err
+	}
+
 	// Note: TLS custom suite name validation is skipped in schema validation
 	// as this function doesn't have access to the client/meta for API calls
 	// This validation is performed in plan-time validation instead
 
+	return nil
+}
+
+// validateTLSSuiteRequiredDependencies validates that required fields are present when dependencies are met
+func validateTLSSuiteRequiredDependencies(settings map[string]interface{}, logger hclog.Logger) error {
+	logger.Debug("Validating TLS Suite required dependencies")
+	
+	// Check if tlsSuiteType is present and is "custom"
+	tlsSuiteType, exists := settings["tlsSuiteType"]
+	if !exists {
+		return nil // No TLS Suite Type specified, no dependencies to check
+	}
+	
+	tlsSuiteTypeStr, ok := tlsSuiteType.(string)
+	if !ok {
+		return nil // Invalid type, will be caught by other validation
+	}
+	
+	// Check if TLS Suite Type requires tls_suite_name
+	if tlsSuiteTypeStr == "custom" {
+		logger.Debug("TLS Suite Type is custom, checking for required tls_suite_name field")
+		
+		// Check if tls_suite_name is present
+		tlsSuiteName, exists := settings["tls_suite_name"]
+		if !exists {
+			logger.Error("Missing required field: tls_suite_name")
+			return fmt.Errorf("tls_suite_name is required when tlsSuiteType is custom")
+		}
+		
+		// Check if tls_suite_name is empty string
+		if tlsSuiteNameStr, ok := tlsSuiteName.(string); ok && tlsSuiteNameStr == "" {
+			logger.Error("Required field tls_suite_name is empty")
+			return fmt.Errorf("tls_suite_name cannot be empty when tlsSuiteType is custom")
+		}
+		
+		logger.Debug("Required field tls_suite_name is present and not empty")
+	}
+	
 	return nil
 }
 
@@ -2361,20 +2450,20 @@ func validateAppAuthForTypeAndProfile(appAuth, appType, appProfile string) error
 
 	// Apply validation rules based on the requirements
 	switch {
-	case appType == "enterprise" && appProfile == "ssh":
+	case appType == string(client.ClientAppTypeEnterprise) && appProfile == string(client.AppProfileSSH):
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseSSH
 
-	case appType == "saas":
+	case appType == string(client.ClientAppTypeSaaS):
 		// app_auth should not be present in advanced_settings for SaaS apps
 		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
 		return client.ErrAppAuthNotAllowedForSaaS
 
-	case appType == "bookmark":
+	case appType == string(client.ClientAppTypeBookmark):
 		// app_auth should not be present in advanced_settings - it's set at resource level
 		return client.ErrAppAuthNotAllowedForBookmark
 
-	case appType == "tunnel":
+	case appType == string(client.ClientAppTypeTunnel):
 		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
 		return client.ErrAppAuthNotAllowedForTunnel
 
@@ -2808,20 +2897,20 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 
 	// Apply validation rules based on the requirements
 	switch {
-	case appType == "enterprise" && appProfile == "ssh":
+	case appType == string(client.ClientAppTypeEnterprise) && appProfile == string(client.AppProfileSSH):
 		// app_auth is disabled - field should not be present in advanced_settings
 		return client.ErrAppAuthDisabledForEnterpriseSSH
 
-	case appType == "saas":
+	case appType == string(client.ClientAppTypeSaaS):
 		// app_auth should not be present in advanced_settings for SaaS apps
 		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
 		return client.ErrAppAuthNotAllowedForSaaS
 
-	case appType == "bookmark":
+	case appType == string(client.ClientAppTypeBookmark):
 		// app_auth should not be present in advanced_settings - it's set at resource level
 		return client.ErrAppAuthNotAllowedForBookmark
 
-	case appType == "tunnel":
+	case appType == string(client.ClientAppTypeTunnel):
 		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
 		return client.ErrAppAuthNotAllowedForTunnel
 
@@ -2897,18 +2986,18 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 	}
 
 	// TLS Suite is NOT AVAILABLE for Tunnel, Bookmark, or SaaS app_types
-	if appType == "tunnel" || appType == "bookmark" || appType == "saas" {
+	if appType == string(client.ClientAppTypeTunnel) || appType == string(client.ClientAppTypeBookmark) || appType == string(client.ClientAppTypeSaaS) {
 		return client.ErrTLSSuiteNotAvailableForAppType
 	}
 
 	// TLS Suite is NOT AVAILABLE for SMB app_profile (regardless of app_type)
-	if appProfile == "smb" {
+	if appProfile == string(client.AppProfileSMB) {
 		return client.ErrTLSSuiteNotAvailableForSMBProfile
 	}
 
 	// TLS Suite is AVAILABLE for enterprise app_type with appropriate app_profiles
-	if appType == "enterprise" {
-		validProfiles := []string{"http", "sharepoint", "jira", "jenkins", "confluence", "rdp", "vnc", "ssh"}
+	if appType == string(client.ClientAppTypeEnterprise) {
+		validProfiles := []string{string(client.AppProfileHTTP), string(client.AppProfileSharePoint), string(client.AppProfileJira), string(client.AppProfileJenkins), string(client.AppProfileConfluence), string(client.AppProfileRDP), string(client.AppProfileVNC), string(client.AppProfileSSH)}
 		isValidProfile := false
 		for _, validProfile := range validProfiles {
 			if appProfile == validProfile {
@@ -2999,4 +3088,287 @@ func validateAdvancedSettingsJSON(i interface{}, k string) ([]string, []error) {
 	// We'll need to use a different approach
 
 	return warnings, errors
+}
+
+// validateSAMLSigningAlgorithm validates SAML signing algorithm values
+func validateSAMLSigningAlgorithm(val interface{}, key string) (warns []string, errors []error) {
+	algo, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validAlgorithms := []string{
+		string(client.SAMLSigningAlgorithmSHA1),
+		string(client.SAMLSigningAlgorithmSHA256),
+	}
+
+	isValid := false
+	for _, validAlgo := range validAlgorithms {
+		if algo == validAlgo {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid SAML signing algorithm '%s'. Valid values: %v", algo, validAlgorithms))
+	}
+
+	return
+}
+
+// validateSAMLEncryptionAlgorithm validates SAML encryption algorithm values
+func validateSAMLEncryptionAlgorithm(val interface{}, key string) (warns []string, errors []error) {
+	algo, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validAlgorithms := []string{
+		string(client.SAMLEncryptionAlgorithmAES128CBC),
+		string(client.SAMLEncryptionAlgorithmAES256CBC),
+	}
+
+	isValid := false
+	for _, validAlgo := range validAlgorithms {
+		if algo == validAlgo {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid SAML encryption algorithm '%s'. Valid values: %v", algo, validAlgorithms))
+	}
+
+	return
+}
+
+// validateSAMLResponseBinding validates SAML response binding values
+func validateSAMLResponseBinding(val interface{}, key string) (warns []string, errors []error) {
+	binding, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validBindings := []string{
+		string(client.SAMLResponseBindingPost),
+		string(client.SAMLResponseBindingRedirect),
+	}
+
+	isValid := false
+	for _, validBinding := range validBindings {
+		if binding == validBinding {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid SAML response binding '%s'. Valid values: %v", binding, validBindings))
+	}
+
+	return
+}
+
+// validateSAMLSubjectFormat validates SAML subject format values
+func validateSAMLSubjectFormat(val interface{}, key string) (warns []string, errors []error) {
+	format, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validFormats := []string{
+		string(client.SAMLSubjectFormatEmail),
+		string(client.SAMLSubjectFormatPersistent),
+		"unspecified",
+		string(client.SAMLSubjectFormatTransient),
+	}
+
+	isValid := false
+	for _, validFormat := range validFormats {
+		if format == validFormat {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid SAML subject format '%s'. Valid values: %v", format, validFormats))
+	}
+
+	return
+}
+
+// validateOIDCClientType validates OIDC client type values
+func validateOIDCClientType(val interface{}, key string) (warns []string, errors []error) {
+	clientType, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validTypes := []string{
+		string(client.OIDCClientTypeStandard),
+		string(client.OIDCClientTypeConfidential),
+		string(client.OIDCClientTypePublic),
+	}
+
+	isValid := false
+	for _, validType := range validTypes {
+		if clientType == validType {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid OIDC client type '%s'. Valid values: %v", clientType, validTypes))
+	}
+
+	return
+}
+
+// validateOIDCResponseType validates OIDC response type values
+func validateOIDCResponseType(val interface{}, key string) (warns []string, errors []error) {
+	responseType, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+
+	validTypes := []string{
+		string(client.OIDCResponseTypeCode),
+		string(client.OIDCResponseTypeIDToken),
+		string(client.OIDCResponseTypeToken),
+		string(client.OIDCResponseTypeCodeIDToken),
+		string(client.OIDCResponseTypeCodeToken),
+		string(client.OIDCResponseTypeIDTokenToken),
+		string(client.OIDCResponseTypeCodeIDTokenToken),
+	}
+
+	isValid := false
+	for _, validType := range validTypes {
+		if responseType == validType {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		errors = append(errors, fmt.Errorf("invalid OIDC response type '%s'. Valid values: %v", responseType, validTypes))
+	}
+
+	return
+}
+
+// validateAppBundle validates app bundle based on app type and profile restrictions
+func validateAppBundle(val interface{}, key string) (warns []string, errors []error) {
+	// This function validates app_bundle at the schema level
+	// However, we need access to app_type and app_profile to do proper validation
+	// For now, we'll do basic validation and detailed validation will be done in CustomizeDiff
+	
+	value, ok := val.(string)
+	if !ok {
+		errors = append(errors, fmt.Errorf("expected string, got %T", val))
+		return
+	}
+	
+	// Basic validation - non-empty string
+	if value == "" {
+		errors = append(errors, fmt.Errorf("app_bundle cannot be empty"))
+		return
+	}
+	
+	// Note: Detailed validation based on app_type and app_profile 
+	// will be handled in the CustomizeDiff function
+	return
+}
+
+// validateAppBundleRestrictions validates app bundle based on app type and profile restrictions
+func validateAppBundleRestrictions(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	logger.Debug("validateAppBundleRestrictions called")
+
+	// Check if app_bundle is provided
+	appBundle, ok := d.GetOk("app_bundle")
+	if !ok {
+		logger.Debug("No app_bundle found, skipping validation")
+		return nil
+	}
+
+	appBundleStr, ok := appBundle.(string)
+	if !ok {
+		logger.Debug("app_bundle is not a string, skipping validation")
+		return nil
+	}
+
+	if appBundleStr == "" {
+		logger.Debug("app_bundle is empty, skipping validation")
+		return nil
+	}
+
+	logger.Debug("app_bundle found: %s, validating restrictions", appBundleStr)
+
+	// Get app_type
+	appType, ok := d.GetOk("app_type")
+	if !ok {
+		logger.Debug("No app_type found, skipping app_bundle validation")
+		return nil
+	}
+
+	appTypeStr, ok := appType.(string)
+	if !ok {
+		logger.Debug("app_type is not a string, skipping app_bundle validation")
+		return nil
+	}
+
+	// Get app_profile
+	appProfile, ok := d.GetOk("app_profile")
+	if !ok {
+		logger.Debug("No app_profile found, skipping app_bundle validation")
+		return nil
+	}
+
+	appProfileStr, ok := appProfile.(string)
+	if !ok {
+		logger.Debug("app_profile is not a string, skipping app_bundle validation")
+		return nil
+	}
+
+	logger.Debug("Validating app_bundle for app_type=%s, app_profile=%s", appTypeStr, appProfileStr)
+
+	// Check app type restrictions - only enterprise apps support app bundles
+	if appTypeStr != string(client.ClientAppTypeEnterprise) {
+		logger.Error("app_bundle is not supported for app_type '%s'. Only enterprise apps support app bundles", appTypeStr)
+		return fmt.Errorf("app_bundle is not supported for app_type '%s'. Only enterprise apps support app bundles", appTypeStr)
+	}
+
+	// Check profile restrictions - only specific profiles support app bundles
+	validProfiles := []string{
+		string(client.AppProfileHTTP),
+		string(client.AppProfileSharePoint),
+		string(client.AppProfileJira),
+		string(client.AppProfileJenkins),
+		string(client.AppProfileConfluence),
+	}
+
+	isValidProfile := false
+	for _, validProfile := range validProfiles {
+		if appProfileStr == validProfile {
+			isValidProfile = true
+			break
+		}
+	}
+
+	if !isValidProfile {
+		logger.Error("app_bundle is not supported for app_profile '%s'. Supported profiles: %v", appProfileStr, validProfiles)
+		return fmt.Errorf("app_bundle is not supported for app_profile '%s'. Supported profiles: %v", appProfileStr, validProfiles)
+	}
+
+	logger.Debug("app_bundle validation passed for app_type=%s, app_profile=%s", appTypeStr, appProfileStr)
+	return nil
 }

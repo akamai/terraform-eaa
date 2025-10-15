@@ -30,13 +30,13 @@ var SETTINGS_RULES = map[string]SettingRule{
 	"app_auth": {
 		Type:        "string",
 		ValidValues: []string{
-			string(AppAuthNone),
-			string(AppAuthKerberos),
-			string(AppAuthBasic),
-			string(AppAuthNTLMv1),
-			string(AppAuthNTLMv2),
-			string(AppAuthAuto),
-			string(AppAuthServiceAccount),
+			string(AppAuthTypeNone),
+			string(AppAuthTypeKerberos),
+			string(AppAuthTypeBasic),
+			string(AppAuthTypeNTLMv1),
+			string(AppAuthTypeNTLMv2),
+			string(AppAuthTypeAuto),
+			string(AppAuthTypeServiceAccount),
 		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
@@ -54,10 +54,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 		// For non-RDP profiles: when wapp_auth=certonly, app_auth can only be "none", "kerberos", "oidc"
 		Conditional: map[string]interface{}{
 			"wapp_auth": map[string]interface{}{
-				"certonly": map[string]interface{}{
+				string(WappAuthTypeCertOnly): map[string]interface{}{
 					"ValidValues": []string{
-						string(AppAuthNone),
-						string(AppAuthKerberos),
+						string(AppAuthTypeNone),
+						string(AppAuthTypeKerberos),
 						"oidc",
 					},
 				},
@@ -67,11 +67,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 	"wapp_auth": {
 		Type:        "string",
 		ValidValues: []string{
-			string(WappAuthForm),
-			string(WappAuthBasic),
-			string(WappAuthBasicCookie),
-			string(WappAuthJWT),
-			string(WappAuthCertOnly),
+			string(WappAuthTypeForm),
+			string(WappAuthTypeBasic),
+			string(WappAuthTypeBasicCookie),
+			string(WappAuthTypeJWT),
+			string(WappAuthTypeCertOnly),
 		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
@@ -89,87 +89,87 @@ var SETTINGS_RULES = map[string]SettingRule{
 		// Conditional: certonly is only allowed for RDP profile
 		Conditional: map[string]interface{}{
 			"profile": map[string]interface{}{
-				"http": map[string]interface{}{
+				string(AppProfileHTTP): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for HTTP
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for HTTP
 				},
-				"sharepoint": map[string]interface{}{
+				string(AppProfileSharePoint): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for SharePoint
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for SharePoint
 				},
-				"jira": map[string]interface{}{
+				string(AppProfileJira): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Jira
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for Jira
 				},
-				"jenkins": map[string]interface{}{
+				string(AppProfileJenkins): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Jenkins
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for Jenkins
 				},
-				"confluence": map[string]interface{}{
+				string(AppProfileConfluence): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for Confluence
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for Confluence
 				},
-				"rdp": map[string]interface{}{
+				string(AppProfileRDP): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
-						string(WappAuthCertOnly),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
+						string(WappAuthTypeCertOnly),
 					}, // certonly allowed for RDP
 				},
-				"vnc": map[string]interface{}{
+				string(AppProfileVNC): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for VNC
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for VNC
 				},
-				"ssh": map[string]interface{}{
+				string(AppProfileSSH): map[string]interface{}{
 					"ValidValues": []string{
-						string(WappAuthForm),
-						string(WappAuthBasic),
-						string(WappAuthBasicCookie),
-						string(WappAuthJWT),
+						string(WappAuthTypeForm),
+						string(WappAuthTypeBasic),
+						string(WappAuthTypeBasicCookie),
+						string(WappAuthTypeJWT),
 					},
-					"Exclude":     []string{string(WappAuthCertOnly)}, // certonly not allowed for SSH
+					"Exclude":     []string{string(WappAuthTypeCertOnly)}, // certonly not allowed for SSH
 				},
 			},
 			// Conflict validation: JWT fields conflict with non-JWT auth types
-			"basic": map[string]interface{}{
+			string(WappAuthTypeBasic): map[string]interface{}{
 				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
 			},
-			"certonly": map[string]interface{}{
+			string(WappAuthTypeCertOnly): map[string]interface{}{
 				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
 			},
-			"basic_cookie": map[string]interface{}{
+			string(WappAuthTypeBasicCookie): map[string]interface{}{
 				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
 			},
 		},
@@ -1381,7 +1381,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"jwt_audience": {
@@ -1401,7 +1401,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"jwt_grace_period": {
@@ -1423,7 +1423,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"jwt_return_option": {
@@ -1447,7 +1447,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"jwt_return_url": {
@@ -1467,7 +1467,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"jwt_username": {
@@ -1487,7 +1487,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: JWT fields require wapp_auth to be "jwt"
 		DependsOn: map[string]string{
-			"wapp_auth": "jwt",
+			"wapp_auth": string(WappAuthTypeJWT),
 		},
 	},
 	"kerberos_negotiate_once": {
@@ -1664,6 +1664,22 @@ var SETTINGS_RULES = map[string]SettingRule{
 	// Additional Miscellaneous Fields
 	// Note: custom_headers validation is handled by ValidateCustomHeadersConfiguration()
 	// as it requires complex array/object validation that SETTINGS_RULES cannot handle
+	"custom_headers": {
+		Type:     "array", // Allow complex array validation to pass through
+		AppTypes: []string{
+			string(ClientAppTypeEnterprise),
+		},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
 
 	// Additional TLS Fields
 	"tls_cipher_suite": {
@@ -1787,7 +1803,65 @@ func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 		}
 	}
 
+	// STEP 2: Check for missing required fields when dependencies are met
+	logger.Debug("Checking for missing required fields when dependencies are met")
+	if err := validateHealthCheckRequiredDependencies(settings, logger); err != nil {
+		return err
+	}
+
 	logger.Debug("Health check configuration validation completed successfully using SETTINGS_RULES")
+	return nil
+}
+
+// validateHealthCheckRequiredDependencies validates that required fields are present when dependencies are met
+func validateHealthCheckRequiredDependencies(settings map[string]interface{}, logger hclog.Logger) error {
+	logger.Debug("Validating health check required dependencies")
+	
+	// Check if health_check_type is present and is HTTP or HTTPS
+	healthCheckType, exists := settings["health_check_type"]
+	if !exists {
+		return nil // No health check type specified, no dependencies to check
+	}
+	
+	healthCheckTypeStr, ok := healthCheckType.(string)
+	if !ok {
+		return nil // Invalid type, will be caught by other validation
+	}
+	
+	// Check if health check type requires HTTP-specific fields
+	if healthCheckTypeStr == string(HealthCheckTypeHTTP) || healthCheckTypeStr == string(HealthCheckTypeHTTPS) {
+		logger.Debug("Health check type is %s, checking for required HTTP fields", healthCheckTypeStr)
+		
+		// Define required fields for HTTP/HTTPS health checks (must be present and not empty)
+		requiredFields := map[string]string{
+			"health_check_http_url":         "health_check_http_url is required when health_check_type is HTTP/HTTPS (e.g., '/health')",
+			"health_check_http_version":    "health_check_http_version is required when health_check_type is HTTP/HTTPS (e.g., 'HTTP/1.1')",
+			"health_check_http_host_header": "health_check_http_host_header is required when health_check_type is HTTP/HTTPS (e.g., 'myapp.example.com')",
+		}
+		
+		// Check each required field
+		for fieldName, errorMessage := range requiredFields {
+			fieldValue, exists := settings[fieldName]
+			if !exists {
+				logger.Error("Missing required field: %s", fieldName)
+				return fmt.Errorf(errorMessage)
+			}
+			
+			// For health_check_http_url and health_check_http_version, empty strings are not allowed
+			if fieldName == "health_check_http_url" || fieldName == "health_check_http_version" {
+				if fieldValueStr, ok := fieldValue.(string); ok && fieldValueStr == "" {
+					logger.Error("Required field %s is empty", fieldName)
+					return fmt.Errorf(errorMessage)
+				}
+			}
+			// For health_check_http_host_header, empty strings are allowed but field must be present
+			
+			logger.Debug("Required field %s is present", fieldName)
+		}
+		
+		logger.Debug("All required HTTP fields are present and valid")
+	}
+	
 	return nil
 }
 
@@ -1914,29 +1988,29 @@ func validateConditionalRules(settingName string, value interface{}, conditional
 	// Special case: Handle wapp_auth=certonly - only allowed for RDP profile
 	if settingName == "wapp_auth" {
 		valueStr := fmt.Sprintf("%v", value)
-		if valueStr == "certonly" && appProfile != "rdp" {
+		if valueStr == string(WappAuthTypeCertOnly) && appProfile != string(AppProfileRDP) {
 			return fmt.Errorf("setting 'wapp_auth'='certonly' is not allowed for app_profile='%s'. certonly is only allowed for RDP profile", appProfile)
 		}
 		logger.Debug("wapp_auth validation passed: '%s' for profile '%s'", valueStr, appProfile)
 	}
 	
-	// Special case: Handle app_auth with wapp_auth=certonly and profile=rdp
-	if settingName == "app_auth" {
-		if wappAuth, hasWappAuth := settings["wapp_auth"]; hasWappAuth {
-			wappAuthStr := fmt.Sprintf("%v", wappAuth)
-			
-			// Special case: RDP + certonly allows only "none", "auto", "service account"
-			if wappAuthStr == "certonly" && appProfile == "rdp" {
-				valueStr := fmt.Sprintf("%v", value)
-				allowedValues := []string{"none", "auto", "service account"}
-				if !contains(allowedValues, valueStr) {
-					return fmt.Errorf("when wapp_auth='certonly' and profile='rdp', app_auth must be one of %v, got '%s'", allowedValues, valueStr)
+		// Special case: Handle app_auth with wapp_auth=certonly and profile=rdp
+		if settingName == "app_auth" {
+			if wappAuth, hasWappAuth := settings["wapp_auth"]; hasWappAuth {
+				wappAuthStr := fmt.Sprintf("%v", wappAuth)
+				
+				// Special case: RDP + certonly allows only "none", "auto", "service account"
+				if wappAuthStr == string(WappAuthTypeCertOnly) && appProfile == string(AppProfileRDP) {
+					valueStr := fmt.Sprintf("%v", value)
+					allowedValues := []string{string(AppAuthTypeNone), string(AppAuthTypeAuto), string(AppAuthTypeServiceAccount)}
+					if !contains(allowedValues, valueStr) {
+						return fmt.Errorf("when wapp_auth='certonly' and profile='rdp', app_auth must be one of %v, got '%s'", allowedValues, valueStr)
+					}
+					logger.Debug("Special RDP+certonly validation passed for app_auth: '%s' ∈ %v", valueStr, allowedValues)
+					return nil
 				}
-				logger.Debug("Special RDP+certonly validation passed for app_auth: '%s' ∈ %v", valueStr, allowedValues)
-				return nil
 			}
 		}
-	}
 	
 	// Handle conditional rules like: {"wapp_auth": {"certonly": {"ValidValues": ["none", "kerberos", "oidc"]}}}
 	for conditionalField, conditionalRules := range conditional {
@@ -2077,6 +2151,8 @@ func validateSettingValue(value interface{}, rule SettingRule, logger hclog.Logg
 		return validateStringSettingWithReflect(value, valueKind, rule, logger)
 	case "int":
 		return validateIntSettingWithReflect(value, valueKind, rule, logger)
+	case "array":
+		return validateArraySettingWithReflect(value, valueKind, rule, logger)
 	default:
 		return fmt.Errorf("unsupported setting type: %s", rule.Type)
 	}
@@ -2413,4 +2489,17 @@ func validateCORSFields(settings map[string]interface{}, appType string) error {
 	}
 
 	return nil
+}
+
+// validateArraySettingWithReflect validates array settings using reflect for comprehensive type checking
+func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+	// For custom_headers, we just need to ensure it's an array/slice
+	// The detailed validation is handled by ValidateCustomHeadersConfiguration()
+	switch kind {
+	case reflect.Slice, reflect.Array:
+		logger.Debug("Array setting validated successfully")
+		return nil
+	default:
+		return fmt.Errorf("setting must be an array, got %s", kind)
+	}
 }

@@ -58,20 +58,19 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     
     # Custom Headers (Enterprise supported)
     custom_headers = [
-      {
-        header = "X-User-ID"
-        attribute_type = "user"
-      },
-      {
-        header = "X-Client-IP"
-        attribute_type = "clientip"
-      },
-      {
-        header = "X-Custom-Header"
-        attribute_type = "fixed"
-        attribute = "custom-value"
-      }
-    ]
+            {
+                attribute_type = "custom"
+                header = "myheader"
+                attribute = "value"
+                
+            },
+            {
+                attribute_type = "user"
+                header = "myuser"
+                attribute = ""
+                
+            }
+        ]
     
     # Enterprise Connectivity Parameters (Enterprise supported)
     idle_conn_floor = "10"
