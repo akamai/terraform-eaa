@@ -293,6 +293,8 @@ var SETTINGS_RULES = map[string]SettingRule{
 		ValidValues: []string{
 			string(HTTPVersion1_0),
 			string(HTTPVersion1_1),
+			"HTTP/1.0",
+			"HTTP/1.1",
 		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
@@ -1733,6 +1735,36 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+	},
+	
+	// Additional Settings Support
+	"edge_authentication_enabled": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+	},
+	"is_ssl_verification_enabled": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise), string(ClientAppTypeTunnel)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence), string(AppProfileRDP), string(AppProfileVNC), string(AppProfileSSH), string(AppProfileSMB), string(AppProfileTCP)},
+	},
+	"service_principal_name": {
+		Type:        "string",
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence), string(AppProfileRDP)},
+	},
+	"internal_host_port": {
+		Type:        "string",
+		AppTypes:    []string{string(ClientAppTypeEnterprise), string(ClientAppTypeTunnel)},
+		Profiles:    []string{string(AppProfileTCP)},
+	},
+	"ip_access_allow": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeTunnel)},
+		Profiles:    []string{string(AppProfileTCP)},
 	},
 }
 
