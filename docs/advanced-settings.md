@@ -17,6 +17,82 @@ The `advanced_settings` parameter accepts a JSON-encoded string containing vario
 - Miscellaneous Parameters
 - RDP Configuration Parameters
 
+## Application Types and Profiles
+
+Understanding which settings apply to your application type and profile is crucial for proper configuration:
+
+### Enterprise Applications
+Enterprise applications support the most comprehensive configuration options:
+
+#### HTTP Profile
+- **Health Check Parameters**: All types supported (HTTP, HTTPS, TCP, None)
+- **Server Load Balancing Parameters**: Full support
+- **Enterprise Connectivity Parameters**: Full support
+- **Authentication Parameters**: All authentication methods
+- **CORS Parameters**: Full CORS support
+- **TLS Suite Parameters**: Custom and predefined suites
+- **Miscellaneous Parameters**: All options available
+- **Custom Headers**: Full support
+
+#### RDP Profile
+- **RDP Configuration Parameters**: Audio, clipboard, disk, printer redirection
+- **Health Check Parameters**: TCP and None types recommended
+- **Server Load Balancing Parameters**: Full support
+- **Enterprise Connectivity Parameters**: Full support
+- **Authentication Parameters**: Kerberos recommended
+- **TLS Suite Parameters**: Custom and predefined suites
+- **Miscellaneous Parameters**: Most options available
+
+#### SSH Profile
+- **Health Check Parameters**: TCP and None types recommended
+- **Server Load Balancing Parameters**: Full support
+- **Enterprise Connectivity Parameters**: Full support
+- **Authentication Parameters**: Limited (no app_auth in advanced_settings)
+- **TLS Suite Parameters**: Custom and predefined suites
+- **Miscellaneous Parameters**: Most options available
+
+#### VNC Profile
+- **Health Check Parameters**: TCP and None types recommended
+- **Server Load Balancing Parameters**: Full support
+- **Enterprise Connectivity Parameters**: Full support
+- **Authentication Parameters**: Limited (no app_auth in advanced_settings)
+- **TLS Suite Parameters**: Custom and predefined suites
+- **Miscellaneous Parameters**: Most options available
+
+#### SMB Profile
+- **Health Check Parameters**: TCP and None types recommended
+- **Server Load Balancing Parameters**: Full support
+- **Enterprise Connectivity Parameters**: Full support
+- **Authentication Parameters**: Kerberos recommended
+- **TLS Suite Parameters**: Custom and predefined suites
+- **Miscellaneous Parameters**: Most options available
+
+### Tunnel Applications
+Tunnel applications have limited configuration options:
+
+#### TCP Profile
+- **Tunnel Client Parameters**: Required (acceleration, force_ip_route, x_wapp_pool_*)
+- **Health Check Parameters**: TCP type required
+- **Basic Configuration Parameters**: websocket_enabled required
+- **Server Load Balancing Parameters**: Limited support
+- **Enterprise Connectivity Parameters**: Limited support
+- **Authentication Parameters**: Not supported in advanced_settings
+- **CORS Parameters**: Not supported
+- **TLS Suite Parameters**: Not supported
+- **Miscellaneous Parameters**: Limited support
+
+### Bookmark Applications
+Bookmark applications have minimal configuration:
+
+- **Advanced Settings**: Not supported at all
+- **Configuration**: Resource-level parameters only
+
+### SaaS Applications
+SaaS applications have limited advanced settings:
+
+- **Advanced Settings**: Not supported at all
+- **Authentication**: Resource-level boolean flags only (saml, oidc, wsfed)
+
 ## Health Check Parameters
 
 Health checks monitor the availability and responsiveness of your application servers.
@@ -152,143 +228,4 @@ Configure Remote Desktop Protocol settings for RDP applications.
 * `rdp_keyboard_lang` - (Optional) RDP keyboard language
 * `rdp_remote_apps` - (Optional) RDP remote applications
 
-## Validation Rules
 
-### Authentication Method Conflicts
-* When `saml = true`, `oidc = true`, or `wsfed = true` at the resource level, `app_auth` in `advanced_settings` must be set to "none"
-* These authentication methods are mutually exclusive with `app_auth` values other than "none"
-
-### Kerberos Settings Validation
-* Kerberos settings are only applicable when `app_auth = "kerberos"`
-* `app_client_cert_auth` and `forward_ticket_granting_ticket` must be either "true" or "false"
-
-### JWT Settings Validation
-* JWT settings are only applicable when `wapp_auth = "jwt"`
-* `jwt_grace_period` and `jwt_return_option` are numeric values sent as strings
-* All JWT fields are optional with default values
-
-### Certificate Only Constraints
-* When `wapp_auth = "certonly"`, `app_auth` can only be "none", "kerberos", or "oidc"
-
-## Example Usage
-
-### Basic Advanced Settings
-```hcl
-advanced_settings = jsonencode({
-  # Health Check
-  health_check_type = "HTTP"
-  health_check_enabled = "true"
-  health_check_interval = 30
-  health_check_http_url = "https://example.com/health"
-  health_check_http_version = "1.1"
-  health_check_http_host_header = "example.com"
-  
-  # Server Load Balancing
-  load_balancing_metric = "round-robin"
-  session_sticky = "true"
-  cookie_age = 3600
-  
-  # Enterprise Connectivity
-  app_server_read_timeout = "300"
-  idle_close_time_seconds = "600"
-  proxy_buffer_size_kb = "8"
-  
-  # Basic Configuration
-  is_ssl_verification_enabled = "true"
-  ignore_cname_resolution = "false"
-  g2o_enabled = "true"
-})
-```
-
-### Authentication Settings
-```hcl
-advanced_settings = jsonencode({
-  # User-facing authentication
-  wapp_auth = "basic"
-  login_url = "https://example.com/login"
-  logout_url = "https://example.com/logout"
-  
-  # Application authentication
-  app_auth = "kerberos"
-  app_auth_domain = "EXAMPLE.COM"
-  service_principal_name = "HTTP/app.example.com"
-  keytab = ""
-  forward_ticket_granting_ticket = "false"
-})
-```
-
-### JWT Authentication
-```hcl
-advanced_settings = jsonencode({
-  wapp_auth = "jwt"
-  jwt_issuers = "https://auth.example.com"
-  jwt_audience = "my-app"
-  jwt_grace_period = "90"
-  jwt_return_option = "401"
-  jwt_username = "sub"
-  jwt_return_url = "https://app.example.com/return"
-})
-```
-
-### CORS Configuration
-```hcl
-advanced_settings = jsonencode({
-  allow_cors = "true"
-  cors_origin_list = "https://app1.example.com https://app2.example.com"
-  cors_method_list = "GET POST PUT DELETE"
-  cors_header_list = "Content-Type Authorization"
-  cors_support_credential = "true"
-  cors_max_age = 3600
-})
-```
-
-### RDP Configuration
-```hcl
-advanced_settings = jsonencode({
-  rdp_audio_redirection = "true"
-  rdp_clipboard_redirection = "true"
-  rdp_disk_redirection = "false"
-  rdp_printer_redirection = "true"
-  rdp_initial_program = "notepad.exe"
-  rdp_tls1 = "false"
-})
-```
-
-## Error Messages
-
-### Health Check Validation Errors
-* `ErrHealthCheckTypeUnsupported`: "health_check_type must be one of: Default, HTTP, HTTPS, TLS, SSLv3, TCP, None"
-* `ErrHealthCheckHTTPURLRequired`: "health_check_http_url is required when health_check_type is HTTP/HTTPS"
-* `ErrHealthCheckHTTPVersionRequired`: "health_check_http_version is required when health_check_type is HTTP/HTTPS"
-* `ErrHealthCheckHTTPHostHeaderRequired`: "health_check_http_host_header is required when health_check_type is HTTP/HTTPS"
-
-### Server Load Balancing Validation Errors
-* `ErrLoadBalancingMetricUnsupported`: "load_balancing_metric must be one of: round-robin, ip-hash, least-conn, weighted-rr"
-* `ErrSessionStickyInvalid`: "session_sticky must be a string with value 'true' or 'false'"
-* `ErrCookieAgeRequired`: "cookie_age must be a number when session_sticky is enabled"
-* `ErrCookieAgeNotSupportedTunnel`: "cookie_age is not supported for tunnel apps"
-
-### Tunnel Client Parameters Validation Errors
-* `ErrAccelerationInvalidValue`: "acceleration must be 'true' or 'false'"
-* `ErrForceIPRouteInvalidValue`: "force_ip_route must be 'true' or 'false'"
-* `ErrXWappPoolEnabledInvalidValue`: "x_wapp_pool_enabled must be one of: 'true', 'false', 'inherit'"
-* `ErrXWappPoolSizeOutOfRange`: "x_wapp_pool_size must be between 1 and 50"
-* `ErrXWappPoolTimeoutOutOfRange`: "x_wapp_pool_timeout must be between 60 and 3600 seconds"
-
-### Enterprise Connectivity Validation Errors
-* `ErrAppServerReadTimeoutTooLow`: "app_server_read_timeout must be at least 60 seconds"
-* `ErrIdleCloseTimeTooHigh`: "idle_close_time_seconds cannot exceed 1800 seconds (30 minutes)"
-* `ErrProxyBufferSizeOutOfRange`: "proxy_buffer_size_kb must be between 4 and 256 KB"
-* `ErrProxyBufferSizeNotMultipleOf4`: "proxy_buffer_size_kb must be a multiple of 4"
-
-### Miscellaneous Parameters Validation Errors
-* `ErrAllowCorsNotAvailableForTunnel`: "allow_cors is not available for tunnel applications"
-* `ErrHiddenAppNotAvailableForTunnel`: "hidden_app is not available for tunnel applications"
-* `ErrXWappReadTimeoutOnlyForTunnel`: "x_wapp_read_timeout is only available for tunnel applications"
-* `ErrOffloadOnpremiseTrafficNotBoolean`: "offload_onpremise_traffic must be a string with value 'true' or 'false'"
-
-### RDP Configuration Validation Errors
-* `ErrRDPNotSupportedForAppType`: "RDP configuration parameters are not supported for this app type. RDP configuration is only available for Enterprise Hosted applications"
-* `ErrRDPNotSupportedForProfile`: "RDP configuration parameters are not supported for this app profile. RDP configuration is only available for RDP applications"
-* `ErrRDPPrinterRequiresMapPrinter`: "remote_spark_printer requires remote_spark_mapPrinter to be enabled"
-* `ErrRDPDiskRequiresMapDisk`: "remote_spark_disk requires remote_spark_mapDisk to be enabled"

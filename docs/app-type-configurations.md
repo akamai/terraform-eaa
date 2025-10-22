@@ -25,53 +25,46 @@ Enterprise applications provide the most comprehensive configuration options and
 ### Allowed Advanced Settings Categories
 
 #### HTTP Profile
-- Related Applications
-- Authentication
-- Server Load Balancing
-- Configure TLS Cipher Suite
-- Health Check Configuration
-- Custom HTTP Headers
-- Enterprise Connectivity Parameters
-- Miscellaneous
-- DLP Controls
+- [Health Check Parameters](advanced-settings.md#health-check-parameters)
+- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
+- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
+- [Authentication Parameters](advanced-settings.md#authentication-parameters)
+- [CORS Parameters](advanced-settings.md#cors-parameters)
+- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
+- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 #### RDP Profile
-- Remote Desktop Configuration
-- Remote Desktop User Preferences
-- Authentication
-- Configure TLS Cipher Suite
-- Health Check Configuration
-- Custom HTTP Headers
-- Enterprise Connectivity Parameters
-- Miscellaneous
-- DLP Controls
+- [RDP Configuration Parameters](advanced-settings.md#rdp-configuration-parameters)
+- [Health Check Parameters](advanced-settings.md#health-check-parameters)
+- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
+- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
+- [Authentication Parameters](advanced-settings.md#authentication-parameters)
+- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
+- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 #### VNC Profile
-- Authentication
-- Configure TLS Cipher Suite
-- Health Check Configuration
-- Custom HTTP Headers
-- Enterprise Connectivity Parameters
-- Miscellaneous
-- DLP Controls
+- [Health Check Parameters](advanced-settings.md#health-check-parameters)
+- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
+- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
+- [Authentication Parameters](advanced-settings.md#authentication-parameters)
+- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
+- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 #### SSH Profile
-- Authentication
-- Configure TLS Cipher Suite
-- Health Check Configuration
-- Custom HTTP Headers
-- Enterprise Connectivity Parameters
-- Miscellaneous
-- DLP Controls
+- [Health Check Parameters](advanced-settings.md#health-check-parameters)
+- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
+- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
+- [Authentication Parameters](advanced-settings.md#authentication-parameters)
+- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
+- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 #### SMB Profile
-- Authentication
-- Configure TLS Cipher Suite
-- Health Check Configuration
-- Custom HTTP Headers
-- Enterprise Connectivity Parameters
-- Miscellaneous
-- DLP Controls
+- [Health Check Parameters](advanced-settings.md#health-check-parameters)
+- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
+- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
+- [Authentication Parameters](advanced-settings.md#authentication-parameters)
+- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
+- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 ### Authentication Methods
 Enterprise applications support all authentication methods:
