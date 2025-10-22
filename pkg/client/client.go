@@ -74,15 +74,21 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 	if err != nil {
 		return nil, err
 	}
+
+	// Read the response body
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Create a new reader for the unmarshaling
+	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+
+	// Unmarshal the response if needed
 	if out != nil &&
 		resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices &&
 		resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusResetContent {
-		data, err := io.ReadAll(resp.Body)
-		resp.Body = io.NopCloser(bytes.NewBuffer(data))
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(data, out); err != nil {
+		if err := json.Unmarshal(responseBody, out); err != nil {
 			return nil, fmt.Errorf("%w: %s", ErrUnmarshaling, err)
 		}
 	}

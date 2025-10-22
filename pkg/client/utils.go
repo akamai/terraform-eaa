@@ -35,15 +35,18 @@ func SetAdvancedSettings(d *schema.ResourceData, settings AdvancedSettings) erro
 		tag := t.Field(i).Tag.Get("json")
 		tagName := strings.Split(tag, ",")[0]
 
-		// Skip fields with empty values
-		if field.Kind() == reflect.Ptr && field.IsNil() {
-			continue
-		}
-
+		// Include ALL fields, even if they have empty values
+		// This ensures the complete configuration is visible in Terraform state
 		if field.Kind() == reflect.Ptr {
-			// Dereference pointer fields
-			advancedSettingsMap[tagName] = field.Elem().Interface()
+			if field.IsNil() {
+				// Include null pointers as null in the map
+				advancedSettingsMap[tagName] = nil
+			} else {
+				// Dereference pointer fields
+				advancedSettingsMap[tagName] = field.Elem().Interface()
+			}
 		} else {
+			// Include all non-pointer fields, even if they're empty
 			advancedSettingsMap[tagName] = field.Interface()
 		}
 	}
@@ -88,25 +91,41 @@ func DifferenceIgnoreCase(slice1, slice2 []string) []string {
 func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedSettings) {
 	completeVal := reflect.ValueOf(complete).Elem()
 	deltaVal := reflect.ValueOf(delta)
-
 	for i := 0; i < deltaVal.NumField(); i++ {
 		deltaField := deltaVal.Field(i)
-		completeField := completeVal.FieldByName(deltaVal.Type().Field(i).Name)
+		fieldName := deltaVal.Type().Field(i).Name
+		completeField := completeVal.FieldByName(fieldName)
 
 		if !deltaField.IsValid() || !completeField.IsValid() || !completeField.CanSet() {
 			continue
 		}
 
-		if completeField.Kind() == reflect.String || completeField.Kind() == reflect.Ptr {
+		// Always copy the field value, regardless of whether it's zero or not
+		// This ensures ALL fields (including defaults) are included in the final payload
+		if completeField.Kind() == reflect.String {
+			// Handle string fields - convert pointer to string if needed
 			if deltaField.Kind() == reflect.Ptr && !deltaField.IsNil() {
-				completeField.Set(deltaField)
+				completeField.SetString(deltaField.Elem().String())
 			} else if deltaField.Kind() == reflect.String {
+				completeField.SetString(deltaField.String())
+			}
+		} else if completeField.Kind() == reflect.Ptr {
+			// Handle pointer fields - create pointer to the value
+			if deltaField.Kind() == reflect.String {
+				// Create a pointer to the string value
+				strVal := deltaField.String()
+				completeField.Set(reflect.ValueOf(&strVal))
+			} else {
+				// For other types, copy the pointer directly
 				completeField.Set(deltaField)
 			}
 		} else if completeField.Kind() == reflect.Slice {
-			if deltaField.IsValid() && deltaField.Kind() == reflect.Slice && !deltaField.IsNil() {
-				completeField.Set(deltaField)
-			}
+			completeField.Set(deltaField)
+		} else if completeField.Kind() == reflect.Map {
+			completeField.Set(deltaField)
+		} else {
+			// For other types (int, bool, etc.), copy directly
+			completeField.Set(deltaField)
 		}
 	}
 }
@@ -185,16 +204,16 @@ func ConvertConnectorsToMap(connectors json.RawMessage) []map[string]interface{}
 		var result []map[string]interface{}
 		for _, connector := range connectorArray {
 			connectorMap := map[string]interface{}{
-				"name":            connector.Name,
-				"package":         connector.Package, // lowercase to match schema
-				"state":           connector.State,
-				"status":          connector.Status,
-				"uuid_url":        connector.UUIDURL,
-				"created_at":      connector.CreatedAt,
-				"description":     connector.Description,
-				"load_status":     connector.LoadStatus,
-				"localization":    connector.Localization,
-				"reach":           connector.Reach,
+				"name":             connector.Name,
+				"package":          connector.Package, // lowercase to match schema
+				"state":            connector.State,
+				"status":           connector.Status,
+				"uuid_url":         connector.UUIDURL,
+				"created_at":       connector.CreatedAt,
+				"description":      connector.Description,
+				"load_status":      connector.LoadStatus,
+				"localization":     connector.Localization,
+				"reach":            connector.Reach,
 				"agent_infra_type": connector.AgentInfraType,
 			}
 			result = append(result, connectorMap)
@@ -223,10 +242,6 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 	return []string{}
 }
 
-
-
-
-
 // ============================================================================
 // VALIDATION UTILITIES
 // ============================================================================
@@ -235,14 +250,14 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 func ValidateRequiredString(d *schema.ResourceData, fieldName string, ec *EaaClient) (string, error) {
 	value, ok := d.GetOk(fieldName)
 	if !ok {
-		ec.Logger.Error(fmt.Sprintf("create ConnectorPool failed. '%s' is required but missing", fieldName))
-		return "", fmt.Errorf("create ConnectorPool failed. '%s' is required but missing", fieldName)
+		ec.Logger.Error(fmt.Sprintf("'%s' is required but missing", fieldName))
+		return "", fmt.Errorf("'%s' is required but missing", fieldName)
 	}
 
 	valueStr, ok := value.(string)
 	if !ok || valueStr == "" {
-		ec.Logger.Error(fmt.Sprintf("create ConnectorPool failed. '%s' must be a non-empty string", fieldName))
-		return "", fmt.Errorf("create ConnectorPool failed. '%s' must be a non-empty string", fieldName)
+		ec.Logger.Error(fmt.Sprintf("'%s' must be a non-empty string", fieldName))
+		return "", fmt.Errorf("'%s' must be a non-empty string", fieldName)
 	}
 
 	return valueStr, nil
@@ -278,20 +293,20 @@ func ValidateStringInSlice(val string, key string, validValues []string) (warns 
 	return warns, errs
 }
 
-// ValidateTokenField validates a token field with type checking and range validation
-func ValidateTokenField(value interface{}, fieldName string, min, max int, client *EaaClient) (int, error) {
+// ValidateIntegerField validates an integer field with type checking and range validation
+func ValidateIntegerField(value interface{}, fieldName string, min, max int, client *EaaClient) (int, error) {
 	// Type checking
 	intValue, ok := value.(int)
 	if !ok {
 		client.Logger.Error(fmt.Sprintf("%s must be an integer", fieldName))
 		return 0, fmt.Errorf("%s must be an integer, got %T", fieldName, value)
 	}
-	
+
 	// Range validation
-	if intValue <= 0 || intValue > max {
-		client.Logger.Error(fmt.Sprintf("%s must be in the range of 1 to %d", fieldName, max))
-		return 0, fmt.Errorf("%s must be in the range of 1 to %d, got %d", fieldName, max, intValue)
+	if intValue < min || intValue > max {
+		client.Logger.Error(fmt.Sprintf("%s must be in the range of %d to %d", fieldName, min, max))
+		return 0, fmt.Errorf("%s must be in the range of %d to %d, got %d", fieldName, min, max, intValue)
 	}
-	
+
 	return intValue, nil
 }

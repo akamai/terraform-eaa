@@ -4,6 +4,11 @@ A Terraform configuration is a complete document written in HCL (Hashicorp Confi
 Configuration files tell Terraform what plugins to install, what infrastructure to create, and what data to fetch.
 The main purpose of the Terraform language is declaring resources, which represent infrastructure objects. The following sections describe how to define the resource eaa_application in terraform configuration file.
 
+## Related Documentation
+
+- [Advanced Settings Reference](advanced-settings.md) - Comprehensive guide to all advanced settings parameters
+- [Application Type Configurations](app-type-configurations.md) - App type specific configurations and restrictions
+
 ### Resource: eaa_application
 
 Manages the lifecycle of the EAA application.  
@@ -38,84 +43,46 @@ This resource supports the following arguments:
     * app_directories - List of application directories
       * name - Name of the dictionary
       * app_groups - list of subset of directory's groups that are assigned to the application.
-* ```advanced_settings```	- (Optional) dictionary of advanced settings	
-  * is_ssl_verification_enabled - (Optional) controls if the EAA connector performs origin server certificate validation
-  * ignore_cname_resolution - if the end user is accessing the application through Akamai CDN, which connects to the EAA cloud.   
-  * g2o_enabled - Enables a G2O configuration for an application. Used only if you've enabled Akamai Edge Enforcement.
-  * x_wapp_read_timeout - (Required for Tunnel apps)
-  * internal_hostname - internal host name
-  * internal_host_port - internal host port
-  * allow_cors - (Optional) allows HTTP applications to make cross-origin resource sharing calls to other applications.
-  * cors_origin_list - (Optional) space delimited list of hosts that can access this application if allow_cors is enabled.
-  * cors_method_list - (Optional) space delimited list of HTTP methods that can be sent to this application if allow_cors is enabled.
-  * cors_header_list - (Optional) space delimited list of HTTP headers that can be sent to this application if allow_cors is enabled.
-  * cors_support_credential - (Optional) allows requests that are made with credentials if allow_cors is enabled.
-  * cors_max_age - (Optional) - duration (in seconds) for which an allowed host's pre-flight request is cached and trust is maintained by the application, if allow_cors is enabled.
-  * websocket_enabled - (Optional) - controls if the HTTP application uses websockets for HTTP transport.
-  * sticky_agent - (Optional) - controls if the requests always get routed to the same connector.
-  * app_cookie_domain - (Optional) - allows to configure common SSO domain.
-  * logout_url - (Optional) - URL that is triggered when the user is logged out of this application.
-  * sentry_redirect_401 - (Optional) - select this if the application is unable to handle HTTP 302 redirect to validate the logged-in user's session.
-  * custom_headers - (Optional) - headers to insert and forward to the origin application.
+* ```app_auth``` - (Optional) The type of application authentication. Default "none"
+* ```wapp_auth``` - (Optional) The type of user-facing authentication. Default "form"
+* ```saml``` - (Computed) Boolean flag indicating if SAML authentication is enabled
+* ```wsfed``` - (Computed) Boolean flag indicating if WS-Federation authentication is enabled
+* ```oidc``` - (Computed) Boolean flag indicating if OpenID Connect authentication is enabled
+* ```saml_settings``` - (Optional) SAML configuration settings
+* ```wsfed_settings``` - (Optional) WS-Federation configuration settings
+* ```oidc_settings``` - (Optional) OpenID Connect configuration settings
 
+#### Advanced Settings
 
+For comprehensive documentation of all advanced settings parameters, see [Advanced Settings Reference](advanced-settings.md).
+
+#### Authentication Settings
+
+For detailed documentation of authentication parameters including SAML, WS-Federation, OpenID Connect, JWT, and Kerberos configurations, see [Advanced Settings Reference](advanced-settings.md).
+
+#### Validation Rules
+
+For detailed validation rules and app type specific configurations, see [Application Type Configurations](app-type-configurations.md).
+
+#### Error Messages
+
+For complete error message reference, see [Advanced Settings Reference](advanced-settings.md) and [Application Type Configurations](app-type-configurations.md).
+
+#### Special Behaviors
+
+For detailed information about special behaviors for SAML, WS-Federation, OpenID Connect, and JWT authentication, see [Advanced Settings Reference](advanced-settings.md).
+
+#### Example Usage
+
+For comprehensive examples of different application types and configurations, see:
+- [Advanced Settings Reference](advanced-settings.md) - Examples for advanced settings
+- [Application Type Configurations](app-type-configurations.md) - Examples for each app type
 * ```app_operational``` - (Computed) if the app is operational	
 * ```app_status```  - (Computed) status of the app
 * ```app_deployed``` - (Computed) is the app deployed	
 * ```cname``` - (Computed) cname of the app
 * ```uuid_url``` - (Computed) uuid of the app
 
+#### Examples
 
-#### Example Usage
-
-The application resource is eaa_application. In order to create a new application through terraform, the following block could be used.
-
-```sh
-resource "eaa_application" "tfappname" {
-  provider = eaa /* eaa provider */
-
-  name        = "confluence" /* Application Name */
-  description = "app created using terraform" /* Application Description */
-  host        = "confluence.acmewapp.com" /* The external hostname for the application */
-  app_profile = "http" /* The access application profile */
-  app_type    = "enterprise" /* application type */
-  domain = "wapp"
-  client_app_mode = "tcp"  /* mode of client applications */
-  
-  servers { /* EAA application server details. */
-    orig_tls        = true
-    origin_protocol = "https"
-    origin_port     = 443
-    origin_host     = "10.2.0.201"
-  }
-  
-  popregion = "us-east-1" /* The target region to deploy the app */
-
-  agents = ["agent1", "agent2"] /* List of connectors assigned to application */
-
-  auth_enabled = "true" /* is app authentication enabled */
-  
-  app_authentication {
-    app_idp = "enterprise-idp" /* name of IDP assigned to app */
-    
-    app_directories { /* List of directories assigned to the application */
-      name = "Cloud Directory"
-      app_groups { /* List of groups under the directory that are assigned to the applicaion */
-        name = "group-1"
-      }
-      app_groups {
-        name = "group-2"
-      }
-    }
-  }
-}
-
-advanced_settings {
-      is_ssl_verification_enabled = "false" /* is the connector verifying the origin server certificate */
-      ignore_cname_resolution = "true" /* if the end user is accessing the application through Akamai CDN, which connects to the EAA cloud */
-      g2o_enabled = "true" /* Is G2O enabled */
-}
-
-
-```  
-example application configurations could be found under the examples directory.
+For comprehensive examples of different application types and configurations, see the [examples/](../examples/) directory in the repository.

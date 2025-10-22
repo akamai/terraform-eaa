@@ -90,13 +90,10 @@ terraform apply
 - Enabling Access service
 - Creating access control rule(s) to block or deny access to an application, based on User/Group criteria
 - updating G2O
-- subset of advanced_settings
+- comprehensive advanced_settings support
 - updating connectors, IDPs, directories and groups assigned to application
 - data sources for app_categories, pops, agents, idps, directories and groups
 - Supports only Mac darwin_amd64
-
-### The EAA custom plugin currently does not support
-- all of advanced_settings
 
 ## Troubleshooting and Support
 

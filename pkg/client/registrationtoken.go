@@ -76,7 +76,7 @@ func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchem
 
 	// Set max_use (optional, default to 1 if not specified)
 	if maxUseRaw, ok := tokenData["max_use"]; ok {
-		maxUse, err := ValidateTokenField(maxUseRaw, "max_use", 1, 1000, client)
+		maxUse, err := ValidateIntegerField(maxUseRaw, "max_use", 1, 1000, client)
 		if err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchem
 
 	// Set expires_in_days and calculate expires_at
 	if expiresInDaysRaw, ok := tokenData["expires_in_days"]; ok {
-		expiresInDays, err := ValidateTokenField(expiresInDaysRaw, "expires_in_days", 1, 700, client)
+		expiresInDays, err := ValidateIntegerField(expiresInDaysRaw, "expires_in_days", 1, 700, client)
 		if err != nil {
 			return err
 		}
@@ -401,12 +401,12 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 		tokenData := tokenInterface.(map[string]interface{})
 
 		// Validate max_use and expires_in_days fields
-		maxUse, err := ValidateTokenField(tokenData["max_use"], "max_use", 1, 1000, eaaclient)
+		maxUse, err := ValidateIntegerField(tokenData["max_use"], "max_use", 1, 1000, eaaclient)
 		if err != nil {
 			return err
 		}
 
-		expiresInDays, err2 := ValidateTokenField(tokenData["expires_in_days"], "expires_in_days", 1, 700, eaaclient)
+		expiresInDays, err2 := ValidateIntegerField(tokenData["expires_in_days"], "expires_in_days", 1, 700, eaaclient)
 		if err2 != nil {
 			return err2
 		}
