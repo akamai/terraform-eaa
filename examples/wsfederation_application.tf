@@ -1,6 +1,3 @@
-# WS-Federation Authentication Application Example
-# This example demonstrates how to create an EAA application with WS-Federation authentication
-
 terraform {
   required_providers {
     eaa = {
@@ -11,10 +8,13 @@ terraform {
 }
 
 provider "eaa" {
-  # Configuration options
   contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
+
+# WS-Federation Authentication Application Example
+# This example demonstrates how to create an EAA application with WS-Federation authentication
+
 
 # Basic WS-Federation Application with Default Settings
 resource "eaa_application" "wsfed_basic" {
@@ -25,7 +25,10 @@ resource "eaa_application" "wsfed_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  wsfed           = true
+  
+  advanced_settings = jsonencode({
+    app_auth = "WS-Federation"
+  })
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -49,6 +52,13 @@ resource "eaa_application" "wsfed_basic" {
             }
         }
     }
+  wsfed_settings {
+    idp {
+      self_signed = true
+    }
+    
+   
+  }
 
 
   # No app_authentication block needed for first-time creation
@@ -64,8 +74,10 @@ resource "eaa_application" "wsfed_custom" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  wsfed           = true
-  
+  advanced_settings = jsonencode({
+    app_auth = "WS-Federation"
+  })
+
   servers {
     orig_tls        = true
     origin_protocol = "https"

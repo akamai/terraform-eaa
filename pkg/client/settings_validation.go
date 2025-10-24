@@ -37,6 +37,12 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppAuthTypeNTLMv2),
 			string(AppAuthTypeAuto),
 			string(AppAuthTypeServiceAccount),
+			string(AppAuthTypeSAML),
+			string(AppAuthTypeSAML2),
+			string(AppAuthTypeOIDC),
+			string(AppAuthTypeOIDCFull),
+			string(AppAuthTypeWSFED),
+			string(AppAuthTypeWSFEDFull),
 		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
@@ -58,7 +64,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 					"ValidValues": []string{
 						string(AppAuthTypeNone),
 						string(AppAuthTypeKerberos),
-						"oidc",
+						string(AppAuthTypeOIDC),
 					},
 				},
 			},
@@ -1739,6 +1745,18 @@ var SETTINGS_RULES = map[string]SettingRule{
 	
 	// Additional Settings Support
 	"edge_authentication_enabled": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+	},
+	"ignore_cname_resolution": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+	},
+	"g2o_enabled": {
 		Type:        "string",
 		ValidValues: []string{"true", "false"},
 		AppTypes:    []string{string(ClientAppTypeEnterprise)},
