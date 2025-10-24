@@ -3,14 +3,13 @@
 terraform {
   required_providers {
     eaa = {
-      source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
       version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
-  # Configuration options
   contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
@@ -24,7 +23,7 @@ resource "eaa_application" "saml_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  saml            = true
+  
   
   servers {
     orig_tls        = true
@@ -51,8 +50,18 @@ resource "eaa_application" "saml_basic" {
     }
 
   advanced_settings = jsonencode({
+    app_auth = "SAML2.0"
     
   })
+  saml_settings {
+    
+    # Identity Provider (IDP) Configuration
+    idp {
+      self_signed = true                   # Set to true if using self-signed certificates
+    }
+    
+    
+  }
 
   # No saml_settings needed - defaults will be applied
 }
@@ -66,7 +75,6 @@ resource "eaa_application" "saml_custom_example_1" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  saml            = true
   
   servers {
     orig_tls        = true
@@ -93,7 +101,7 @@ resource "eaa_application" "saml_custom_example_1" {
     }
 
   advanced_settings = jsonencode({
-    
+    app_auth = "SAML2.0"
   })
 
   # SAML settings using schema approach (nested blocks)
@@ -112,7 +120,7 @@ resource "eaa_application" "saml_custom_example_1" {
     # Identity Provider (IDP) Configuration
     idp {
       entity_id   = "https://idp.example.com/metadata"
-      sign_algo   = "SHA256"                # Valid: "SHA1", "SHA256", "SHA384", "SHA512"
+      sign_algo   = "SHA256"                
       sign_cert   = "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
       sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"
       self_signed = true                   # Set to true if using self-signed certificates

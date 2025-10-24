@@ -768,6 +768,12 @@ const (
 	AppAuthNTLMv2         AppAuthType = "NTLMv2"
 	AppAuthAuto           AppAuthType = "auto"
 	AppAuthServiceAccount AppAuthType = "service account"
+	AppAuthSAML           AppAuthType = "saml"
+	AppAuthSAML2          AppAuthType = "SAML2.0"
+	AppAuthOIDC           AppAuthType = "oidc"
+	AppAuthOIDCFull       AppAuthType = "OpenID Connect 1.0"
+	AppAuthWSFED          AppAuthType = "wsfed"
+	AppAuthWSFEDFull      AppAuthType = "WS-Federation"
 )
 
 type WappAuthType string
@@ -1160,6 +1166,12 @@ const (
 	AppAuthTypeNTLMv2         = AppAuthNTLMv2
 	AppAuthTypeAuto           = AppAuthAuto
 	AppAuthTypeServiceAccount = AppAuthServiceAccount
+	AppAuthTypeSAML           = AppAuthSAML
+	AppAuthTypeSAML2          = AppAuthSAML2
+	AppAuthTypeOIDC           = AppAuthOIDC
+	AppAuthTypeOIDCFull       = AppAuthOIDCFull
+	AppAuthTypeWSFED          = AppAuthWSFED
+	AppAuthTypeWSFEDFull      = AppAuthWSFEDFull
 
 	// Wapp Auth Type constants (for compatibility)
 	WappAuthTypeForm       = WappAuthForm

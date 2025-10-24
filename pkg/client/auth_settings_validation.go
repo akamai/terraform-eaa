@@ -215,9 +215,31 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateWSFEDNestedBlocks called")
 
-	// Check if wsfed is enabled
-	wsfedEnabled, ok := d.GetOk("wsfed")
-	if !ok || !wsfedEnabled.(bool) {
+	// Check if wsfed is enabled directly OR if app_auth=wsfed is detected
+	wsfedEnabled := false
+	
+	// Check direct wsfed flag
+	if wsfedFlag, ok := d.GetOk("wsfed"); ok && wsfedFlag.(bool) {
+		wsfedEnabled = true
+		logger.Debug("WSFED enabled via direct wsfed=true flag")
+	}
+	
+	// Check if app_auth=wsfed is detected in advanced_settings
+	if !wsfedEnabled {
+		if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+			if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+				advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+				if err == nil && advSettings != nil {
+					if advSettings.AppAuth == "wsfed" || advSettings.AppAuth == "WS-Federation" {
+						wsfedEnabled = true
+						logger.Debug("WSFED enabled via app_auth=%s in advanced_settings", advSettings.AppAuth)
+					}
+				}
+			}
+		}
+	}
+
+	if !wsfedEnabled {
 		logger.Debug("WSFED not enabled, skipping validation")
 		return nil
 	}
@@ -264,9 +286,31 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateSAMLNestedBlocks called")
 
-	// Check if saml is enabled
-	samlEnabled, ok := d.GetOk("saml")
-	if !ok || !samlEnabled.(bool) {
+	// Check if saml is enabled directly OR if app_auth=saml is detected
+	samlEnabled := false
+	
+	// Check direct saml flag
+	if samlFlag, ok := d.GetOk("saml"); ok && samlFlag.(bool) {
+		samlEnabled = true
+		logger.Debug("SAML enabled via direct saml=true flag")
+	}
+	
+	// Check if app_auth=saml is detected in advanced_settings
+	if !samlEnabled {
+		if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+			if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+				advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+				if err == nil && advSettings != nil {
+					if advSettings.AppAuth == "saml" || advSettings.AppAuth == "SAML2.0" {
+						samlEnabled = true
+						logger.Debug("SAML enabled via app_auth=%s in advanced_settings", advSettings.AppAuth)
+					}
+				}
+			}
+		}
+	}
+
+	if !samlEnabled {
 		logger.Debug("SAML not enabled, skipping validation")
 		return nil
 	}
@@ -332,15 +376,38 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 // validateOIDCNestedBlocks validates OIDC nested blocks configuration
 func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	logger.Debug("validateOIDCNestedBlocks called")
 
-	// Check if oidc is enabled
-	oidcEnabled, ok := d.GetOk("oidc")
-	if !ok || !oidcEnabled.(bool) {
+	// Check if oidc is enabled directly OR if app_auth=oidc is detected
+	oidcEnabled := false
+	
+	// Check direct oidc flag
+	if oidcFlag, ok := d.GetOk("oidc"); ok && oidcFlag.(bool) {
+		oidcEnabled = true
+		logger.Debug("OIDC enabled via direct oidc=true flag")
+	}
+	
+	// Check if app_auth=oidc is detected in advanced_settings
+	if !oidcEnabled {
+		if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+			if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+				advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+				if err == nil && advSettings != nil {
+					if advSettings.AppAuth == "oidc" || advSettings.AppAuth == "OpenID Connect 1.0" {
+						oidcEnabled = true
+						logger.Debug("OIDC enabled via app_auth=%s in advanced_settings", advSettings.AppAuth)
+					}
+				}
+			}
+		}
+	}
+
+	if !oidcEnabled {
 		logger.Debug("OIDC not enabled, skipping validation")
 		return nil
 	}
 
-	// Get oidc_settings nested blocks
+	logger.Debug("OIDC is enabled, validating nested blocks")
 	oidcSettings, ok := d.GetOk("oidc_settings")
 	if !ok {
 		logger.Debug("No oidc_settings found")
@@ -355,6 +422,20 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 	// Get the first (and only) oidc_settings block
 	oidcBlock := oidcSettingsList[0].(map[string]interface{})
+	
+	// Check if the oidc_settings block has any actual content
+	hasContent := false
+	for _, value := range oidcBlock {
+		if value != nil && value != "" && value != 0 && value != false {
+			hasContent = true
+			break
+		}
+	}
+	
+	if !hasContent {
+		logger.Debug("oidc_settings block is empty, skipping validation")
+		return nil
+	}
 
 	// Validate OIDC clients if present
 	if oidcClients, ok := oidcBlock["oidc_clients"].([]interface{}); ok && len(oidcClients) > 0 {

@@ -50,6 +50,26 @@ func resourceEaaApplication() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"protocol": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Authentication protocol for SaaS applications. Valid values: SAML, SAML2.0, OIDC, OpenID Connect 1.0, WSFed, WS-Federation",
+				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+					v := val.(string)
+					validProtocols := []string{"SAML", "SAML2.0", "OIDC", "OpenID Connect 1.0", "WSFed", "WS-Federation"}
+					isValid := false
+					for _, protocol := range validProtocols {
+						if v == protocol {
+							isValid = true
+							break
+						}
+					}
+					if !isValid {
+						errs = append(errs, fmt.Errorf("%q must be one of: %v", key, validProtocols))
+					}
+					return
+				},
+			},
 			"client_app_mode": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -144,9 +164,9 @@ func resourceEaaApplication() *schema.Resource {
 				Default:  "false",
 			},
 			"saml": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Computed: true,
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Automatically set to true when SAML authentication is configured. This field is computed based on app_auth in advanced_settings and cannot be set directly.",
 			},
 			"saml_settings": {
 				Type:        schema.TypeList,
@@ -313,9 +333,9 @@ func resourceEaaApplication() *schema.Resource {
 				},
 			},
 			"wsfed": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Computed: true,
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Automatically set to true when WS-Federation authentication is configured. This field is computed based on app_auth in advanced_settings and cannot be set directly.",
 			},
 			"wsfed_settings": {
 				Type:        schema.TypeList,
@@ -489,9 +509,9 @@ func resourceEaaApplication() *schema.Resource {
 			},
 
 			"oidc": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Computed: true,
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Automatically set to true when OIDC authentication is configured. This field is computed based on app_auth in advanced_settings and cannot be set directly.",
 			},
 			"oidc_settings": {
 				Type:        schema.TypeList,
@@ -1184,10 +1204,10 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 			logger.Debug("Phase 2: Configuring agents...")
 			return client.ConfigureAgents(ctx, app_uuid_url, d, eaaclient)
 		},
-		func() error {
-			logger.Debug("Phase 2: Configuring authentication...")
-			return client.ConfigureAuthentication(ctx, app_uuid_url, d, eaaclient)
-		},
+			func() error {
+				logger.Debug("Phase 2: Configuring authentication...")
+				return client.ConfigureAuthentication(ctx, app_uuid_url, d, eaaclient)
+			},
 		func() error {
 			logger.Debug("Phase 2: Configuring advanced settings...")
 			return client.ConfigureAdvancedSettings(ctx, app_uuid_url, d, eaaclient)
@@ -1502,9 +1522,15 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	attrs["app_deployed"] = appResp.AppDeployed
 	attrs["app_operational"] = appResp.AppOperational
 	attrs["app_status"] = appResp.AppStatus
-	attrs["saml"] = appResp.SAML
-	attrs["oidc"] = appResp.Oidc
-	attrs["wsfed"] = appResp.WSFED
+	
+	// Set SAML field based on business logic - automatically computed
+	attrs["saml"] = shouldEnableSAML(d)
+	
+	// Set OIDC field based on business logic - automatically computed
+	attrs["oidc"] = shouldEnableOIDC(d)
+	
+	// Set WSFED field based on business logic - automatically computed
+	attrs["wsfed"] = shouldEnableWSFED(d)
 
 	if appResp.CName != nil {
 		attrs["cname"] = *appResp.CName
@@ -1982,9 +2008,12 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		oidcSettings = append(oidcSettings, oidcBlock)
 	}
 
-	err = d.Set("oidc_settings", oidcSettings)
-	if err != nil {
-		return diag.FromErr(err)
+	// Only set oidc_settings if OIDC is actually enabled
+	if appResp.Oidc {
+		err = d.Set("oidc_settings", oidcSettings)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	return nil
@@ -2289,7 +2318,7 @@ func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string,
 	}
 
 	// Basic validation - detailed validation will be done in the resource
-	validValues := []string{"none", "SAML2.0", "oidc", "OpenID Connect 1.0", "wsfed", "WS-Federation", "kerberos", "basic", "NTLMv1", "NTLMv2"}
+	validValues := []string{"none", "saml", "SAML2.0", "oidc", "OpenID Connect 1.0", "wsfed", "WS-Federation", "kerberos", "basic", "NTLMv1", "NTLMv2", "auto", "service account"}
 
 	isValid := false
 	for _, validValue := range validValues {
@@ -2448,30 +2477,7 @@ func validateAppAuthForTypeAndProfile(appAuth, appType, appProfile string) error
 		return err
 	}
 
-	// Apply validation rules based on the requirements
-	switch {
-	case appType == string(client.ClientAppTypeEnterprise) && appProfile == string(client.AppProfileSSH):
-		// app_auth is disabled - field should not be present in advanced_settings
-		return client.ErrAppAuthDisabledForEnterpriseSSH
-
-	case appType == string(client.ClientAppTypeSaaS):
-		// app_auth should not be present in advanced_settings for SaaS apps
-		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
-		return client.ErrAppAuthNotAllowedForSaaS
-
-	case appType == string(client.ClientAppTypeBookmark):
-		// app_auth should not be present in advanced_settings - it's set at resource level
-		return client.ErrAppAuthNotAllowedForBookmark
-
-	case appType == string(client.ClientAppTypeTunnel):
-		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
-		return client.ErrAppAuthNotAllowedForTunnel
-
-	case appType == "enterprise" && appProfile == "vnc":
-		// app_auth is disabled - field should not be present in advanced_settings
-		return client.ErrAppAuthDisabledForEnterpriseVNC
-	}
-
+	// All app types now support app_auth in advanced_settings
 	return nil
 }
 
@@ -2773,23 +2779,7 @@ func validateAppAuthConflictsWithResourceLevelAuth(settings map[string]interface
 
 	logger.Debug("Validating app_auth conflicts for value: %s", appAuthStr)
 
-	// Check for SAML/OIDC/WSFED conflicts - when these are enabled, app_auth must be "none"
-	if appAuthStr != "none" {
-		// Check if SAML is enabled
-		if saml, ok := diff.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
-		}
-
-		// Check if OIDC is enabled
-		if oidc, ok := diff.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
-		}
-
-		// Check if WSFED is enabled
-		if wsfed, ok := diff.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuthStr)
-		}
-	}
+	// Validation removed - let the API handle the app_auth transformation
 
 	// Additional validation: specific conflicts with SAML
 	if saml, ok := diff.GetOk("saml"); ok && saml.(bool) {
@@ -2856,20 +2846,35 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 	}
 
 	// Check for SAML/OIDC/WSFED conflicts - when these are enabled, app_auth must be "none"
+	// EXCEPTION: Allow app_auth="saml"/"oidc"/"wsfed" when these are automatically enabled
 	if appAuth != "none" {
+		// Use the same business logic as shouldEnable* functions to determine if auth methods are enabled
+		samlEnabled := shouldEnableSAML(d)
+		oidcEnabled := shouldEnableOIDC(d)
+		wsfedEnabled := shouldEnableWSFED(d)
+
 		// Check if SAML is enabled
-		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+		if samlEnabled {
+			// Allow app_auth="saml" or "SAML2.0" when SAML is automatically enabled
+			if appAuth != "saml" && appAuth != "SAML2.0" {
+				return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+			}
 		}
 
 		// Check if OIDC is enabled
-		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+		if oidcEnabled {
+			// Allow app_auth="oidc" or "OpenID Connect 1.0" when OIDC is automatically enabled
+			if appAuth != "oidc" && appAuth != "OpenID Connect 1.0" {
+				return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+			}
 		}
 
 		// Check if WSFED is enabled
-		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+		if wsfedEnabled {
+			// Allow app_auth="wsfed" or "WS-Federation" when WSFED is automatically enabled
+			if appAuth != "wsfed" && appAuth != "WS-Federation" {
+				return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+			}
 		}
 	}
 
@@ -2925,7 +2930,7 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 // validateAppAuthValue validates app_auth field values
 func validateAppAuthValue(appAuth string) error {
 	// Valid values for app_auth based on documentation
-	validValues := []string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "wsfed", "oidc", "OpenID Connect 1.0"}
+	validValues := []string{"none", "saml", "SAML2.0", "oidc", "OpenID Connect 1.0", "wsfed", "WS-Federation", "kerberos", "basic", "NTLMv1", "NTLMv2", "auto", "service account"}
 
 	isValid := false
 	for _, validValue := range validValues {
@@ -2944,8 +2949,8 @@ func validateAppAuthValue(appAuth string) error {
 
 // validateWappAuthValue validates wapp_auth field values
 func validateWappAuthValue(wappAuth string) error {
-	// Valid values for wapp_auth based on documentation and server validation
-	validValues := []string{"form", "basic", "basic_cookie", "jwt", "certonly"}
+	// Valid values for wapp_auth based on documentation
+	validValues := []string{"none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "wsfed", "oidc", "OpenID Connect 1.0"}
 
 	isValid := false
 	for _, validValue := range validValues {
@@ -2962,7 +2967,242 @@ func validateWappAuthValue(wappAuth string) error {
 	return nil
 }
 
-// Note: validateWappAuthFieldConflicts is now handled by validateWappAuthFieldConflictsGeneric in advanced_settings_conflict_validation.go
+// shouldEnableSAML determines if SAML should be automatically enabled based on app configuration
+func shouldEnableSAML(d *schema.ResourceData) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable SAML automatically when:
+	// 1. app_auth is set to "saml" or "SAML2.0"
+	if appAuth == "saml" || appAuth == "SAML2.0" {
+		return true
+	}
+
+	// 2. Any app with SAML settings configured
+	if samlSettings, ok := d.GetOk("saml_settings"); ok {
+		if samlList, ok := samlSettings.([]interface{}); ok && len(samlList) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldEnableOIDC determines if OIDC should be automatically enabled based on app configuration
+func shouldEnableOIDC(d *schema.ResourceData) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable OIDC automatically when:
+	// 1. app_auth is set to "oidc" or "OpenID Connect 1.0"
+	if appAuth == "oidc" || appAuth == "OpenID Connect 1.0" {
+		return true
+	}
+
+	// 2. Any app with OIDC settings configured
+	if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
+		if oidcList, ok := oidcSettings.([]interface{}); ok && len(oidcList) > 0 {
+			// Check if the first element has any actual content
+			if oidcBlock, ok := oidcList[0].(map[string]interface{}); ok {
+				// Only enable OIDC if there are actual non-empty fields
+				hasContent := false
+				for _, value := range oidcBlock {
+					// Check for actual content (not nil, not empty string, not zero, not false)
+					if value != nil {
+						switch v := value.(type) {
+						case string:
+							if v != "" {
+								hasContent = true
+							}
+						case int:
+							if v != 0 {
+								hasContent = true
+							}
+						case bool:
+							if v {
+								hasContent = true
+							}
+						case []interface{}:
+							if len(v) > 0 {
+								hasContent = true
+							}
+						default:
+							hasContent = true
+						}
+						if hasContent {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// shouldEnableSAMLFromDiff determines if SAML should be automatically enabled based on diff data
+func shouldEnableSAMLFromDiff(diff *schema.ResourceDiff) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := diff.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable SAML automatically when:
+	// 1. app_auth is set to "saml" or "SAML2.0"
+	if appAuth == "saml" || appAuth == "SAML2.0" {
+		return true
+	}
+
+	// 2. Any app with SAML settings configured
+	if samlSettings, ok := diff.GetOk("saml_settings"); ok {
+		if samlList, ok := samlSettings.([]interface{}); ok && len(samlList) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldEnableOIDCFromDiff determines if OIDC should be automatically enabled based on diff data
+func shouldEnableOIDCFromDiff(diff *schema.ResourceDiff) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := diff.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable OIDC automatically when:
+	// 1. app_auth is set to "oidc" or "OpenID Connect 1.0"
+	if appAuth == "oidc" || appAuth == "OpenID Connect 1.0" {
+		return true
+	}
+
+	// 2. Any app with OIDC settings configured - but skip empty blocks
+	if oidcSettings, ok := diff.GetOk("oidc_settings"); ok {
+		if oidcList, ok := oidcSettings.([]interface{}); ok && len(oidcList) > 0 {
+			// Check if the first element has any actual content
+			if oidcBlock, ok := oidcList[0].(map[string]interface{}); ok {
+				// Check if any meaningful fields are present (non-nil, non-empty, non-zero, non-false)
+				hasContent := false
+				for _, value := range oidcBlock {
+					if value != nil {
+						switch v := value.(type) {
+						case string:
+							if v != "" {
+								hasContent = true
+							}
+						case int:
+							if v != 0 {
+								hasContent = true
+							}
+						case bool:
+							if v {
+								hasContent = true
+							}
+						case []interface{}:
+							if len(v) > 0 {
+								hasContent = true
+							}
+						default:
+							hasContent = true
+						}
+					}
+					if hasContent {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// shouldEnableWSFEDFromDiff determines if WS-Federation should be automatically enabled based on diff data
+func shouldEnableWSFEDFromDiff(diff *schema.ResourceDiff) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := diff.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable WS-Federation automatically when:
+	// 1. app_auth is set to "wsfed" or "WS-Federation"
+	if appAuth == "wsfed" || appAuth == "WS-Federation" {
+		return true
+	}
+
+	// 2. Any app with WS-Federation settings configured
+	if wsfedSettings, ok := diff.GetOk("wsfed_settings"); ok {
+		if wsfedList, ok := wsfedSettings.([]interface{}); ok && len(wsfedList) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldEnableWSFED determines if WS-Federation should be automatically enabled based on app configuration
+func shouldEnableWSFED(d *schema.ResourceData) bool {
+	// Get advanced_settings to check app_auth
+	var appAuth string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+	// Business logic: Enable WS-Federation automatically when:
+	// 1. app_auth is set to "wsfed" or "WS-Federation"
+	if appAuth == "wsfed" || appAuth == "WS-Federation" {
+		return true
+	}
+
+	// 2. Any app with WS-Federation settings configured
+	if wsfedSettings, ok := d.GetOk("wsfed_settings"); ok {
+		if wsfedList, ok := wsfedSettings.([]interface{}); ok && len(wsfedList) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
 
 // validateTLSSuiteRestrictions validates TLS Suite configuration restrictions based on app_type and app_profile
 func validateTLSSuiteRestrictions(appType, appProfile string, settings map[string]interface{}) error {
