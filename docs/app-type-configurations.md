@@ -67,14 +67,15 @@ Enterprise applications provide the most comprehensive configuration options and
 - [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
 
 ### Authentication Methods
-Enterprise applications support all authentication methods:
-- SAML (`saml = true`)
-- OpenID Connect (`oidc = true`)
-- WS-Federation (`wsfed = true`)
+Enterprise applications support all authentication methods via `app_auth` in `advanced_settings`:
+- SAML (`app_auth = "SAML2.0"` or `app_auth = "saml"` in advanced_settings)
+- OpenID Connect (`app_auth = "OpenID Connect 1.0"` or `app_auth = "oidc"` in advanced_settings)
+- WS-Federation (`app_auth = "WS-Federation"` in advanced_settings)
 - Kerberos (`app_auth = "kerberos"`)
 - Basic Authentication (`app_auth = "basic"`)
 - NTLMv1 (`app_auth = "NTLMv1"`)
 - NTLMv2 (`app_auth = "NTLMv2"`)
+- None (`app_auth = "none"`)
 
 ### Special Restrictions
 - **SSH Profile**: `app_auth` is disabled - field should not be present in `advanced_settings`
@@ -149,10 +150,11 @@ Tunnel applications provide TCP tunneling capabilities with limited configuratio
 
 ### Authentication Methods
 Tunnel applications have limited authentication options:
-- SAML (`saml = true`) - NOT allowed
-- OpenID Connect (`oidc = true`) - NOT allowed
-- WS-Federation (`wsfed = true`) - NOT allowed
+- SAML - NOT allowed (cannot use `app_auth = "saml"` or `app_auth = "SAML2.0"` in advanced_settings)
+- OpenID Connect - NOT allowed (cannot use `app_auth = "oidc"` or `app_auth = "OpenID Connect 1.0"` in advanced_settings)
+- WS-Federation - NOT allowed (cannot use `app_auth = "WS-Federation"` in advanced_settings)
 - Basic authentication only (handled at resource level)
+- None authentication (`app_auth = "none"` is allowed in advanced_settings)
 
 ### Required Fields
 - `websocket_enabled = true`
@@ -177,10 +179,11 @@ Bookmark applications are simple applications with minimal configuration require
 
 ### Authentication Methods
 Bookmark applications have limited authentication options:
-- SAML (`saml = true`) - NOT allowed
-- OpenID Connect (`oidc = true`) - NOT allowed
-- WS-Federation (`wsfed = true`) - NOT allowed
+- SAML - NOT allowed
+- OpenID Connect - NOT allowed
+- WS-Federation - NOT allowed
 - Basic authentication only (handled at resource level)
+- No `advanced_settings` block allowed (so no `app_auth` configuration)
 
 ### Configuration Notes
 - Bookmark apps use resource-level configuration only
@@ -199,18 +202,18 @@ SaaS (Software-as-a-Service) applications are designed for third-party cloud ser
 - All advanced settings categories are blocked
 
 ### Authentication Methods
-SaaS applications support modern authentication methods:
-- SAML (`saml = true`)
-- OpenID Connect (`oidc = true`)
-- WS-Federation (`wsfed = true`)
-- Kerberos (`app_auth = "kerberos"`) - NOT allowed in `advanced_settings`
-- Basic Authentication (`app_auth = "basic"`) - NOT allowed in `advanced_settings`
-- NTLMv1/NTLMv2 - NOT allowed in `advanced_settings`
+SaaS applications support modern authentication methods via the `protocol` field:
+- SAML (`protocol = "SAML"` or `protocol = "SAML2.0"`)
+- OpenID Connect (`protocol = "OpenID Connect 1.0"` or `protocol = "OIDC"`)
+- WS-Federation (`protocol = "WSFed"` or `protocol = "WS-Federation"`) - Note: Both "WSFed" and "WS-Federation" are valid (case-sensitive, lowercase "wsfed" is NOT supported)
+- Kerberos - NOT allowed
+- Basic Authentication - NOT allowed
+- NTLMv1/NTLMv2 - NOT allowed
 
 ### Configuration Notes
 - SaaS apps use resource-level configuration only
 - No `advanced_settings` block should be provided
-- Authentication is handled at the resource level using boolean flags (`saml`, `oidc`, `wsfed`)
+- Authentication is specified using the `protocol` field (not `saml`, `oidc`, `wsfed` boolean flags)
 
 ## Configuration Examples
 
@@ -249,10 +252,16 @@ resource "eaa_application" "enterprise_http" {
     custom_headers = []
   })
   
-  # Supports all authentication methods
-  saml = true
-  # or oidc = true
-  # or wsfed = true
+  # Authentication methods are set via app_auth in advanced_settings (not boolean flags)
+  # The advanced_settings above already includes app_auth = "kerberos" as an example
+  # For SAML, OIDC, or WSFed, set app_auth to:
+  #   app_auth = "SAML2.0" or "saml" for SAML
+  #   app_auth = "OpenID Connect 1.0" or "oidc" for OIDC  
+  #   app_auth = "WS-Federation" for WS-Federation
+  # Other valid values: "kerberos", "basic", "NTLMv1", "NTLMv2", "none"
+  
+  # Note: DO NOT use top-level boolean flags (saml = true, oidc = true, wsfed = true)
+  # These are deprecated and should not be used
 }
 ```
 
@@ -283,12 +292,15 @@ resource "eaa_application" "tunnel_app" {
     
     # Enterprise Connectivity (Allowed)
     app_server_read_timeout = "300"
+    
+    # Authentication - only "none" is allowed for tunnel apps
+    # app_auth = "none"  # Optional - "none" is allowed
+    # Cannot use: app_auth = "saml", "oidc", "WS-Federation", "kerberos" - NOT allowed
   })
   
-  # No advanced authentication methods
-  # saml = true  # NOT allowed
-  # oidc = true  # NOT allowed
-  # wsfed = true # NOT allowed
+  # No advanced authentication methods at resource level
+  # Cannot use saml, oidc, or wsfed boolean flags
+  # Only basic authentication at resource level is supported
 }
 ```
 
@@ -305,9 +317,9 @@ resource "eaa_application" "bookmark_app" {
   # advanced_settings = jsonencode({...})  # NOT allowed
   
   # No advanced authentication methods
-  # saml = true  # NOT allowed
-  # oidc = true  # NOT allowed
-  # wsfed = true # NOT allowed
+  # Cannot use saml, oidc, or wsfed boolean flags (no longer exist)
+  # Cannot use protocol field (only for SaaS apps)
+  # Only basic authentication at resource level is supported
 }
 ```
 
@@ -323,10 +335,8 @@ resource "eaa_application" "saas_app" {
   # No advanced_settings allowed
   # advanced_settings = jsonencode({...})  # NOT allowed
   
-  # Supports modern authentication methods
-  saml = true
-  # or oidc = true
-  # or wsfed = true
+  # Supports modern authentication methods via protocol field
+  protocol = "SAML"  # or "SAML2.0", "OpenID Connect 1.0", "OIDC", "WSFed", "WS-Federation"
 }
 ```
 
@@ -335,11 +345,11 @@ resource "eaa_application" "saas_app" {
 
 ### Enterprise Applications
 - **Advanced Settings**: Full Support - All categories supported
-- **SAML Authentication**: Supported
-- **OIDC Authentication**: Supported  
-- **WS-Federation**: Supported
-- **Kerberos Authentication**: Supported
-- **Basic Authentication**: Supported
+- **SAML Authentication**: Supported via `app_auth = "SAML2.0"` or `app_auth = "saml"` in advanced_settings
+- **OIDC Authentication**: Supported via `app_auth = "OpenID Connect 1.0"` or `app_auth = "oidc"` in advanced_settings
+- **WS-Federation**: Supported via `app_auth = "WS-Federation"` in advanced_settings
+- **Kerberos Authentication**: Supported via `app_auth = "kerberos"` in advanced_settings
+- **Basic Authentication**: Supported via `app_auth = "basic"` in advanced_settings
 - **CORS Support**: Supported
 - **TLS Suite Configuration**: Supported
 - **RDP Configuration**: Supported (RDP profile only)
@@ -348,11 +358,12 @@ resource "eaa_application" "saas_app" {
 
 ### Tunnel Applications
 - **Advanced Settings**: Limited - Only specific categories allowed
-- **SAML Authentication**: Not Allowed
-- **OIDC Authentication**: Not Allowed
-- **WS-Federation**: Not Allowed
-- **Kerberos Authentication**: Not Allowed
-- **Basic Authentication**: Supported
+- **SAML Authentication**: Not Allowed (cannot use `app_auth = "saml"` or `app_auth = "SAML2.0"` in advanced_settings)
+- **OIDC Authentication**: Not Allowed (cannot use `app_auth = "oidc"` or `app_auth = "OpenID Connect 1.0"` in advanced_settings)
+- **WS-Federation**: Not Allowed (cannot use `app_auth = "WS-Federation"` in advanced_settings)
+- **Kerberos Authentication**: Not Allowed (cannot use `app_auth = "kerberos"` in advanced_settings)
+- **Basic Authentication**: Supported at resource level
+- **None Authentication**: Supported via `app_auth = "none"` in advanced_settings
 - **CORS Support**: Not Allowed
 - **TLS Suite Configuration**: Not Allowed
 - **RDP Configuration**: Not Allowed
@@ -369,11 +380,9 @@ resource "eaa_application" "tunnel_invalid" {
   app_profile     = "tcp"
   client_app_mode = "tunnel"
   
-  # This will cause validation error
-  saml = true  # NOT allowed for tunnel apps
-  
   advanced_settings = jsonencode({
     # These will cause validation errors
+    app_auth = "SAML2.0"  # NOT allowed for tunnel apps (or "saml", "oidc", "WS-Federation")
     login_url = "https://example.com/login"     # Authentication - NOT allowed
     logout_url = "https://example.com/logout"   # Authentication - NOT allowed
     allow_cors = true                           # CORS - NOT allowed
@@ -402,9 +411,9 @@ resource "eaa_application" "tunnel_invalid" {
 
 ### SaaS Applications
 - **Advanced Settings**: Not Allowed
-- **SAML Authentication**: Supported
-- **OIDC Authentication**: Supported
-- **WS-Federation**: Supported
+- **SAML Authentication**: Supported via `protocol = "SAML"` or `protocol = "SAML2.0"`
+- **OIDC Authentication**: Supported via `protocol = "OpenID Connect 1.0"` or `protocol = "OIDC"`
+- **WS-Federation**: Supported via `protocol = "WSFed"` or `protocol = "WS-Federation"`
 - **Kerberos Authentication**: Not Allowed
 - **Basic Authentication**: Not Allowed
 - **CORS Support**: Not Allowed

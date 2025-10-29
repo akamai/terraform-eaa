@@ -91,7 +91,7 @@ Bookmark applications have minimal configuration:
 SaaS applications have limited advanced settings:
 
 - **Advanced Settings**: Not supported at all
-- **Authentication**: Resource-level boolean flags only (saml, oidc, wsfed)
+- **Authentication**: Resource-level `protocol` field only (not boolean flags)
 
 ## Health Check Parameters
 
@@ -165,7 +165,7 @@ Configure application-level authentication mechanisms.
 * `sentry_redirect_401` - (Optional) Redirect 401 responses for session validation
 
 ### Application Authentication (`app_auth`)
-* `app_auth` - (Optional) Application authentication type. Allowed values: "none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "wsfed", "oidc", "OpenID Connect 1.0"
+* `app_auth` - (Optional) Application authentication type. Allowed values: "none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "WS-Federation", "oidc", "OpenID Connect 1.0"
 
 ### Kerberos Authentication Settings
 * `app_auth_domain` - (Optional) Kerberos domain name. Default ""

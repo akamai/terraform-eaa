@@ -43,11 +43,12 @@ This resource supports the following arguments:
     * app_directories - List of application directories
       * name - Name of the dictionary
       * app_groups - list of subset of directory's groups that are assigned to the application.
-* ```app_auth``` - (Optional) The type of application authentication. Default "none"
-* ```wapp_auth``` - (Optional) The type of user-facing authentication. Default "form"
-* ```saml``` - (Computed) Boolean flag indicating if SAML authentication is enabled
-* ```wsfed``` - (Computed) Boolean flag indicating if WS-Federation authentication is enabled
-* ```oidc``` - (Computed) Boolean flag indicating if OpenID Connect authentication is enabled
+* ```app_auth``` - (Optional) The type of application authentication. Configured in `advanced_settings` as JSON. Allowed values: "none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "saml", "WS-Federation", "oidc", "OpenID Connect 1.0". Default "none"
+* ```wapp_auth``` - (Optional) The type of user-facing authentication. Configured in `advanced_settings` as JSON. Default "form"
+* ```protocol``` - (Optional, for SaaS apps) Authentication protocol. Allowed values: "SAML", "SAML2.0", "OpenID Connect 1.0", "OIDC", "WSFed", "WS-Federation". Note: For WS-Federation, both "WSFed" and "WS-Federation" are supported (lowercase "wsfed" is NOT supported).
+* ```saml``` - (Computed) Boolean flag indicating if SAML authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)
+* ```wsfed``` - (Computed) Boolean flag indicating if WS-Federation authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)
+* ```oidc``` - (Computed) Boolean flag indicating if OpenID Connect authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)
 * ```saml_settings``` - (Optional) SAML configuration settings
 * ```wsfed_settings``` - (Optional) WS-Federation configuration settings
 * ```oidc_settings``` - (Optional) OpenID Connect configuration settings
