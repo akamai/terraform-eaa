@@ -35,13 +35,13 @@ resource "eaa_connector_pool" "example" {
   registration_tokens {
     name                  = "token-1"
     max_use               = 5
-    expires_in_days       = 100
+    expires_in_days       = 1
     generate_embedded_img = false
   }
   registration_tokens {
     name                  = "token-3"
     max_use               = 5
-    expires_in_days       = 100
+    expires_in_days       = 2
     generate_embedded_img = false
   }
 }

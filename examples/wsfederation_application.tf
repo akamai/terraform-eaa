@@ -1,6 +1,3 @@
-# WS-Federation Authentication Application Example
-# This example demonstrates how to create an EAA application with WS-Federation authentication
-
 terraform {
   required_providers {
     eaa = {
@@ -11,10 +8,13 @@ terraform {
 }
 
 provider "eaa" {
-  # Configuration options
   contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
+
+# WS-Federation Authentication Application Example
+# This example demonstrates how to create an EAA application with WS-Federation authentication
+
 
 # Basic WS-Federation Application with Default Settings
 resource "eaa_application" "wsfed_basic" {
@@ -25,7 +25,10 @@ resource "eaa_application" "wsfed_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  wsfed           = true
+  
+  advanced_settings = jsonencode({
+    app_auth = "WS-Federation"
+  })
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -49,6 +52,13 @@ resource "eaa_application" "wsfed_basic" {
             }
         }
     }
+  wsfed_settings {
+    idp {
+      self_signed = true
+    }
+    
+   
+  }
 
 
   # No app_authentication block needed for first-time creation
@@ -64,8 +74,10 @@ resource "eaa_application" "wsfed_custom" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  wsfed           = true
-  
+  advanced_settings = jsonencode({
+    app_auth = "WS-Federation"
+  })
+
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -113,6 +125,72 @@ resource "eaa_application" "wsfed_custom" {
       fmt = "persistent"
       custom_fmt = ""
       src = "user.persistentId"
+      val = ""
+      rule = ""
+    }
+    
+    attrmap {
+      name = "email"
+      fmt  = "email"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.email"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "firstName"
+      fmt  = "firstName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.firstName"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "lastName"
+      fmt  = "lastName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.lastName"
+      rule = ""
+    }
+  }
+}
+
+# SaaS Application with WS-Federation Authentication
+resource "eaa_application" "saas_wsfed" {
+  name        = "saas-wsfed-test"
+  description = "SaaS application with WS-Federation authentication"
+  host        = "saas-wsfed.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "WS-Federation"
+
+  # WS-Federation Settings (from saas.tf)
+  wsfed_settings {
+    sp {
+      entity_id = "https://saas-wsfed.example.com"
+      slo_url   = "https://saas-wsfed.example.com/wsfed/slo"
+      dst_url   = "https://saas-wsfed.example.com/wsfed/dst"
+      resp_bind = "post"
+      token_life = 3600
+      encr_algo  = "aes128-cbc"
+    }
+    
+    idp {
+      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
+      sign_algo = "SHA1"
+      sign_key  = ""
+      self_signed = true
+    }
+    
+    subject {
+      fmt = "email"
+      custom_fmt = ""
+      src = "user.email"
       val = ""
       rule = ""
     }

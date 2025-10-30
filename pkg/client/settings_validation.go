@@ -37,6 +37,12 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppAuthTypeNTLMv2),
 			string(AppAuthTypeAuto),
 			string(AppAuthTypeServiceAccount),
+			string(AppAuthTypeSAML),
+			string(AppAuthTypeSAML2),
+			string(AppAuthTypeOIDC),
+			string(AppAuthTypeOIDCFull),
+			string(AppAuthTypeWSFED),
+			string(AppAuthTypeWSFEDFull),
 		},
 		AppTypes:    []string{
 			string(ClientAppTypeEnterprise),
@@ -58,7 +64,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 					"ValidValues": []string{
 						string(AppAuthTypeNone),
 						string(AppAuthTypeKerberos),
-						"oidc",
+						string(AppAuthTypeOIDC),
 					},
 				},
 			},
@@ -1744,6 +1750,18 @@ var SETTINGS_RULES = map[string]SettingRule{
 		AppTypes:    []string{string(ClientAppTypeEnterprise)},
 		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
 	},
+	"ignore_cname_resolution": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+	},
+	"g2o_enabled": {
+		Type:        "string",
+		ValidValues: []string{"true", "false"},
+		AppTypes:    []string{string(ClientAppTypeEnterprise)},
+		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+	},
 	"is_ssl_verification_enabled": {
 		Type:        "string",
 		ValidValues: []string{"true", "false"},
@@ -1759,6 +1777,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Type:        "string",
 		AppTypes:    []string{string(ClientAppTypeEnterprise), string(ClientAppTypeTunnel)},
 		Profiles:    []string{string(AppProfileTCP)},
+	},
+	"internal_hostname": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeTunnel)},
+		Profiles: []string{string(AppProfileTCP)},
 	},
 	"ip_access_allow": {
 		Type:        "string",
@@ -2017,33 +2040,11 @@ func validateSettingDependencies(settingName string, rule SettingRule, settings 
 
 // validateConditionalRules validates conditional rules for a setting
 func validateConditionalRules(settingName string, value interface{}, conditional map[string]interface{}, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
-	// Special case: Handle wapp_auth=certonly - only allowed for RDP profile
-	if settingName == "wapp_auth" {
-		valueStr := fmt.Sprintf("%v", value)
-		if valueStr == string(WappAuthTypeCertOnly) && appProfile != string(AppProfileRDP) {
-			return fmt.Errorf("setting 'wapp_auth'='certonly' is not allowed for app_profile='%s'. certonly is only allowed for RDP profile", appProfile)
-		}
-		logger.Debug("wapp_auth validation passed: '%s' for profile '%s'", valueStr, appProfile)
-	}
-	
-		// Special case: Handle app_auth with wapp_auth=certonly and profile=rdp
-		if settingName == "app_auth" {
-			if wappAuth, hasWappAuth := settings["wapp_auth"]; hasWappAuth {
-				wappAuthStr := fmt.Sprintf("%v", wappAuth)
-				
-				// Special case: RDP + certonly allows only "none", "auto", "service account"
-				if wappAuthStr == string(WappAuthTypeCertOnly) && appProfile == string(AppProfileRDP) {
-					valueStr := fmt.Sprintf("%v", value)
-					allowedValues := []string{string(AppAuthTypeNone), string(AppAuthTypeAuto), string(AppAuthTypeServiceAccount)}
-					if !contains(allowedValues, valueStr) {
-						return fmt.Errorf("when wapp_auth='certonly' and profile='rdp', app_auth must be one of %v, got '%s'", allowedValues, valueStr)
-					}
-					logger.Debug("Special RDP+certonly validation passed for app_auth: '%s' ∈ %v", valueStr, allowedValues)
-					return nil
-				}
-			}
-		}
-	
+    // Delegate auth-specific conditional checks
+    if err := handleAuthConditionalRules(settingName, value, settings, appType, appProfile, logger); err != nil {
+        return err
+    }
+
 	// Handle conditional rules like: {"wapp_auth": {"certonly": {"ValidValues": ["none", "kerberos", "oidc"]}}}
 	for conditionalField, conditionalRules := range conditional {
 		logger.Debug("Checking conditional field '%s' for setting '%s'", conditionalField, settingName)

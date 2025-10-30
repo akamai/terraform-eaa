@@ -43,6 +43,7 @@ See [install.md](docs/install.md)
     - `required_providers` [required_providers](docs/eaa-provider-configuration.md)
     - `"eaa" provider details`
     - `resource config for your application`[app_config](docs/create-an-app.md)
+    - `connector pool management`[connector_pool](docs/connector-pool.md)
 
     * Refer to the [Examples](examples), for sample tf files.
 

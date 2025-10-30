@@ -303,48 +303,45 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	car.Oidc = false
 	car.WSFED = false
 
-	// Then set the specific one based on flags
-	if samlFlag, ok := d.GetOk("saml"); ok {
-		if samlBool, ok := samlFlag.(bool); ok && samlBool {
-			logger.Debug("CREATE FLOW: Found saml=true in Terraform config")
-			car.SAML = true
-		}
-	}
+    // Initialize default settings for all auth types
+    car.SAMLSettings = []SAMLConfig{}
+    car.OIDCSettings = nil
+    car.WSFEDSettings = []WSFEDConfig{}
 
-	if oidcFlag, ok := d.GetOk("oidc"); ok {
-		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
-			logger.Debug("CREATE FLOW: Found oidc=true in Terraform config")
-			car.Oidc = true
-			// Override app_auth only when oidc=true
-		}
-	}
+	// Determine authentication method using shared helper (single-source of truth)
+    enableSAML, enableOIDC, enableWSFED, _ := decideAuthFromConfig(d, advSettings.AppAuth)
+    if enableSAML || enableOIDC || enableWSFED {
+        car.SAML = enableSAML
+        car.Oidc = enableOIDC
+        car.WSFED = enableWSFED
+        // Normalize app_auth for UI visibility:
+        // - For OIDC, set to "oidc" so UI shows OpenID Connect 1.0
+        // - For SAML/WS-Fed, keep "none" to avoid conflicting settings
+        if enableOIDC {
+            advSettings.AppAuth = "oidc"
+        } else {
+            advSettings.AppAuth = "none"
+        }
+    }
+	
 
-	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
-		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
-			logger.Debug("CREATE FLOW: Found wsfed=true in Terraform config")
-			car.WSFED = true
-		}
-	}
 
 
 	// Handle SAML settings for CREATE flow
 	if car.SAML {
 		// Use schema approach (nested blocks)
 		if samlSettings, ok := d.GetOk("saml_settings"); ok {
-			logger.Debug("CREATE FLOW: Found saml_settings blocks")
 			if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
 				// Convert nested blocks to SAMLConfig
 				samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
 				if err != nil {
-					logger.Error("CREATE FLOW: Failed to convert nested blocks to SAML config:", err)
+					logger.Error("Failed to convert nested blocks to SAML config:", err)
 					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
 				car.SAMLSettings = []SAMLConfig{samlConfig}
-				logger.Debug("CREATE FLOW: Successfully converted nested blocks to SAML config")
 			}
 		} else {
 			// No saml_settings provided but SAML is enabled - create default structure
-			logger.Debug("CREATE FLOW: No saml_settings found, creating defaults")
 			car.SAMLSettings = []SAMLConfig{DefaultSAMLConfig}
 		}
 	} else {
@@ -696,6 +693,34 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 		return err
 	}
 
+	// Apply authentication transformation logic directly here as fallback
+	// Get app_auth from advanced_settings for business logic
+	var appAuth string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
+
+    // Decide auth mode consistently with create flow
+    enableSAML, enableOIDC, enableWSFED, _ := decideAuthFromConfig(d, appAuth)
+    if enableSAML || enableOIDC || enableWSFED {
+        updateRequest.SAML = enableSAML
+        updateRequest.Oidc = enableOIDC
+        updateRequest.WSFED = enableWSFED
+        // Force app_auth to "none" when a flag is used
+        updateRequest.AdvancedSettings.AppAuth = "none"
+        if enableOIDC {
+            updateRequest.SAMLSettings = []SAMLConfig{}
+        }
+    }
+
+	// Debug: Log the complete payload being sent
+	
+	
 	// Apply the update
 	err = updateRequest.UpdateApplication(ctx, ec)
 	if err != nil {
@@ -1130,27 +1155,42 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	// Set authentication flags based on Terraform boolean flags for UPDATE flow
 	// This logic runs regardless of whether advanced_settings is provided
 
-	samlFlag, samlOk := d.GetOk("saml")
-	if samlOk {
-		if samlBool, ok := samlFlag.(bool); ok && samlBool {
-			ec.Logger.Debug("UPDATE FLOW: Found saml=true in Terraform config")
-			appUpdateReq.SAML = true
-			appUpdateReq.Oidc = false
-			appUpdateReq.WSFED = false
+	// Determine SAML automatically based on business logic for UPDATE flow
+	// Get app_auth from advanced_settings for business logic
+	var appAuth string
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				appAuth = advSettings.AppAuth
+			}
+		}
+	}
 
-			// Use schema approach (nested blocks)
-			if samlSettings, ok := d.GetOk("saml_settings"); ok {
-				ec.Logger.Debug("UPDATE FLOW: Found saml_settings blocks")
-				if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
-					// Convert nested blocks to SAMLConfig
-					samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
-					if err != nil {
-						ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to SAML config:", err)
-						return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
-					}
-					appUpdateReq.SAMLSettings = []SAMLConfig{samlConfig}
-					ec.Logger.Debug("UPDATE FLOW: Successfully converted nested blocks to SAML config")
+	// Check if SAML should be enabled based on app configuration
+	samlResult := shouldEnableSAMLForCreate(d, appAuth)
+	
+	if samlResult {
+			ec.Logger.Debug("SAML automatically enabled based on app configuration")
+		appUpdateReq.SAML = true
+		appUpdateReq.Oidc = false
+		appUpdateReq.WSFED = false
+		// Override app_auth to "none" when SAML is enabled
+		appUpdateReq.AdvancedSettings.AppAuth = "none"
+			ec.Logger.Debug("SAML enabled, app_auth set to 'none'")
+
+		// Use schema approach (nested blocks)
+		if samlSettings, ok := d.GetOk("saml_settings"); ok {
+			ec.Logger.Debug("UPDATE FLOW: Found saml_settings blocks")
+			if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
+				// Convert nested blocks to SAMLConfig
+				samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
+				if err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to SAML config:", err)
+					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
+				appUpdateReq.SAMLSettings = []SAMLConfig{samlConfig}
+				ec.Logger.Debug("UPDATE FLOW: Successfully converted nested blocks to SAML config")
 			} else {
 				// No saml_settings provided but SAML is enabled - use DefaultSAMLConfig
 				ec.Logger.Debug("UPDATE FLOW: No saml_settings found, using DefaultSAMLConfig")
@@ -1158,11 +1198,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				ec.Logger.Debug("UPDATE FLOW: Set SAMLSettings with DefaultSAMLConfig")
 			}
 		}
-	}
-
-	if oidcFlag, ok := d.GetOk("oidc"); ok {
-		if oidcBool, ok := oidcFlag.(bool); ok && oidcBool {
-			ec.Logger.Debug("UPDATE FLOW: Found oidc=true in Terraform config")
+	} else {
+		oidcResult := shouldEnableOIDCForCreate(d, appAuth)
+		
+		if oidcResult {
+			ec.Logger.Debug("OIDC automatically enabled based on app configuration")
 			appUpdateReq.SAML = false
 			appUpdateReq.Oidc = true
 			appUpdateReq.WSFED = false
@@ -1200,18 +1240,19 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					},
 				}
 			}
-		}
-	}
-
-	if wsfedFlag, ok := d.GetOk("wsfed"); ok {
-		if wsfedBool, ok := wsfedFlag.(bool); ok && wsfedBool {
-			ec.Logger.Debug("UPDATE FLOW: Found wsfed=true in Terraform config")
+		} else if shouldEnableWSFEDForCreate(d, appAuth) {
+			ec.Logger.Debug("WSFED automatically enabled based on app configuration")
 			appUpdateReq.SAML = false
 			appUpdateReq.Oidc = false
 			appUpdateReq.WSFED = true
+			// Override app_auth to "none" when WSFED is enabled
+			appUpdateReq.AdvancedSettings.AppAuth = "none"
+			ec.Logger.Debug("WSFED enabled, app_auth set to 'none'")
 			appUpdateReq.SAMLSettings = []SAMLConfig{} // Clear SAML settings when WS-FED is enabled
 		}
 	}
+
+
 
 
 	// Handle WS-Federation settings for UPDATE flow
@@ -2535,3 +2576,6 @@ var DefaultOIDCConfig = OIDCConfig{
 		},
 	},
 }
+
+// shouldEnableSAMLForCreate determines if SAML should be automatically enabled during creation
+// (moved helpers to app_facing_auth.go)

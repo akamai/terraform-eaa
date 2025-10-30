@@ -482,13 +482,13 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 	for {
 		// Build URL with optimized parameters - using contractId, gid, expand, and dynamic limit from API
 		var apiURL string
-		if offset == 0 {
-			// First request: let API use its default limit
-			apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&offset=0", URL_SCHEME, ec.Host, AGENTS_URL, ec.ContractID)
-		} else {
-			// Subsequent requests: use the limit we got from API response meta
-			apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&limit=%d&offset=%d", URL_SCHEME, ec.Host, AGENTS_URL, ec.ContractID, apiLimit, offset)
-		}
+        if offset == 0 {
+            // First request: let API use its default limit
+            apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&offset=0", URL_SCHEME, ec.Host, AGENTS_URL)
+        } else {
+            // Subsequent requests: use the limit we got from API response meta
+            apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&limit=%d&offset=%d", URL_SCHEME, ec.Host, AGENTS_URL, apiLimit, offset)
+        }
 
 		// Define the response structure inline to match the API response
 		var response struct {
@@ -628,13 +628,13 @@ func GetApps(client *EaaClient) ([]App, error) {
 		var url string
 		if offset == 0 {
 			// First request: use v3 API with optimized parameters
-			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=10&offset=0&fields=name,uuid_url&ordering=name",
-				URL_SCHEME, client.Host, client.ContractID)
+            url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=10&offset=0&fields=name,uuid_url&ordering=name",
+                URL_SCHEME, client.Host)
 
 		} else {
 			// Subsequent requests: use the limit we got from API response meta
-			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=%d&offset=%d&fields=name,uuid_url&ordering=name",
-				URL_SCHEME, client.Host, apiLimit, offset, client.ContractID)
+            url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=%d&offset=%d&fields=name,uuid_url&ordering=name",
+                URL_SCHEME, client.Host, apiLimit, offset)
 
 		}
 
