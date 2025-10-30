@@ -63,3 +63,15 @@ resource "eaa_application" "oidc_basic" {
 }
 
 # OIDC Application with Custom Settings
+
+# SaaS Application with OIDC Authentication (OpenID Connect 1.0)
+resource "eaa_application" "saas_oidc" {
+  name        = "saas-oidc-example"
+  description = "SaaS application with OIDC authentication"
+  host        = "saas-oidc.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "OpenID Connect 1.0"
+}

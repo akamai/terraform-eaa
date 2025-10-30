@@ -303,32 +303,26 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	car.Oidc = false
 	car.WSFED = false
 
-	// Determine authentication methods automatically based on business logic
-	// When app_auth is set to saml/oidc/wsfed, we need to:
-	// 1. Set app_auth to "none" in the payload
-	// 2. Set the corresponding auth flag to true
-	// Use else-if to ensure only ONE authentication method is enabled
-	
-	
-	if shouldEnableSAMLForCreate(d, advSettings.AppAuth) {
-		car.SAML = true
-		car.Oidc = false
-		car.WSFED = false
-		// Override app_auth to "none" when SAML is enabled
-		advSettings.AppAuth = "none"
-	} else if shouldEnableOIDCForCreate(d, advSettings.AppAuth) {
-		car.SAML = false
-		car.Oidc = true
-		car.WSFED = false
-		// Override app_auth to "none" when OIDC is enabled
-		advSettings.AppAuth = "none"
-	} else if shouldEnableWSFEDForCreate(d, advSettings.AppAuth) {
-		car.SAML = false
-		car.Oidc = false
-		car.WSFED = true
-		// Override app_auth to "none" when WSFED is enabled
-		advSettings.AppAuth = "none"
-	}
+    // Initialize default settings for all auth types
+    car.SAMLSettings = []SAMLConfig{}
+    car.OIDCSettings = nil
+    car.WSFEDSettings = []WSFEDConfig{}
+
+	// Determine authentication method using shared helper (single-source of truth)
+    enableSAML, enableOIDC, enableWSFED, _ := decideAuthFromConfig(d, advSettings.AppAuth)
+    if enableSAML || enableOIDC || enableWSFED {
+        car.SAML = enableSAML
+        car.Oidc = enableOIDC
+        car.WSFED = enableWSFED
+        // Normalize app_auth for UI visibility:
+        // - For OIDC, set to "oidc" so UI shows OpenID Connect 1.0
+        // - For SAML/WS-Fed, keep "none" to avoid conflicting settings
+        if enableOIDC {
+            advSettings.AppAuth = "oidc"
+        } else {
+            advSettings.AppAuth = "none"
+        }
+    }
 	
 
 
@@ -711,18 +705,18 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 		}
 	}
 
-	// Check if OIDC should be enabled based on app configuration
-	oidcResult := shouldEnableOIDCForCreate(d, appAuth)
-	
-	// Check if OIDC should be enabled based on app configuration
-	if oidcResult {
-		updateRequest.SAML = false
-		updateRequest.Oidc = true
-		updateRequest.WSFED = false
-		// Override app_auth to "oidc" when OIDC is enabled
-		updateRequest.AdvancedSettings.AppAuth = "oidc"
-		updateRequest.SAMLSettings = []SAMLConfig{} // Clear SAML settings when OIDC is enabled
-	}
+    // Decide auth mode consistently with create flow
+    enableSAML, enableOIDC, enableWSFED, _ := decideAuthFromConfig(d, appAuth)
+    if enableSAML || enableOIDC || enableWSFED {
+        updateRequest.SAML = enableSAML
+        updateRequest.Oidc = enableOIDC
+        updateRequest.WSFED = enableWSFED
+        // Force app_auth to "none" when a flag is used
+        updateRequest.AdvancedSettings.AppAuth = "none"
+        if enableOIDC {
+            updateRequest.SAMLSettings = []SAMLConfig{}
+        }
+    }
 
 	// Debug: Log the complete payload being sent
 	
@@ -2584,112 +2578,4 @@ var DefaultOIDCConfig = OIDCConfig{
 }
 
 // shouldEnableSAMLForCreate determines if SAML should be automatically enabled during creation
-func shouldEnableSAMLForCreate(d *schema.ResourceData, appAuth string) bool {
-	// Get app_type to determine if this is a SaaS app
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	// For SaaS apps, check the protocol field
-	if appType == "saas" {
-		if protocol, ok := d.GetOk("protocol"); ok {
-			if protocol.(string) == "SAML" || protocol.(string) == "SAML2.0" {
-				return true
-			}
-		}
-		return false
-	}
-
-	// For Enterprise apps, use the existing logic:
-	// Business logic: Enable SAML automatically when:
-	// 1. app_auth is set to "saml" or "SAML2.0"
-	if appAuth == "saml" || appAuth == "SAML2.0" {
-		return true
-	}
-
-	// 2. Any app with SAML settings configured
-	if samlSettings, ok := d.GetOk("saml_settings"); ok {
-		if samlList, ok := samlSettings.([]interface{}); ok && len(samlList) > 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-// shouldEnableOIDCForCreate determines if OIDC should be automatically enabled during creation
-func shouldEnableOIDCForCreate(d *schema.ResourceData, appAuth string) bool {
-	
-	// Get app_type to determine if this is a SaaS app
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	// For SaaS apps, check the protocol field
-	if appType == "saas" {
-		if protocol, ok := d.GetOk("protocol"); ok {
-			if protocol.(string) == "OIDC" || protocol.(string) == "OpenID Connect 1.0" {
-				return true
-			}
-		}
-		return false
-	}
-
-	// For Enterprise apps, use the existing logic:
-	// Business logic: Enable OIDC automatically when:
-	// 1. app_auth is set to "oidc" or "OpenID Connect 1.0"
-	if appAuth == "oidc" || appAuth == "OpenID Connect 1.0" {
-		return true
-	}
-
-	// 2. Any app with OIDC settings configured
-	if oidcSettings, ok := d.GetOk("oidc_settings"); ok {
-		if oidcList, ok := oidcSettings.([]interface{}); ok && len(oidcList) > 0 {
-			return true
-		} else {
-		}
-	} else {
-	}
-
-	return false
-}
-
-// shouldEnableWSFEDForCreate determines if WS-Federation should be automatically enabled during creation
-func shouldEnableWSFEDForCreate(d *schema.ResourceData, appAuth string) bool {
-	
-	// Get app_type to determine if this is a SaaS app
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	// For SaaS apps, check the protocol field
-	if appType == "saas" {
-		if protocol, ok := d.GetOk("protocol"); ok {
-			if protocol.(string) == "WSFed" || protocol.(string) == "WS-Federation" {
-				return true
-			}
-		}
-		return false
-	}
-
-	// For Enterprise apps, use the existing logic:
-	// Business logic: Enable WS-Federation automatically when:
-	// 1. app_auth is set to "wsfed" or "WS-Federation"
-	if appAuth == "wsfed" || appAuth == "WS-Federation" {
-		return true
-	}
-
-	// 2. Any app with WS-Federation settings configured
-	if wsfedSettings, ok := d.GetOk("wsfed_settings"); ok {
-		if wsfedList, ok := wsfedSettings.([]interface{}); ok && len(wsfedList) > 0 {
-			return true
-		} else {
-		}
-	} else {
-	}
-
-	return false
-}
+// (moved helpers to app_facing_auth.go)

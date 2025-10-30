@@ -8,6 +8,8 @@ The main purpose of the Terraform language is declaring resources, which represe
 
 - [Advanced Settings Reference](advanced-settings.md) - Comprehensive guide to all advanced settings parameters
 - [Application Type Configurations](app-type-configurations.md) - App type specific configurations and restrictions
+ - [Create a Connector](create-connector.md) - How to provision a connector with Terraform
+ - [Connector Pool Management](connector-pool.md) - Manage connector pools, tokens, and assignments
 
 ### Resource: eaa_application
 
@@ -43,9 +45,9 @@ This resource supports the following arguments:
     * app_directories - List of application directories
       * name - Name of the dictionary
       * app_groups - list of subset of directory's groups that are assigned to the application.
-* ```app_auth``` - (Optional) The type of application authentication. Configured in `advanced_settings` as JSON. Allowed values: "none", "kerberos", "basic", "NTLMv1", "NTLMv2", "SAML2.0", "saml", "WS-Federation", "oidc", "OpenID Connect 1.0". Default "none"
-* ```wapp_auth``` - (Optional) The type of user-facing authentication. Configured in `advanced_settings` as JSON. Default "form"
-* ```protocol``` - (Optional, for SaaS apps) Authentication protocol. Allowed values: "SAML", "SAML2.0", "OpenID Connect 1.0", "OIDC", "WSFed", "WS-Federation". Note: For WS-Federation, both "WSFed" and "WS-Federation" are supported (lowercase "wsfed" is NOT supported).
+* ```app_auth``` - (Optional) Application-to-origin authentication method (configured in `advanced_settings`). See [Authentication Parameters](authentication_advsettings.md). Default "none"
+* ```wapp_auth``` - (Optional) User-facing authentication at the access page (configured in `advanced_settings`). See [Authentication Parameters](authentication_advsettings.md). Default "form"
+* ```protocol``` - (Optional, for SaaS apps) Authentication protocol. Allowed values: "SAML", "SAML2.0", "OpenID Connect 1.0", "OIDC", "WSFed", "WS-Federation". Note: For WS-Federation, both "WSFed" and "WS-Federation" are supported (lowercase "wsfed" is NOT supported). See [Application Type Configurations](app-type-configurations.md) for settings, limitations, and restrictions, and [Authentication Parameters](authentication_advsettings.md) for details.
 * ```saml``` - (Computed) Boolean flag indicating if SAML authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)
 * ```wsfed``` - (Computed) Boolean flag indicating if WS-Federation authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)
 * ```oidc``` - (Computed) Boolean flag indicating if OpenID Connect authentication is enabled (deprecated - use `app_auth` in advanced_settings for enterprise apps, or `protocol` for SaaS apps)

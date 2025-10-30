@@ -44,6 +44,8 @@ resource "eaa_application" "sap-prod-dc1-app" {
         is_ssl_verification_enabled = "false"
         ip_access_allow = "false"
         x_wapp_read_timeout = "300"
+        health_check_type = "TCP"
+        websocket_enabled = "true"
         
     })
 

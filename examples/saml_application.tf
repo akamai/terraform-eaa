@@ -142,3 +142,50 @@ resource "eaa_application" "saml_custom_example_1" {
     }
   }
 }
+
+# SaaS Application with SAML Authentication
+resource "eaa_application" "saas_saml_example" {
+  name        = "saas-saml-test"
+  description = "SaaS application with SAML authentication"
+  host        = "saas-saml.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "SAML2.0"
+
+  # SAML Settings (from saas.tf)
+  saml_settings {
+    # Service Provider (SP) Configuration
+    sp {
+      entity_id  = "https://saas-saml.example.com/sp"  # Entity ID
+      acs_url    = "https://saas-saml.example.com/acs"  # ACS URL
+      slo_url    = "https://saas-saml.example.com/slo"  # Single logout URL
+      dst_url    = "https://saas-saml.example.com/dashboard"  # Default Relay State
+      resp_bind  = "post"                    # Single logout binding (Post)
+      token_life = 3600                      # Token lifetime in seconds
+      encr_algo  = "aes256-cbc"             # Response encryption algorithm (AES256-CBC)
+    }
+    
+    # Identity Provider (IDP) Configuration
+    idp {
+      entity_id   = "https://idp.example.com/metadata"
+      sign_algo   = "SHA256"                # Response signing algorithm (SHA256)
+      #sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"  # Request signing certificate
+    }
+    
+    # Subject Configuration
+    subject {
+      fmt = "email"                         # NameID format (Email)
+      src = "user.email"                    # NameID attribute (user.email)
+    }
+    
+    # Attribute Mapping Configuration
+    attrmap {
+      name = "name"
+      fname = "name"
+      fmt = "basic"
+      src = "user.email"
+    }
+  }
+}

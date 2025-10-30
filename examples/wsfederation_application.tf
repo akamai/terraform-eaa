@@ -157,3 +157,69 @@ resource "eaa_application" "wsfed_custom" {
     }
   }
 }
+
+# SaaS Application with WS-Federation Authentication
+resource "eaa_application" "saas_wsfed" {
+  name        = "saas-wsfed-test"
+  description = "SaaS application with WS-Federation authentication"
+  host        = "saas-wsfed.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "WS-Federation"
+
+  # WS-Federation Settings (from saas.tf)
+  wsfed_settings {
+    sp {
+      entity_id = "https://saas-wsfed.example.com"
+      slo_url   = "https://saas-wsfed.example.com/wsfed/slo"
+      dst_url   = "https://saas-wsfed.example.com/wsfed/dst"
+      resp_bind = "post"
+      token_life = 3600
+      encr_algo  = "aes128-cbc"
+    }
+    
+    idp {
+      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
+      sign_algo = "SHA1"
+      sign_key  = ""
+      self_signed = true
+    }
+    
+    subject {
+      fmt = "email"
+      custom_fmt = ""
+      src = "user.email"
+      val = ""
+      rule = ""
+    }
+    
+    attrmap {
+      name = "email"
+      fmt  = "email"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.email"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "firstName"
+      fmt  = "firstName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.firstName"
+      rule = ""
+    }
+    
+    attrmap {
+      name = "lastName"
+      fmt  = "lastName"
+      custom_fmt = ""
+      val  = ""
+      src  = "user.lastName"
+      rule = ""
+    }
+  }
+}

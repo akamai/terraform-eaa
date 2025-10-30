@@ -1522,15 +1522,19 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	attrs["app_deployed"] = appResp.AppDeployed
 	attrs["app_operational"] = appResp.AppOperational
 	attrs["app_status"] = appResp.AppStatus
-	
-	// Set SAML field based on business logic - automatically computed
-	attrs["saml"] = shouldEnableSAML(d)
-	
-	// Set OIDC field based on business logic - automatically computed
-	attrs["oidc"] = shouldEnableOIDC(d)
-	
-	// Set WSFED field based on business logic - automatically computed
-	attrs["wsfed"] = shouldEnableWSFED(d)
+    // Compute auth flags mutually exclusively (SAML > OIDC > WSFED)
+    samlEnabled := shouldEnableSAML(d)
+    oidcEnabled := false
+    wsfedEnabled := false
+    if !samlEnabled {
+        oidcEnabled = shouldEnableOIDC(d)
+        if !oidcEnabled {
+            wsfedEnabled = shouldEnableWSFED(d)
+        }
+    }
+    attrs["saml"] = samlEnabled
+    attrs["oidc"] = oidcEnabled
+    attrs["wsfed"] = wsfedEnabled
 
 	if appResp.CName != nil {
 		attrs["cname"] = *appResp.CName
@@ -2845,38 +2849,23 @@ func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) err
 		}
 	}
 
-	// Check for SAML/OIDC/WSFED conflicts - when these are enabled, app_auth must be "none"
-	// EXCEPTION: Allow app_auth="saml"/"oidc"/"wsfed" when these are automatically enabled
-	if appAuth != "none" {
-		// Use the same business logic as shouldEnable* functions to determine if auth methods are enabled
-		samlEnabled := shouldEnableSAML(d)
-		oidcEnabled := shouldEnableOIDC(d)
-		wsfedEnabled := shouldEnableWSFED(d)
-
-		// Check if SAML is enabled
-		if samlEnabled {
-			// Allow app_auth="saml" or "SAML2.0" when SAML is automatically enabled
-			if appAuth != "saml" && appAuth != "SAML2.0" {
-				return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
-			}
-		}
-
-		// Check if OIDC is enabled
-		if oidcEnabled {
-			// Allow app_auth="oidc" or "OpenID Connect 1.0" when OIDC is automatically enabled
-			if appAuth != "oidc" && appAuth != "OpenID Connect 1.0" {
-				return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
-			}
-		}
-
-		// Check if WSFED is enabled
-		if wsfedEnabled {
-			// Allow app_auth="wsfed" or "WS-Federation" when WSFED is automatically enabled
-			if appAuth != "wsfed" && appAuth != "WS-Federation" {
-				return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
-			}
-		}
-	}
+    // Check for SAML/OIDC/WSFED conflicts - when enabled, app_auth must be "none"
+    // EXCEPTION: Allow app_auth to match the enabled method when auto-enabled
+    if appAuth != "none" {
+        if shouldEnableSAML(d) {
+            if appAuth != "saml" && appAuth != "SAML2.0" {
+                return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+            }
+        } else if shouldEnableOIDC(d) {
+            if appAuth != "oidc" && appAuth != "OpenID Connect 1.0" {
+                return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+            }
+        } else if shouldEnableWSFED(d) {
+            if appAuth != "wsfed" && appAuth != "WS-Federation" {
+                return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to 'none' in advanced_settings, got '%s'", appAuth)
+            }
+        }
+    }
 
 	// Additional validation: specific conflicts with SAML
 	if saml, ok := d.GetOk("saml"); ok && saml.(bool) {

@@ -25,46 +25,57 @@ Enterprise applications provide the most comprehensive configuration options and
 ### Allowed Advanced Settings Categories
 
 #### HTTP Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [CORS Parameters](advanced-settings.md#cors-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+- [Health Check Parameters](healthcheck_advsettings.md)
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md)
+- [Authentication Parameters](authentication_advsettings.md)
+- [CORS Parameters](cors_advsettings.md)
+- [TLS Suite Parameters](tls_suite_advsettings.md)
+- [Miscellaneous Parameters](miscellaneous_advsettings.md)
+
+Examples:
+- [Custom HTTP Application](../examples/custom_http_app.tf)
 
 #### RDP Profile
-- [RDP Configuration Parameters](advanced-settings.md#rdp-configuration-parameters)
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+- [RDP Configuration Parameters](rdp_advsettings.md)
+- [Health Check Parameters](healthcheck_advsettings.md)
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md)
+- [Authentication Parameters](authentication_advsettings.md)
+- [TLS Suite Parameters](tls_suite_advsettings.md)
+- [Miscellaneous Parameters](miscellaneous_advsettings.md)
+
+
 
 #### VNC Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+- [Health Check Parameters](healthcheck_advsettings.md)
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md)
+- [Authentication Parameters](authentication_advsettings.md)
+- [TLS Suite Parameters](tls_suite_advsettings.md)
+- [Miscellaneous Parameters](miscellaneous_advsettings.md)
+
+
 
 #### SSH Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+- [Health Check Parameters](healthcheck_advsettings.md)
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md)
+- [Authentication Parameters](authentication_advsettings.md)
+- [TLS Suite Parameters](tls_suite_advsettings.md)
+- [Miscellaneous Parameters](miscellaneous_advsettings.md)
+
+
 
 #### SMB Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+- [Health Check Parameters](healthcheck_advsettings.md)
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md)
+- [Authentication Parameters](authentication_advsettings.md)
+- [TLS Suite Parameters](tls_suite_advsettings.md)
+- [Miscellaneous Parameters](miscellaneous_advsettings.md)
+
+
 
 ### Authentication Methods
 Enterprise applications support all authentication methods via `app_auth` in `advanced_settings`:
@@ -135,11 +146,11 @@ Tunnel applications provide TCP tunneling capabilities with limited configuratio
 - **TCP**: TCP tunnel applications only
 
 ### Allowed Advanced Settings Categories
-- Server Load Balancing (`load_balancing_metric`, `session_sticky`, `tcp_optimization`)
-- Enterprise Connectivity (`app_server_read_timeout`, `idle_close_time_seconds`, `proxy_buffer_size_kb`)
-- Tunnel Client Parameters (`acceleration`, `force_ip_route`, `x_wapp_pool_*`, `domain_exception_list`)
-- Health Check (`health_check_type`, `health_check_*`)
-- Basic Configuration (`websocket_enabled`, `is_ssl_verification_enabled`, `x_wapp_read_timeout`)
+- [Server Load Balancing](server_load_balancing_advsettings.md)
+- [Enterprise Connectivity](enterprise_connectivity_advsettings.md)
+- [Tunnel Client Parameters](tunnel_client_advsettings.md)
+- [Health Check](healthcheck_advsettings.md)
+- [Basic Configuration](basic_configuration_advsettings.md)
 
 ### Blocked Advanced Settings Categories
 - Authentication parameters (`login_url`, `logout_url`, `wapp_auth`, `app_auth`, etc.)
