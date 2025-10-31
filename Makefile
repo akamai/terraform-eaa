@@ -80,9 +80,9 @@ ifeq ($(OS),Windows_NT)
 	@echo "Provider installed to: %USERPROFILE%\.terraform.d\plugins\terraform.eaaprovider.dev\eaaprovider\eaa\$(VERSION_STR)\$(PLUGIN_ARCH)"
 else
 	@echo "Creating Unix Terraform plugins directory..."
-	@mkdir -p ~/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)
-	@cp $(BINDIR)/$(BINNAME) ~/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)
-	@echo "Provider installed to: ~/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
+	@mkdir -p "$$HOME/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
+	@cp "$(BINDIR)/$(BINNAME)" "$$HOME/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
+	@echo "Provider installed to: $$HOME/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
 endif
 
 lint:
@@ -90,7 +90,7 @@ lint:
 	if [ -z "$(GOLINTBIN)" ]; then \
 		echo "skipping golangci-lint on project"; \
 	else \
-		golangci-lint run --allow-parallel-runners ./...; \
+		$(GOLINTBIN) run --allow-parallel-runners ./...; \
 	fi
 
 clean:
