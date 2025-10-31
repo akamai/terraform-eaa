@@ -65,32 +65,7 @@ type AppsResponse struct {
 }
 
 type Application struct {
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	AppProfile    int     `json:"app_profile"`
-	AppType       int     `json:"app_type"`
-	ClientAppMode int     `json:"client_app_mode"`
-
-	Host *string `json:"host"`
-
-	OrigTLS    string  `json:"orig_tls"`
-	OriginHost *string `json:"origin_host"`
-	OriginPort int     `json:"origin_port"`
-
-	POP       string `json:"pop"`
-	POPName   string `json:"popName"`
-	POPRegion string `json:"popRegion"`
-
-	AuthType  int     `json:"auth_type"`
-	Cert      *string `json:"cert"`
-	SSLCACert string  `json:"ssl_ca_cert"`
-
-	AppDeployed    bool    `json:"app_deployed"`
-	AppOperational int     `json:"app_operational"`
-	AppStatus      int     `json:"app_status"`
-	CName          *string `json:"cname"`
-	Status         int     `json:"status"`
-
+	Name    string `json:"name"`
 	UUIDURL string `json:"uuid_url"`
 }
 

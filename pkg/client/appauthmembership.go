@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 )
 
 var (
@@ -190,6 +191,9 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	}
 	// add "app_directories" key if the list is not empty
 	if len(directoriesData) > 0 {
+		sort.Slice(directoriesData, func(i, j int) bool {
+			return directoriesData[i]["name"].(string) < directoriesData[j]["name"].(string)
+		})
 		appAuth["app_directories"] = directoriesData
 	}
 	return []interface{}{appAuth}, nil

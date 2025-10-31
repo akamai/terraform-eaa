@@ -69,6 +69,12 @@ terraform init
 terraform plan -generate-config-out=generated.tf /* Terraform can generate code for the resources you define in import blocks that do not already exist in your configuration. */
 cat import_existing_apps.tf
 terraform plan
+
+# \⚠️ Warning:
+# Before running `terraform apply`, carefully review the output of `terraform plan` and `terraform apply`.
+# If either command indicates any application will be modified in-place (lines starting with `~`), review the changes carefully before proceeding.
+# In-place modifications will change the applications in current infrastructure.
+
 terraform apply
 ```
 
