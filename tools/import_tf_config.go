@@ -89,10 +89,10 @@ func main() {
 	err = GenerateConfiguration(eaaClient, edgercPath, appNames)
 	if err != nil {
 		fmt.Println(err)
+	} else {
+		println()
+		println(generate_info)
 	}
-	println()
-	println(generate_info)
-
 }
 
 func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) error {
@@ -107,7 +107,7 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 		pattern = strings.TrimSpace(pattern)
 		searchstring := matchesQueryString(pattern)
 		fmt.Println(searchstring)
-		apiURL := fmt.Sprintf("https://%s/%s?app_type__notin=5&%s", ec.Host, APPS_URL, searchstring)
+		apiURL := fmt.Sprintf("https://%s/%s?app_type__notin=5&%s&fields=name,uuid_url", ec.Host, APPS_URL, searchstring)
 		for apiURL != "" {
 			getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appsResponse, false)
 			if err != nil {
