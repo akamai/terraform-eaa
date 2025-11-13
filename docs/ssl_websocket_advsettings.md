@@ -1,6 +1,6 @@
-# Core and Tunnel Configuration Parameters
+# SSL and WebSocket Configuration Parameters
 
-Core application and tunnel-specific configuration options for advanced settings.
+SSL verification, WebSocket protocol, and connection timeout settings for advanced settings.
 
 * `is_ssl_verification_enabled` - (Optional) Enable SSL certificate verification. Default "true"
 * `websocket_enabled` - (Required for tunnel apps) Enable WebSocket support. Allowed values: "true", "false". Default "false"

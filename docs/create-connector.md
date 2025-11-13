@@ -7,7 +7,7 @@ This guide shows how to create an EAA Connector using Terraform.
 - Appropriate credentials in your `.edgerc` and `contractid`.
 
 ## Minimal Example
-See `examples/connectors.tf` for a complete working example.
+See [examples/connectors.tf](../examples/connectors.tf) for a complete working example.
 
 ## Key Arguments
 - `name` (Required): Connector name.
@@ -18,5 +18,5 @@ See `examples/connectors.tf` for a complete working example.
 
 
 ## See Also
-- Connector Pool reference and advanced usage: `docs/connector-pool.md`
-- Examples: `examples/connectors.tf`, `examples/connector_pool.tf`
+- Connector Pool reference and advanced usage: [connector-pool.md](./connector-pool.md)
+- Examples: [connectors.tf](../examples/connectors.tf), [connector_pool.tf](../examples/connector_pool.tf)

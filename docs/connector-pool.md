@@ -79,14 +79,20 @@ This resource supports the following arguments:
   * ```token_suffix``` - Token suffix
   * ```modified_at``` - Last modification timestamp
 
+### Example Usage
+
+For comprehensive examples of connector pool configurations, see the [examples/](../examples/) directory in the repository.
+
 ### Examples
+
 Refer to repository examples for working configurations:
 
-- Basic connector pool: `examples/connector_pool.tf`
-- Pool with registration tokens: `examples/connector_pool.tf`
-- Pool with application assignment: `examples/connector_pool.tf`
-- Advanced configuration (infra_type, operating_mode): `examples/connector_pool.tf`
+- Basic connector pool: [examples/connector_pool.tf](../examples/connector_pool.tf)
+- Pool with registration tokens: [examples/connector_pool.tf](../examples/connector_pool.tf)
+- Pool with application assignment: [examples/connector_pool.tf](../examples/connector_pool.tf)
+- Advanced configuration (infra_type, operating_mode): [examples/connector_pool.tf](../examples/connector_pool.tf)
 
 ### Data Source
-See `examples/connector_pool.tf` for data source usage patterns.
+
+See [examples/connector_pool.tf](../examples/connector_pool.tf) for data source usage patterns.
 

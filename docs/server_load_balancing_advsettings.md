@@ -7,13 +7,5 @@ Configure how traffic is distributed across multiple application servers.
 * `cookie_age` - (Optional) Cookie age in seconds when session_sticky is enabled. Not supported for tunnel apps
 * `tcp_optimization` - (Optional) Enable TCP optimization. Only available for tunnel apps
 
-## Example
-```json
-{
-  "load_balancing_metric": "round-robin",
-  "session_sticky": "false",
-  "cookie_age": 3600
-}
-```
 
 Example file: [examples/custom_http_app.tf](../examples/custom_http_app.tf)

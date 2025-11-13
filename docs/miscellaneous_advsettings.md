@@ -10,20 +10,9 @@ Various application behavior settings.
 * `segmentation_policy_enable` - (Optional) Enable segmentation policy
 * `sticky_agent` - (Optional) Route requests to same connector
 
-## Example
-```json
-{
-  "custom_headers": {
-    "insert": {"X-Frame-Options": "DENY"},
-    "forward": ["X-Trace-Id"]
-  },
-  "hidden_app": "false",
-  "offload_onpremise_traffic": "false",
-  "logging_enabled": "true",
-  "saas_enabled": "false",
-  "segmentation_policy_enable": "false",
-  "sticky_agent": "false"
-}
-```
+## Examples
 
-Example file: [examples/custom_http_app.tf](../examples/custom_http_app.tf)
+See the following example files for usage:
+
+* [examples/enterprise_valid.tf](../examples/enterprise_valid.tf) - Comprehensive enterprise application with all miscellaneous parameters including `sticky_agent`, `hidden_app`, `logging_enabled`, `saas_enabled`, and `offload_onpremise_traffic`
+* [examples/custom_http_app.tf](../examples/custom_http_app.tf) - Custom HTTP application demonstrating `custom_headers`, `sticky_agent`, `hidden_app`, `logging_enabled`, `offload_onpremise_traffic`, and `saas_enabled`

@@ -9,16 +9,5 @@ Configure behavior specific to tunnel applications.
 * `x_wapp_pool_timeout` - (Optional) Connection pool timeout in seconds (60-3600). Default 300
 * `domain_exception_list` - (Optional) List of domains to exclude from wildcard matching
 
-## Example (Tunnel app)
-```json
-{
-  "acceleration": "true",
-  "force_ip_route": "false",
-  "x_wapp_pool_enabled": "inherit",
-  "x_wapp_pool_size": 10,
-  "x_wapp_pool_timeout": 300,
-  "domain_exception_list": ["internal.example.com", "corp.local"]
-}
-```
 
 Example file: [examples/tunnel_app.tf](../examples/tunnel_app.tf)
