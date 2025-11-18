@@ -17,10 +17,6 @@ func getMapKeys(m map[string]interface{}) []string {
 	return keys
 }
 
-
-
-
-
 // validateCustomHeadersConfiguration validates custom headers configuration
 func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType string, logger hclog.Logger) error {
 	// Check if custom headers are present
@@ -204,54 +200,112 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 	return nil
 }
 
+// AuthValidationConfig holds configuration for checking if an auth protocol is enabled
+type AuthValidationConfig struct {
+	FlagKey       string   // Schema key for the direct flag (e.g., "saml", "oidc", "wsfed")
+	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
+	SettingsKey   string   // Schema key for settings (e.g., "saml_settings")
+	ProtocolName  string   // Name for logging (e.g., "SAML", "OIDC", "WSFED")
+}
 
+// isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both
+// the direct flag and app_auth in advanced_settings
+func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, logger hclog.Logger) bool {
+	// Check direct flag
+	if flag, ok := d.GetOk(config.FlagKey); ok {
+		if flagBool, ok := flag.(bool); ok && flagBool {
+			logger.Debug("%s enabled via direct %s=true flag", config.ProtocolName, config.FlagKey)
+			return true
+		}
+	}
 
+	// Check if app_auth matches any of the valid values in advanced_settings
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
+			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+			if err == nil && advSettings != nil {
+				for _, validValue := range config.AppAuthValues {
+					if advSettings.AppAuth == validValue {
+						logger.Debug("%s enabled via app_auth=%s in advanced_settings", config.ProtocolName, advSettings.AppAuth)
+						return true
+					}
+				}
+			}
+		}
+	}
 
+	return false
+}
 
+// getFirstSettingsBlock retrieves the first block from a settings list in the schema
+// Returns the block map and true if found, or nil and false if not found
+func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
+	settings, ok := d.GetOk(settingsKey)
+	if !ok {
+		logger.Debug("No %s found", settingsKey)
+		return nil, false
+	}
 
+	settingsList, ok := settings.([]interface{})
+	if !ok || len(settingsList) == 0 {
+		logger.Debug("%s is empty or not a list", settingsKey)
+		return nil, false
+	}
 
+	// Defensively check type of first element
+	firstBlock, ok := settingsList[0].(map[string]interface{})
+	if !ok {
+		logger.Debug("%s[0] is not a map[string]interface{}", settingsKey)
+		return nil, false
+	}
+
+	return firstBlock, true
+}
+
+// validateIDPSelfSignedCert validates that sign_cert is provided when self_signed = false
+// This validation is common to both SAML and WSFED
+func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName string, signCertError error, logger hclog.Logger) error {
+	if selfSigned, hasSelfSigned := idpBlock["self_signed"]; hasSelfSigned {
+		if selfSignedBool, ok := selfSigned.(bool); ok && !selfSignedBool {
+			logger.Debug("self_signed = false, checking sign_cert")
+			// When self_signed = false, sign_cert is mandatory
+			if signCert, hasSignCert := idpBlock["sign_cert"]; !hasSignCert || signCert == "" {
+				logger.Debug("sign_cert missing or empty: hasSignCert=%v, signCert='%v'", hasSignCert, signCert)
+				return signCertError
+			}
+		}
+	}
+	return nil
+}
 
 // validateWSFEDNestedBlocks validates WSFED nested blocks configuration
 func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateWSFEDNestedBlocks called")
 
-	// Check if wsfed is enabled
-	wsfedEnabled, ok := d.GetOk("wsfed")
-	if !ok || !wsfedEnabled.(bool) {
+	config := AuthValidationConfig{
+		FlagKey:       "wsfed",
+		AppAuthValues: WSFEDValidValues,
+		SettingsKey:   "wsfed_settings",
+		ProtocolName:  "WSFED",
+	}
+
+	if !isAuthProtocolEnabled(d, config, logger) {
 		logger.Debug("WSFED not enabled, skipping validation")
 		return nil
 	}
 
 	logger.Debug("WSFED is enabled, validating nested blocks")
 
-	// Get wsfed_settings nested blocks
-	wsfedSettings, ok := d.GetOk("wsfed_settings")
+	wsfedBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
 	if !ok {
-		logger.Debug("No wsfed_settings found")
 		return nil
 	}
-
-	wsfedSettingsList, ok := wsfedSettings.([]interface{})
-	if !ok || len(wsfedSettingsList) == 0 {
-		logger.Debug("wsfed_settings is empty or not a list")
-		return nil
-	}
-
-	// Get the first (and only) wsfed_settings block
-	wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
 
 	// Check IDP block for self_signed validation
 	if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
-		idpBlock := idpBlocks[0].(map[string]interface{})
-
-		if selfSigned, hasSelfSigned := idpBlock["self_signed"]; hasSelfSigned {
-			if selfSignedBool, ok := selfSigned.(bool); ok && !selfSignedBool {
-				logger.Debug("self_signed = false, checking sign_cert")
-				// When self_signed = false, sign_cert is mandatory
-				if signCert, hasSignCert := idpBlock["sign_cert"]; !hasSignCert || signCert == "" {
-					logger.Debug("sign_cert missing or empty: hasSignCert=%v, signCert='%v'", hasSignCert, signCert)
-					return ErrWSFEDSignCertRequired
-				}
+		if idpBlock, ok := idpBlocks[0].(map[string]interface{}); ok {
+			if err := validateIDPSelfSignedCert(idpBlock, config.ProtocolName, ErrWSFEDSignCertRequired, logger); err != nil {
+				return err
 			}
 		}
 	}
@@ -264,43 +318,30 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateSAMLNestedBlocks called")
 
-	// Check if saml is enabled
-	samlEnabled, ok := d.GetOk("saml")
-	if !ok || !samlEnabled.(bool) {
+	config := AuthValidationConfig{
+		FlagKey:       "saml",
+		AppAuthValues: SAMLValidValues,
+		SettingsKey:   "saml_settings",
+		ProtocolName:  "SAML",
+	}
+
+	if !isAuthProtocolEnabled(d, config, logger) {
 		logger.Debug("SAML not enabled, skipping validation")
 		return nil
 	}
 
 	logger.Debug("SAML is enabled, validating nested blocks")
 
-	// Get saml_settings nested blocks
-	samlSettings, ok := d.GetOk("saml_settings")
+	samlBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
 	if !ok {
-		logger.Debug("No saml_settings found")
 		return nil
 	}
-
-	samlSettingsList, ok := samlSettings.([]interface{})
-	if !ok || len(samlSettingsList) == 0 {
-		logger.Debug("saml_settings is empty or not a list")
-		return nil
-	}
-
-	// Get the first (and only) saml_settings block
-	samlBlock := samlSettingsList[0].(map[string]interface{})
 
 	// Check IDP block for self_signed validation
 	if idpBlocks, ok := samlBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
-		idpBlock := idpBlocks[0].(map[string]interface{})
-
-		if selfSigned, hasSelfSigned := idpBlock["self_signed"]; hasSelfSigned {
-			if selfSignedBool, ok := selfSigned.(bool); ok && !selfSignedBool {
-				logger.Debug("self_signed = false, checking sign_cert")
-				// When self_signed = false, sign_cert is mandatory
-				if signCert, hasSignCert := idpBlock["sign_cert"]; !hasSignCert || signCert == "" {
-					logger.Debug("sign_cert missing or empty: hasSignCert=%v, signCert='%v'", hasSignCert, signCert)
-					return ErrSAMLSignCertRequired
-				}
+		if idpBlock, ok := idpBlocks[0].(map[string]interface{}); ok {
+			if err := validateIDPSelfSignedCert(idpBlock, config.ProtocolName, ErrSAMLSignCertRequired, logger); err != nil {
+				return err
 			}
 		}
 	}
@@ -308,7 +349,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 	// Validate attrmap for unique attribute names
 	if attrmapBlocks, ok := samlBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
 		logger.Debug("Validating attrmap for unique attribute names")
-		
+
 		attributeNames := make(map[string]bool)
 		for i, attrmapBlock := range attrmapBlocks {
 			if attrmapMap, ok := attrmapBlock.(map[string]interface{}); ok {
@@ -332,29 +373,40 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 // validateOIDCNestedBlocks validates OIDC nested blocks configuration
 func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	logger.Debug("validateOIDCNestedBlocks called")
 
-	// Check if oidc is enabled
-	oidcEnabled, ok := d.GetOk("oidc")
-	if !ok || !oidcEnabled.(bool) {
+	config := AuthValidationConfig{
+		FlagKey:       "oidc",
+		AppAuthValues: OIDCValidValues,
+		SettingsKey:   "oidc_settings",
+		ProtocolName:  "OIDC",
+	}
+
+	if !isAuthProtocolEnabled(d, config, logger) {
 		logger.Debug("OIDC not enabled, skipping validation")
 		return nil
 	}
 
-	// Get oidc_settings nested blocks
-	oidcSettings, ok := d.GetOk("oidc_settings")
+	logger.Debug("OIDC is enabled, validating nested blocks")
+
+	oidcBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
 	if !ok {
-		logger.Debug("No oidc_settings found")
 		return nil
 	}
 
-	oidcSettingsList, ok := oidcSettings.([]interface{})
-	if !ok || len(oidcSettingsList) == 0 {
-		logger.Debug("oidc_settings is empty or not a list")
-		return nil
+	// Check if the oidc_settings block has any actual content
+	hasContent := false
+	for _, value := range oidcBlock {
+		if value != nil && value != "" && value != 0 && value != false {
+			hasContent = true
+			break
+		}
 	}
 
-	// Get the first (and only) oidc_settings block
-	oidcBlock := oidcSettingsList[0].(map[string]interface{})
+	if !hasContent {
+		logger.Debug("oidc_settings block is empty, skipping validation")
+		return nil
+	}
 
 	// Validate OIDC clients if present
 	if oidcClients, ok := oidcBlock["oidc_clients"].([]interface{}); ok && len(oidcClients) > 0 {

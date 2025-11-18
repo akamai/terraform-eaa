@@ -1,6 +1,3 @@
-# OpenID Connect Application Example
-# This example demonstrates how to create an EAA application with OIDC authentication
-
 terraform {
   required_providers {
     eaa = {
@@ -11,10 +8,14 @@ terraform {
 }
 
 provider "eaa" {
-  # Configuration options
   contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
+
+# OpenID Connect Application Example
+# This example demonstrates how to create an EAA application with OIDC authentication
+
+
 
 # Basic OIDC Application with Default Settings
 resource "eaa_application" "oidc_basic" {
@@ -25,7 +26,7 @@ resource "eaa_application" "oidc_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  oidc            = true
+  
 
   servers {
     orig_tls        = true
@@ -52,6 +53,7 @@ resource "eaa_application" "oidc_basic" {
     }
 
   advanced_settings = jsonencode({
+    app_auth = "OpenID Connect 1.0"
     
     # No oidc_settings needed - defaults will be applied
   })
@@ -61,3 +63,15 @@ resource "eaa_application" "oidc_basic" {
 }
 
 # OIDC Application with Custom Settings
+
+# SaaS Application with OIDC Authentication (OpenID Connect 1.0)
+resource "eaa_application" "saas_oidc" {
+  name        = "saas-oidc-example"
+  description = "SaaS application with OIDC authentication"
+  host        = "saas-oidc.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "OpenID Connect 1.0"
+}

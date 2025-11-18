@@ -3,14 +3,13 @@
 terraform {
   required_providers {
     eaa = {
-      source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
       version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
-  # Configuration options
   contractid       = "XXXXXXX"
   edgerc           = ".edgerc"
 }
@@ -24,7 +23,7 @@ resource "eaa_application" "saml_basic" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  saml            = true
+  
   
   servers {
     orig_tls        = true
@@ -51,8 +50,18 @@ resource "eaa_application" "saml_basic" {
     }
 
   advanced_settings = jsonencode({
+    app_auth = "SAML2.0"
     
   })
+  saml_settings {
+    
+    # Identity Provider (IDP) Configuration
+    idp {
+      self_signed = true                   # Set to true if using self-signed certificates
+    }
+    
+    
+  }
 
   # No saml_settings needed - defaults will be applied
 }
@@ -66,7 +75,6 @@ resource "eaa_application" "saml_custom_example_1" {
   app_type    = "enterprise"
   domain      = "wapp"
   client_app_mode = "tcp"
-  saml            = true
   
   servers {
     orig_tls        = true
@@ -93,7 +101,7 @@ resource "eaa_application" "saml_custom_example_1" {
     }
 
   advanced_settings = jsonencode({
-    
+    app_auth = "SAML2.0"
   })
 
   # SAML settings using schema approach (nested blocks)
@@ -112,7 +120,7 @@ resource "eaa_application" "saml_custom_example_1" {
     # Identity Provider (IDP) Configuration
     idp {
       entity_id   = "https://idp.example.com/metadata"
-      sign_algo   = "SHA256"                # Valid: "SHA1", "SHA256", "SHA384", "SHA512"
+      sign_algo   = "SHA256"                
       sign_cert   = "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
       sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"
       self_signed = true                   # Set to true if using self-signed certificates
@@ -126,6 +134,53 @@ resource "eaa_application" "saml_custom_example_1" {
     
     # Attribute Mapping Configuration
     # Custom Attribute Mapping
+    attrmap {
+      name = "name"
+      fname = "name"
+      fmt = "basic"
+      src = "user.email"
+    }
+  }
+}
+
+# SaaS Application with SAML Authentication
+resource "eaa_application" "saas_saml_example" {
+  name        = "saas-saml-test"
+  description = "SaaS application with SAML authentication"
+  host        = "saas-saml.example.com"
+  app_profile = "http"
+  app_type    = "saas"
+
+  # Protocol determines authentication method for SaaS apps
+  protocol = "SAML2.0"
+
+  # SAML Settings (from saas.tf)
+  saml_settings {
+    # Service Provider (SP) Configuration
+    sp {
+      entity_id  = "https://saas-saml.example.com/sp"  # Entity ID
+      acs_url    = "https://saas-saml.example.com/acs"  # ACS URL
+      slo_url    = "https://saas-saml.example.com/slo"  # Single logout URL
+      dst_url    = "https://saas-saml.example.com/dashboard"  # Default Relay State
+      resp_bind  = "post"                    # Single logout binding (Post)
+      token_life = 3600                      # Token lifetime in seconds
+      encr_algo  = "aes256-cbc"             # Response encryption algorithm (AES256-CBC)
+    }
+    
+    # Identity Provider (IDP) Configuration
+    idp {
+      entity_id   = "https://idp.example.com/metadata"
+      sign_algo   = "SHA256"                # Response signing algorithm (SHA256)
+      #sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"  # Request signing certificate
+    }
+    
+    # Subject Configuration
+    subject {
+      fmt = "email"                         # NameID format (Email)
+      src = "user.email"                    # NameID attribute (user.email)
+    }
+    
+    # Attribute Mapping Configuration
     attrmap {
       name = "name"
       fname = "name"

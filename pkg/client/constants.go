@@ -10,6 +10,12 @@ const (
 	STATE_ENABLED = 1
 )
 
+// Boolean constants for authentication flags
+const (
+	AUTH_ENABLED  = true
+	AUTH_DISABLED = false
+)
+
 const (
 	MGMT_POP_URL                      = "crux/v1/mgmt-pop"
 	APPS_URL                          = "crux/v1/mgmt-pop/apps"
@@ -768,16 +774,72 @@ const (
 	AppAuthNTLMv2         AppAuthType = "NTLMv2"
 	AppAuthAuto           AppAuthType = "auto"
 	AppAuthServiceAccount AppAuthType = "service account"
+	AppAuthSAML           AppAuthType = "saml"
+	AppAuthSAML2          AppAuthType = "SAML2.0"
+	AppAuthOIDC           AppAuthType = "oidc"
+	AppAuthOIDCFull       AppAuthType = "OpenID Connect 1.0"
+	AppAuthWSFED          AppAuthType = "wsfed"
+	AppAuthWSFEDFull      AppAuthType = "WS-Federation"
+)
+
+// AppAuth valid value slices for validation
+var (
+	// SAMLValidValues contains all valid SAML app_auth values
+	SAMLValidValues = []string{string(AppAuthSAML), string(AppAuthSAML2)}
+	// OIDCValidValues contains all valid OIDC app_auth values
+	OIDCValidValues = []string{string(AppAuthOIDC), string(AppAuthOIDCFull)}
+	// WSFEDValidValues contains all valid WS-Federation app_auth values
+	WSFEDValidValues = []string{string(AppAuthWSFED), string(AppAuthWSFEDFull)}
+	// AllAppAuthValidValues contains all valid app_auth values
+	AllAppAuthValidValues = []string{
+		string(AppAuthNone),
+		string(AppAuthSAML),
+		string(AppAuthSAML2),
+		string(AppAuthOIDC),
+		string(AppAuthOIDCFull),
+		string(AppAuthWSFED),
+		string(AppAuthWSFEDFull),
+		string(AppAuthKerberos),
+		string(AppAuthBasic),
+		string(AppAuthNTLMv1),
+		string(AppAuthNTLMv2),
+		string(AppAuthAuto),
+		string(AppAuthServiceAccount),
+	}
+	// AllWappAuthValidValues contains all valid wapp_auth values
+	AllWappAuthValidValues = []string{
+		string(AppAuthNone),
+		string(AppAuthKerberos),
+		string(AppAuthBasic),
+		string(AppAuthNTLMv1),
+		string(AppAuthNTLMv2),
+		string(AppAuthSAML2),
+		string(AppAuthWSFED),
+		string(AppAuthOIDC),
+		string(AppAuthOIDCFull),
+	}
+	// SAMLConflictingAppAuthValues contains app_auth values that conflict with SAML
+	SAMLConflictingAppAuthValues = []string{string(AppAuthKerberos), string(AppAuthNTLMv1), string(AppAuthNTLMv2)}
+)
+
+// Protocol constants for SaaS applications
+const (
+	ProtocolSAML      = "SAML"
+	ProtocolSAML2     = "SAML2.0"
+	ProtocolOIDC      = "OIDC"
+	ProtocolOIDCFull  = "OpenID Connect 1.0"
+	ProtocolWSFed     = "WSFed"
+	ProtocolWSFedFull = "WS-Federation"
 )
 
 type WappAuthType string
 
 const (
-	WappAuthForm       WappAuthType = "form"
-	WappAuthBasic      WappAuthType = "basic"
+	WappAuthForm        WappAuthType = "form"
+	WappAuthBasic       WappAuthType = "basic"
 	WappAuthBasicCookie WappAuthType = "basic_cookie"
-	WappAuthJWT        WappAuthType = "jwt"
-	WappAuthCertOnly   WappAuthType = "certonly"
+	WappAuthJWT         WappAuthType = "jwt"
+	WappAuthCertOnly    WappAuthType = "certonly"
 )
 
 type HTTPVersion string
@@ -791,8 +853,8 @@ type LoadBalancingMetric string
 
 const (
 	LoadBalancingRoundRobin LoadBalancingMetric = "round-robin"
-	LoadBalancingIPHash    LoadBalancingMetric = "ip-hash"
-	LoadBalancingLeastConn LoadBalancingMetric = "least-conn"
+	LoadBalancingIPHash     LoadBalancingMetric = "ip-hash"
+	LoadBalancingLeastConn  LoadBalancingMetric = "least-conn"
 	LoadBalancingWeightedRR LoadBalancingMetric = "weighted-rr"
 )
 
@@ -1062,7 +1124,7 @@ func (om OperatingModeInt) String() (string, error) {
 // Health check field names for validation
 var HealthCheckFields = []string{
 	"health_check_type",
-	"health_check_rise", 
+	"health_check_rise",
 	"health_check_fall",
 	"health_check_timeout",
 	"health_check_interval",
@@ -1074,7 +1136,7 @@ var HealthCheckFields = []string{
 // Numeric health check field names for validation
 var NumericHealthCheckFields = []string{
 	"health_check_rise",
-	"health_check_fall", 
+	"health_check_fall",
 	"health_check_timeout",
 	"health_check_interval",
 }
@@ -1112,9 +1174,9 @@ const (
 type SAMLEncryptionAlgorithm string
 
 const (
-	SAMLEncryptionAlgorithmAES128CBC SAMLEncryptionAlgorithm = "aes128-cbc"
-	SAMLEncryptionAlgorithmAES192CBC SAMLEncryptionAlgorithm = "aes192-cbc"
-	SAMLEncryptionAlgorithmAES256CBC SAMLEncryptionAlgorithm = "aes256-cbc"
+	SAMLEncryptionAlgorithmAES128CBC    SAMLEncryptionAlgorithm = "aes128-cbc"
+	SAMLEncryptionAlgorithmAES192CBC    SAMLEncryptionAlgorithm = "aes192-cbc"
+	SAMLEncryptionAlgorithmAES256CBC    SAMLEncryptionAlgorithm = "aes256-cbc"
 	SAMLEncryptionAlgorithmTripleDESCBC SAMLEncryptionAlgorithm = "tripledes-cbc"
 )
 
@@ -1134,20 +1196,20 @@ type OIDCClientType string
 const (
 	OIDCClientTypeStandard     OIDCClientType = "standard"
 	OIDCClientTypeConfidential OIDCClientType = "confidential"
-	OIDCClientTypePublic      OIDCClientType = "public"
+	OIDCClientTypePublic       OIDCClientType = "public"
 )
 
 // OIDC Response Types
 type OIDCResponseType string
 
 const (
-	OIDCResponseTypeCode                OIDCResponseType = "code"
-	OIDCResponseTypeIDToken             OIDCResponseType = "id_token"
-	OIDCResponseTypeToken               OIDCResponseType = "token"
-	OIDCResponseTypeCodeIDToken         OIDCResponseType = "code id_token"
-	OIDCResponseTypeCodeToken           OIDCResponseType = "code token"
-	OIDCResponseTypeIDTokenToken        OIDCResponseType = "id_token token"
-	OIDCResponseTypeCodeIDTokenToken    OIDCResponseType = "code id_token token"
+	OIDCResponseTypeCode             OIDCResponseType = "code"
+	OIDCResponseTypeIDToken          OIDCResponseType = "id_token"
+	OIDCResponseTypeToken            OIDCResponseType = "token"
+	OIDCResponseTypeCodeIDToken      OIDCResponseType = "code id_token"
+	OIDCResponseTypeCodeToken        OIDCResponseType = "code token"
+	OIDCResponseTypeIDTokenToken     OIDCResponseType = "id_token token"
+	OIDCResponseTypeCodeIDTokenToken OIDCResponseType = "code id_token token"
 )
 
 // Additional constants for compatibility
@@ -1160,13 +1222,19 @@ const (
 	AppAuthTypeNTLMv2         = AppAuthNTLMv2
 	AppAuthTypeAuto           = AppAuthAuto
 	AppAuthTypeServiceAccount = AppAuthServiceAccount
+	AppAuthTypeSAML           = AppAuthSAML
+	AppAuthTypeSAML2          = AppAuthSAML2
+	AppAuthTypeOIDC           = AppAuthOIDC
+	AppAuthTypeOIDCFull       = AppAuthOIDCFull
+	AppAuthTypeWSFED          = AppAuthWSFED
+	AppAuthTypeWSFEDFull      = AppAuthWSFEDFull
 
 	// Wapp Auth Type constants (for compatibility)
-	WappAuthTypeForm       = WappAuthForm
-	WappAuthTypeBasic      = WappAuthBasic
+	WappAuthTypeForm        = WappAuthForm
+	WappAuthTypeBasic       = WappAuthBasic
 	WappAuthTypeBasicCookie = WappAuthBasicCookie
-	WappAuthTypeJWT        = WappAuthJWT
-	WappAuthTypeCertOnly   = WappAuthCertOnly
+	WappAuthTypeJWT         = WappAuthJWT
+	WappAuthTypeCertOnly    = WappAuthCertOnly
 
 	// Boolean String constants
 	BooleanStringTrue  = STR_TRUE
@@ -1185,60 +1253,59 @@ const (
 	DefaultOIDCClientType          = OIDCClientTypeStandard
 	DefaultSAMLTokenLife           = 3600
 	DefaultWSFEDTokenLife          = 3600
-	
-	// Default Advanced Settings Values
-	DefaultAppAuth                  = AppAuthNone
-	DefaultWappAuth                 = WappAuthForm
-	DefaultAcceleration             = STR_FALSE
-	DefaultAllowCORS                = STR_TRUE
-	DefaultAppClientCertAuth        = STR_FALSE
-	DefaultClientCertAuth           = STR_FALSE
-	DefaultCORSSupportCredential    = CORSValueOff
-	DefaultDisableUserAgentCheck    = STR_FALSE
-	DefaultEdgeAuthenticationEnabled = STR_FALSE
-	DefaultEnableClientSideXHRRewrite = STR_FALSE
-	DefaultForceIPRoute             = STR_FALSE
-	DefaultForceMFA                 = CORSValueOff
-	DefaultForwardTicketGrantingTicket = STR_FALSE
-	DefaultHiddenApp                = STR_FALSE
-	DefaultHTTPOnlyCookie           = STR_TRUE
-	DefaultHTTPSSSLV3               = STR_FALSE
-	DefaultIgnoreBypassMFA          = CORSValueOff
-	DefaultInjectAjaxJavascript     = CORSValueOff
-	DefaultIPAccessAllow            = STR_FALSE
-	DefaultIsBrotliEnabled          = STR_FALSE
-	DefaultIsSSLVerificationEnabled = STR_FALSE
-	DefaultKeepaliveEnable          = STR_TRUE
-	DefaultLoggingEnabled           = STR_TRUE
-	DefaultMDCEnable                = STR_FALSE
-	DefaultOffloadOnpremiseTraffic  = STR_FALSE
-	DefaultOnramp                   = "inherit"
-	DefaultPreauthConsent           = STR_FALSE
-	DefaultRemoteSparkAudio         = STR_TRUE
-	DefaultRemoteSparkMapClipboard  = CORSValueOn
-	DefaultRemoteSparkMapDisk       = STR_TRUE
-	DefaultRemoteSparkMapPrinter    = STR_TRUE
-	DefaultRemoteSparkRecording     = STR_FALSE
-	DefaultRequestBodyRewrite       = STR_FALSE
-	DefaultSaaSEnabled              = STR_FALSE
-	DefaultSegmentationPolicyEnable = STR_FALSE
-	DefaultSentryRedirect401        = CORSValueOff
-	DefaultSentryRestoreFormPost    = CORSValueOff
-	DefaultServerCertValidate       = STR_TRUE
-	DefaultRefreshStickyCookie      = CORSValueOn
-	DefaultSessionSticky            = STR_FALSE
-	DefaultSingleHostContentRW      = STR_FALSE
-	DefaultSingleHostEnable         = STR_FALSE
-	DefaultSPDYEnabled              = STR_TRUE
-	DefaultSSHAuditEnabled          = STR_FALSE
-	DefaultSSO                      = STR_TRUE
-	DefaultStickyAgent              = STR_FALSE
-	DefaultWebSocketEnabled         = STR_FALSE
-	DefaultWildcardInternalHostname = STR_FALSE
-	DefaultXWappPoolEnabled         = "inherit"
-	DefaultDynamicIP                = STR_FALSE
-	DefaultStickyCookies            = STR_FALSE
-	DefaultRDPLegacyMode            = STR_FALSE
-	DefaultRDPTLS1                  = STR_FALSE
-)
 
+	// Default Advanced Settings Values
+	DefaultAppAuth                     = AppAuthNone
+	DefaultWappAuth                    = WappAuthForm
+	DefaultAcceleration                = STR_FALSE
+	DefaultAllowCORS                   = STR_TRUE
+	DefaultAppClientCertAuth           = STR_FALSE
+	DefaultClientCertAuth              = STR_FALSE
+	DefaultCORSSupportCredential       = CORSValueOff
+	DefaultDisableUserAgentCheck       = STR_FALSE
+	DefaultEdgeAuthenticationEnabled   = STR_FALSE
+	DefaultEnableClientSideXHRRewrite  = STR_FALSE
+	DefaultForceIPRoute                = STR_FALSE
+	DefaultForceMFA                    = CORSValueOff
+	DefaultForwardTicketGrantingTicket = STR_FALSE
+	DefaultHiddenApp                   = STR_FALSE
+	DefaultHTTPOnlyCookie              = STR_TRUE
+	DefaultHTTPSSSLV3                  = STR_FALSE
+	DefaultIgnoreBypassMFA             = CORSValueOff
+	DefaultInjectAjaxJavascript        = CORSValueOff
+	DefaultIPAccessAllow               = STR_FALSE
+	DefaultIsBrotliEnabled             = STR_FALSE
+	DefaultIsSSLVerificationEnabled    = STR_FALSE
+	DefaultKeepaliveEnable             = STR_TRUE
+	DefaultLoggingEnabled              = STR_TRUE
+	DefaultMDCEnable                   = STR_FALSE
+	DefaultOffloadOnpremiseTraffic     = STR_FALSE
+	DefaultOnramp                      = "inherit"
+	DefaultPreauthConsent              = STR_FALSE
+	DefaultRemoteSparkAudio            = STR_TRUE
+	DefaultRemoteSparkMapClipboard     = CORSValueOn
+	DefaultRemoteSparkMapDisk          = STR_TRUE
+	DefaultRemoteSparkMapPrinter       = STR_TRUE
+	DefaultRemoteSparkRecording        = STR_FALSE
+	DefaultRequestBodyRewrite          = STR_FALSE
+	DefaultSaaSEnabled                 = STR_FALSE
+	DefaultSegmentationPolicyEnable    = STR_FALSE
+	DefaultSentryRedirect401           = CORSValueOff
+	DefaultSentryRestoreFormPost       = CORSValueOff
+	DefaultServerCertValidate          = STR_TRUE
+	DefaultRefreshStickyCookie         = CORSValueOn
+	DefaultSessionSticky               = STR_FALSE
+	DefaultSingleHostContentRW         = STR_FALSE
+	DefaultSingleHostEnable            = STR_FALSE
+	DefaultSPDYEnabled                 = STR_TRUE
+	DefaultSSHAuditEnabled             = STR_FALSE
+	DefaultSSO                         = STR_TRUE
+	DefaultStickyAgent                 = STR_FALSE
+	DefaultWebSocketEnabled            = STR_FALSE
+	DefaultWildcardInternalHostname    = STR_FALSE
+	DefaultXWappPoolEnabled            = "inherit"
+	DefaultDynamicIP                   = STR_FALSE
+	DefaultStickyCookies               = STR_FALSE
+	DefaultRDPLegacyMode               = STR_FALSE
+	DefaultRDPTLS1                     = STR_FALSE
+)

@@ -12,403 +12,201 @@ EAA supports the following application types:
 
 ## Enterprise Applications
 
-Enterprise applications provide the most comprehensive configuration options and support all advanced settings categories.
+Enterprise applications provide the most comprehensive configuration options and support all advanced settings categories. They are designed for internal applications that require full control over authentication, routing, and behavior.
 
-### Supported Profiles
-- **HTTP**: Web applications
-- **RDP**: Remote Desktop Protocol applications
-- **VNC**: Virtual Network Computing applications
-- **SSH**: Secure Shell applications
-- **SMB**: Server Message Block applications
-- **TCP**: Generic TCP applications
+### HTTP Profile
 
-### Allowed Advanced Settings Categories
+**Description**: Web applications accessed via HTTP/HTTPS protocols. Supports all advanced settings categories and authentication methods.
 
-#### HTTP Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [CORS Parameters](advanced-settings.md#cors-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+**Allowed Advanced Settings**:
+- [Health Check Parameters](./healthcheck_advsettings.md) - All types supported (HTTP, HTTPS, TCP, None)
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](./authentication_advsettings.md) - All authentication methods
+- [CORS Parameters](./cors_advsettings.md) - Full CORS support
+- [TLS Suite Parameters](./tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - All options available
+- [SSL and WebSocket Configuration Parameters](./ssl_websocket_advsettings.md) - Full support
 
-#### RDP Profile
-- [RDP Configuration Parameters](advanced-settings.md#rdp-configuration-parameters)
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+**Example Files**:
+- [examples/custom_http_app.tf](../examples/custom_http_app.tf) - Comprehensive HTTP application with all advanced settings
+- [examples/enterprise_valid.tf](../examples/enterprise_valid.tf) - Enterprise HTTP application with full configuration (see `enterprise_valid_comprehensive` resource)
+- [examples/custom_http_app_domain.tf](../examples/custom_http_app_domain.tf) - Custom HTTP application with domain configuration
+- [examples/saml_application.tf](../examples/saml_application.tf) - Enterprise HTTP application with SAML authentication
+- [examples/oidc_application.tf](../examples/oidc_application.tf) - Enterprise HTTP application with OpenID Connect authentication
+- [examples/wsfederation_application.tf](../examples/wsfederation_application.tf) - Enterprise HTTP application with WS-Federation authentication
+- [examples/kerberos_application.tf](../examples/kerberos_application.tf) - Enterprise HTTP application with Kerberos authentication
+- [examples/jwt_application.tf](../examples/jwt_application.tf) - Enterprise HTTP application with JWT authentication
 
-#### VNC Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+### RDP Profile
 
-#### SSH Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+**Description**: Remote Desktop Protocol applications for accessing Windows desktops and applications remotely.
 
-#### SMB Profile
-- [Health Check Parameters](advanced-settings.md#health-check-parameters)
-- [Server Load Balancing Parameters](advanced-settings.md#server-load-balancing-parameters)
-- [Enterprise Connectivity Parameters](advanced-settings.md#enterprise-connectivity-parameters)
-- [Authentication Parameters](advanced-settings.md#authentication-parameters)
-- [TLS Suite Parameters](advanced-settings.md#tls-suite-parameters)
-- [Miscellaneous Parameters](advanced-settings.md#miscellaneous-parameters)
+**Allowed Advanced Settings**:
+- [RDP Configuration Parameters](./rdp_advsettings.md) - Audio, clipboard, disk, printer redirection
+- [Health Check Parameters](./healthcheck_advsettings.md) - TCP and None types recommended
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](./authentication_advsettings.md) - Kerberos recommended
+- [TLS Suite Parameters](./tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - Most options available
+
+**Example Files**:
+- [examples/enterprise_valid.tf](../examples/enterprise_valid.tf) - Enterprise RDP application (see `enterprise_valid_rdp` resource)
+
+### SSH Profile
+
+**Description**: Secure Shell applications for secure command-line access to remote systems.
+
+**Allowed Advanced Settings**:
+- [Health Check Parameters](./healthcheck_advsettings.md) - TCP and None types recommended
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](./authentication_advsettings.md) - Limited (no `app_auth` in advanced_settings)
+- [TLS Suite Parameters](./tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - Most options available
+
+**Restrictions**: `app_auth` is disabled - field should not be present in `advanced_settings`
+
+**Example Files**:
+- See [examples/](../examples/) directory for SSH profile examples
+
+### VNC Profile
+
+**Description**: Virtual Network Computing applications for remote desktop access to Linux/Unix systems.
+
+**Allowed Advanced Settings**:
+- [Health Check Parameters](./healthcheck_advsettings.md) - TCP and None types recommended
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](./authentication_advsettings.md) - Limited (no `app_auth` in advanced_settings)
+- [TLS Suite Parameters](./tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - Most options available
+
+**Restrictions**: `app_auth` is disabled - field should not be present in `advanced_settings`
+
+**Example Files**:
+- See [examples/](../examples/) directory for VNC profile examples
+
+### SMB Profile
+
+**Description**: Server Message Block applications for file sharing and network file system access.
+
+**Allowed Advanced Settings**:
+- [Health Check Parameters](healthcheck_advsettings.md) - TCP and None types recommended
+- [Server Load Balancing Parameters](server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](authentication_advsettings.md) - Kerberos recommended
+- [TLS Suite Parameters](tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](miscellaneous_advsettings.md) - Most options available
+
+**Example Files**:
+- See [examples/](../examples/) directory for SMB profile examples
+
+### TCP Profile
+
+**Description**: Generic TCP applications for custom TCP-based protocols.
+
+**Allowed Advanced Settings**:
+- [Health Check Parameters](./healthcheck_advsettings.md) - TCP and None types recommended
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Full support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Full support
+- [Authentication Parameters](./authentication_advsettings.md) - Limited (no `app_auth` in advanced_settings)
+- [TLS Suite Parameters](./tls_suite_advsettings.md) - Custom and predefined suites
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - Most options available
+
+**Example Files**:
+- See [examples/](../examples/) directory for TCP profile examples
 
 ### Authentication Methods
-Enterprise applications support all authentication methods:
-- SAML (`saml = true`)
-- OpenID Connect (`oidc = true`)
-- WS-Federation (`wsfed = true`)
+
+Enterprise applications support all authentication methods via `app_auth` in `advanced_settings`:
+- SAML (`app_auth = "SAML2.0"` or `app_auth = "saml"`)
+- OpenID Connect (`app_auth = "OpenID Connect 1.0"` or `app_auth = "oidc"`)
+- WS-Federation (`app_auth = "WS-Federation"`)
 - Kerberos (`app_auth = "kerberos"`)
 - Basic Authentication (`app_auth = "basic"`)
 - NTLMv1 (`app_auth = "NTLMv1"`)
 - NTLMv2 (`app_auth = "NTLMv2"`)
+- None (`app_auth = "none"`)
 
-### Special Restrictions
-- **SSH Profile**: `app_auth` is disabled - field should not be present in `advanced_settings`
-- **VNC Profile**: `app_auth` is disabled - field should not be present in `advanced_settings`
-
-#### Invalid Enterprise Configuration Examples
-
-**DO NOT USE - Enterprise SSH app with app_auth:**
-```hcl
-resource "eaa_application" "enterprise_ssh_invalid" {
-  name        = "enterprise-ssh-invalid"
-  app_type    = "enterprise"
-  app_profile = "ssh"  # SSH profile
-  
-  advanced_settings = jsonencode({
-    # This will cause validation error
-    app_auth = "kerberos"  # NOT allowed for SSH profile
-  })
-}
-```
-
-**DO NOT USE - SSH audit for non-SSH profile:**
-```hcl
-resource "eaa_application" "enterprise_invalid_ssh_audit" {
-  name        = "enterprise-invalid-ssh-audit"
-  app_type    = "enterprise"
-  app_profile = "http"  # Not SSH profile
-  
-  advanced_settings = jsonencode({
-    # This will cause validation error
-    ssh_audit_enabled = true  # Only allowed for SSH profile
-  })
-}
-```
-
-**DO NOT USE - RDP configuration for non-RDP profile:**
-```hcl
-resource "eaa_application" "enterprise_invalid_rdp" {
-  name        = "enterprise-invalid-rdp"
-  app_type    = "enterprise"
-  app_profile = "http"  # Not RDP profile
-  
-  advanced_settings = jsonencode({
-    # These will cause validation errors
-    rdp_audio_redirection = true    # Only allowed for RDP profile
-    rdp_clipboard_redirection = true # Only allowed for RDP profile
-    rdp_disk_redirection = true     # Only allowed for RDP profile
-  })
-}
-```
+See [Authentication Parameters](./authentication_advsettings.md) for detailed documentation.
 
 ## Tunnel Applications
 
-Tunnel applications provide TCP tunneling capabilities with limited configuration options.
+Tunnel applications provide TCP tunneling capabilities with limited configuration options. They are designed for forwarding TCP traffic through secure tunnels.
 
-### Supported Profiles
-- **TCP**: TCP tunnel applications only
+### TCP Profile
 
-### Allowed Advanced Settings Categories
-- Server Load Balancing (`load_balancing_metric`, `session_sticky`, `tcp_optimization`)
-- Enterprise Connectivity (`app_server_read_timeout`, `idle_close_time_seconds`, `proxy_buffer_size_kb`)
-- Tunnel Client Parameters (`acceleration`, `force_ip_route`, `x_wapp_pool_*`, `domain_exception_list`)
-- Health Check (`health_check_type`, `health_check_*`)
-- Basic Configuration (`websocket_enabled`, `is_ssl_verification_enabled`, `x_wapp_read_timeout`)
+**Description**: TCP tunnel applications that forward TCP traffic through secure tunnels. Limited advanced settings support.
 
-### Blocked Advanced Settings Categories
+**Allowed Advanced Settings**:
+- [Tunnel Client Parameters](./tunnel_client_advsettings.md) - Required (acceleration, force_ip_route, x_wapp_pool_*)
+- [Health Check Parameters](./healthcheck_advsettings.md) - TCP type required
+- [SSL and WebSocket Configuration Parameters](./ssl_websocket_advsettings.md) - websocket_enabled required
+- [Server Load Balancing Parameters](./server_load_balancing_advsettings.md) - Limited support
+- [Enterprise Connectivity Parameters](./enterprise_connectivity_advsettings.md) - Limited support
+- [Miscellaneous Parameters](./miscellaneous_advsettings.md) - Limited support
+
+**Blocked Advanced Settings**:
 - Authentication parameters (`login_url`, `logout_url`, `wapp_auth`, `app_auth`, etc.)
 - CORS parameters (`allow_cors`, `cors_*`)
 - TLS Suite parameters (`tls_suite_name`, `tls_cipher_suite`)
-- Miscellaneous parameters (`custom_headers`, `hidden_app`, `logging_enabled`, etc.)
 - RDP configuration parameters (`rdp_*`)
 
-### Authentication Methods
-Tunnel applications have limited authentication options:
-- SAML (`saml = true`) - NOT allowed
-- OpenID Connect (`oidc = true`) - NOT allowed
-- WS-Federation (`wsfed = true`) - NOT allowed
-- Basic authentication only (handled at resource level)
-
-### Required Fields
+**Required Fields**:
 - `websocket_enabled = true`
 - `auth_enabled = true`
 - `health_check_type = "TCP"`
 
-### Special Notes
-- `cookie_age` is not supported for tunnel apps
-- `x_wapp_read_timeout` is only available for tunnel applications
-- `app_auth` should not be present in `advanced_settings` - it's set at resource level as "tcp"
+**Example Files**:
+- [examples/tunnel_app.tf](../examples/tunnel_app.tf) - Tunnel application with TCP profile and required settings
+- [examples/tunnel_valid.tf](../examples/tunnel_valid.tf) - Valid tunnel application configuration
+- [examples/tcp_app.tf](../examples/tcp_app.tf) - TCP tunnel application
+
+**Authentication Methods**:
+- Basic authentication only (handled at resource level)
+- None authentication (`app_auth = "none"` is allowed in advanced_settings)
+- SAML, OIDC, WS-Federation - NOT allowed
 
 ## Bookmark Applications
 
-Bookmark applications are simple applications with minimal configuration requirements.
+Bookmark applications are simple applications with minimal configuration requirements. They provide quick access to external URLs without advanced configuration.
 
-### Supported Profiles
-- **HTTP**: Web bookmark applications
+### HTTP Profile
 
-### Advanced Settings Restrictions
-- `advanced_settings` - NOT allowed at all
-- All advanced settings categories are blocked
+**Description**: Web bookmark applications that provide access to external URLs. No advanced settings support.
 
-### Authentication Methods
-Bookmark applications have limited authentication options:
-- SAML (`saml = true`) - NOT allowed
-- OpenID Connect (`oidc = true`) - NOT allowed
-- WS-Federation (`wsfed = true`) - NOT allowed
+**Allowed Advanced Settings**:
+- None - `advanced_settings` is NOT allowed at all
+
+**Example Files**:
+- See [examples/](../examples/) directory for bookmark application examples
+
+**Authentication Methods**:
 - Basic authentication only (handled at resource level)
-
-### Configuration Notes
-- Bookmark apps use resource-level configuration only
-- No `advanced_settings` block should be provided
-- Authentication is handled at the resource level using basic authentication
+- No `advanced_settings` block allowed (so no `app_auth` configuration)
 
 ## SaaS Applications
 
-SaaS (Software-as-a-Service) applications are designed for third-party cloud services.
+SaaS (Software-as-a-Service) applications are designed for third-party cloud services. They support modern authentication protocols but have no advanced settings support.
 
-### Supported Profiles
-- **HTTP**: Web SaaS applications
+### HTTP Profile
 
-### Advanced Settings Restrictions
-- `advanced_settings` - NOT allowed at all
-- All advanced settings categories are blocked
+**Description**: Web SaaS applications for accessing third-party cloud services. Authentication via resource-level `protocol` field only.
 
-### Authentication Methods
-SaaS applications support modern authentication methods:
-- SAML (`saml = true`)
-- OpenID Connect (`oidc = true`)
-- WS-Federation (`wsfed = true`)
-- Kerberos (`app_auth = "kerberos"`) - NOT allowed in `advanced_settings`
-- Basic Authentication (`app_auth = "basic"`) - NOT allowed in `advanced_settings`
-- NTLMv1/NTLMv2 - NOT allowed in `advanced_settings`
+**Allowed Advanced Settings**:
+- None - `advanced_settings` is NOT allowed at all
 
-### Configuration Notes
-- SaaS apps use resource-level configuration only
-- No `advanced_settings` block should be provided
-- Authentication is handled at the resource level using boolean flags (`saml`, `oidc`, `wsfed`)
+**Example Files**:
+- See [examples/](../examples/) directory for SaaS application examples
 
-## Configuration Examples
+**Authentication Methods**:
+- SAML (`protocol = "SAML"` or `protocol = "SAML2.0"`)
+- OpenID Connect (`protocol = "OpenID Connect 1.0"` or `protocol = "OIDC"`)
+- WS-Federation (`protocol = "WSFed"` or `protocol = "WS-Federation"`) - Note: Both "WSFed" and "WS-Federation" are valid (case-sensitive, lowercase "wsfed" is NOT supported)
+- Authentication is specified using the `protocol` field (not `saml`, `oidc`, `wsfed` boolean flags)
 
-### Enterprise HTTP Application
-```hcl
-resource "eaa_application" "enterprise_http" {
-  name        = "Enterprise HTTP App"
-  app_type    = "enterprise"
-  app_profile = "http"
-  domain      = "wapp"
-  client_app_mode = "tcp"
-  
-  # Supports all advanced settings
-  advanced_settings = jsonencode({
-    # Authentication
-    wapp_auth = "basic"
-    app_auth = "kerberos"
-    
-    # Server Load Balancing
-    load_balancing_metric = "round-robin"
-    session_sticky = true
-    
-    # Health Check
-    health_check_type = "HTTP"
-    health_check_enabled = true
-    
-    # Enterprise Connectivity
-    app_server_read_timeout = "300"
-    
-    # CORS
-    allow_cors = true
-    cors_origin_list = "https://example.com"
-    
-    # Miscellaneous
-    logging_enabled = true
-    custom_headers = []
-  })
-  
-  # Supports all authentication methods
-  saml = true
-  # or oidc = true
-  # or wsfed = true
-}
-```
+## Summary
 
-### Tunnel Application
-```hcl
-resource "eaa_application" "tunnel_app" {
-  name        = "Tunnel App"
-  app_type    = "tunnel"
-  app_profile = "tcp"
-  domain      = "wapp"
-  client_app_mode = "tunnel"
-  
-  # Limited advanced settings
-  advanced_settings = jsonencode({
-    # Health Check (Required)
-    health_check_type = "TCP"
-    
-    # Basic Configuration (Required)
-    websocket_enabled = true
-    
-    # Server Load Balancing (Allowed)
-    load_balancing_metric = "round-robin"
-    session_sticky = true
-    
-    # Tunnel Client Parameters (Allowed)
-    acceleration = true
-    x_wapp_read_timeout = "300"
-    
-    # Enterprise Connectivity (Allowed)
-    app_server_read_timeout = "300"
-  })
-  
-  # No advanced authentication methods
-  # saml = true  # NOT allowed
-  # oidc = true  # NOT allowed
-  # wsfed = true # NOT allowed
-}
-```
-
-### Bookmark Application
-```hcl
-resource "eaa_application" "bookmark_app" {
-  name        = "Bookmark App"
-  app_type    = "bookmark"
-  app_profile = "http"
-  domain      = "wapp"
-  client_app_mode = "tcp"
-  
-  # No advanced_settings allowed
-  # advanced_settings = jsonencode({...})  # NOT allowed
-  
-  # No advanced authentication methods
-  # saml = true  # NOT allowed
-  # oidc = true  # NOT allowed
-  # wsfed = true # NOT allowed
-}
-```
-
-### SaaS Application
-```hcl
-resource "eaa_application" "saas_app" {
-  name        = "SaaS App"
-  app_type    = "saas"
-  app_profile = "http"
-  domain      = "wapp"
-  client_app_mode = "tcp"
-  
-  # No advanced_settings allowed
-  # advanced_settings = jsonencode({...})  # NOT allowed
-  
-  # Supports modern authentication methods
-  saml = true
-  # or oidc = true
-  # or wsfed = true
-}
-```
-
-
-## Summary Matrix
-
-### Enterprise Applications
-- **Advanced Settings**: Full Support - All categories supported
-- **SAML Authentication**: Supported
-- **OIDC Authentication**: Supported  
-- **WS-Federation**: Supported
-- **Kerberos Authentication**: Supported
-- **Basic Authentication**: Supported
-- **CORS Support**: Supported
-- **TLS Suite Configuration**: Supported
-- **RDP Configuration**: Supported (RDP profile only)
-- **Health Check**: Supported
-- **Load Balancing**: Supported
-
-### Tunnel Applications
-- **Advanced Settings**: Limited - Only specific categories allowed
-- **SAML Authentication**: Not Allowed
-- **OIDC Authentication**: Not Allowed
-- **WS-Federation**: Not Allowed
-- **Kerberos Authentication**: Not Allowed
-- **Basic Authentication**: Supported
-- **CORS Support**: Not Allowed
-- **TLS Suite Configuration**: Not Allowed
-- **RDP Configuration**: Not Allowed
-- **Health Check**: Supported (TCP only)
-- **Load Balancing**: Supported
-
-#### Invalid Tunnel Configuration Examples
-
-**DO NOT USE - Tunnel app with SAML authentication:**
-```hcl
-resource "eaa_application" "tunnel_invalid" {
-  name            = "tunnel-invalid"
-  app_type        = "tunnel"
-  app_profile     = "tcp"
-  client_app_mode = "tunnel"
-  
-  # This will cause validation error
-  saml = true  # NOT allowed for tunnel apps
-  
-  advanced_settings = jsonencode({
-    # These will cause validation errors
-    login_url = "https://example.com/login"     # Authentication - NOT allowed
-    logout_url = "https://example.com/logout"   # Authentication - NOT allowed
-    allow_cors = true                           # CORS - NOT allowed
-    cors_origin_list = "https://example.com"    # CORS - NOT allowed
-    tls_suite_name = "TLS-Suite-v3"            # TLS Suite - NOT allowed
-    custom_headers = []                         # Miscellaneous - NOT allowed
-    hidden_app = false                          # Miscellaneous - NOT allowed
-    logging_enabled = true                      # Miscellaneous - NOT allowed
-    rdp_audio_redirection = true                # RDP - NOT allowed
-  })
-}
-```
-
-### Bookmark Applications
-- **Advanced Settings**: Not Allowed
-- **SAML Authentication**: Not Allowed
-- **OIDC Authentication**: Not Allowed
-- **WS-Federation**: Not Allowed
-- **Kerberos Authentication**: Not Allowed
-- **Basic Authentication**: Supported
-- **CORS Support**: Not Allowed
-- **TLS Suite Configuration**: Not Allowed
-- **RDP Configuration**: Not Allowed
-- **Health Check**: Not Allowed
-- **Load Balancing**: Not Allowed
-
-### SaaS Applications
-- **Advanced Settings**: Not Allowed
-- **SAML Authentication**: Supported
-- **OIDC Authentication**: Supported
-- **WS-Federation**: Supported
-- **Kerberos Authentication**: Not Allowed
-- **Basic Authentication**: Not Allowed
-- **CORS Support**: Not Allowed
-- **TLS Suite Configuration**: Not Allowed
-- **RDP Configuration**: Not Allowed
-- **Health Check**: Not Allowed
-- **Load Balancing**: Not Allowed
+For a complete reference of all advanced settings parameters, see [Advanced Settings Reference](./advanced-settings.md).

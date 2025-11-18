@@ -87,7 +87,7 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     cors_header_list = "Content-Type,Authorization"
     cors_method_list = "GET,POST,PUT,DELETE"
     cors_max_age = "3600"
-    cors_support_credential = "true"
+    cors_support_credential = "on"
     websocket_enabled = "true"
     logging_enabled = "true"
     hidden_app = "false"
@@ -196,7 +196,7 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     forward_ticket_granting_ticket = "true"
     keytab = "example.keytab"
     service_principal_name = "HTTP/valid-kerberos.example.com@EXAMPLE.COM"
-    kerberos_negotiate_once = "true"
+    kerberos_negotiate_once = "on"
     
     # Health Check Configuration
     health_check_type = "HTTP"
@@ -247,19 +247,11 @@ resource "eaa_application" "enterprise_valid_saml" {
   
   popregion = "us-east-1"
   agents    = ["EAA_DC1_US1_Access_01"]
-  saml = "true"  # SAML enabled at resource level
   
   advanced_settings = jsonencode({
-    # SAML Settings Block
-    saml_settings = {
-      idp = {
-        self_signed = "true"
-      }
-    }
-    
-    # When SAML is enabled at resource level, app_auth must be "none"
-    
-    
+    # When SAML is enabled via nested blocks, app_auth should be "none"
+    app_auth = "SAML2.0"
+
     # Health Check Configuration
     health_check_type = "HTTP"
     health_check_http_url = "/health"
@@ -288,4 +280,11 @@ resource "eaa_application" "enterprise_valid_saml" {
     saas_enabled = "false"
     sticky_agent = "true"
   })
+
+  # SAML settings as nested block (not inside advanced_settings)
+  saml_settings {
+    idp {
+      self_signed = true
+    }
+  }
 }
