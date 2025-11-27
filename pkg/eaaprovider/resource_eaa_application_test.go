@@ -1,7 +1,6 @@
 package eaaprovider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1331,76 +1330,6 @@ func (m *MockSigner) CheckRequestLimit(requestLimit int) {
 	// No-op: don't check limits in tests
 }
 
-// MockResponse holds mock response data
-type MockResponse struct {
-	StatusCode int
-	Body       interface{}
-	Header     http.Header
-}
-
-// MockHTTPTransport is a custom HTTP transport for testing
-type MockHTTPTransport struct {
-	Responses map[string]MockResponse
-}
-
-// RoundTrip implements http.RoundTripper
-func (m *MockHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	url := req.URL.String()
-	method := req.Method
-	
-	// Try to find exact match first
-	if resp, ok := m.Responses[url]; ok {
-		return m.createHTTPResponse(req, resp)
-	}
-	
-	// Try to find method-specific pattern match (e.g., "GET /path" or "DELETE /path")
-	methodPattern := fmt.Sprintf("%s %s", method, req.URL.Path)
-	if resp, ok := m.Responses[methodPattern]; ok {
-		return m.createHTTPResponse(req, resp)
-	}
-	
-	// Try to find path match
-	for pattern, resp := range m.Responses {
-		if strings.Contains(url, pattern) {
-			return m.createHTTPResponse(req, resp)
-		}
-	}
-	
-	// Return 404 for unmatched requests
-	return &http.Response{
-		StatusCode: http.StatusNotFound,
-		Status:     "404 Not Found",
-		Body:       io.NopCloser(strings.NewReader("{}")),
-		Header:     make(http.Header),
-		Request:    req,
-	}, nil
-}
-
-// createHTTPResponse creates an HTTP response from MockResponse
-func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockResponse) (*http.Response, error) {
-	var bodyBytes []byte
-	var err error
-	
-	if mockResp.Body != nil {
-		bodyBytes, err = json.Marshal(mockResp.Body)
-		if err != nil {
-			bodyBytes = []byte("{}")
-		}
-	}
-	
-	header := mockResp.Header
-	if header == nil {
-		header = make(http.Header)
-	}
-	
-	return &http.Response{
-		StatusCode: mockResp.StatusCode,
-		Status:     http.StatusText(mockResp.StatusCode),
-		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
-		Header:     header,
-		Request:    req,
-	}, nil
-}
 
 // createMockClient creates a mock EAA client for testing
 func createMockClient() (*client.EaaClient, *MockHTTPTransport) {

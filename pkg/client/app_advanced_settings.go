@@ -493,7 +493,12 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 						}
 					} else {
 						// For non-string slices, handle type conversion properly
-						if reflect.TypeOf(value).AssignableTo(field.Type()) {
+						// Check if value is nil to avoid panic when calling reflect.TypeOf
+						if value == nil {
+							continue
+						}
+						valueType := reflect.TypeOf(value)
+						if valueType != nil && valueType.AssignableTo(field.Type()) {
 							field.Set(reflect.ValueOf(value))
 						} else {
 							continue

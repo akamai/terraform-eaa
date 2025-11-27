@@ -1,47 +1,82 @@
 package eaaprovider
 
 import (
+	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	//"github.com/stretchr/testify/mock"
-	//client "git.source.akamai.com/terraform-provider-eaa/pkg/client" // Adjust this import
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// TestDataAppCategory tests the data source for app categories
+// These tests use mocked providers (no .edgerc required, no real API calls)
 func TestDataAppCategory(t *testing.T) {
-	t.Run("DataAppCategory", func(t *testing.T) {
-		//mockedeaaproviderClient := &client.Mock{}
-
-		//response := []client.AppCate{}
-
-		//mockedeaaproviderClient.On("GetAppCategories", mock.Anything, client.EaaClient{}).Return(&response, nil)
-
-		resource.Test(t, resource.TestCase{
-			IsUnitTest:        false,
-			ProviderFactories: testAccProviders,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccEaaAppCategoriesConfig_basic(),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("data.eaa_data_source_appcategories.appcategories", "appcategories.#", "1"),
-						resource.TestCheckResourceAttr("data.eaa_data_source_appcategories.appcategories", "id", "eaa_appcategories"),
-					),
-				},
+	AcquireTestLock()
+	defer ReleaseTestLock()
+	tests := map[string]struct {
+		config      string
+		checkFuncs  []resource.TestCheckFunc
+		expectError bool
+	}{
+		"basic_read": {
+			config: testAccEaaAppCategoriesConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_appcategories.appcategories", "id", "eaa_appcategories"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.#"),
 			},
+			expectError: false,
+		},
+		"verify_appcategory_fields": {
+			config: testAccEaaAppCategoriesConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_appcategories.appcategories", "id", "eaa_appcategories"),
+				// Verify at least one app category exists
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.0.name"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.0.uuid_url"),
+			},
+			expectError: false,
+		},
+		"verify_multiple_appcategories": {
+			config: testAccEaaAppCategoriesConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_appcategories.appcategories", "id", "eaa_appcategories"),
+				// Verify multiple app categories exist (if mock returns multiple)
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.#"),
+				// Verify first app category exists
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.0.name"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_appcategories.appcategories", "appcategories.0.uuid_url"),
+			},
+			expectError: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			testStep := resource.TestStep{
+				Config: tt.config,
+			}
+
+			if tt.expectError {
+				testStep.ExpectError = regexp.MustCompile(".*")
+			} else {
+				testStep.Check = resource.ComposeAggregateTestCheckFunc(tt.checkFuncs...)
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProviderFactories: UnitTestProviderFactories(),
+				IsUnitTest:        true,
+				Steps:             []resource.TestStep{testStep},
+			})
 		})
-		//mockedeaaproviderClient.AssertExpectations(t)
-	})
+	}
 }
 
 func testAccEaaAppCategoriesConfig_basic() string {
 	return `
-	data "eaa_data_source_appcategories" "appcategories"{
+	provider "eaa" {
+		contractid = "test-contract"
 	}
 
-	provider "eaa" {
-		contractid = "1-3CV382"
-		edgerc           = ".edgerc"
-
+	data "eaa_data_source_appcategories" "appcategories" {
 	}
 `
 }

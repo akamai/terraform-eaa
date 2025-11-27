@@ -1,0 +1,17 @@
+{
+  "name": "successful_connector_deletion",
+  "description": "Tests successful connector deletion via client API",
+  "request": {
+    "method": "DELETE",
+    "path": "/crux/v1/mgmt-pop/connectors/{connector_id}",
+    "payload": "request_payload.json"
+  },
+  "expected_response": {
+    "status_code": 200,
+    "payload": "api_response.json"
+  },
+  "test_data": {
+    "connector_id": "test-connector-uuid-123"
+  }
+}
+

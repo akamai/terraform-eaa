@@ -1,0 +1,110 @@
+{
+  "uuid_url": "test-app-uuid-123",
+  "name": "test-application-updated",
+  "description": "Updated test application",
+  "app_type": 1,
+  "app_profile": 1,
+  "app_profile_id": "profile-id-123",
+  "client_app_mode": 1,
+  "host": "updated.example.com",
+  "bookmark_url": "",
+  "app_logo": null,
+  "orig_tls": "true",
+  "origin_host": "updated-origin.example.com",
+  "origin_port": 8443,
+  "tunnel_internal_hosts": [],
+  "servers": [
+    {
+      "origin_host": "updated-origin.example.com",
+      "orig_tls": true,
+      "origin_port": 8443,
+      "origin_protocol": "https"
+    }
+  ],
+  "pop": "pop-uuid-456",
+  "popName": "US West",
+  "popRegion": "us-west",
+  "auth_type": 1,
+  "cert": null,
+  "auth_enabled": "true",
+  "ssl_ca_cert": "",
+  "app_deployed": true,
+  "app_operational": 1,
+  "app_status": 1,
+  "cname": "updated.example.com",
+  "status": 1,
+  "app_category": {
+    "name": "updated-category",
+    "uuid_url": "category-uuid-456"
+  },
+  "app_bundle": "bundle-uuid-456",
+  "tlsSuiteType": 2,
+  "tls_suite_name": "custom",
+  "rdp_version": "",
+  "supported_client_version": 0,
+  "saml": false,
+  "saml_settings": [],
+  "oidc": true,
+  "oidc_settings": {
+    "authorization_endpoint": "https://oidc-provider.example.com/authorize",
+    "certs_uri": "https://oidc-provider.example.com/certs",
+    "check_session_iframe": "https://oidc-provider.example.com/check_session",
+    "discovery_url": "https://oidc-provider.example.com/.well-known/openid-configuration",
+    "end_session_endpoint": "https://oidc-provider.example.com/logout",
+    "jwks_uri": "https://oidc-provider.example.com/jwks",
+    "openid_metadata": "https://oidc-provider.example.com/.well-known/openid-configuration",
+    "token_endpoint": "https://oidc-provider.example.com/token",
+    "userinfo_endpoint": "https://oidc-provider.example.com/userinfo"
+  },
+  "oidcclients": [
+    {
+      "client_name": "test-oidc-client",
+      "client_id": "test-client-id-123",
+      "client_secret": [
+        {
+          "timestamp": "2024-01-01T12:00:00Z",
+          "value": "test-secret-value"
+        }
+      ],
+      "response_type": ["code"],
+      "implicit_grant": false,
+      "type": "confidential",
+      "redirect_uris": ["https://test-app.example.com/callback"],
+      "javascript_origins": ["https://test-app.example.com"],
+      "logout_url": "https://test-app.example.com/logout",
+      "logout_session_required": true,
+      "post_logout_redirect_uri": ["https://test-app.example.com"],
+      "metadata": "https://oidc-provider.example.com/.well-known/openid-configuration",
+      "claims": [
+        {
+          "name": "email",
+          "scope": "openid",
+          "val": "user.email",
+          "src": "user.email",
+          "rule": ""
+        },
+        {
+          "name": "name",
+          "scope": "profile",
+          "val": "user.name",
+          "src": "user.name",
+          "rule": ""
+        }
+      ]
+    }
+  ],
+  "fqdn_bridge_enabled": false,
+  "wsfed": false,
+  "wsfed_settings": [],
+  "advanced_settings": {
+    "acceleration": "on",
+    "logging_enabled": "true"
+  },
+  "domain": "custom",
+  "domain_suffix": "",
+  "failover_popName": "",
+  "resource": "",
+  "created_at": "2024-01-01T12:00:00Z",
+  "modified_at": "2024-01-02T12:00:00Z"
+}
+

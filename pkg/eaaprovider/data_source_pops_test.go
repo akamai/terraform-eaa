@@ -1,62 +1,70 @@
 package eaaprovider
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
+	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// TestDataPops tests the data source for POPs
+// These tests use mocked providers (no .edgerc required, no real API calls)
 func TestDataPops(t *testing.T) {
-	t.Run("DataPops", func(t *testing.T) {
-
-		resource.Test(t, resource.TestCase{
-			IsUnitTest:        false,
-			ProviderFactories: testAccProviders,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccEaaAppPopsConfig_basic(),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("data.eaa_data_source_pops.pops", "id", "eaa_pops"),
-						func(s *terraform.State) error {
-
-							attr := s.RootModule().Resources["data.eaa_data_source_pops.pops"].Primary.Attributes
-							y1, _ := strconv.Atoi(attr["pops.#"])
-							if y1 == 0 {
-								return fmt.Errorf("0 pops")
-							}
-							i := 0
-							for i = 0; i < y1; i++ {
-								att := "pops." + strconv.Itoa(i) + ".region"
-								if strings.HasPrefix(attr[att], "us-west") == true {
-									break
-								}
-							}
-							if i == y1 {
-								return fmt.Errorf("us-west not found")
-							}
-							return nil
-						},
-					),
-				},
+	AcquireTestLock()
+	defer ReleaseTestLock()
+	tests := map[string]struct {
+		config      string
+		checkFuncs  []resource.TestCheckFunc
+		expectError bool
+	}{
+		"basic_read": {
+			config: testAccEaaAppPopsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_pops.pops", "id", "eaa_pops"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_pops.pops", "pops.#"),
 			},
+			expectError: false,
+		},
+		"verify_pop_fields": {
+			config: testAccEaaAppPopsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_pops.pops", "id", "eaa_pops"),
+				// Verify at least one pop exists with fields returned by mock
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_pops.pops", "pops.0.region"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_pops.pops", "pops.0.name"),
+			},
+			expectError: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			testStep := resource.TestStep{
+				Config: tt.config,
+			}
+
+			if tt.expectError {
+				testStep.ExpectError = regexp.MustCompile(".*")
+			} else {
+				testStep.Check = resource.ComposeAggregateTestCheckFunc(tt.checkFuncs...)
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProviderFactories: UnitTestProviderFactories(),
+				IsUnitTest:        true,
+				Steps:             []resource.TestStep{testStep},
+			})
 		})
-	})
+	}
 }
 
 func testAccEaaAppPopsConfig_basic() string {
 	return `
-	data "eaa_data_source_pops" "pops"{
+	provider "eaa" {
+		contractid = "test-contract"
 	}
 
-	provider "eaa" {
-		contractid = "1-3CV382"
-		edgerc     = ".edgerc"
-
+	data "eaa_data_source_pops" "pops" {
 	}
 `
 }

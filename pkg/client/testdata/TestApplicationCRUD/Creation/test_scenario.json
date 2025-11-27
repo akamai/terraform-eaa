@@ -1,0 +1,20 @@
+{
+  "name": "successful_application_creation",
+  "description": "Tests successful application creation via client API",
+  "request": {
+    "method": "POST",
+    "path": "/crux/v1/mgmt-pop/apps",
+    "payload": "request_payload.json"
+  },
+  "expected_response": {
+    "status_code": 200,
+    "payload": "api_response.json"
+  },
+  "test_data": {
+    "app_id": "test-app-uuid-123",
+    "name": "test-application",
+    "app_type": "enterprise",
+    "app_profile": "http"
+  }
+}
+

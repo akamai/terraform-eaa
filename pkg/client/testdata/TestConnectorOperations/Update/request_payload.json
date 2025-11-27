@@ -1,0 +1,13 @@
+{
+  "name": "test-connector-updated",
+  "description": "Updated test connector",
+  "package": 1,
+  "status": 1,
+  "auth_service": true,
+  "data_service": true,
+  "debug_channel_permitted": false,
+  "advanced_settings": {
+    "network_info": ["10.0.0.0/8", "172.16.0.0/12"]
+  }
+}
+

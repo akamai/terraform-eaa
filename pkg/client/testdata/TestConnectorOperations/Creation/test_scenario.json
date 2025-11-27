@@ -1,0 +1,19 @@
+{
+  "name": "successful_connector_creation",
+  "description": "Tests successful connector creation via client API",
+  "request": {
+    "method": "POST",
+    "path": "/crux/v1/mgmt-pop/connectors",
+    "payload": "request_payload.json"
+  },
+  "expected_response": {
+    "status_code": 200,
+    "payload": "api_response.json"
+  },
+  "test_data": {
+    "connector_id": "test-connector-uuid-123",
+    "name": "test-connector",
+    "pool_id": "test-pool-uuid-123"
+  }
+}
+

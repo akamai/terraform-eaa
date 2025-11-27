@@ -1,0 +1,17 @@
+{
+  "name": "successful_application_deletion",
+  "description": "Tests successful application deletion via client API",
+  "request": {
+    "method": "DELETE",
+    "path": "/crux/v1/mgmt-pop/apps/{app_id}",
+    "payload": "request_payload.json"
+  },
+  "expected_response": {
+    "status_code": 200,
+    "payload": "api_response.json"
+  },
+  "test_data": {
+    "app_id": "test-app-uuid-123"
+  }
+}
+
