@@ -1,0 +1,11 @@
+{
+  "uuid_url": "connector-123-456-789",
+  "name": "test-connector",
+  "description": "Test EAA connector created by unit tests",
+  "connector_type": "ssh",
+  "status": "active",
+  "host": "192.168.1.100",
+  "port": 22,
+  "created_at": "2023-11-01T12:00:00Z",
+  "updated_at": "2023-11-01T12:00:00Z"
+}

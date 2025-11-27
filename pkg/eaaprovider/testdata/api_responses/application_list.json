@@ -1,0 +1,18 @@
+[
+  {
+    "uuid_url": "12345678-1234-1234-1234-123456789012",
+    "name": "test-application",
+    "description": "Test application created by unit tests",
+    "app_type": "bookmark",
+    "host": "example.com",
+    "status": "active"
+  },
+  {
+    "uuid_url": "87654321-4321-4321-4321-210987654321",
+    "name": "another-application",
+    "description": "Another test application",
+    "app_type": "tcp",
+    "host": "another.example.com",
+    "status": "active"
+  }
+]

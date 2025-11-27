@@ -1,0 +1,74 @@
+{
+  "name": "test-application-updated",
+  "description": "Updated test application",
+  "app_type": 1,
+  "app_profile": 1,
+  "client_app_mode": 1,
+  "host": "updated.example.com",
+  "domain": "custom",
+  "popregion": "us-west",
+  "app_bundle": "updated-bundle-uuid-456",
+  "advanced_settings": {
+    "app_auth": "SAML2.0",
+    "wapp_auth": "certonly",
+    "acceleration": "on",
+    "logging_enabled": "true",
+    "websocket_enabled": "true",
+    "load_balancing_metric": "least-conn",
+    "health_check_type": "HTTP",
+    "health_check_http_url": "/health",
+    "health_check_http_version": "1.1",
+    "health_check_http_host_header": "updated.example.com",
+    "health_check_timeout": "50000",
+    "health_check_rise": "2",
+    "health_check_fall": "3",
+    "health_check_interval": "30000"
+  },
+  "saml": true,
+  "saml_settings": [
+    {
+      "sp": {
+        "entity_id": "https://updated.example.com/sp",
+        "acs_url": "https://updated.example.com/acs",
+        "slo_url": "https://updated.example.com/slo",
+        "req_bind": "post",
+        "metadata": "",
+        "force_auth": false,
+        "req_verify": false,
+        "sign_cert": "",
+        "resp_encr": false,
+        "encr_cert": "",
+        "encr_algo": "aes256-cbc",
+        "slo_req_verify": true,
+        "dst_url": "",
+        "slo_bind": "post"
+      },
+      "idp": {
+        "entity_id": "https://idp.example.com",
+        "metadata": "https://idp.example.com/metadata",
+        "sign_cert": null,
+        "sign_key": "",
+        "self_signed": true,
+        "sign_algo": "SHA256",
+        "resp_bind": "post",
+        "slo_url": "https://idp.example.com/slo",
+        "ecp_enable": false,
+        "ecp_resp_signature": false
+      },
+      "subject": {
+        "fmt": "email",
+        "src": "user.email",
+        "val": "",
+        "rule": ""
+      },
+      "attrmap": []
+    }
+  ],
+  "oidc": false,
+  "oidc_settings": null,
+  "wsfed": false,
+  "wsfed_settings": [],
+  "tlsSuiteType": 2,
+  "tls_suite_name": "custom"
+}
+

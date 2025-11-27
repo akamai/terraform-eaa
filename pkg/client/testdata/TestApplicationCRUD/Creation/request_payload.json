@@ -1,0 +1,25 @@
+{
+  "name": "test-application",
+  "description": "Test application for creation",
+  "app_type": 1,
+  "app_profile": 1,
+  "client_app_mode": 1,
+  "app_bundle": "test-bundle-uuid-123",
+  "advanced_settings": {
+    "app_auth": "none",
+    "wapp_auth": "certonly",
+    "acceleration": "on",
+    "logging_enabled": "true",
+    "websocket_enabled": "false",
+    "load_balancing_metric": "round-robin"
+  },
+  "saml": false,
+  "oidc": false,
+  "wsfed": false,
+  "saml_settings": [],
+  "oidc_settings": null,
+  "wsfed_settings": [],
+  "tlsSuiteType": 1,
+  "tls_suite_name": "default"
+}
+

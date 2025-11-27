@@ -1,61 +1,97 @@
 package eaaprovider
 
 import (
-	"fmt"
-	"strconv"
+	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// TestDataAgents tests the data source for agents
+// These tests use mocked providers (no .edgerc required, no real API calls)
 func TestDataAgents(t *testing.T) {
-	t.Run("DataAgents", func(t *testing.T) {
-
-		resource.Test(t, resource.TestCase{
-			IsUnitTest:        false,
-			ProviderFactories: testAccProviders,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccEaaAgentsConfig_basic(),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
-						func(s *terraform.State) error {
-
-							attr := s.RootModule().Resources["data.eaa_data_source_agents.agents"].Primary.Attributes
-							y1, _ := strconv.Atoi(attr["agents.#"])
-							if y1 == 0 {
-								return fmt.Errorf("0 agents")
-							}
-							i := 0
-							for i = 0; i < y1; i++ {
-								att := "agents." + strconv.Itoa(i) + ".name"
-								if attr[att] == "terraform-test-connector" {
-									break
-								}
-							}
-							if i == y1 {
-								return fmt.Errorf("terraform-test-connector not found")
-							}
-							return nil
-						},
-					),
-				},
+	AcquireTestLock()
+	defer ReleaseTestLock()
+	tests := map[string]struct {
+		config      string
+		checkFuncs  []resource.TestCheckFunc
+		expectError bool
+	}{
+		"basic_read": {
+			config: testAccEaaAgentsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.#"),
 			},
+			expectError: false,
+		},
+		"verify_agent_fields": {
+			config: testAccEaaAgentsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
+				// Verify at least one agent exists
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.0.name"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.0.uuid_url"),
+				// Verify optional fields can be set (if present in mock response)
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.0.state"),
+			},
+			expectError: false,
+		},
+		"verify_multiple_agents": {
+			config: testAccEaaAgentsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
+				// Verify multiple agents exist (mock returns 2 agents)
+				resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "agents.#", "2"),
+				// Verify first agent exists
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.0.name"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.0.uuid_url"),
+				// Verify second agent exists
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.1.name"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.1.uuid_url"),
+			},
+			expectError: false,
+		},
+		"verify_agent_optional_fields": {
+			config: testAccEaaAgentsConfig_basic(),
+			checkFuncs: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
+				// Verify second agent has optional fields (if populated in mock)
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.1.reach"),
+				resource.TestCheckResourceAttrSet("data.eaa_data_source_agents.agents", "agents.1.state"),
+			},
+			expectError: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			testStep := resource.TestStep{
+				Config: tt.config,
+			}
+
+			if tt.expectError {
+				testStep.ExpectError = regexp.MustCompile(".*")
+			} else {
+				testStep.Check = resource.ComposeAggregateTestCheckFunc(tt.checkFuncs...)
+			}
+
+			resource.UnitTest(t, resource.TestCase{
+				ProviderFactories: UnitTestProviderFactories(), // uses the test factory, not the real provider
+				IsUnitTest:        true,
+				Steps:             []resource.TestStep{testStep},
+			})
 		})
-	})
+	}
 }
 
 func testAccEaaAgentsConfig_basic() string {
 	return `
-	data "eaa_data_source_agents" "agents"{
+	provider "eaa" {
+		contractid = "test-contract"
 	}
 
-	provider "eaa" {
-		contractid = "1-3CV382"
-		edgerc           = ".edgerc"
-
+	data "eaa_data_source_agents" "agents" {
 	}
 `
 }

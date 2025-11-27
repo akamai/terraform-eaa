@@ -1,0 +1,100 @@
+{
+  "uuid_url": "test-app-uuid-123",
+  "name": "test-application",
+  "description": "Test application for read operations",
+  "app_type": 1,
+  "app_profile": 1,
+  "app_profile_id": "profile-id-123",
+  "client_app_mode": 1,
+  "host": "test.example.com",
+  "bookmark_url": "",
+  "app_logo": null,
+  "orig_tls": "false",
+  "origin_host": "origin.example.com",
+  "origin_port": 443,
+  "tunnel_internal_hosts": [],
+  "servers": [
+    {
+      "origin_host": "origin.example.com",
+      "orig_tls": true,
+      "origin_port": 443,
+      "origin_protocol": "https"
+    }
+  ],
+  "pop": "pop-uuid-123",
+  "popName": "US East",
+  "popRegion": "us-east",
+  "auth_type": 0,
+  "cert": null,
+  "auth_enabled": "false",
+  "ssl_ca_cert": "",
+  "app_deployed": true,
+  "app_operational": 1,
+  "app_status": 1,
+  "cname": null,
+  "status": 1,
+  "app_category": {
+    "name": "test-category",
+    "uuid_url": "category-uuid-123"
+  },
+  "app_bundle": "bundle-uuid-123",
+  "tlsSuiteType": 1,
+  "tls_suite_name": "default",
+  "rdp_version": "",
+  "supported_client_version": 0,
+  "saml": true,
+  "saml_settings": [
+    {
+      "sp": {
+        "entity_id": "https://test-app.example.com/sp",
+        "acs_url": "https://test-app.example.com/acs",
+        "slo_url": "https://test-app.example.com/slo",
+        "req_bind": "redirect",
+        "metadata": "",
+        "default_relay_state": null,
+        "force_auth": false,
+        "req_verify": false,
+        "sign_cert": "",
+        "resp_encr": false,
+        "encr_cert": "",
+        "encr_algo": "aes256-cbc",
+        "slo_req_verify": true,
+        "dst_url": "",
+        "slo_bind": "post"
+      },
+      "idp": {
+        "entity_id": "https://idp.example.com",
+        "metadata": "https://idp.example.com/metadata",
+        "sign_cert": null,
+        "sign_key": "",
+        "self_signed": true,
+        "sign_algo": "SHA256",
+        "resp_bind": "post",
+        "slo_url": "https://idp.example.com/slo",
+        "ecp_enable": false,
+        "ecp_resp_signature": false
+      },
+      "subject": {
+        "fmt": "email",
+        "src": "user.email",
+        "val": "",
+        "rule": ""
+      },
+      "attrmap": []
+    }
+  ],
+  "oidc": false,
+  "oidc_settings": null,
+  "oidcclients": [],
+  "fqdn_bridge_enabled": false,
+  "wsfed": false,
+  "wsfed_settings": [],
+  "advanced_settings": {},
+  "domain": "custom",
+  "domain_suffix": "",
+  "failover_popName": "",
+  "resource": "",
+  "created_at": "2024-01-01T12:00:00Z",
+  "modified_at": "2024-01-01T12:00:00Z"
+}
+

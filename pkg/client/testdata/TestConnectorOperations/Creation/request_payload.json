@@ -1,0 +1,13 @@
+{
+  "name": "test-connector",
+  "description": "Test connector for creation",
+  "package": 1,
+  "status": 1,
+  "auth_service": true,
+  "data_service": true,
+  "debug_channel_permitted": true,
+  "advanced_settings": {
+    "network_info": ["192.168.1.0/24", "10.0.0.0/8"]
+  }
+}
+
