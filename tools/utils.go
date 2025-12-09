@@ -52,16 +52,16 @@ type ErrorResponse struct {
 }
 
 type Meta struct {
-	Limit      int     `json:"limit,omitempty"`
 	Next       *string `json:"next,omitempty"`
-	Offset     int     `json:"offset,omitempty"`
 	Previous   *string `json:"previous,omitempty"`
+	Limit      int     `json:"limit,omitempty"`
+	Offset     int     `json:"offset,omitempty"`
 	TotalCount int     `json:"total_count,omitempty"`
 }
 
 type AppsResponse struct {
-	Metadata     Meta          `json:"meta"`
 	Applications []Application `json:"objects"`
+	Metadata     Meta          `json:"meta"`
 }
 
 type Application struct {
@@ -107,7 +107,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 	}
 
 	fmt.Println(apiURL)
-	r, _ := http.NewRequest(method, apiURL, nil)
+	r, _ := http.NewRequest(method, apiURL, http.NoBody)
 	r.Header.Set("Content-Type", "application/json")
 
 	r.URL.RawQuery = r.URL.Query().Encode()

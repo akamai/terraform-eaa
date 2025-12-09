@@ -57,15 +57,15 @@ func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.Eaa
 
 		// Unmarshal the raw JSON connectors data
 		var rawConnectors []struct {
+			Description    *string `json:"description"`
+			LoadStatus     *string `json:"load_status"`
 			Name           string  `json:"name"`
 			UUIDURL        string  `json:"uuid_url"`
+			CreatedAt      string  `json:"created_at"`
+			Localization   string  `json:"localization"`
 			Package        int     `json:"package"`
 			State          int     `json:"state"`
 			Status         int     `json:"status"`
-			CreatedAt      string  `json:"created_at"`
-			Description    *string `json:"description"`
-			LoadStatus     *string `json:"load_status"`
-			Localization   string  `json:"localization"`
 			Reach          int     `json:"reach"`
 			AgentInfraType int     `json:"agent_infra_type"`
 		}
@@ -124,27 +124,27 @@ func fetchDetailedConnectorInfo(client *client.EaaClient, uuidURL string) map[st
 	// Define comprehensive response structure
 	var response struct {
 		Objects []struct {
-			Name           string  `json:"name"`
-			UUIDURL        string  `json:"uuid_url"`
-			Package        int     `json:"package"`
-			State          int     `json:"state"`
-			Status         int     `json:"status"`
-			CreatedAt      string  `json:"created_at"`
-			Description    string  `json:"description"`
-			LoadStatus     string  `json:"load_status"`
-			Localization   string  `json:"localization"`
-			Reach          int     `json:"reach"`
-			AgentInfraType int     `json:"agent_infra_type"`
-			GeoLocation    *string `json:"geo_location"`
-			LastCheckin    *string `json:"last_checkin"`
-			IsEnabled      bool    `json:"is_enabled"`
-			ModifiedAt     string  `json:"modified_at"`
-			ResourceURI    struct {
+			GeoLocation  *string `json:"geo_location"`
+			LastCheckin  *string `json:"last_checkin"`
+			Localization string  `json:"localization"`
+			ResourceURI  struct {
 				Href string `json:"href"`
 			} `json:"resource_uri"`
-			OperatingMode int `json:"operating_mode"`
-			PackageType   int `json:"package_type"`
-			InfraType     int `json:"infra_type"`
+			ModifiedAt     string `json:"modified_at"`
+			CreatedAt      string `json:"created_at"`
+			Description    string `json:"description"`
+			LoadStatus     string `json:"load_status"`
+			Name           string `json:"name"`
+			UUIDURL        string `json:"uuid_url"`
+			AgentInfraType int    `json:"agent_infra_type"`
+			Package        int    `json:"package"`
+			Reach          int    `json:"reach"`
+			Status         int    `json:"status"`
+			State          int    `json:"state"`
+			OperatingMode  int    `json:"operating_mode"`
+			PackageType    int    `json:"package_type"`
+			InfraType      int    `json:"infra_type"`
+			IsEnabled      bool   `json:"is_enabled"`
 		} `json:"objects"`
 	}
 
@@ -493,14 +493,14 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 
 		// Define the response structure to read ALL meta information
 		type connectorPoolsListResponse struct {
-			Meta struct {
-				Limit      int     `json:"limit"`
+			Objects []client.ConnectorPool `json:"objects"`
+			Meta    struct {
 				Next       *string `json:"next"`
-				Offset     int     `json:"offset"`
 				Previous   *string `json:"previous"`
+				Limit      int     `json:"limit"`
+				Offset     int     `json:"offset"`
 				TotalCount int     `json:"total_count"`
 			} `json:"meta"`
-			Objects []client.ConnectorPool `json:"objects"`
 		}
 
 		var response connectorPoolsListResponse

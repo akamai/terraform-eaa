@@ -98,46 +98,46 @@ var (
 
 // ConnectorPool represents a connector pool
 type ConnectorPool struct {
-	Name                    string          `json:"name"`
-	Description             *string         `json:"description"`
-	PackageType             int             `json:"package_type"`
-	InfraType               int             `json:"infra_type"`
-	OperatingMode           int             `json:"operating_mode"`
-	UUIDURL                 string          `json:"uuid_url,omitempty"`
-	CIDRs                   []string        `json:"cidrs,omitempty"`
-	ApplicationAccessGroup  []string        `json:"application_access_group,omitempty"`
-	ApplicationAccessGroups json.RawMessage `json:"application_access_groups,omitempty"`
-	Applications            json.RawMessage `json:"applications,omitempty"`
-	Connectors              json.RawMessage `json:"connectors,omitempty"`
-	CreatedAt               string          `json:"created_at,omitempty"`
-	Directories             json.RawMessage `json:"directories,omitempty"`
-	DNSList                 []string        `json:"dns_list,omitempty"`
-	DNSOverride             bool            `json:"dns_override,omitempty"`
-	EDNS                    json.RawMessage `json:"edns,omitempty"`
-	IsEnabled               bool            `json:"is_enabled,omitempty"`
-	Localization            string          `json:"localization,omitempty"`
-	LocationFreetext        *string         `json:"location_freetext,omitempty"`
-	ModifiedAt              string          `json:"modified_at,omitempty"`
-	ResourceURI             struct {
+	Description      *string `json:"description"`
+	LocationFreetext *string `json:"location_freetext,omitempty"`
+	Name             string  `json:"name"`
+	ResourceURI      struct {
 		Href string `json:"href,omitempty"`
 	} `json:"resource_uri,omitempty"`
-	SendAlerts bool `json:"send_alerts,omitempty"`
+	ModifiedAt              string          `json:"modified_at,omitempty"`
+	UUIDURL                 string          `json:"uuid_url,omitempty"`
+	Localization            string          `json:"localization,omitempty"`
+	CreatedAt               string          `json:"created_at,omitempty"`
+	Connectors              json.RawMessage `json:"connectors,omitempty"`
+	EDNS                    json.RawMessage `json:"edns,omitempty"`
+	ApplicationAccessGroups json.RawMessage `json:"application_access_groups,omitempty"`
+	ApplicationAccessGroup  []string        `json:"application_access_group,omitempty"`
+	Directories             json.RawMessage `json:"directories,omitempty"`
+	DNSList                 []string        `json:"dns_list,omitempty"`
+	CIDRs                   []string        `json:"cidrs,omitempty"`
+	Applications            json.RawMessage `json:"applications,omitempty"`
+	OperatingMode           int             `json:"operating_mode"`
+	InfraType               int             `json:"infra_type"`
+	PackageType             int             `json:"package_type"`
+	IsEnabled               bool            `json:"is_enabled,omitempty"`
+	DNSOverride             bool            `json:"dns_override,omitempty"`
+	SendAlerts              bool            `json:"send_alerts,omitempty"`
 }
 
 // CreateConnectorPoolRequest represents the request to create a connector pool
 type CreateConnectorPoolRequest struct {
+	InfraType     *int   `json:"infra_type,omitempty"`
+	OperatingMode *int   `json:"operating_mode,omitempty"`
 	Name          string `json:"name"`
 	Description   string `json:"description"`
 	PackageType   int    `json:"package_type"`
-	InfraType     *int   `json:"infra_type,omitempty"`
-	OperatingMode *int   `json:"operating_mode,omitempty"`
 }
 
 // CreateConnectorPoolResponse represents the response from creating a connector pool
 type CreateConnectorPoolResponse struct {
-	CIDRs         []string `json:"cidrs"`
-	UUIDURL       string   `json:"uuid_url"`
 	OperatingMode *int     `json:"operating_mode,omitempty"`
+	UUIDURL       string   `json:"uuid_url"`
+	CIDRs         []string `json:"cidrs"`
 }
 
 // CreateConnectorPoolRequestFromSchema creates a CreateConnectorPoolRequest from the schema
@@ -273,9 +273,9 @@ type ConnectorPoolAssociationRequest struct {
 
 // AgentAssociation represents an agent in the association request
 type AgentAssociation struct {
-	AgentInfraType int    `json:"agentInfraType"`
 	CID            string `json:"cid"`
 	UUIDURL        string `json:"uuid_url"`
+	AgentInfraType int    `json:"agentInfraType"`
 }
 
 // buildConnectorAssociationRequest builds a request for associating connectors with a pool
@@ -482,27 +482,27 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 	for {
 		// Build URL with optimized parameters - using contractId, gid, expand, and dynamic limit from API
 		var apiURL string
-        if offset == 0 {
-            // First request: let API use its default limit
-            apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&offset=0", URL_SCHEME, ec.Host, AGENTS_URL)
-        } else {
-            // Subsequent requests: use the limit we got from API response meta
-            apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&limit=%d&offset=%d", URL_SCHEME, ec.Host, AGENTS_URL, apiLimit, offset)
-        }
+		if offset == 0 {
+			// First request: let API use its default limit
+			apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&offset=0", URL_SCHEME, ec.Host, AGENTS_URL)
+		} else {
+			// Subsequent requests: use the limit we got from API response meta
+			apiURL = fmt.Sprintf("%s://%s/%s?&expand=true&limit=%d&offset=%d", URL_SCHEME, ec.Host, AGENTS_URL, apiLimit, offset)
+		}
 
 		// Define the response structure inline to match the API response
 		var response struct {
-			Meta struct {
-				Limit      int     `json:"limit"`
-				Next       *string `json:"next"`
-				Offset     int     `json:"offset"`
-				Previous   *string `json:"previous"`
-				TotalCount int     `json:"total_count"`
-			} `json:"meta"`
 			Objects []struct {
 				Name    string `json:"name"`
 				UUIDURL string `json:"uuid_url"`
 			} `json:"objects"`
+			Meta struct {
+				Next       *string `json:"next"`
+				Previous   *string `json:"previous"`
+				Limit      int     `json:"limit"`
+				Offset     int     `json:"offset"`
+				TotalCount int     `json:"total_count"`
+			} `json:"meta"`
 		}
 
 		resp, err := ec.SendAPIRequest(apiURL, "GET", nil, &response, false)
@@ -628,29 +628,29 @@ func GetApps(client *EaaClient) ([]App, error) {
 		var url string
 		if offset == 0 {
 			// First request: use v3 API with optimized parameters
-            url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=10&offset=0&fields=name,uuid_url&ordering=name",
-                URL_SCHEME, client.Host)
+			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=10&offset=0&fields=name,uuid_url&ordering=name",
+				URL_SCHEME, client.Host)
 
 		} else {
 			// Subsequent requests: use the limit we got from API response meta
-            url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=%d&offset=%d&fields=name,uuid_url&ordering=name",
-                URL_SCHEME, client.Host, apiLimit, offset)
+			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=%d&offset=%d&fields=name,uuid_url&ordering=name",
+				URL_SCHEME, client.Host, apiLimit, offset)
 
 		}
 
 		// Define the response structure to read ALL meta information from v3 API
 		var response struct {
-			Meta struct {
-				Limit      int     `json:"limit"`
-				Next       *string `json:"next"`
-				Offset     int     `json:"offset"`
-				Previous   *string `json:"previous"`
-				TotalCount int     `json:"total_count"`
-			} `json:"meta"`
 			Objects []struct {
 				Name    string `json:"name"`
 				UUIDURL string `json:"uuid_url"`
 			} `json:"objects"`
+			Meta struct {
+				Next       *string `json:"next"`
+				Previous   *string `json:"previous"`
+				Limit      int     `json:"limit"`
+				Offset     int     `json:"offset"`
+				TotalCount int     `json:"total_count"`
+			} `json:"meta"`
 		}
 
 		resp, err := client.SendAPIRequest(url, "GET", nil, &response, false)
@@ -923,14 +923,14 @@ func GetConnectorPools(ctx context.Context, ec *EaaClient) ([]ConnectorPool, err
 
 		// Define the response structure to read ALL meta information
 		type connectorPoolsListResponse struct {
-			Meta struct {
-				Limit      int     `json:"limit"`
+			Objects []ConnectorPool `json:"objects"`
+			Meta    struct {
 				Next       *string `json:"next"`
-				Offset     int     `json:"offset"`
 				Previous   *string `json:"previous"`
+				Limit      int     `json:"limit"`
+				Offset     int     `json:"offset"`
 				TotalCount int     `json:"total_count"`
 			} `json:"meta"`
-			Objects []ConnectorPool `json:"objects"`
 		}
 
 		var response connectorPoolsListResponse

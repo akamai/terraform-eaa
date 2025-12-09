@@ -21,14 +21,14 @@ type ConnAdvancedSettings struct {
 }
 
 type CreateConnectorRequest struct {
-	Name                  string               `json:"name"`
 	Description           *string              `json:"description"`
-	Status                int                  `json:"status"`
+	Name                  string               `json:"name"`
 	AdvancedSettings      ConnAdvancedSettings `json:"advanced_settings"`
+	Status                int                  `json:"status"`
+	Package               int                  `json:"package"`
 	AuthService           bool                 `json:"auth_service"`
 	DataService           bool                 `json:"data_service"`
 	DebugChannelPermitted bool                 `json:"debug_channel_permitted"`
-	Package               int                  `json:"package"`
 }
 
 func (ccr *CreateConnectorRequest) CreateConnectorRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -163,49 +163,48 @@ func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceDat
 }
 
 type Connector struct {
-	Name                  string               `json:"name,omitempty"`
-	ActivationCode        *string              `json:"activation_code,omitempty"`
-	AdvancedSettings      ConnAdvancedSettings `json:"advanced_settings"`
-	AgentInfraType        int                  `json:"agent_infra_type,omitempty"`
-	AgentType             int                  `json:"agent_type,omitempty"`
-	AgentUpgradeEnabled   bool                 `json:"agent_upgrade_enabled,omitempty"`
-	AgentUpgradeSuspended bool                 `json:"agent_upgrade_suspended,omitempty"`
+	IPAddr                *string              `json:"ip_addr,omitempty"`
+	OSVersion             *string              `json:"os_version,omitempty"`
+	PublicIP              *string              `json:"public_ip,omitempty"`
+	DiskSize              *string              `json:"disk_size,omitempty"`
+	RAMSize               *string              `json:"ram_size,omitempty"`
+	Timezone              *string              `json:"tz,omitempty"`
+	Subnet                *string              `json:"subnet,omitempty"`
 	AgentVersion          *string              `json:"agent_version,omitempty"`
 	CPU                   *string              `json:"cpu,omitempty"`
-	DataService           bool                 `json:"data_service,omitempty"`
-	DebugChannelPermitted bool                 `json:"debug_channel_permitted,omitempty"`
+	ConnectorPool         *ConnectorPool       `json:"connector_pool,omitempty"`
+	Region                *string              `json:"region,omitempty"`
+	DownloadURL           *string              `json:"download_url,omitempty"`
+	ActivationCode        *string              `json:"activation_code,omitempty"`
+	MAC                   *string              `json:"mac,omitempty"`
 	Description           *string              `json:"description,omitempty"`
+	Gateway               *string              `json:"gateway,omitempty"`
+	GeoLocation           *string              `json:"geo_location,omitempty"`
+	Hostname              *string              `json:"hostname,omitempty"`
+	PrivateIP             *string              `json:"private_ip,omitempty"`
+	LastCheckin           *string              `json:"last_checkin,omitempty"`
+	LoadStatus            *string              `json:"load_status,omitempty"`
 	DHCP                  string               `json:"dhcp,omitempty"`
-	DiskSize              *string              `json:"disk_size,omitempty"`
-	// DNSServer             *string `json:"dns_server,omitempty"`
-	DownloadURL        *string        `json:"download_url,omitempty"`
-	Gateway            *string        `json:"gateway,omitempty"`
-	GeoLocation        *string        `json:"geo_location,omitempty"`
-	Hostname           *string        `json:"hostname,omitempty"`
-	IPAddr             *string        `json:"ip_addr,omitempty"`
-	LastCheckin        *string        `json:"last_checkin,omitempty"`
-	LoadStatus         *string        `json:"load_status,omitempty"`
-	MAC                *string        `json:"mac,omitempty"`
-	ManualOverride     bool           `json:"manual_override,omitempty"`
-	OSUpgradesUpToDate bool           `json:"os_upgrades_up_to_date,omitempty"`
-	OSVersion          *string        `json:"os_version,omitempty"`
-	Package            int            `json:"package,omitempty"`
-	Policy             string         `json:"policy,omitempty"`
-	PrivateIP          *string        `json:"private_ip,omitempty"`
-	PublicIP           *string        `json:"public_ip,omitempty"`
-	RAMSize            *string        `json:"ram_size,omitempty"`
-	Reach              int            `json:"reach,omitempty"`
-	Region             *string        `json:"region,omitempty"`
-	State              int            `json:"state,omitempty"`
-	Status             int            `json:"status,omitempty"`
-	ConnectorPool      *ConnectorPool `json:"connector_pool,omitempty"`
-	Subnet             *string        `json:"subnet,omitempty"`
-	Timezone           *string        `json:"tz,omitempty"`
-	UnificationStatus  int            `json:"unification_status,omitempty"`
-	UpAppsCount        int            `json:"up_apps_count,omitempty"`
-	UpDirCount         int            `json:"up_dir_count,omitempty"`
-	UUID               string         `json:"uuid,omitempty"`
-	UUIDURL            string         `json:"uuid_url,omitempty"`
+	Name                  string               `json:"name,omitempty"`
+	UUID                  string               `json:"uuid,omitempty"`
+	UUIDURL               string               `json:"uuid_url,omitempty"`
+	Policy                string               `json:"policy,omitempty"`
+	AdvancedSettings      ConnAdvancedSettings `json:"advanced_settings"`
+	Reach                 int                  `json:"reach,omitempty"`
+	UnificationStatus     int                  `json:"unification_status,omitempty"`
+	AgentInfraType        int                  `json:"agent_infra_type,omitempty"`
+	AgentType             int                  `json:"agent_type,omitempty"`
+	Package               int                  `json:"package,omitempty"`
+	State                 int                  `json:"state,omitempty"`
+	Status                int                  `json:"status,omitempty"`
+	UpDirCount            int                  `json:"up_dir_count,omitempty"`
+	UpAppsCount           int                  `json:"up_apps_count,omitempty"`
+	DebugChannelPermitted bool                 `json:"debug_channel_permitted,omitempty"`
+	AgentUpgradeEnabled   bool                 `json:"agent_upgrade_enabled,omitempty"`
+	AgentUpgradeSuspended bool                 `json:"agent_upgrade_suspended,omitempty"`
+	DataService           bool                 `json:"data_service,omitempty"`
+	ManualOverride        bool                 `json:"manual_override,omitempty"`
+	OSUpgradesUpToDate    bool                 `json:"os_upgrades_up_to_date,omitempty"`
 }
 
 func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaClient) (*Connector, error) {
@@ -231,14 +230,14 @@ func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaC
 }
 
 type ConnectorResponse struct {
-	Meta struct {
-		Limit      int     `json:"limit,omitempty"`
+	Connectors []Connector `json:"objects,omitempty"`
+	Meta       struct {
 		Next       *string `json:"next,omitempty"`
-		Offset     int     `json:"offset,omitempty"`
 		Previous   *string `json:"previous,omitempty"`
+		Limit      int     `json:"limit,omitempty"`
+		Offset     int     `json:"offset,omitempty"`
 		TotalCount int     `json:"total_count,omitempty"`
 	} `json:"meta,omitempty"`
-	Connectors []Connector `json:"objects,omitempty"`
 }
 
 func GetAgents(ec *EaaClient) ([]Connector, error) {

@@ -19,14 +19,14 @@ type DirectoryData struct {
 }
 
 type AppDirectory struct {
+	EnableMFA *bool  `json:"enable_mfa,omitempty"`
 	APP_ID    string `json:"app_id,omitempty"`
 	UUID      string `json:"uuid_url,omitempty"`
-	EnableMFA *bool  `json:"enable_mfa,omitempty"`
 }
 
 type AppGroup struct {
-	UUIDURL   string  `json:"uuid_url,omitempty"`
 	EnableMFA *string `json:"enable_mfa,omitempty"`
+	UUIDURL   string  `json:"uuid_url,omitempty"`
 }
 
 // AssignIdpDirectory method assigns an IDP directory to an application.

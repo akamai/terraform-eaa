@@ -28,20 +28,20 @@ type IDPResponseData struct {
 }
 
 type IDPResponse struct {
-	Meta Meta              `json:"meta,omitempty"`
 	IDPS []IDPResponseData `json:"objects,omitempty"`
+	Meta Meta              `json:"meta,omitempty"`
 }
 
 type DirectoryResponse struct {
-	Meta          Meta            `json:"meta,omitempty"`
 	DirectoryList []DirectoryData `json:"objects,omitempty"`
+	Meta          Meta            `json:"meta,omitempty"`
 }
 
 type Meta struct {
-	Limit      int     `json:"limit,omitempty"`
 	Next       *string `json:"next,omitempty"`
-	Offset     int     `json:"offset,omitempty"`
 	Previous   *string `json:"previous,omitempty"`
+	Limit      int     `json:"limit,omitempty"`
+	Offset     int     `json:"offset,omitempty"`
 	TotalCount int     `json:"total_count,omitempty"`
 }
 

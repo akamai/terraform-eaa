@@ -13,12 +13,12 @@ import (
 )
 
 type EaaClient struct {
+	Signer           edgegrid.Signer
+	Logger           hclog.Logger
+	Client           *http.Client
 	ContractID       string
 	AccountSwitchKey string
-	Client           *http.Client
-	Signer           edgegrid.Signer
 	Host             string
-	Logger           hclog.Logger
 }
 
 type ErrorResponse struct {
@@ -55,7 +55,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 	}
 
 	ec.Logger.Info(apiURL)
-	r, _ := http.NewRequest(method, apiURL, nil)
+	r, _ := http.NewRequest(method, apiURL, http.NoBody)
 	r.Header.Set("Content-Type", "application/json")
 
 	r.URL.RawQuery = r.URL.Query().Encode()

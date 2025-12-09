@@ -16,14 +16,14 @@ type AppCate struct {
 }
 
 type AppCategoryResponse struct {
-	Meta struct {
-		Limit      int     `json:"limit,omitempty"`
+	AppCategories []AppCate `json:"objects,omitempty"`
+	Meta          struct {
 		Next       *string `json:"next,omitempty"`
-		Offset     int     `json:"offset,omitempty"`
 		Previous   *string `json:"previous,omitempty"`
+		Limit      int     `json:"limit,omitempty"`
+		Offset     int     `json:"offset,omitempty"`
 		TotalCount int     `json:"total_count,omitempty"`
 	} `json:"meta,omitempty"`
-	AppCategories []AppCate `json:"objects,omitempty"`
 }
 
 // GetAppCategories method retrieves app categories and formats the data as a list of maps

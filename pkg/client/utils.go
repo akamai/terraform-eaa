@@ -161,14 +161,14 @@ func ConvertIntToEnumStringForDataSource(intValue int, converter func(int) (stri
 // ConnectorSummary represents a simplified connector view for data sources
 type ConnectorSummary struct {
 	Name           string `json:"name"`
-	Package        int    `json:"package"`
-	State          int    `json:"state"`
-	Status         int    `json:"status"`
 	UUIDURL        string `json:"uuid_url"`
 	CreatedAt      string `json:"created_at"`
 	Description    string `json:"description"`
 	LoadStatus     string `json:"load_status"`
 	Localization   string `json:"localization"`
+	Package        int    `json:"package"`
+	State          int    `json:"state"`
+	Status         int    `json:"status"`
 	Reach          int    `json:"reach"`
 	AgentInfraType int    `json:"agent_infra_type"`
 }

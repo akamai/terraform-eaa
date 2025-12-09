@@ -20,10 +20,10 @@ type AppCategory struct {
 }
 
 type AppCategoriesResponse struct {
-	Meta struct {
+	AppCategories []AppCategory `json:"objects"`
+	Meta          struct {
 		TotalCount int `json:"total_count"`
 	} `json:"meta"`
-	AppCategories []AppCategory `json:"objects"`
 }
 
 func dataSourceAppCategories() *schema.Resource {
@@ -32,16 +32,16 @@ func dataSourceAppCategories() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 
-			"appcategories": &schema.Schema{
+			"appcategories": {
 				Type:     schema.TypeList,
 				Computed: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"name": &schema.Schema{
+						"name": {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
-						"uuid_url": &schema.Schema{
+						"uuid_url": {
 							Type:     schema.TypeString,
 							Computed: true,
 						},

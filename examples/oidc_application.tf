@@ -1,15 +1,15 @@
 terraform {
   required_providers {
     eaa = {
-      source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
       version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
-  contractid       = "XXXXXXX"
-  edgerc           = ".edgerc"
+  contractid = "XXXXXXX"
+  edgerc     = ".edgerc"
 }
 
 # OpenID Connect Application Example
@@ -19,14 +19,14 @@ provider "eaa" {
 
 # Basic OIDC Application with Default Settings
 resource "eaa_application" "oidc_basic" {
-  name        = "oidc-basic-app"
-  description = "OIDC application with default settings-update"
-  host        = "oidc-basic.example.com"
-  app_profile = "http"
-  app_type    = "enterprise"
-  domain      = "wapp"
+  name            = "oidc-basic-app"
+  description     = "OIDC application with default settings-update"
+  host            = "oidc-basic.example.com"
+  app_profile     = "http"
+  app_type        = "enterprise"
+  domain          = "wapp"
   client_app_mode = "tcp"
-  
+
 
   servers {
     orig_tls        = true
@@ -34,27 +34,27 @@ resource "eaa_application" "oidc_basic" {
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
-  
-  popregion = "us-east-1"
-  agents = ["EAA_DC1_US1_Access_01"]
+
+  popregion    = "us-east-1"
+  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "employees-idp"
+    app_idp = "employees-idp"
 
-       app_directories {
-            name = "Cloud Directory"
-            app_groups {
-                name = "Engineering"
-            }
-            app_groups {
-                name = "SQA"
-            }
-        }
+    app_directories {
+      name = "Cloud Directory"
+      app_groups {
+        name = "Engineering"
+      }
+      app_groups {
+        name = "SQA"
+      }
     }
+  }
 
   advanced_settings = jsonencode({
     app_auth = "OpenID Connect 1.0"
-    
+
     # No oidc_settings needed - defaults will be applied
   })
 

@@ -21,21 +21,21 @@ type MinimalCreateAppRequest struct {
 }
 
 type CreateAppRequest struct {
-	Name             string           `json:"name"`
 	Description      *string          `json:"description"`
-	AppProfile       int              `json:"app_profile"`
+	TLSSuiteName     *string          `json:"tls_suite_name,omitempty"`
+	TLSSuiteType     *int             `json:"tlsSuiteType,omitempty"`
+	OIDCSettings     *OIDCConfig      `json:"oidc_settings"`
+	AdvancedSettings AdvancedSettings `json:"advanced_settings,omitempty"`
+	Name             string           `json:"name"`
+	AppBundle        string           `json:"app_bundle,omitempty"`
+	SAMLSettings     []SAMLConfig     `json:"saml_settings"`
+	WSFEDSettings    []WSFEDConfig    `json:"wsfed_settings"`
 	AppType          int              `json:"app_type"`
 	ClientAppMode    int              `json:"client_app_mode"`
-	AppBundle        string           `json:"app_bundle,omitempty"`
-	AdvancedSettings AdvancedSettings `json:"advanced_settings,omitempty"`
-	SAML             bool             `json:"saml"`
-	Oidc             bool             `json:"oidc"`
+	AppProfile       int              `json:"app_profile"`
 	WSFED            bool             `json:"wsfed"`
-	SAMLSettings     []SAMLConfig     `json:"saml_settings"`
-	OIDCSettings     *OIDCConfig      `json:"oidc_settings"`
-	WSFEDSettings    []WSFEDConfig    `json:"wsfed_settings"`
-	TLSSuiteType     *int             `json:"tlsSuiteType,omitempty"`
-	TLSSuiteName     *string          `json:"tls_suite_name,omitempty"`
+	Oidc             bool             `json:"oidc"`
+	SAML             bool             `json:"saml"`
 }
 
 // CreateMinimalAppRequestFromSchema creates a minimal app creation request with only essential fields
@@ -744,55 +744,46 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 }
 
 type Application struct {
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	AppProfile    int     `json:"app_profile"`
-	AppType       int     `json:"app_type"`
-	ClientAppMode int     `json:"client_app_mode"`
-
-	Host        *string `json:"host"`
-	BookmarkURL string  `json:"bookmark_url"`
-	AppLogo     *string `json:"app_logo"`
-
-	OrigTLS             string               `json:"orig_tls"`
-	OriginHost          *string              `json:"origin_host"`
-	OriginPort          int                  `json:"origin_port"`
-	TunnelInternalHosts []TunnelInternalHost `json:"tunnel_internal_hosts"`
-	Servers             []Server             `json:"servers"`
-
-	POP       string `json:"pop"`
-	POPName   string `json:"popName"`
-	POPRegion string `json:"popRegion"`
-
-	AuthType    int     `json:"auth_type"`
-	Cert        *string `json:"cert"`
-	AuthEnabled string  `json:"auth_enabled"`
-	SSLCACert   string  `json:"ssl_ca_cert"`
-
-	AppDeployed    bool    `json:"app_deployed"`
-	AppOperational int     `json:"app_operational"`
-	AppStatus      int     `json:"app_status"`
-	CName          *string `json:"cname"`
-	Status         int     `json:"status"`
-
-	AppCategory AppCategory `json:"app_category"`
-	AppBundle   string      `json:"app_bundle,omitempty"`
-
-	UUIDURL string `json:"uuid_url"`
-
-	TLSSuiteType           *int    `json:"tlsSuiteType,omitempty"`
-	TLSSuiteName           *string `json:"tls_suite_name"`
-	AppProfileID           *string `json:"app_profile_id"`
-	RDPVersion             string  `json:"rdp_version"`
-	SupportedClientVersion int     `json:"supported_client_version"`
-
-	SAML              bool          `json:"saml"`
-	SAMLSettings      []SAMLConfig  `json:"saml_settings,omitempty"`
-	Oidc              bool          `json:"oidc"`
-	OIDCSettings      *OIDCConfig   `json:"oidc_settings,omitempty"`
-	FQDNBridgeEnabled bool          `json:"fqdn_bridge_enabled"`
-	WSFED             bool          `json:"wsfed"`
-	WSFEDSettings     []WSFEDConfig `json:"wsfed_settings"`
+	Cert                   *string              `json:"cert"`
+	Description            *string              `json:"description"`
+	OIDCSettings           *OIDCConfig          `json:"oidc_settings,omitempty"`
+	CName                  *string              `json:"cname"`
+	Host                   *string              `json:"host"`
+	TLSSuiteType           *int                 `json:"tlsSuiteType,omitempty"`
+	AppLogo                *string              `json:"app_logo"`
+	TLSSuiteName           *string              `json:"tls_suite_name"`
+	OriginHost             *string              `json:"origin_host"`
+	AppProfileID           *string              `json:"app_profile_id"`
+	AppCategory            AppCategory          `json:"app_category"`
+	AuthEnabled            string               `json:"auth_enabled"`
+	AppBundle              string               `json:"app_bundle,omitempty"`
+	POP                    string               `json:"pop"`
+	POPName                string               `json:"popName"`
+	POPRegion              string               `json:"popRegion"`
+	RDPVersion             string               `json:"rdp_version"`
+	UUIDURL                string               `json:"uuid_url"`
+	BookmarkURL            string               `json:"bookmark_url"`
+	SSLCACert              string               `json:"ssl_ca_cert"`
+	Name                   string               `json:"name"`
+	OrigTLS                string               `json:"orig_tls"`
+	Servers                []Server             `json:"servers"`
+	SAMLSettings           []SAMLConfig         `json:"saml_settings,omitempty"`
+	TunnelInternalHosts    []TunnelInternalHost `json:"tunnel_internal_hosts"`
+	WSFEDSettings          []WSFEDConfig        `json:"wsfed_settings"`
+	OriginPort             int                  `json:"origin_port"`
+	AppType                int                  `json:"app_type"`
+	AppStatus              int                  `json:"app_status"`
+	AppOperational         int                  `json:"app_operational"`
+	Status                 int                  `json:"status"`
+	AuthType               int                  `json:"auth_type"`
+	SupportedClientVersion int                  `json:"supported_client_version"`
+	AppProfile             int                  `json:"app_profile"`
+	ClientAppMode          int                  `json:"client_app_mode"`
+	AppDeployed            bool                 `json:"app_deployed"`
+	Oidc                   bool                 `json:"oidc"`
+	FQDNBridgeEnabled      bool                 `json:"fqdn_bridge_enabled"`
+	WSFED                  bool                 `json:"wsfed"`
+	SAML                   bool                 `json:"saml"`
 }
 
 func (app *Application) FromResponse(ar *ApplicationResponse) {
@@ -929,12 +920,12 @@ func (app *Application) DeleteApplication(ec *EaaClient) error {
 }
 
 type ApplicationUpdateRequest struct {
-	Application
-	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
+	OIDCSettings     *OIDCConfig               `json:"oidc_settings"`
 	Domain           string                    `json:"domain"`
+	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
 	SAMLSettings     []SAMLConfig              `json:"saml_settings"`
 	WSFEDSettings    []WSFEDConfig             `json:"wsfed_settings"`
-	OIDCSettings     *OIDCConfig               `json:"oidc_settings"`
+	Application
 }
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
@@ -1638,16 +1629,16 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 }
 
 type ApplicationDataModel struct {
-	Application
 	AdvancedSettings AdvancedSettings `json:"advanced_settings"`
-	Domain           int              `json:"domain"`
+	Application
+	Domain int `json:"domain"`
 }
 
 type Server struct {
 	OriginHost     string `json:"origin_host"`
-	OrigTLS        bool   `json:"orig_tls"`
-	OriginPort     int    `json:"origin_port"`
 	OriginProtocol string `json:"origin_protocol"`
+	OriginPort     int    `json:"origin_port"`
+	OrigTLS        bool   `json:"orig_tls"`
 }
 
 type TunnelInternalHost struct {
@@ -1662,53 +1653,52 @@ type AppCategory struct {
 }
 
 type ApplicationResponse struct {
-	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
-	AppCategory      AppCategory               `json:"app_category"`
-	AppBundle        string                    `json:"app_bundle,omitempty"`
-
-	AppDeployed            bool                 `json:"app_deployed"`
-	AppLogo                *string              `json:"app_logo"`
-	AppOperational         int                  `json:"app_operational"`
-	AppProfile             int                  `json:"app_profile"`
-	AppProfileID           *string              `json:"app_profile_id"`
-	AppStatus              int                  `json:"app_status"`
-	AppType                int                  `json:"app_type"`
-	AuthEnabled            string               `json:"auth_enabled"`
-	AuthType               int                  `json:"auth_type"`
-	BookmarkURL            string               `json:"bookmark_url"`
-	Cert                   *string              `json:"cert"`
-	ClientAppMode          int                  `json:"client_app_mode"`
-	CName                  *string              `json:"cname"`
-	CreatedAt              string               `json:"created_at"`
-	Description            *string              `json:"description"`
-	DomainSuffix           string               `json:"domain_suffix"`
-	FailoverPopName        string               `json:"failover_popName"`
-	FQDNBridgeEnabled      bool                 `json:"fqdn_bridge_enabled"`
-	Host                   *string              `json:"host"`
-	ModifiedAt             string               `json:"modified_at"`
-	Name                   string               `json:"name"`
-	Oidc                   bool                 `json:"oidc"`
-	OrigTLS                string               `json:"orig_tls"`
-	OriginHost             *string              `json:"origin_host"`
-	OriginPort             int                  `json:"origin_port"`
-	POP                    string               `json:"pop"`
-	POPName                string               `json:"popName"`
-	POPRegion              string               `json:"popRegion"`
-	RDPVersion             string               `json:"rdp_version"`
-	Resource               string               `json:"resource"`
-	SAML                   bool                 `json:"saml"`
-	SAMLSettings           []SAMLConfig         `json:"saml_settings,omitempty"`
-	Servers                []Server             `json:"servers"`
-	SSLCACert              string               `json:"ssl_ca_cert"`
-	Status                 int                  `json:"status"`
-	SupportedClientVersion int                  `json:"supported_client_version"`
-	TLSSuiteName           *string              `json:"tls_suite_name"`
-	TunnelInternalHosts    []TunnelInternalHost `json:"tunnel_internal_hosts"`
-	UUIDURL                string               `json:"uuid_url"` //Id - to do
-	WSFED                  bool                 `json:"wsfed"`
-	WSFEDSettings          []WSFEDConfig        `json:"wsfed_settings,omitempty"`
-	OIDCSettings           *OIDCSettings        `json:"oidc_settings,omitempty"`
-	OIDCClients            []OIDCClient         `json:"oidcclients,omitempty"`
+	AdvancedSettings       AdvancedSettings_Complete `json:"advanced_settings"`
+	OriginHost             *string                   `json:"origin_host"`
+	Host                   *string                   `json:"host"`
+	AppLogo                *string                   `json:"app_logo"`
+	OIDCSettings           *OIDCSettings             `json:"oidc_settings,omitempty"`
+	Description            *string                   `json:"description"`
+	AppProfileID           *string                   `json:"app_profile_id"`
+	CName                  *string                   `json:"cname"`
+	TLSSuiteName           *string                   `json:"tls_suite_name"`
+	Cert                   *string                   `json:"cert"`
+	AppCategory            AppCategory               `json:"app_category"`
+	CreatedAt              string                    `json:"created_at"`
+	DomainSuffix           string                    `json:"domain_suffix"`
+	AuthEnabled            string                    `json:"auth_enabled"`
+	RDPVersion             string                    `json:"rdp_version"`
+	UUIDURL                string                    `json:"uuid_url"`
+	Resource               string                    `json:"resource"`
+	BookmarkURL            string                    `json:"bookmark_url"`
+	POP                    string                    `json:"pop"`
+	FailoverPopName        string                    `json:"failover_popName"`
+	SSLCACert              string                    `json:"ssl_ca_cert"`
+	POPRegion              string                    `json:"popRegion"`
+	ModifiedAt             string                    `json:"modified_at"`
+	Name                   string                    `json:"name"`
+	POPName                string                    `json:"popName"`
+	OrigTLS                string                    `json:"orig_tls"`
+	AppBundle              string                    `json:"app_bundle,omitempty"`
+	WSFEDSettings          []WSFEDConfig             `json:"wsfed_settings,omitempty"`
+	SAMLSettings           []SAMLConfig              `json:"saml_settings,omitempty"`
+	Servers                []Server                  `json:"servers"`
+	OIDCClients            []OIDCClient              `json:"oidcclients,omitempty"`
+	TunnelInternalHosts    []TunnelInternalHost      `json:"tunnel_internal_hosts"`
+	AuthType               int                       `json:"auth_type"`
+	AppStatus              int                       `json:"app_status"`
+	OriginPort             int                       `json:"origin_port"`
+	AppOperational         int                       `json:"app_operational"`
+	AppProfile             int                       `json:"app_profile"`
+	Status                 int                       `json:"status"`
+	SupportedClientVersion int                       `json:"supported_client_version"`
+	ClientAppMode          int                       `json:"client_app_mode"`
+	AppType                int                       `json:"app_type"`
+	FQDNBridgeEnabled      bool                      `json:"fqdn_bridge_enabled"`
+	WSFED                  bool                      `json:"wsfed"`
+	SAML                   bool                      `json:"saml"`
+	Oidc                   bool                      `json:"oidc"`
+	AppDeployed            bool                      `json:"app_deployed"`
 }
 
 type ResourceStatus struct {
@@ -1749,31 +1739,31 @@ type RemoteApp struct {
 }
 
 type AdvancedSettings struct {
-	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
-	IgnoreCnameResolution        string                 `json:"ignore_cname_resolution,omitempty"`
-	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
-	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
-	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
+	AppAuthDomain                *string                `json:"app_auth_domain,omitempty"`
 	G2OKey                       *string                `json:"g2o_key,omitempty"`
-	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
 	InternalHostname             *string                `json:"internal_hostname,omitempty"`
-	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
 	EdgeCookieKey                *string                `json:"edge_cookie_key,omitempty"`
 	SlaObjectUrl                 *string                `json:"sla_object_url,omitempty"`
-	AllowCORS                    string                 `json:"allow_cors,omitempty"`
-	CORSOriginList               string                 `json:"cors_origin_list,omitempty"`
-	CORSMethodList               string                 `json:"cors_method_list,omitempty"`
-	CORSHeaderList               string                 `json:"cors_header_list,omitempty"`
-	CORSSupportCredential        string                 `json:"cors_support_credential,omitempty"`
-	CORSMaxAge                   string                 `json:"cors_max_age,omitempty"`
-	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
-	StickyAgent                  string                 `json:"sticky_agent,omitempty"`
+	UserName                     *string                `json:"user_name"`
+	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie"`
+	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	PrivateKey                   *string                `json:"private_key"`
+	PassPhrase                   *string                `json:"pass_phrase"`
+	LoginURL                     *string                `json:"login_url"`
+	IDPMaxExpiry                 *string                `json:"idp_max_expiry"`
+	IDPIdleExpiry                *string                `json:"idp_idle_expiry"`
+	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
+	HostKey                      *string                `json:"host_key"`
+	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header"`
+	ExternalCookieDomain         *string                `json:"external_cookie_domain"`
+	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id"`
+	CookieDomain                 *string                `json:"cookie_domain"`
+	AppLocation                  *string                `json:"app_location"`
+	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
 	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
 	LogoutURL                    *string                `json:"logout_url,omitempty"`
-	SentryRedirect401            string                 `json:"sentry_redirect_401,omitempty"`
-	AppAuth                      string                 `json:"app_auth"`
+	HSTSage                      string                 `json:"hsts_age,omitempty"`
+	IsBrotliEnabled              string                 `json:"is_brotli_enabled,omitempty"`
 	WappAuth                     string                 `json:"wapp_auth,omitempty"`
 	JWTIssuers                   string                 `json:"jwt_issuers,omitempty"`
 	JWTAudience                  string                 `json:"jwt_audience,omitempty"`
@@ -1781,34 +1771,34 @@ type AdvancedSettings struct {
 	JWTReturnOption              string                 `json:"jwt_return_option,omitempty"`
 	JWTUsername                  string                 `json:"jwt_username,omitempty"`
 	JWTReturnURL                 string                 `json:"jwt_return_url,omitempty"`
-	AppAuthDomain                *string                `json:"app_auth_domain,omitempty"`
+	SentryRedirect401            string                 `json:"sentry_redirect_401,omitempty"`
 	AppClientCertAuth            string                 `json:"app_client_cert_auth,omitempty"`
 	ForwardTicketGrantingTicket  string                 `json:"forward_ticket_granting_ticket,omitempty"`
 	Keytab                       string                 `json:"keytab,omitempty"`
-	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
-	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
+	StickyAgent                  string                 `json:"sticky_agent,omitempty"`
+	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
 	Acceleration                 string                 `json:"acceleration,omitempty"`
 	AnonymousServerConnLimit     string                 `json:"anonymous_server_conn_limit,omitempty"`
 	AnonymousServerReqLimit      string                 `json:"anonymous_server_request_limit,omitempty"`
-	AppLocation                  *string                `json:"app_location"`
+	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
 	AppServerReadTimeout         string                 `json:"app_server_read_timeout,omitempty"`
 	AuthenticatedServerConnLimit string                 `json:"authenticated_server_conn_limit,omitempty"`
 	AuthenticatedServerReqLimit  string                 `json:"authenticated_server_request_limit,omitempty"`
 	ClientCertAuth               string                 `json:"client_cert_auth,omitempty"`
 	ClientCertUserParam          string                 `json:"client_cert_user_param,omitempty"`
-	CookieDomain                 *string                `json:"cookie_domain"`
+	CORSMaxAge                   string                 `json:"cors_max_age,omitempty"`
 	DisableUserAgentCheck        string                 `json:"disable_user_agent_check,omitempty"`
 	DomainExceptionList          string                 `json:"domain_exception_list,omitempty"`
 	EdgeTransportManualMode      string                 `json:"edge_transport_manual_mode,omitempty"`
-	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id"`
+	CORSSupportCredential        string                 `json:"cors_support_credential,omitempty"`
 	EnableClientSideXHRRewrite   string                 `json:"enable_client_side_xhr_rewrite,omitempty"`
-	ExternalCookieDomain         *string                `json:"external_cookie_domain"`
+	CORSHeaderList               string                 `json:"cors_header_list,omitempty"`
 	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
 	ForceMFA                     string                 `json:"force_mfa,omitempty"`
-	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
 	FormPostURL                  string                 `json:"form_post_url,omitempty"`
 	HealthCheckFall              string                 `json:"health_check_fall,omitempty"`
-	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header"`
+	CORSMethodList               string                 `json:"cors_method_list,omitempty"`
 	HealthCheckHTTPURL           string                 `json:"health_check_http_url,omitempty"`
 	HealthCheckHTTPVersion       string                 `json:"health_check_http_version,omitempty"`
 	HealthCheckInterval          string                 `json:"health_check_interval,omitempty"`
@@ -1816,35 +1806,35 @@ type AdvancedSettings struct {
 	HealthCheckTimeout           string                 `json:"health_check_timeout,omitempty"`
 	HealthCheckType              string                 `json:"health_check_type,omitempty"`
 	HiddenApp                    string                 `json:"hidden_app,omitempty"`
-	HostKey                      *string                `json:"host_key"`
-	HSTSage                      string                 `json:"hsts_age,omitempty"`
+	CORSOriginList               string                 `json:"cors_origin_list,omitempty"`
+	AllowCORS                    string                 `json:"allow_cors,omitempty"`
 	HTTPOnlyCookie               string                 `json:"http_only_cookie,omitempty"`
 	HTTPSSSLV3                   string                 `json:"https_sslv3,omitempty"`
 	IdleCloseTimeSeconds         string                 `json:"idle_close_time_seconds,omitempty"`
 	IdleConnCeil                 string                 `json:"idle_conn_ceil,omitempty"`
 	IdleConnFloor                string                 `json:"idle_conn_floor,omitempty"`
 	IdleConnStep                 string                 `json:"idle_conn_step,omitempty"`
-	IDPIdleExpiry                *string                `json:"idp_idle_expiry"`
-	IDPMaxExpiry                 *string                `json:"idp_max_expiry"`
+	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
+	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
 	IgnoreBypassMFA              string                 `json:"ignore_bypass_mfa,omitempty"`
 	InjectAjaxJavascript         string                 `json:"inject_ajax_javascript,omitempty"`
 	InterceptURL                 string                 `json:"intercept_url,omitempty"`
-	IsBrotliEnabled              string                 `json:"is_brotli_enabled,omitempty"`
+	AppAuth                      string                 `json:"app_auth"`
 	KeepaliveConnectionPool      string                 `json:"keepalive_connection_pool,omitempty"`
 	KeepaliveEnable              string                 `json:"keepalive_enable,omitempty"`
 	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
 	LoadBalancingMetric          string                 `json:"load_balancing_metric,omitempty"`
 	LoggingEnabled               string                 `json:"logging_enabled,omitempty"`
 	LoginTimeout                 string                 `json:"login_timeout,omitempty"`
-	LoginURL                     *string                `json:"login_url"`
+	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
 	MDCEnable                    string                 `json:"mdc_enable,omitempty"`
 	MFA                          string                 `json:"mfa,omitempty"`
 	OffloadOnpremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
 	Onramp                       string                 `json:"onramp,omitempty"`
-	PassPhrase                   *string                `json:"pass_phrase"`
+	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
 	PreauthConsent               string                 `json:"preauth_consent,omitempty"`
 	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
-	PrivateKey                   *string                `json:"private_key"`
+	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
 	RemoteSparkAudio             string                 `json:"remote_spark_audio,omitempty"`
 	RemoteSparkDisk              string                 `json:"remote_spark_disk,omitempty"`
 	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
@@ -1853,7 +1843,7 @@ type AdvancedSettings struct {
 	RemoteSparkPrinter           string                 `json:"remote_spark_printer,omitempty"`
 	RemoteSparkRecording         string                 `json:"remote_spark_recording,omitempty"`
 	RequestBodyRewrite           string                 `json:"request_body_rewrite,omitempty"`
-	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
 	SaaSEnabled                  string                 `json:"saas_enabled,omitempty"`
 	SegmentationPolicyEnable     string                 `json:"segmentation_policy_enable,omitempty"`
 	SentryRestoreFormPost        string                 `json:"sentry_restore_form_post,omitempty"`
@@ -1861,7 +1851,7 @@ type AdvancedSettings struct {
 	ServerRequestBurst           string                 `json:"server_request_burst,omitempty"`
 	SessionSticky                string                 `json:"session_sticky,omitempty"`
 	SessionStickyCookieMaxAge    string                 `json:"session_sticky_cookie_maxage,omitempty"`
-	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie"`
+	IgnoreCnameResolution        string                 `json:"ignore_cname_resolution,omitempty"`
 	SingleHostContentRW          string                 `json:"single_host_content_rw,omitempty"`
 	SingleHostCookieDomain       string                 `json:"single_host_cookie_domain,omitempty"`
 	SingleHostEnable             string                 `json:"single_host_enable,omitempty"`
@@ -1870,7 +1860,7 @@ type AdvancedSettings struct {
 	SPDYEnabled                  string                 `json:"spdy_enabled,omitempty"`
 	SSHAuditEnabled              string                 `json:"ssh_audit_enabled,omitempty"`
 	SSO                          string                 `json:"sso,omitempty"`
-	UserName                     *string                `json:"user_name"`
+	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
 	XWappPoolEnabled             string                 `json:"x_wapp_pool_enabled,omitempty"`
 	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
 	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
@@ -1881,58 +1871,58 @@ type AdvancedSettings struct {
 	RefreshStickyCookie          string                 `json:"refresh_sticky_cookie,omitempty"`
 	DynamicIP                    string                 `json:"dynamic_ip,omitempty"`
 	StickyCookies                string                 `json:"sticky_cookies,omitempty"`
-	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
 	RDPInitialProgram            string                 `json:"rdp_initial_program,omitempty"`
-	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
-	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
+	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
+	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {
-	LoginURL                     *string                `json:"login_url,omitempty"`
+	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
 	LogoutURL                    *string                `json:"logout_url,omitempty"`
 	InternalHostname             *string                `json:"internal_hostname,omitempty"`
-	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
-	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
-	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
 	CookieDomain                 *string                `json:"cookie_domain"`
 	RequestParameters            map[string]interface{} `json:"request_parameters"`
-	LoggingEnabled               string                 `json:"logging_enabled,omitempty"`
-	LoginTimeout                 string                 `json:"login_timeout,omitempty"`
-	AppAuth                      string                 `json:"app_auth"`
-	WappAuth                     string                 `json:"wapp_auth,omitempty"`
-	JWTIssuers                   string                 `json:"jwt_issuers,omitempty"`
-	JWTAudience                  string                 `json:"jwt_audience,omitempty"`
-	JWTGracePeriod               string                 `json:"jwt_grace_period,omitempty"`
-	JWTReturnOption              string                 `json:"jwt_return_option,omitempty"`
-	JWTUsername                  string                 `json:"jwt_username,omitempty"`
-	JWTReturnURL                 string                 `json:"jwt_return_url,omitempty"`
-	SSO                          string                 `json:"sso,omitempty"`
-	HTTPOnlyCookie               string                 `json:"http_only_cookie,omitempty"`
-	RequestBodyRewrite           string                 `json:"request_body_rewrite,omitempty"`
 	IDPIdleExpiry                *string                `json:"idp_idle_expiry,omitempty"`
 	IDPMaxExpiry                 *string                `json:"idp_max_expiry,omitempty"`
-	HTTPSSSLV3                   string                 `json:"https_sslv3,omitempty"`
+	AppLocation                  *string                `json:"app_location"`
+	TLSSuiteName                 *string                `json:"tls_suite_name,omitempty"`
+	TLSSuiteType                 *int                   `json:"tlsSuiteType,omitempty"`
+	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id,omitempty"`
+	G2OKey                       *string                `json:"g2o_key,omitempty"`
+	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
+	RDPInitialProgram            *string                `json:"rdp_initial_program,omitempty"`
+	LoginURL                     *string                `json:"login_url,omitempty"`
+	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
+	ExternalCookieDomain         *string                `json:"external_cookie_domain,omitempty"`
+	UserName                     *string                `json:"user_name,omitempty"`
+	HostKey                      *string                `json:"host_key,omitempty"`
+	PrivateKey                   *string                `json:"private_key,omitempty"`
+	PassPhrase                   *string                `json:"pass_phrase,omitempty"`
+	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie,omitempty"`
+	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header,omitempty"`
+	ForceMFA                     string                 `json:"force_mfa,omitempty"`
+	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
 	SPDYEnabled                  string                 `json:"spdy_enabled,omitempty"`
 	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
+	RequestBodyRewrite           string                 `json:"request_body_rewrite,omitempty"`
 	HiddenApp                    string                 `json:"hidden_app,omitempty"`
-	AppLocation                  *string                `json:"app_location"`
-	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
 	AppAuthDomain                string                 `json:"app_auth_domain,omitempty"`
 	LoadBalancingMetric          string                 `json:"load_balancing_metric,omitempty"`
 	HealthCheckType              string                 `json:"health_check_type,omitempty"`
 	HealthCheckHTTPURL           string                 `json:"health_check_http_url,omitempty"`
 	HealthCheckHTTPVersion       string                 `json:"health_check_http_version,omitempty"`
-	HealthCheckHTTPHostHeader    *string                `json:"health_check_http_host_header,omitempty"`
+	HTTPOnlyCookie               string                 `json:"http_only_cookie,omitempty"`
 	ProxyBufferSizeKB            string                 `json:"proxy_buffer_size_kb,omitempty"`
 	SessionSticky                string                 `json:"session_sticky,omitempty"`
 	SessionStickyCookieMaxAge    string                 `json:"session_sticky_cookie_maxage,omitempty"`
-	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie,omitempty"`
-	PassPhrase                   *string                `json:"pass_phrase,omitempty"`
-	PrivateKey                   *string                `json:"private_key,omitempty"`
-	HostKey                      *string                `json:"host_key,omitempty"`
-	UserName                     *string                `json:"user_name,omitempty"`
-	ExternalCookieDomain         *string                `json:"external_cookie_domain,omitempty"`
-	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
+	SSO                          string                 `json:"sso,omitempty"`
+	JWTReturnURL                 string                 `json:"jwt_return_url,omitempty"`
+	JWTUsername                  string                 `json:"jwt_username,omitempty"`
+	JWTReturnOption              string                 `json:"jwt_return_option,omitempty"`
+	JWTGracePeriod               string                 `json:"jwt_grace_period,omitempty"`
+	JWTAudience                  string                 `json:"jwt_audience,omitempty"`
+	JWTIssuers                   string                 `json:"jwt_issuers,omitempty"`
 	ServerCertValidate           string                 `json:"server_cert_validate,omitempty"`
 	IgnoreCnameResolution        string                 `json:"ignore_cname_resolution,omitempty"`
 	SSHAuditEnabled              string                 `json:"ssh_audit_enabled,omitempty"`
@@ -1958,7 +1948,7 @@ type AdvancedSettings_Complete struct {
 	SentryRedirect401            string                 `json:"sentry_redirect_401,omitempty"`
 	ProxyDisableClipboard        string                 `json:"proxy_disable_clipboard,omitempty"`
 	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
-	ForceMFA                     string                 `json:"force_mfa,omitempty"`
+	WappAuth                     string                 `json:"wapp_auth,omitempty"`
 	IgnoreBypassMFA              string                 `json:"ignore_bypass_mfa,omitempty"`
 	StickyAgent                  string                 `json:"sticky_agent,omitempty"`
 	SaaSEnabled                  string                 `json:"saas_enabled,omitempty"`
@@ -1970,7 +1960,7 @@ type AdvancedSettings_Complete struct {
 	CORSMaxAge                   string                 `json:"cors_max_age,omitempty"`
 	KeepaliveEnable              string                 `json:"keepalive_enable,omitempty"`
 	KeepaliveConnectionPool      string                 `json:"keepalive_connection_pool,omitempty"`
-	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
+	HTTPSSSLV3                   string                 `json:"https_sslv3,omitempty"`
 	KeyedKeepaliveEnable         string                 `json:"keyed_keepalive_enable,omitempty"`
 	Keytab                       string                 `json:"keytab,omitempty"`
 	EdgeCookieKey                string                 `json:"edge_cookie_key,omitempty"`
@@ -1981,12 +1971,12 @@ type AdvancedSettings_Complete struct {
 	Onramp                       string                 `json:"onramp,omitempty"`
 	SegmentationPolicyEnable     string                 `json:"segmentation_policy_enable,omitempty"`
 	SentryRestoreFormPost        string                 `json:"sentry_restore_form_post,omitempty"`
-	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
 	FormPostURL                  string                 `json:"form_post_url,omitempty"`
 	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
 	HSTSage                      string                 `json:"hsts_age,omitempty"`
-	RDPInitialProgram            *string                `json:"rdp_initial_program,omitempty"`
-	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
+	AppAuth                      string                 `json:"app_auth"`
+	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
 	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
 	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`
 	RDPTLS1                      string                 `json:"rdp_tls1,omitempty"`
@@ -1999,12 +1989,12 @@ type AdvancedSettings_Complete struct {
 	ClientCertAuth               string                 `json:"client_cert_auth,omitempty"`
 	ClientCertUserParam          string                 `json:"client_cert_user_param,omitempty"`
 	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
-	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`
-	G2OKey                       *string                `json:"g2o_key,omitempty"`
+	LoginTimeout                 string                 `json:"login_timeout,omitempty"`
+	LoggingEnabled               string                 `json:"logging_enabled,omitempty"`
 	DomainExceptionList          string                 `json:"domain_exception_list,omitempty"`
 	DisableUserAgentCheck        string                 `json:"disable_user_agent_check,omitempty"`
 	EdgeTransportManualMode      string                 `json:"edge_transport_manual_mode,omitempty"`
-	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id,omitempty"`
+	IPAccessAllow                string                 `json:"ip_access_allow,omitempty"`
 	EnableClientSideXHRRewrite   string                 `json:"enable_client_side_xhr_rewrite,omitempty"`
 	Acceleration                 string                 `json:"acceleration,omitempty"`
 	OffloadOnPremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
@@ -2027,8 +2017,8 @@ type AdvancedSettings_Complete struct {
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
 	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
 	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
-	TLSSuiteType                 *int                   `json:"tlsSuiteType,omitempty"`
-	TLSSuiteName                 *string                `json:"tls_suite_name,omitempty"`
+	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
+	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
 }
 
 type OIDCSettings struct {
@@ -2052,32 +2042,32 @@ type SAMLConfig struct {
 }
 
 type SPConfig struct {
-	EntityID          string  `json:"entity_id"`
+	DefaultRelayState *string `json:"default_relay_state,omitempty"`
+	EncrAlgo          string  `json:"encr_algo"`
 	ACSURL            string  `json:"acs_url"`
 	SLOURL            string  `json:"slo_url"`
 	ReqBind           string  `json:"req_bind"`
 	Metadata          string  `json:"metadata"`
-	DefaultRelayState *string `json:"default_relay_state,omitempty"`
-	ForceAuth         bool    `json:"force_auth"`
-	ReqVerify         bool    `json:"req_verify"`
-	SignCert          string  `json:"sign_cert"`
-	RespEncr          bool    `json:"resp_encr"`
-	EncrCert          string  `json:"encr_cert"`
-	EncrAlgo          string  `json:"encr_algo"`
-	SLOReqVerify      bool    `json:"slo_req_verify"`
-	DSTURL            string  `json:"dst_url"`
+	EntityID          string  `json:"entity_id"`
 	SLOBind           string  `json:"slo_bind"`
+	SignCert          string  `json:"sign_cert"`
+	DSTURL            string  `json:"dst_url"`
+	EncrCert          string  `json:"encr_cert"`
+	ForceAuth         bool    `json:"force_auth"`
+	SLOReqVerify      bool    `json:"slo_req_verify"`
+	RespEncr          bool    `json:"resp_encr"`
+	ReqVerify         bool    `json:"req_verify"`
 }
 
 type IDPConfig struct {
+	SignCert         *string `json:"sign_cert,omitempty"`
 	EntityID         string  `json:"entity_id"`
 	Metadata         string  `json:"metadata"`
-	SignCert         *string `json:"sign_cert,omitempty"`
 	SignKey          string  `json:"sign_key"`
-	SelfSigned       bool    `json:"self_signed"`
 	SignAlgo         string  `json:"sign_algo"`
 	RespBind         string  `json:"resp_bind"`
 	SLOURL           string  `json:"slo_url"`
+	SelfSigned       bool    `json:"self_signed"`
 	ECPIsEnabled     bool    `json:"ecp_enable"`
 	ECPRespSignature bool    `json:"ecp_resp_signature"`
 }
@@ -2111,8 +2101,8 @@ type WSFEDSPConfig struct {
 	SLOURL    string `json:"slo_url"`
 	DSTURL    string `json:"dst_url"`
 	RespBind  string `json:"resp_bind"`
-	TokenLife int    `json:"token_life"`
 	EncrAlgo  string `json:"encr_algo"`
+	TokenLife int    `json:"token_life"`
 }
 
 type WSFEDIDPConfig struct {
@@ -2146,19 +2136,19 @@ type OIDCConfig struct {
 }
 
 type OIDCClient struct {
-	ClientName            string             `json:"client_name"`
-	ClientID              string             `json:"client_id"`
-	ClientSecret          []OIDCClientSecret `json:"client_secret"`
-	ResponseType          []string           `json:"response_type"`
-	ImplicitGrant         bool               `json:"implicit_grant"`
 	Type                  string             `json:"type"`
+	ClientID              string             `json:"client_id"`
+	Metadata              string             `json:"metadata"`
+	LogoutURL             string             `json:"logout_url"`
+	ClientName            string             `json:"client_name"`
 	RedirectURIs          []string           `json:"redirect_uris"`
 	JavaScriptOrigins     []string           `json:"javascript_origins"`
-	LogoutURL             string             `json:"logout_url"`
-	LogoutSessionRequired bool               `json:"logout_session_required"`
+	ResponseType          []string           `json:"response_type"`
 	PostLogoutRedirectURI []string           `json:"post_logout_redirect_uri"`
-	Metadata              string             `json:"metadata"`
+	ClientSecret          []OIDCClientSecret `json:"client_secret"`
 	Claims                []OIDCClaim        `json:"claims"`
+	ImplicitGrant         bool               `json:"implicit_grant"`
+	LogoutSessionRequired bool               `json:"logout_session_required"`
 }
 
 type OIDCClientSecret struct {
@@ -2200,21 +2190,21 @@ type SPMetadata struct {
 }
 
 type SPProperties struct {
-	EntityID          *string `json:"entity_id,omitempty"`
+	SLOReqVerify      *bool   `json:"slo_req_verify,omitempty"`
 	ACSURL            *string `json:"acs_url,omitempty"`
 	SLOURL            *string `json:"slo_url,omitempty"`
-	ReqBind           string  `json:"req_bind"`
 	Metadata          *string `json:"metadata,omitempty"`
 	DefaultRelayState *string `json:"default_relay_state,omitempty"`
-	ForceAuth         bool    `json:"force_auth"`
-	ReqVerify         bool    `json:"req_verify"`
-	SignCert          *string `json:"sign_cert,omitempty"`
-	RespEncr          bool    `json:"resp_encr"`
-	EncrCert          *string `json:"encr_cert,omitempty"`
-	EncrAlgo          string  `json:"encr_algo"`
-	SLOReqVerify      *bool   `json:"slo_req_verify,omitempty"`
-	DSTURL            *string `json:"dst_url,omitempty"`
+	EntityID          *string `json:"entity_id,omitempty"`
 	SLOBind           *string `json:"slo_bind,omitempty"`
+	SignCert          *string `json:"sign_cert,omitempty"`
+	DSTURL            *string `json:"dst_url,omitempty"`
+	EncrCert          *string `json:"encr_cert,omitempty"`
+	ReqBind           string  `json:"req_bind"`
+	EncrAlgo          string  `json:"encr_algo"`
+	ForceAuth         bool    `json:"force_auth"`
+	RespEncr          bool    `json:"resp_encr"`
+	ReqVerify         bool    `json:"req_verify"`
 }
 
 type IDPMetadata struct {
@@ -2227,10 +2217,10 @@ type IDPProperties struct {
 	Metadata         string `json:"metadata,omitempty"`
 	SignCert         string `json:"sign_cert,omitempty"`
 	SignKey          string `json:"sign_key,omitempty"`
-	SelfSigned       bool   `json:"self_signed"`
 	SignAlgo         string `json:"sign_algo"`
 	RespBind         string `json:"resp_bind"`
 	SLOURL           string `json:"slo_url,omitempty"`
+	SelfSigned       bool   `json:"self_signed"`
 	ECPIsEnabled     bool   `json:"ecp_enable"`
 	ECPRespSignature bool   `json:"ecp_resp_signature"`
 }
@@ -2249,10 +2239,10 @@ type SubjectProperties struct {
 }
 
 type AttrMapSchema struct {
-	Type         string            `json:"type"`
-	UniqueItems  bool              `json:"uniqueItems"`
-	Items        AttrMapItem       `json:"items"`
 	AttributeMap map[string]string `json:"attribute_map"`
+	Type         string            `json:"type"`
+	Items        AttrMapItem       `json:"items"`
+	UniqueItems  bool              `json:"uniqueItems"`
 }
 
 type AttrMapItem struct {
@@ -2275,10 +2265,10 @@ type AttrMapField struct {
 }
 
 type TLSCipherSuite struct {
-	Default      bool   `json:"default"`
-	Selected     bool   `json:"selected"`
 	SSLCipher    string `json:"ssl_cipher"`
 	SSLProtocols string `json:"ssl_protocols"`
+	Default      bool   `json:"default"`
+	Selected     bool   `json:"selected"`
 	WeakCipher   bool   `json:"weak_cipher"`
 }
 
@@ -2292,9 +2282,9 @@ type ResourceURI struct {
 }
 
 type Service struct {
-	DPAcl   bool   `json:"dp_acl"`
 	Name    string `json:"name"`
 	UUIDURL string `json:"uuid_url"`
+	DPAcl   bool   `json:"dp_acl"`
 }
 
 type AppDetail struct {
@@ -2303,10 +2293,10 @@ type AppDetail struct {
 }
 
 type Directory struct {
-	UserCount int    `json:"user_count"`
-	Type      int    `json:"type"`
 	Name      string `json:"name"`
 	UUIDURL   string `json:"uuid_url"`
+	UserCount int    `json:"user_count"`
+	Type      int    `json:"type"`
 }
 
 type IDP struct {
@@ -2499,10 +2489,10 @@ func convertNestedBlocksToOIDCConfig(nestedData map[string]interface{}) (*OIDCCo
 }
 
 type AppsResponse struct {
-	Meta struct {
+	Applications []ApplicationDataModel `json:"objects"`
+	Meta         struct {
 		TotalCount int `json:"total_count"`
 	} `json:"meta"`
-	Applications []ApplicationDataModel `json:"objects"`
 }
 
 // ParseAdvancedSettingsWithDefaults parses JSON advanced settings and applies sensible defaults

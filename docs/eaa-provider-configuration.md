@@ -19,7 +19,7 @@ terraform {
     }
   }
 }
-```  
+```
 The eaa terraform plugin is not released to the hashicorp provider repository yet. Hence, the "source" argument points to the location where the plugin binary is located locally.
 If source is configured as "terraform.eaaprovider.dev/eaaprovider/eaa", version is configured as "1.0.0" and if the architecture is darwin_amd64, the eaa terraform binary will be located at ~/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/1.0.0/${PLUGIN_ARCH}
 
@@ -36,7 +36,7 @@ provider "eaa" {
   accountswitchkey = "account-switch-key"
   edgerc           = ".edgerc"
 }
-``` 
+```
 
 #### Provider settings
 * ```contractid``` - (Required) The Akamai contract identifier for your Enterprise Application Access product.

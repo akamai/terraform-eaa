@@ -1,0 +1,99 @@
+repos:
+  # Go formatting
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        name: Go Format
+        description: Run gofmt to format Go code
+      - id: go-imports
+        name: Go Imports
+        description: Run goimports to organize imports
+      - id: go-mod-tidy
+        name: Go Mod Tidy
+        description: Run go mod tidy to clean up dependencies
+      - id: go-vet
+        name: Go Vet
+        description: Run go vet to examine Go source code
+      - id: go-build
+        name: Go Build
+        description: Build the Go project to ensure it compiles
+
+  # Go linting
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.7.2
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        description: Fast linters runner for Go
+        entry: golangci-lint run --fix
+        types: [go]
+        language: system
+        pass_filenames: false
+
+  # Go security
+  - repo: local
+    hooks:
+      - id: gosec
+        name: Gosec Security Scanner
+        entry: gosec
+        args: [-quiet, ./...]
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: govulncheck
+        name: Go Vulnerability Check
+        entry: govulncheck
+        args: [./...]
+        language: system
+        types: [go]
+        pass_filenames: false
+
+  # Go tests
+  - repo: local
+    hooks:
+      - id: go-test
+        name: Go Tests
+        entry: go test
+        args: [-race, -timeout, 10m, ./...]
+        language: system
+        types: [go]
+        pass_filenames: false
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+      - id: end-of-file-fixer
+        name: Fix End of Files
+      - id: check-yaml
+        name: Check YAML
+        args: [--unsafe]
+      - id: check-added-large-files
+        name: Check for Large Files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+        name: Check for Merge Conflicts
+      - id: detect-private-key
+        name: Detect Private Keys
+      - id: mixed-line-ending
+        name: Mixed Line Ending
+        args: [--fix=lf]
+
+  # Terraform validation
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.104.0
+    hooks:
+      - id: terraform_fmt
+        name: Terraform Format
+        files: \.tf$
+      - id: terraform_validate
+        name: Terraform Validate
+        files: \.tf$
+
+# Configuration
+fail_fast: false
+default_install_hook_types: [pre-commit]

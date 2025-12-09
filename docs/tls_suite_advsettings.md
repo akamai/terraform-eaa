@@ -12,4 +12,3 @@ Configure TLS/SSL cipher suites and protocols.
   "tls_cipher_suite": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
 }
 ```
-

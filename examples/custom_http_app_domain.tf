@@ -1,5 +1,5 @@
 terraform {
-    required_providers {
+  required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
       version = "1.0.0"
@@ -10,8 +10,8 @@ terraform {
 
 
 provider "eaa" {
-  contractid       = "XXXXXXX"
-  edgerc           = ".edgerc"
+  contractid = "XXXXXXX"
+  edgerc     = ".edgerc"
 }
 
 resource "eaa_application" "tfapp5" {
@@ -26,8 +26,8 @@ resource "eaa_application" "tfapp5" {
 
   client_app_mode = "tcp"
 
-  domain = "custom"
-  cert_type = "self_signed"
+  domain                    = "custom"
+  cert_type                 = "self_signed"
   generate_self_signed_cert = true
 
   auth_enabled = "true"
@@ -42,17 +42,17 @@ resource "eaa_application" "tfapp5" {
   }
 
   advanced_settings = jsonencode({
-      is_ssl_verification_enabled = "false"
-      ignore_cname_resolution = "true"
-      g2o_enabled = "true"
-      edge_authentication_enabled = "true"
+    is_ssl_verification_enabled = "false"
+    ignore_cname_resolution     = "true"
+    g2o_enabled                 = "true"
+    edge_authentication_enabled = "true"
   })
 
   popregion = "us-east-1"
 
   app_authentication {
     app_idp = "idp_to_assign"
-    
+
     app_directories {
       name = "dir_to_assign"
       app_groups {
@@ -80,7 +80,7 @@ resource "eaa_application" "tfapp7" {
 
   client_app_mode = "tcp"
 
-  domain = "custom"
+  domain    = "custom"
   cert_type = "uploaded"
   cert_name = "uploaded_cert_name"
 
@@ -96,10 +96,10 @@ resource "eaa_application" "tfapp7" {
   }
 
   advanced_settings = jsonencode({
-      is_ssl_verification_enabled = "false"
-      ignore_cname_resolution = "true"
-      g2o_enabled = "true"
-      edge_authentication_enabled = "true"
+    is_ssl_verification_enabled = "false"
+    ignore_cname_resolution     = "true"
+    g2o_enabled                 = "true"
+    edge_authentication_enabled = "true"
   })
 
   popregion = "us-east-1"
@@ -119,5 +119,3 @@ resource "eaa_application" "tfapp7" {
 
   }
 }
-
-
