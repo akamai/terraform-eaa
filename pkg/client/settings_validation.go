@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -11,17 +12,15 @@ import (
 
 // SettingRule defines validation rules for a specific advanced setting
 type SettingRule struct {
-	Type        string   // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
-	ValidValues []string // Allowed values (for enum fields)
-	AppTypes    []string // Allowed app types
-	Profiles    []string // Allowed app profiles
-	MinValue    int      // Minimum value for numeric fields
-	MaxValue    int      // Maximum value for numeric fields
-	Required    bool     // Whether field is required (nullable fields should be false)
-
-	// Dependency rules
 	DependsOn   map[string]string      // Field dependencies: {"field_name": "required_value"}
 	Conditional map[string]interface{} // Conditional validation rules
+	Type        string                 // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
+	ValidValues []string               // Allowed values (for enum fields)
+	AppTypes    []string               // Allowed app types
+	Profiles    []string               // Allowed app profiles
+	MinValue    int                    // Minimum value for numeric fields
+	MaxValue    int                    // Maximum value for numeric fields
+	Required    bool                   // Whether field is required (nullable fields should be false)
 }
 
 // SETTINGS_RULES defines validation rules for all advanced settings
@@ -1870,14 +1869,14 @@ func validateHealthCheckRequiredDependencies(settings map[string]interface{}, lo
 			fieldValue, exists := settings[fieldName]
 			if !exists {
 				logger.Error("Missing required field: %s", fieldName)
-				return fmt.Errorf(errorMessage)
+				return errors.New(errorMessage)
 			}
 
 			// For health_check_http_url and health_check_http_version, empty strings are not allowed
 			if fieldName == "health_check_http_url" || fieldName == "health_check_http_version" {
 				if fieldValueStr, ok := fieldValue.(string); ok && fieldValueStr == "" {
 					logger.Error("Required field %s is empty", fieldName)
-					return fmt.Errorf(errorMessage)
+					return errors.New(errorMessage)
 				}
 			}
 			// For health_check_http_host_header, empty strings are allowed but field must be present
@@ -1896,7 +1895,7 @@ func validateFieldConflicts(settings map[string]interface{}, logger hclog.Logger
 	logger.Debug("Validating field conflicts using SETTINGS_RULES")
 
 	// Check each field for conflict rules
-	for fieldName, _ := range settings {
+	for fieldName := range settings {
 		rule, exists := SETTINGS_RULES[fieldName]
 		if !exists {
 			continue // Skip unknown fields

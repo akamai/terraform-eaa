@@ -15,9 +15,9 @@ const (
 
 // AuthProtocolConfig holds the protocol and appAuth values for a specific authentication type
 type AuthProtocolConfig struct {
+	SettingsKey    string   // Schema key for settings (e.g., "saml_settings")
 	ProtocolValues []string // Protocol values to check (e.g., ["SAML", "SAML2.0"])
 	AppAuthValues  []string // AppAuth values to check (e.g., ["saml", "SAML2.0"])
-	SettingsKey    string   // Schema key for settings (e.g., "saml_settings")
 }
 
 // authProtocolConfigs is a map-based registry of authentication protocol configurations
@@ -113,10 +113,10 @@ func getAppAuthFromAdvancedSettings(d *schema.ResourceData) string {
 
 // AuthTransformationResult holds the result of authentication transformation
 type AuthTransformationResult struct {
+	AppAuth     string // Normalized app_auth value
 	EnableSAML  bool
 	EnableOIDC  bool
 	EnableWSFED bool
-	AppAuth     string // Normalized app_auth value
 }
 
 // applyAuthTransformation applies authentication transformation logic

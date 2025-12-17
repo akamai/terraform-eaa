@@ -27,4 +27,3 @@ Configure Remote Desktop Protocol settings for RDP applications.
   "rdp_remote_apps": ["notepad", "calc"]
 }
 ```
-

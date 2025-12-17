@@ -13,7 +13,7 @@ The main purpose of the Terraform language is declaring resources, which represe
 
 ### Resource: eaa_application
 
-Manages the lifecycle of the EAA application.  
+Manages the lifecycle of the EAA application.
 
 #### Argument Reference
 
@@ -22,7 +22,7 @@ This resource supports the following arguments:
 * ```name``` - (Required) Name of the application
 * ```description``` - (Optional) Description of the application
 * ```app_profile``` - (Required) The access application profile. "http", "tcp". Default "http"
-* ```app_type``` - (Required) The type of application configuration. "enterprise", "tunnel". Default "enterprise"	
+* ```app_type``` - (Required) The type of application configuration. "enterprise", "tunnel". Default "enterprise"
 * ```client_app_mode``` - (Required) The mode of client app. "tcp", "tunnel". Default "tcp"
 * ```app_category``` - (Optional) Name of the application category
 * ```domain``` - (Required) The type of access domain. "custom", "wapp". Default "custom"
@@ -36,7 +36,7 @@ This resource supports the following arguments:
   * host       - The IP address or FQDN of the hsot
   * port_range - the port range of the host
   * proto_type - The protocol of the host. Either "tcp" or "udp"
-* ```agents``` - (Optional) EAA application connector details. list of agent names	
+* ```agents``` - (Optional) EAA application connector details. list of agent names
 * ```popregion``` - (Optional) The target region to deploy the application
 * ```auth_enabled``` - (Required) - Is the application authentication enabled
 * ```app_authentication``` - (Optional) dictionary with the application authentication data

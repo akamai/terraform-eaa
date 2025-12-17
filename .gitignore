@@ -22,3 +22,30 @@ terraform-provider-eaa
 */.terraform/
 */.tfstate
 **/.tfstate.
+
+# Test and coverage artifacts
+coverage.out
+coverage.html
+*.test
+*.prof
+
+# Build artifacts
+bin/
+dist/
+
+# Security scan results
+gosec-results.sarif
+gosec-results.json
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Vendor directory (optional)
+vendor/
+
+# OS specific
+.DS_Store
+Thumbs.db

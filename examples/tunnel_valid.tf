@@ -8,19 +8,19 @@ terraform {
 }
 
 provider "eaa" {
-  contractid       = "XXXXXXX"
-  edgerc           = ".edgerc"
+  contractid = "XXXXXXX"
+  edgerc     = ".edgerc"
 }
 
 resource "eaa_application" "tunnel_valid" {
-  provider    = eaa
+  provider = eaa
 
   app_profile     = "tcp"
   app_type        = "tunnel"
   client_app_mode = "tunnel"
 
-  domain          = "wapp"
-  popregion       = "us-west-1"
+  domain    = "wapp"
+  popregion = "us-west-1"
 
   name        = "tunnel-valid-app"
   description = "Tunnel app created using terraform"
@@ -36,10 +36,10 @@ resource "eaa_application" "tunnel_valid" {
 
   advanced_settings = jsonencode({
     is_ssl_verification_enabled = "false"
-    ip_access_allow = "false"
-    x_wapp_read_timeout = "300"
-    health_check_type = "TCP"
-    websocket_enabled = "true"
+    ip_access_allow             = "false"
+    x_wapp_read_timeout         = "300"
+    health_check_type           = "TCP"
+    websocket_enabled           = "true"
   })
 
   auth_enabled = "true"

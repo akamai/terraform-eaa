@@ -16,8 +16,8 @@ type SchemaGetter interface {
 
 // AuthEnableConfig holds configuration for determining if an auth type should be enabled
 type AuthEnableConfig struct {
-	AppAuthValues []string // AppAuth values to check (e.g., ["saml", "SAML2.0"])
 	SettingsKey   string   // Schema key for settings (e.g., "saml_settings")
+	AppAuthValues []string // AppAuth values to check (e.g., ["saml", "SAML2.0"])
 	CheckContent  bool     // Whether to check for actual content in settings (OIDC-specific)
 }
 
@@ -252,11 +252,32 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeTunnel) {
 		switch {
-		case func() bool { saml, ok := d.GetOk("saml"); if !ok { return false }; samlBool, ok := saml.(bool); return ok && samlBool }():
+		case func() bool {
+			saml, ok := d.GetOk("saml")
+			if !ok {
+				return false
+			}
+			samlBool, ok := saml.(bool)
+			return ok && samlBool
+		}():
 			return client.ErrTunnelAppSAMLNotAllowed
-		case func() bool { oidc, ok := d.GetOk("oidc"); if !ok { return false }; oidcBool, ok := oidc.(bool); return ok && oidcBool }():
+		case func() bool {
+			oidc, ok := d.GetOk("oidc")
+			if !ok {
+				return false
+			}
+			oidcBool, ok := oidc.(bool)
+			return ok && oidcBool
+		}():
 			return client.ErrTunnelAppOIDCNotAllowed
-		case func() bool { wsfed, ok := d.GetOk("wsfed"); if !ok { return false }; wsfedBool, ok := wsfed.(bool); return ok && wsfedBool }():
+		case func() bool {
+			wsfed, ok := d.GetOk("wsfed")
+			if !ok {
+				return false
+			}
+			wsfedBool, ok := wsfed.(bool)
+			return ok && wsfedBool
+		}():
 			return client.ErrTunnelAppWSFEDNotAllowed
 		}
 	}
@@ -265,11 +286,32 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeBookmark) {
 		switch {
-		case func() bool { saml, ok := d.GetOk("saml"); if !ok { return false }; samlBool, ok := saml.(bool); return ok && samlBool }():
+		case func() bool {
+			saml, ok := d.GetOk("saml")
+			if !ok {
+				return false
+			}
+			samlBool, ok := saml.(bool)
+			return ok && samlBool
+		}():
 			return client.ErrBookmarkAppSAMLNotAllowed
-		case func() bool { oidc, ok := d.GetOk("oidc"); if !ok { return false }; oidcBool, ok := oidc.(bool); return ok && oidcBool }():
+		case func() bool {
+			oidc, ok := d.GetOk("oidc")
+			if !ok {
+				return false
+			}
+			oidcBool, ok := oidc.(bool)
+			return ok && oidcBool
+		}():
 			return client.ErrBookmarkAppOIDCNotAllowed
-		case func() bool { wsfed, ok := d.GetOk("wsfed"); if !ok { return false }; wsfedBool, ok := wsfed.(bool); return ok && wsfedBool }():
+		case func() bool {
+			wsfed, ok := d.GetOk("wsfed")
+			if !ok {
+				return false
+			}
+			wsfedBool, ok := wsfed.(bool)
+			return ok && wsfedBool
+		}():
 			return client.ErrBookmarkAppWSFEDNotAllowed
 		}
 	}

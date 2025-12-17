@@ -4,17 +4,17 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	//"github.com/stretchr/testify/mock"
-	//client "git.source.akamai.com/terraform-provider-eaa/pkg/client" // Adjust this import
+	// "github.com/stretchr/testify/mock"
+	// client "git.source.akamai.com/terraform-provider-eaa/pkg/client" // Adjust this import
 )
 
 func TestDataAppCategory(t *testing.T) {
 	t.Run("DataAppCategory", func(t *testing.T) {
-		//mockedeaaproviderClient := &client.Mock{}
+		// mockedeaaproviderClient := &client.Mock{}
 
-		//response := []client.AppCate{}
+		// response := []client.AppCate{}
 
-		//mockedeaaproviderClient.On("GetAppCategories", mock.Anything, client.EaaClient{}).Return(&response, nil)
+		// mockedeaaproviderClient.On("GetAppCategories", mock.Anything, client.EaaClient{}).Return(&response, nil)
 
 		resource.Test(t, resource.TestCase{
 			IsUnitTest:        false,
@@ -29,7 +29,7 @@ func TestDataAppCategory(t *testing.T) {
 				},
 			},
 		})
-		//mockedeaaproviderClient.AssertExpectations(t)
+		// mockedeaaproviderClient.AssertExpectations(t)
 	})
 }
 

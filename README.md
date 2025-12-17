@@ -16,7 +16,7 @@
 
 ## Introduction
 
-[Enterprise Application Access (EAA)](https://www.akamai.com/us/en/products/security/enterprise-application-access.jsp) comes with a full suite of APIs. 
+[Enterprise Application Access (EAA)](https://www.akamai.com/us/en/products/security/enterprise-application-access.jsp) comes with a full suite of APIs.
 Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.
 
 With EAA Terraform provider, you can run some common operations directly from the command line, no coding required.
@@ -83,16 +83,16 @@ terraform apply
 
 ### The EAA Terraform provider currently supports:
 
-- Create and deploy an application 
+- Create and deploy an application
 - Update the application
-- Apps with Akamai domain and custom domain 
+- Apps with Akamai domain and custom domain
 - Self signed certificate for custom domain
 - Uploaded certicate for custom domain
 - Assigning pops to the application
 - Assigning App categories to the application
 - Assigning connectors to the application
 - Assigning IDP to the application
-- Assigning directories to the application 
+- Assigning directories to the application
 - Assigning groups to the application
 - Enabling Access service
 - Creating access control rule(s) to block or deny access to an application, based on User/Group criteria

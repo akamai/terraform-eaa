@@ -36,27 +36,27 @@ type ACLService struct {
 }
 
 type AccessRuleRequest struct {
-	Action         int          `json:"action"`
-	AuthzRule      *string      `json:"authz_rule"`
 	CreatedAt      time.Time    `json:"created_at"`
-	Description    *string      `json:"description"`
-	GlobalRule     bool         `json:"global_rule"`
-	MergeGlobal    bool         `json:"merge_global"`
 	ModifiedAt     time.Time    `json:"modified_at"`
+	Description    *string      `json:"description"`
+	AuthzRule      *string      `json:"authz_rule"`
 	Name           string       `json:"name"`
 	PartnerUUID    string       `json:"partner_uuid"`
 	PartnerUUIDURL string       `json:"partner_uuid_url"`
-	RuleType       int          `json:"rule_type"`
 	Service        string       `json:"service"`
-	Settings       []ACLSetting `json:"settings"`
-	Status         int          `json:"status"`
 	TenantUUID     string       `json:"tenant_uuid"`
+	Settings       []ACLSetting `json:"settings"`
+	Action         int          `json:"action"`
+	RuleType       int          `json:"rule_type"`
+	Status         int          `json:"status"`
+	GlobalRule     bool         `json:"global_rule"`
+	MergeGlobal    bool         `json:"merge_global"`
 }
 
 type AppServiceData struct {
+	UUIDURL string     `json:"uuid_url,omitempty"`
 	Service AppService `json:"service,omitempty"`
 	Status  int        `json:"status,omitempty"`
-	UUIDURL string     `json:"uuid_url,omitempty"`
 }
 
 type AppServicesResponse struct {
@@ -87,9 +87,9 @@ func (r ACLSetting) Validate() error {
 
 type AccessRule struct {
 	Name     string       `json:"name,omitempty"`
-	Status   int          `json:"status,omitempty"`
-	Settings []ACLSetting `json:"settings,omitempty"`
 	UUID_URL string       `json:"uuid_url,omitempty"`
+	Settings []ACLSetting `json:"settings,omitempty"`
+	Status   int          `json:"status,omitempty"`
 }
 
 func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, service_uuid_url string) error {
@@ -207,9 +207,9 @@ func (rule AccessRule) IsEqual(otherRule AccessRule) bool {
 
 type AppService struct {
 	Name        string `json:"name,omitempty"`
-	ServiceType int    `json:"service_type,omitempty"`
 	Status      string `json:"status,omitempty"`
 	UUIDURL     string `json:"uuid_url,omitempty"`
+	ServiceType int    `json:"service_type,omitempty"`
 }
 
 func (appService AppService) EnableService(ec *EaaClient) error {

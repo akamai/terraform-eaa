@@ -44,34 +44,34 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 }
 
 type CertificateResponse struct {
-	AppCount    int     `json:"app_count,omitempty"`
-	Cert        string  `json:"cert,omitempty"`
-	CertType    int     `json:"cert_type,omitempty"`
-	CertFile    *string `json:"cert_file_name,omitempty"` // Assuming it could be null
-	CN          string  `json:"cn,omitempty"`
-	CreatedAt   string  `json:"created_at,omitempty"`
-	DaysLeft    int     `json:"days_left,omitempty"`
-	Description *string `json:"description,omitempty"` // Assuming it could be null
-	DirCount    int     `json:"dir_count,omitempty"`
-	ExpiredAt   string  `json:"expired_at,omitempty"`
+	CertFile    *string `json:"cert_file_name,omitempty"`
+	Uploaded    *string `json:"uploaded,omitempty"`
+	Description *string `json:"description,omitempty"`
 	HostName    string  `json:"host_name,omitempty"`
+	Resource    string  `json:"resource,omitempty"`
+	CreatedAt   string  `json:"created_at,omitempty"`
+	UUIDURL     string  `json:"uuid_url,omitempty"`
+	Cert        string  `json:"cert,omitempty"`
+	CN          string  `json:"cn,omitempty"`
+	ExpiredAt   string  `json:"expired_at,omitempty"`
+	Subject     string  `json:"subject,omitempty"`
 	IssuedAt    string  `json:"issued_at,omitempty"`
 	Issuer      string  `json:"issuer,omitempty"`
 	ModifiedAt  string  `json:"modified_at,omitempty"`
 	Name        string  `json:"name,omitempty"`
-	Resource    string  `json:"resource,omitempty"`
+	DirCount    int     `json:"dir_count,omitempty"`
 	Status      int     `json:"status,omitempty"`
-	Subject     string  `json:"subject,omitempty"`
-	Uploaded    *string `json:"uploaded,omitempty"`
-	UUIDURL     string  `json:"uuid_url,omitempty"`
+	AppCount    int     `json:"app_count,omitempty"`
+	CertType    int     `json:"cert_type,omitempty"`
+	DaysLeft    int     `json:"days_left,omitempty"`
 }
 
 type CertObject struct {
 	Name      string `json:"name"`
 	UUIDURL   string `json:"uuid_url"`
-	CertType  int    `json:"cert_type"`
 	ExpiredAt string `json:"expired_at"`
 	CreatedAt string `json:"created_at"`
+	CertType  int    `json:"cert_type"`
 }
 
 type CertsResponse struct {

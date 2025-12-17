@@ -95,4 +95,3 @@ Refer to repository examples for working configurations:
 ### Data Source
 
 See [examples/connector_pool.tf](../examples/connector_pool.tf) for data source usage patterns.
-

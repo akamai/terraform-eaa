@@ -23,12 +23,12 @@ Configure application-level authentication mechanisms.
 * `app_auth` - (Optional) Defines how the application authenticates to the origin; select one of the methods below.
 
 * `none` - (Optional) No application-level authentication performed to the origin
-* `kerberos` - (Optional) Authenticates to the origin using Kerberos 
+* `kerberos` - (Optional) Authenticates to the origin using Kerberos
 * `basic` - (Optional) Uses HTTP Basic authentication to the origin
-* `NTLMv1` - (Optional) Authenticates to the origin using NTLMv1 
+* `NTLMv1` - (Optional) Authenticates to the origin using NTLMv1
 * `NTLMv2` - (Optional) Authenticates to the origin using NTLMv2
 * `SAML2.0` - (Optional) Federated SSO using SAML 2.0
-* `WS-Federation` - (Optional)  using the WS-Federation 
+* `WS-Federation` - (Optional)  using the WS-Federation
 * `OpenID Connect 1.0` - (Optional)  using OpenID Connect 1.0
 
 ### Optional Fields (Kerberos)

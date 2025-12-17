@@ -14,39 +14,39 @@ import (
 type RegistrationToken struct {
 	UUIDURL             string   `json:"uuid_url,omitempty"`
 	Name                string   `json:"name"`
-	MaxUse              int      `json:"max_use"`
 	ConnectorPool       string   `json:"connector_pool"`
-	Agents              []string `json:"agents,omitempty"`
 	ExpiresAt           string   `json:"expires_at"`
 	ImageURL            string   `json:"image_url,omitempty"`
 	Token               string   `json:"token,omitempty"`
-	UsedCount           int      `json:"used_count,omitempty"`
 	TokenSuffix         string   `json:"token_suffix,omitempty"`
 	ModifiedAt          string   `json:"modified_at,omitempty"`
+	Agents              []string `json:"agents,omitempty"`
+	MaxUse              int      `json:"max_use"`
+	UsedCount           int      `json:"used_count,omitempty"`
 	GenerateEmbeddedImg bool     `json:"generate_embedded_img,omitempty"`
 }
 
 // MetaResponse represents the meta information in API responses
 type MetaResponse struct {
+	Next       *string `json:"next"`
+	Previous   *string `json:"previous"`
 	TotalCount int     `json:"total_count"`
 	Offset     int     `json:"offset"`
 	Limit      int     `json:"limit"`
-	Next       *string `json:"next"`
-	Previous   *string `json:"previous"`
 }
 
 // RegistrationTokenResponse represents the API response for registration tokens
 type RegistrationTokenResponse struct {
-	Meta    MetaResponse        `json:"meta"`
 	Objects []RegistrationToken `json:"objects"`
+	Meta    MetaResponse        `json:"meta"`
 }
 
 // CreateRegistrationTokenRequest represents the request to create a registration token
 type CreateRegistrationTokenRequest struct {
 	Name                string `json:"name"`
-	MaxUse              int    `json:"max_use"`
 	ExpiresAt           string `json:"expires_at"`
 	ConnectorPool       string `json:"connector_pool"`
+	MaxUse              int    `json:"max_use"`
 	GenerateEmbeddedImg bool   `json:"generate_embedded_img"`
 }
 

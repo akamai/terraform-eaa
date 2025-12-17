@@ -203,9 +203,9 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 // AuthValidationConfig holds configuration for checking if an auth protocol is enabled
 type AuthValidationConfig struct {
 	FlagKey       string   // Schema key for the direct flag (e.g., "saml", "oidc", "wsfed")
-	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
 	SettingsKey   string   // Schema key for settings (e.g., "saml_settings")
 	ProtocolName  string   // Name for logging (e.g., "SAML", "OIDC", "WSFED")
+	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
 }
 
 // isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both

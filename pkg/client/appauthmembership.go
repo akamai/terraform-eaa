@@ -31,8 +31,8 @@ type AppIdpMembership struct {
 }
 
 type AppIdpMembershipResponse struct {
-	Meta              Meta               `json:"meta"`
 	AppIdpMemberships []AppIdpMembership `json:"objects"`
+	Meta              Meta               `json:"meta"`
 }
 
 func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, error) {
@@ -72,8 +72,8 @@ type AppDirectoryMembership struct {
 }
 
 type AppDirectoryMembershipResponse struct {
-	Meta                    Meta                     `json:"meta"`
 	AppDirectoryMemberships []AppDirectoryMembership `json:"objects"`
+	Meta                    Meta                     `json:"meta"`
 }
 
 func (app *Application) GetAppDirectoryMembership(ec *EaaClient) ([]AppDirectoryMembership, error) {
@@ -111,8 +111,8 @@ type AppGroupMembership struct {
 }
 
 type AppGroupMembershipResponse struct {
-	Meta                Meta                 `json:"meta"`
 	AppGroupMemberships []AppGroupMembership `json:"objects"`
+	Meta                Meta                 `json:"meta"`
 }
 
 func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembership, error) {

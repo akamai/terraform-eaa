@@ -1,15 +1,15 @@
 terraform {
   required_providers {
     eaa = {
-      source = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
       version = "1.0.0"
     }
   }
 }
 
 provider "eaa" {
-  contractid       = "XXXXXXX"
-  edgerc           = ".edgerc"
+  contractid = "XXXXXXX"
+  edgerc     = ".edgerc"
 }
 
 # WS-Federation Authentication Application Example
@@ -18,14 +18,14 @@ provider "eaa" {
 
 # Basic WS-Federation Application with Default Settings
 resource "eaa_application" "wsfed_basic" {
-  name        = "wsfed-basic-app"
-  description = "WS-Federation application with default settings"
-  host        = "wsfed-basic.example.com"
-  app_profile = "http"
-  app_type    = "enterprise"
-  domain      = "wapp"
+  name            = "wsfed-basic-app"
+  description     = "WS-Federation application with default settings"
+  host            = "wsfed-basic.example.com"
+  app_profile     = "http"
+  app_type        = "enterprise"
+  domain          = "wapp"
   client_app_mode = "tcp"
-  
+
   advanced_settings = jsonencode({
     app_auth = "WS-Federation"
   })
@@ -35,29 +35,29 @@ resource "eaa_application" "wsfed_basic" {
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
-  
-  popregion = "us-east-1"
-  agents = ["EAA_DC1_US1_Access_01"]
+
+  popregion    = "us-east-1"
+  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "employees-idp"
+    app_idp = "employees-idp"
 
-       app_directories {
-            name = "Cloud Directory"
-            app_groups {
-                name = "Engineering"
-            }
-            app_groups {
-                name = "SQA"
-            }
-        }
+    app_directories {
+      name = "Cloud Directory"
+      app_groups {
+        name = "Engineering"
+      }
+      app_groups {
+        name = "SQA"
+      }
     }
+  }
   wsfed_settings {
     idp {
       self_signed = true
     }
-    
-   
+
+
   }
 
 
@@ -67,12 +67,12 @@ resource "eaa_application" "wsfed_basic" {
 
 # WS-Federation Application with Custom Settings
 resource "eaa_application" "wsfed_custom" {
-  name        = "wsfed-custom-apps"
-  description = "WS-Federation application with custom settings"
-  host        = "wsfed-custom.example.com"
-  app_profile = "http"
-  app_type    = "enterprise"
-  domain      = "wapp"
+  name            = "wsfed-custom-apps"
+  description     = "WS-Federation application with custom settings"
+  host            = "wsfed-custom.example.com"
+  app_profile     = "http"
+  app_type        = "enterprise"
+  domain          = "wapp"
   client_app_mode = "tcp"
   advanced_settings = jsonencode({
     app_auth = "WS-Federation"
@@ -84,76 +84,76 @@ resource "eaa_application" "wsfed_custom" {
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
-  
-  popregion = "us-east-1"
-  agents = ["EAA_DC1_US1_Access_01"]
+
+  popregion    = "us-east-1"
+  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
   app_authentication {
-       app_idp = "employees-idp"
+    app_idp = "employees-idp"
 
-       app_directories {
-            name = "Cloud Directory"
-            app_groups {
-                name = "Engineering"
-            }
-            app_groups {
-                name = "SQA"
-            }
-        }
+    app_directories {
+      name = "Cloud Directory"
+      app_groups {
+        name = "Engineering"
+      }
+      app_groups {
+        name = "SQA"
+      }
     }
+  }
 
 
   # WS-Federation settings using Terraform resource schema
   wsfed_settings {
     sp {
-      entity_id = "https://wsfed-custom.example.com"
-      slo_url   = "https://wsfed-custom.example.com/wsfed/slo"
-      dst_url   = "https://wsfed-custom.example.com/wsfed/dst"
-      resp_bind = "post"
+      entity_id  = "https://wsfed-custom.example.com"
+      slo_url    = "https://wsfed-custom.example.com/wsfed/slo"
+      dst_url    = "https://wsfed-custom.example.com/wsfed/dst"
+      resp_bind  = "post"
       token_life = 7200
       encr_algo  = "aes128-cbc"
     }
-    
+
     idp {
-      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
-      sign_algo = "SHA1"
-      sign_key  = ""
+      entity_id   = "https://test-idp.example.com/wsfed/idp/sso"
+      sign_algo   = "SHA1"
+      sign_key    = ""
       self_signed = true
     }
-    
+
     subject {
-      fmt = "persistent"
+      fmt        = "persistent"
       custom_fmt = ""
-      src = "user.persistentId"
-      val = ""
-      rule = ""
+      src        = "user.persistentId"
+      val        = ""
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "email"
-      fmt  = "email"
+      name       = "email"
+      fmt        = "email"
       custom_fmt = ""
-      val  = ""
-      src  = "user.email"
-      rule = ""
+      val        = ""
+      src        = "user.email"
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "firstName"
-      fmt  = "firstName"
+      name       = "firstName"
+      fmt        = "firstName"
       custom_fmt = ""
-      val  = ""
-      src  = "user.firstName"
-      rule = ""
+      val        = ""
+      src        = "user.firstName"
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "lastName"
-      fmt  = "lastName"
+      name       = "lastName"
+      fmt        = "lastName"
       custom_fmt = ""
-      val  = ""
-      src  = "user.lastName"
-      rule = ""
+      val        = ""
+      src        = "user.lastName"
+      rule       = ""
     }
   }
 }
@@ -172,54 +172,54 @@ resource "eaa_application" "saas_wsfed" {
   # WS-Federation Settings (from saas.tf)
   wsfed_settings {
     sp {
-      entity_id = "https://saas-wsfed.example.com"
-      slo_url   = "https://saas-wsfed.example.com/wsfed/slo"
-      dst_url   = "https://saas-wsfed.example.com/wsfed/dst"
-      resp_bind = "post"
+      entity_id  = "https://saas-wsfed.example.com"
+      slo_url    = "https://saas-wsfed.example.com/wsfed/slo"
+      dst_url    = "https://saas-wsfed.example.com/wsfed/dst"
+      resp_bind  = "post"
       token_life = 3600
       encr_algo  = "aes128-cbc"
     }
-    
+
     idp {
-      entity_id = "https://test-idp.example.com/wsfed/idp/sso"
-      sign_algo = "SHA1"
-      sign_key  = ""
+      entity_id   = "https://test-idp.example.com/wsfed/idp/sso"
+      sign_algo   = "SHA1"
+      sign_key    = ""
       self_signed = true
     }
-    
+
     subject {
-      fmt = "email"
+      fmt        = "email"
       custom_fmt = ""
-      src = "user.email"
-      val = ""
-      rule = ""
+      src        = "user.email"
+      val        = ""
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "email"
-      fmt  = "email"
+      name       = "email"
+      fmt        = "email"
       custom_fmt = ""
-      val  = ""
-      src  = "user.email"
-      rule = ""
+      val        = ""
+      src        = "user.email"
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "firstName"
-      fmt  = "firstName"
+      name       = "firstName"
+      fmt        = "firstName"
       custom_fmt = ""
-      val  = ""
-      src  = "user.firstName"
-      rule = ""
+      val        = ""
+      src        = "user.firstName"
+      rule       = ""
     }
-    
+
     attrmap {
-      name = "lastName"
-      fmt  = "lastName"
+      name       = "lastName"
+      fmt        = "lastName"
       custom_fmt = ""
-      val  = ""
-      src  = "user.lastName"
-      rule = ""
+      val        = ""
+      src        = "user.lastName"
+      rule       = ""
     }
   }
 }

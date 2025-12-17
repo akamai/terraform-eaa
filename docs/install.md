@@ -42,9 +42,9 @@ where the configuration `.tf` files are also present.
 To create a {OPEN} API user, follow [these instructions](https://developer.akamai.com/legacy/introduction/Prov_Creds.html).
 Make sure the API user has READ-WRITE permission to *Enterprise Application Access*.
 
-To create a legacy API key and secret from, connect to Akamai Control Center. 
+To create a legacy API key and secret from, connect to Akamai Control Center.
 - use Enterprise Application Access in the left menu
-- go to **System** > **Settings** and 
+- go to **System** > **Settings** and
 - then click **Generate new API Key** in the **API** section of the page
 
 The `.edgerc` file should look like:

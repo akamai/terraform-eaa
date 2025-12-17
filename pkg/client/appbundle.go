@@ -6,37 +6,37 @@ import (
 
 // AppBundle represents an application bundle
 type AppBundle struct {
-	AppDetails       []AppBundleDetail `json:"app_details"`
+	ResourceURI      ResourceURI       `json:"resource_uri"`
 	CreatedAt        string            `json:"created_at"`
 	Description      string            `json:"description"`
-	GroupApps        []string          `json:"group_apps"`
 	ModifiedAt       string            `json:"modified_at"`
 	Name             string            `json:"name"`
-	ResourceURI      ResourceURI       `json:"resource_uri"`
-	SingleHostEnable bool              `json:"single_host_enable"`
 	SingleHostFQDN   string            `json:"single_host_fqdn"`
-	Status           int               `json:"status"`
 	UUIDURL          string            `json:"uuid_url"`
+	AppDetails       []AppBundleDetail `json:"app_details"`
+	GroupApps        []string          `json:"group_apps"`
+	Status           int               `json:"status"`
+	SingleHostEnable bool              `json:"single_host_enable"`
 }
 
 // AppBundleDetail represents application details within a bundle (renamed to avoid conflict)
 type AppBundleDetail struct {
-	AppDeployed         bool   `json:"app_deployed"`
+	Localization        string `json:"localization"`
+	Name                string `json:"name"`
+	SingleHostPath      string `json:"single_host_path"`
+	UUIDURL             string `json:"uuid_url"`
 	AppOperational      int    `json:"app_operational"`
 	AppProfile          int    `json:"app_profile"`
 	AppStatus           int    `json:"app_status"`
 	AppType             int    `json:"app_type"`
-	Localization        string `json:"localization"`
-	Name                string `json:"name"`
+	AppDeployed         bool   `json:"app_deployed"`
 	SingleHostContentRW bool   `json:"single_host_content_rw"`
-	SingleHostPath      string `json:"single_host_path"`
-	UUIDURL             string `json:"uuid_url"`
 }
 
 // AppBundleResponse represents the API response for app bundles
 type AppBundleResponse struct {
-	Meta    Meta        `json:"meta"`
 	Objects []AppBundle `json:"objects"`
+	Meta    Meta        `json:"meta"`
 }
 
 const (

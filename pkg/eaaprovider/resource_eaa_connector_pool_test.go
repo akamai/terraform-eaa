@@ -22,8 +22,8 @@ func createTestResourceData(data map[string]interface{}) *schema.ResourceData {
 
 func TestValidatePackageType(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -87,8 +87,8 @@ func TestValidatePackageType(t *testing.T) {
 
 func TestValidateInfraType(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -147,8 +147,8 @@ func TestValidateInfraType(t *testing.T) {
 
 func TestValidateOperatingMode(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -241,8 +241,8 @@ func TestResourceEaaConnectorPoolSchema(t *testing.T) {
 
 func TestHasDuplicateTokenNames(t *testing.T) {
 	tests := []struct {
-		name          string
 		resourceData  map[string]interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -305,9 +305,9 @@ func TestHasDuplicateTokenNames(t *testing.T) {
 
 func TestSetConnectorPoolBasicAttributes(t *testing.T) {
 	tests := []struct {
-		name        string
 		connPool    *client.ConnectorPool
 		expectedMap map[string]interface{}
+		name        string
 	}{
 		{
 			name: "basic_connector_pool",
@@ -384,10 +384,10 @@ func TestResourceEaaConnectorPoolV0(t *testing.T) {
 
 func TestResourceEaaConnectorPoolCreate(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "successful_creation_with_minimal_data",
@@ -455,10 +455,10 @@ func TestResourceEaaConnectorPoolCreate(t *testing.T) {
 
 func TestResourceEaaConnectorPoolRead(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "read_with_valid_ID",
@@ -505,10 +505,10 @@ func TestResourceEaaConnectorPoolRead(t *testing.T) {
 
 func TestResourceEaaConnectorPoolUpdate(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "update_with_valid_data",
@@ -557,10 +557,10 @@ func TestResourceEaaConnectorPoolUpdate(t *testing.T) {
 
 func TestResourceEaaConnectorPoolDelete(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "deletion_with_valid_ID",
@@ -607,8 +607,8 @@ func TestResourceEaaConnectorPoolDelete(t *testing.T) {
 
 func TestValidatePackageTypeEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -682,8 +682,8 @@ func TestValidatePackageTypeEdgeCases(t *testing.T) {
 
 func TestValidateInfraTypeEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -732,8 +732,8 @@ func TestValidateInfraTypeEdgeCases(t *testing.T) {
 
 func TestValidateOperatingModeEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -782,8 +782,8 @@ func TestValidateOperatingModeEdgeCases(t *testing.T) {
 
 func TestHasDuplicateTokenNamesEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
 		resourceData  map[string]interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -970,8 +970,8 @@ func TestResourceEaaConnectorPoolSchemaComprehensive(t *testing.T) {
 func TestRegistrationTokenValidation(t *testing.T) {
 	// Test max_use validation
 	tests := []struct {
-		name          string
 		value         interface{}
+		name          string
 		expectedError bool
 	}{
 		{
@@ -1148,10 +1148,10 @@ func TestResourceEaaConnectorPoolDeprecationMessage(t *testing.T) {
 // Enhanced CRUD tests focusing on testable parts
 func TestResourceEaaConnectorPoolCreateValidationPaths(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "creation_with_duplicate_tokens_validation",
@@ -1236,10 +1236,10 @@ func TestResourceEaaConnectorPoolCreateValidationPaths(t *testing.T) {
 
 func TestResourceEaaConnectorPoolReadValidationPaths(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "read_with_empty_id",
@@ -1294,10 +1294,10 @@ func TestResourceEaaConnectorPoolReadValidationPaths(t *testing.T) {
 
 func TestResourceEaaConnectorPoolUpdateValidationPaths(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "update_with_duplicate_tokens_validation",
@@ -1375,10 +1375,10 @@ func TestResourceEaaConnectorPoolUpdateValidationPaths(t *testing.T) {
 
 func TestResourceEaaConnectorPoolDeleteValidationPaths(t *testing.T) {
 	tests := []struct {
-		name             string
 		resourceData     map[string]interface{}
-		expectedError    bool
+		name             string
 		expectedErrorMsg string
+		expectedError    bool
 	}{
 		{
 			name: "delete_with_empty_id",

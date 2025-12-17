@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -360,7 +361,7 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 		errorMsg := fmt.Sprintf("Tunnel apps only support Server Load Balancing, Enterprise Connectivity, Tunnel Client Parameters, Health Check, and Basic Configuration parameters. The following fields are not allowed: %s",
 			strings.Join(blockedFields, ", "))
 		logger.Error("Blocked fields detected for tunnel app: %s", errorMsg)
-		return fmt.Errorf(errorMsg)
+		return errors.New(errorMsg)
 	}
 
 	logger.Debug("All fields in tunnel app advanced_settings are allowed")
