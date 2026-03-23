@@ -114,7 +114,7 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 				return err
 			}
 
-			if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+			if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 				desc, _ := FormatErrorResponse(getResp)
 				getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 				return getAppErrMsg
@@ -150,6 +150,7 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 			fmt.Println("Error creating file:", err)
 			return err
 		}
+		//nolint:errcheck // Best-effort close on function exit.
 		defer file.Close()
 		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)
 		if err != nil {

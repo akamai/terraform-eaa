@@ -36,7 +36,7 @@ func GetAppCategories(ec *EaaClient) ([]AppCate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app categories: %w", err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appCatErrMsg := fmt.Errorf("%w: %s", ErrAppCategoriesGet, desc)
 		return nil, appCatErrMsg

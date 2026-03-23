@@ -88,6 +88,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 func Client(meta interface{}) (*client.EaaClient, error) {
 	eaaClient, ok := meta.(*client.EaaClient)
 	if !ok {
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return nil, fmt.Errorf("Invalid client")
 	}
 

@@ -264,6 +264,21 @@ func resourceEaaApplication() *schema.Resource {
 							Optional: true,
 							Computed: true,
 						},
+						"remote_spark_map_clipboard": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+						},
+						"remote_spark_map_disk": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+						},
+						"remote_spark_map_printer": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
+						},
 					},
 				},
 			},
@@ -528,7 +543,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 		return diag.FromErr(getAppErrMsg)
@@ -645,6 +660,9 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		"internal_host_port":         appResp.AdvancedSettings.InternalHostPort,
 		"wildcard_internal_hostname": appResp.AdvancedSettings.WildcardInternalHostname,
 		"ip_access_allow":            appResp.AdvancedSettings.IPAccessAllow,
+		"remote_spark_map_clipboard": appResp.AdvancedSettings.RemoteSparkMapClipboard,
+		"remote_spark_map_disk":      appResp.AdvancedSettings.RemoteSparkMapDisk,
+		"remote_spark_map_printer":   appResp.AdvancedSettings.RemoteSparkMapPrinter,
 	}
 
 	err = d.Set("advanced_settings", advSettings)
@@ -652,6 +670,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
+	//nolint:staticcheck // Keep explicit embedded field selector for clarity.
 	appAgents, err := appResp.Application.GetAppAgents(eaaclient)
 	if err == nil {
 		err = d.Set("agents", appAgents)
@@ -660,6 +679,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 	if appResp.AuthEnabled == "true" {
+		//nolint:staticcheck // Keep explicit embedded field selector for clarity.
 		appAuthData, err := appResp.Application.CreateAppAuthenticationStruct(eaaclient)
 		if err == nil {
 			err = d.Set("app_authentication", appAuthData)
@@ -711,7 +731,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 		return diag.FromErr(getAppErrMsg)
@@ -901,6 +921,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	//nolint:staticcheck // Keep explicit embedded field selector for clarity.
 	err = appUpdateReq.Application.DeployApplication(eaaclient)
 	if err != nil {
 		return diag.FromErr(err)
@@ -922,6 +943,7 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	//nolint:staticcheck // Keep range check form for readability.
 	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
 		desc, _ := client.FormatErrorResponse(getResp)
 		getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)

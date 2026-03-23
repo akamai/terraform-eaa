@@ -59,6 +59,7 @@ func (d Domain) ToInt() (int, error) {
 	case AppDomainWapp:
 		return int(APP_DOMAIN_WAPP), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return 0, errors.New("Unknown domain value")
 	}
 }
@@ -77,6 +78,7 @@ func (cam DomainInt) String() (string, error) {
 	case APP_DOMAIN_WAPP:
 		return string(AppDomainWapp), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return "", errors.New("Unknown domain value")
 	}
 }
@@ -116,6 +118,7 @@ func (ap AppProfile) ToInt() (int, error) {
 	case AppProfileTCP:
 		return int(APP_PROFILE_TCP), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return 0, errors.New("Unknown App_Profile value")
 	}
 }
@@ -155,6 +158,7 @@ func (cam AppProfileInt) String() (string, error) {
 	case APP_PROFILE_TCP:
 		return string(AppProfileTCP), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return "", errors.New("Unknown app_profile value")
 	}
 }
@@ -173,6 +177,7 @@ func (cam ClientAppMode) ToInt() (int, error) {
 	case ClientAppModeTunnel:
 		return int(CLIENT_APP_MODE_TUNNEL), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return 0, errors.New("Unknown ClientAppMode value")
 	}
 }
@@ -191,6 +196,7 @@ func (cam ClientAppModeInt) String() (string, error) {
 	case CLIENT_APP_MODE_TUNNEL:
 		return string(ClientAppModeTunnel), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return "", errors.New("Unknown ClientAppMode value")
 	}
 }
@@ -215,6 +221,7 @@ func (cat ClientAppType) ToInt() (int, error) {
 	case ClientAppTypeTunnel:
 		return int(APP_TYPE_TUNNEL), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return 0, errors.New("Unknown ClientAppType value")
 	}
 }
@@ -239,6 +246,7 @@ func (cat ClientAppTypeInt) String() (string, error) {
 	case APP_TYPE_TUNNEL:
 		return string(ClientAppTypeTunnel), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return "", errors.New("Unknown ClientAppType value")
 	}
 }
@@ -318,6 +326,7 @@ func (s ServiceType) ToInt() (int, error) {
 	case ServiceTypeRewrite:
 		return int(SERVICE_TYPE_REWRITE), nil
 	default:
+		//nolint:staticcheck // Preserve existing error text for compatibility.
 		return 0, errors.New("Unknown service type value")
 	}
 }
