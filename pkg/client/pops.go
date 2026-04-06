@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	//nolint:staticcheck // Preserve existing error text for compatibility.
 	ErrPopsGet = errors.New("Pops get failed")
 )
 
@@ -48,7 +49,7 @@ func GetPops(ec *EaaClient) ([]Pop, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode > http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		getPopsErrMsg := fmt.Errorf("%w: %s", ErrPopsGet, desc)
 		return nil, getPopsErrMsg

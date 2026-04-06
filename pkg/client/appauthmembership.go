@@ -44,7 +44,7 @@ func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, e
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAppIdpMembershipGet, desc)
 		return nil, appIdpErrMsg
@@ -85,7 +85,7 @@ func (app *Application) GetAppDirectoryMembership(ec *EaaClient) ([]AppDirectory
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appDirErrMsg := fmt.Errorf("%w: %s", ErrAppDirectoryMembershipGet, desc)
 		return nil, appDirErrMsg
@@ -124,7 +124,7 @@ func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembersh
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		appGrpErrMsg := fmt.Errorf("%w: %s", ErrAppGroupMembershipGet, desc)
 		return nil, appGrpErrMsg

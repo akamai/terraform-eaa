@@ -239,7 +239,7 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
 		ec.Logger.Error("g2o request failed. err: ", err)
 		return nil, err
 	}
-	if !(g2ohttpResp.StatusCode >= http.StatusOK && g2ohttpResp.StatusCode < http.StatusMultipleChoices) {
+	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(g2ohttpResp)
 		g2oErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -259,7 +259,7 @@ func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuth_Respo
 		ec.Logger.Error("edge auth request failed. err: ", err)
 		return nil, err
 	}
-	if !(edgeAuthhttpResp.StatusCode >= http.StatusOK && edgeAuthhttpResp.StatusCode < http.StatusMultipleChoices) {
+	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(edgeAuthhttpResp)
 		edgeuthErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -279,7 +279,7 @@ func (app *Application) DeployApplication(ec *EaaClient) error {
 		return err
 	}
 
-	if !(deployResp.StatusCode >= http.StatusOK && deployResp.StatusCode < http.StatusMultipleChoices) {
+	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
 		return ErrDeploy
 	}
 	return nil
@@ -293,7 +293,7 @@ func (app *Application) DeleteApplication(ec *EaaClient) error {
 		return err
 	}
 
-	if !(deleteResp.StatusCode >= http.StatusOK && deleteResp.StatusCode < http.StatusMultipleChoices) {
+	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
 		return ErrAppDelete
 	}
 	return nil
@@ -366,6 +366,15 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						if ip_access_allow, ok := advSettingsData["ip_access_allow"].(string); ok {
 							advSettings.IPAccessAllow = ip_access_allow
 						}
+						if remoteSparkMapClipboard, ok := advSettingsData["remote_spark_map_clipboard"].(string); ok {
+							advSettings.RemoteSparkMapClipboard = remoteSparkMapClipboard
+						}
+						if remoteSparkMapDisk, ok := advSettingsData["remote_spark_map_disk"].(string); ok {
+							advSettings.RemoteSparkMapDisk = remoteSparkMapDisk
+						}
+						if remoteSparkMapPrinter, ok := advSettingsData["remote_spark_map_printer"].(string); ok {
+							advSettings.RemoteSparkMapPrinter = remoteSparkMapPrinter
+						}
 
 						if x_wapp_read_timeout, ok := advSettingsData["x_wapp_read_timeout"].(string); ok {
 							advSettings.XWappReadTimeout = x_wapp_read_timeout
@@ -377,6 +386,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 							advSettings.G2OEnabled = g2o
 							if g2o == STR_TRUE {
 
+								//nolint:staticcheck // Keep explicit embedded field selector for clarity.
 								g2oResp, err := appUpdateReq.Application.UpdateG2O(ec)
 								if err != nil {
 									ec.Logger.Error("g2o request failed. err: ", err)
@@ -392,6 +402,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 							advSettings.EdgeAuthenticationEnabled = edgeAuth
 							if edgeAuth == STR_TRUE {
 
+								//nolint:staticcheck // Keep explicit embedded field selector for clarity.
 								edgeAuthResp, err := appUpdateReq.Application.UpdateEdgeAuthentication(ec)
 								if err != nil {
 									ec.Logger.Error("edge auth cookie request failed. err: ", err)
@@ -579,7 +590,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 		ec.Logger.Error("update application failed. err: ", err)
 		return err
 	}
-	if !(appUpdResp.StatusCode >= http.StatusOK && appUpdResp.StatusCode < http.StatusMultipleChoices) {
+	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
@@ -697,6 +708,9 @@ type AdvancedSettings struct {
 	IPAccessAllow             string  `json:"ip_access_allow,omitempty"`
 	EdgeCookieKey             *string `json:"edge_cookie_key,omitempty"`
 	SlaObjectUrl              *string `json:"sla_object_url,omitempty"`
+	RemoteSparkMapClipboard   string  `json:"remote_spark_mapClipboard,omitempty"`
+	RemoteSparkMapPrinter     string  `json:"remote_spark_mapPrinter,omitempty"`
+	RemoteSparkMapDisk        string  `json:"remote_spark_mapDisk,omitempty"`
 }
 
 type AdvancedSettings_Complete struct {

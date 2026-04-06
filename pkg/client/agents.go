@@ -72,7 +72,7 @@ func GetAgents(ec *EaaClient) ([]Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
 

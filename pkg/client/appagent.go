@@ -66,7 +66,7 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 		ec.Logger.Error("assign agents failed StatusCode: ", agentsResp.StatusCode)
 		return err
 	}
-	if !(agentsResp.StatusCode >= http.StatusOK && agentsResp.StatusCode < http.StatusMultipleChoices) {
+	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsAssign, desc)
 		ec.Logger.Error("assign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)
@@ -84,7 +84,7 @@ func (app *Application) GetAppAgents(ec *EaaClient) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(getResp.StatusCode >= http.StatusOK && getResp.StatusCode < http.StatusMultipleChoices) {
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
 
@@ -128,7 +128,7 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 		ec.Logger.Error("unassign agents failed StatusCode: ", agentsResp.StatusCode)
 		return err
 	}
-	if !(agentsResp.StatusCode >= http.StatusOK && agentsResp.StatusCode < http.StatusMultipleChoices) {
+	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc, _ := FormatErrorResponse(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsUnAssign, desc)
 		ec.Logger.Error("unassign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)

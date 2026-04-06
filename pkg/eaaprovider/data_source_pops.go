@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	//nolint:staticcheck // Preserve existing error text for compatibility.
 	ErrPopsGet = errors.New("Pops get failed")
 )
 
