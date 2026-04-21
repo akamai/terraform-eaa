@@ -9,6 +9,7 @@ import (
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -76,9 +77,10 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 	// Validate health check settings if present (skip for tunnel apps)
 	if appType != string(client.ClientAppTypeTunnel) {
 		logger.Debug("Validating health check for app_type: %s", appType)
-		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
-			return err // Return the specific error instead of generic one
+		if diags := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); len(diags) > 0 {
+			for _, validationDiag := range diags {
+				logger.Warn(validationDiag.Detail)
+			}
 		}
 	} else {
 		logger.Debug("Skipping health check validation for tunnel app")
@@ -106,6 +108,46 @@ func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error
 	// This validation is performed in plan-time validation instead
 
 	return nil
+}
+
+func validateAdvancedSettingsWarningDiagnostics(d *schema.ResourceData, logger hclog.Logger) diag.Diagnostics {
+	appType := ""
+	appProfile := ""
+	clientAppMode := ""
+
+	if at, ok := d.GetOk("app_type"); ok {
+		appType = at.(string)
+	}
+
+	if ap, ok := d.GetOk("app_profile"); ok {
+		appProfile = ap.(string)
+	}
+
+	if cam, ok := d.GetOk("client_app_mode"); ok {
+		clientAppMode = cam.(string)
+	}
+
+	advancedSettingsStr, ok := d.GetOk("advanced_settings")
+	if !ok {
+		return nil
+	}
+
+	advancedSettingsJSON, ok := advancedSettingsStr.(string)
+	if !ok || advancedSettingsJSON == "" || advancedSettingsJSON == "{}" {
+		return nil
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(advancedSettingsJSON), &settings); err != nil {
+		// JSON validity is handled by schema validation; ignore here to avoid duplicate blocking behavior.
+		return nil
+	}
+
+	var diags diag.Diagnostics
+	diags = append(diags, client.ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger)...)
+	diags = append(diags, client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger)...)
+
+	return diags
 }
 
 // validateTLSSuiteRequiredDependencies validates that required fields are present when dependencies are met

@@ -1513,6 +1513,11 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 	appCert := CertType(certType)
 	ec.Logger.Debug("Certificate type: ", appCert)
 
+	if appCert == CertSelfSigned && (appUpdateReq.Host == nil || *appUpdateReq.Host == "") {
+		ec.Logger.Warn("Skipping custom domain certificate processing because host is empty")
+		return nil
+	}
+
 	// Check if the certificate type is self-signed
 	if appCert == CertSelfSigned {
 		// Check if a self-signed certificate exists for the given hostname
@@ -1665,6 +1670,7 @@ type ApplicationResponse struct {
 	Cert                   *string                   `json:"cert"`
 	AppCategory            AppCategory               `json:"app_category"`
 	CreatedAt              string                    `json:"created_at"`
+	Domain                 int                       `json:"domain"`
 	DomainSuffix           string                    `json:"domain_suffix"`
 	AuthEnabled            string                    `json:"auth_enabled"`
 	RDPVersion             string                    `json:"rdp_version"`
