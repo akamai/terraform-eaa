@@ -38,6 +38,19 @@ type CreateAppRequest struct {
 	SAML             bool             `json:"saml"`
 }
 
+func firstMapBlock(blocks []interface{}, fieldName string) (map[string]interface{}, error) {
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("invalid %s format: expected at least one block", fieldName)
+	}
+
+	block, ok := blocks[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid %s format: expected map[string]interface{}", fieldName)
+	}
+
+	return block, nil
+}
+
 // CreateMinimalAppRequestFromSchema creates a minimal app creation request with only essential fields
 func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
 	logger := ec.Logger
@@ -63,7 +76,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			logger.Error("create Application failed. app_type is invalid")
 			return ErrInvalidType
 		}
-		atype := ClientAppType(strAppType)
+		atype := AppType(strAppType)
 		value, err := atype.ToInt()
 		if err != nil {
 			logger.Error("create Application failed. app_type is invalid")
@@ -105,7 +118,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			logger.Error("create Application failed. clientAppMode is invalid")
 			return ErrInvalidType
 		}
-		aMode := ClientAppMode(appMode)
+		aMode := AppMode(appMode)
 		value, err := aMode.ToInt()
 		if err != nil {
 			logger.Error("create Application failed. clientAppMode is invalid")
@@ -128,7 +141,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	if name, ok := d.GetOk("name"); ok {
 		nameStr, ok := name.(string)
 		if ok && nameStr != "" {
-			car.Name = name.(string)
+			car.Name = nameStr
 		}
 	} else {
 		logger.Error("create Application failed. name is invalid")
@@ -148,7 +161,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			logger.Error("create Application failed. app_type is invalid")
 			return ErrInvalidType
 		}
-		atype := ClientAppType(strAppType)
+		atype := AppType(strAppType)
 		value, err := atype.ToInt()
 		if err != nil {
 			logger.Error("create Application failed. app_type is invalid")
@@ -188,7 +201,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			logger.Error("create Application failed. clientAppMode is invalid")
 			return ErrInvalidType
 		}
-		aMode := ClientAppMode(appMode)
+		aMode := AppMode(appMode)
 		value, err := aMode.ToInt()
 		if err != nil {
 			logger.Error("create Application failed. clientAppMode is invalid")
@@ -324,7 +337,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		if samlSettings, ok := d.GetOk("saml_settings"); ok {
 			if samlSettingsList, ok := samlSettings.([]interface{}); ok && len(samlSettingsList) > 0 {
 				// Convert nested blocks to SAMLConfig
-				samlConfig, err := convertNestedBlocksToSAMLConfig(samlSettingsList[0].(map[string]interface{}))
+				samlBlock, err := firstMapBlock(samlSettingsList, "saml_settings")
+				if err != nil {
+					logger.Error("Failed to read nested SAML block:", err)
+					return err
+				}
+				samlConfig, err := convertNestedBlocksToSAMLConfig(samlBlock)
 				if err != nil {
 					logger.Error("Failed to convert nested blocks to SAML config:", err)
 					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
@@ -348,7 +366,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			logger.Debug("CREATE FLOW: Found oidc_settings blocks")
 			if oidcSettingsList, ok := oidcSettings.([]interface{}); ok && len(oidcSettingsList) > 0 {
 				// Convert nested blocks to OIDCConfig
-				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
+				oidcBlock, err := firstMapBlock(oidcSettingsList, "oidc_settings")
+				if err != nil {
+					logger.Error("CREATE FLOW: Failed to read nested OIDC block:", err)
+					return err
+				}
+				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 				if err != nil {
 					logger.Error("CREATE FLOW: Failed to convert nested blocks to OIDC config:", err)
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
@@ -381,14 +404,22 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			logger.Debug("CREATE FLOW: Found wsfed_settings as nested blocks")
 			if wsfedSettingsList, ok := wsfedSettingsData.([]interface{}); ok && len(wsfedSettingsList) > 0 {
 				// Get the first (and only) wsfed_settings block
-				wsfedBlock := wsfedSettingsList[0].(map[string]interface{})
+				wsfedBlock, err := firstMapBlock(wsfedSettingsList, "wsfed_settings")
+				if err != nil {
+					logger.Error("CREATE FLOW: Failed to read nested WSFED block:", err)
+					return err
+				}
 
 				// Start with DefaultWSFEDConfig as base
 				wsfedConfig := DefaultWSFEDConfig
 
 				// Merge SP settings
 				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
-					spBlock := spBlocks[0].(map[string]interface{})
+					spBlock, err := firstMapBlock(spBlocks, "wsfed_settings.sp")
+					if err != nil {
+						logger.Error("CREATE FLOW: Failed to read nested WSFED SP block:", err)
+						return err
+					}
 
 					if entityID, ok := spBlock["entity_id"].(string); ok && entityID != "" {
 						wsfedConfig.SP.EntityID = entityID
@@ -412,7 +443,11 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 				// Merge IDP settings
 				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
-					idpBlock := idpBlocks[0].(map[string]interface{})
+					idpBlock, err := firstMapBlock(idpBlocks, "wsfed_settings.idp")
+					if err != nil {
+						logger.Error("CREATE FLOW: Failed to read nested WSFED IDP block:", err)
+						return err
+					}
 
 					if entityID, ok := idpBlock["entity_id"].(string); ok && entityID != "" {
 						wsfedConfig.IDP.EntityID = entityID
@@ -433,7 +468,11 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 				// Merge Subject settings
 				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
-					subjectBlock := subjectBlocks[0].(map[string]interface{})
+					subjectBlock, err := firstMapBlock(subjectBlocks, "wsfed_settings.subject")
+					if err != nil {
+						logger.Error("CREATE FLOW: Failed to read nested WSFED subject block:", err)
+						return err
+					}
 
 					if fmtVal, ok := subjectBlock["fmt"].(string); ok && fmtVal != "" {
 						wsfedConfig.Subject.Fmt = fmtVal
@@ -456,28 +495,30 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if attrmapBlocks, ok := wsfedBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
 					var attrmap []WSFEDAttrMapping
 					for _, attrBlock := range attrmapBlocks {
-						if attrMap, ok := attrBlock.(map[string]interface{}); ok {
-							attr := WSFEDAttrMapping{}
-							if name, ok := attrMap["name"].(string); ok {
-								attr.Name = name
-							}
-							if fmtVal, ok := attrMap["fmt"].(string); ok {
-								attr.Fmt = fmtVal
-							}
-							if customFmt, ok := attrMap["custom_fmt"].(string); ok {
-								attr.CustomFmt = customFmt
-							}
-							if val, ok := attrMap["val"].(string); ok {
-								attr.Val = val
-							}
-							if src, ok := attrMap["src"].(string); ok {
-								attr.Src = src
-							}
-							if rule, ok := attrMap["rule"].(string); ok {
-								attr.Rule = rule
-							}
-							attrmap = append(attrmap, attr)
+						attrMap, ok := attrBlock.(map[string]interface{})
+						if !ok {
+							continue
 						}
+						attr := WSFEDAttrMapping{}
+						if name, ok := attrMap["name"].(string); ok {
+							attr.Name = name
+						}
+						if fmtVal, ok := attrMap["fmt"].(string); ok {
+							attr.Fmt = fmtVal
+						}
+						if customFmt, ok := attrMap["custom_fmt"].(string); ok {
+							attr.CustomFmt = customFmt
+						}
+						if val, ok := attrMap["val"].(string); ok {
+							attr.Val = val
+						}
+						if src, ok := attrMap["src"].(string); ok {
+							attr.Src = src
+						}
+						if rule, ok := attrMap["rule"].(string); ok {
+							attr.Rule = rule
+						}
+						attrmap = append(attrmap, attr)
 					}
 					wsfedConfig.Attrmap = attrmap
 				}
@@ -511,10 +552,13 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 	ec.Logger.Debug("create minimal application")
 
 	// Log the minimal payload being sent to API
-	payloadBytes, _ := json.MarshalIndent(mcar, "", "  ")
-	ec.Logger.Debug("=== MINIMAL API PAYLOAD BEING SENT ===")
-	ec.Logger.Debug(string(payloadBytes))
-	ec.Logger.Debug("=== END MINIMAL API PAYLOAD ===")
+	if payloadBytes, err := json.MarshalIndent(mcar, "", "  "); err == nil {
+		ec.Logger.Debug("=== MINIMAL API PAYLOAD BEING SENT ===")
+		ec.Logger.Debug(string(payloadBytes))
+		ec.Logger.Debug("=== END MINIMAL API PAYLOAD ===")
+	} else {
+		ec.Logger.Warn("failed to marshal minimal application payload for logging", "error", err)
+	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
@@ -526,7 +570,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 	}
 
 	if createAppResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(createAppResp)
+		desc := FormatErrorDescription(createAppResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrAppCreate, desc)
 
 		ec.Logger.Error("create minimal Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
@@ -540,10 +584,13 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	ec.Logger.Debug("create application")
 
 	// Log the complete payload being sent to API
-	payloadBytes, _ := json.MarshalIndent(car, "", "  ")
-	ec.Logger.Debug("=== COMPLETE API PAYLOAD BEING SENT ===")
-	ec.Logger.Debug(string(payloadBytes))
-	ec.Logger.Debug("=== END API PAYLOAD ===")
+	if payloadBytes, err := json.MarshalIndent(car, "", "  "); err == nil {
+		ec.Logger.Debug("=== COMPLETE API PAYLOAD BEING SENT ===")
+		ec.Logger.Debug(string(payloadBytes))
+		ec.Logger.Debug("=== END API PAYLOAD ===")
+	} else {
+		ec.Logger.Warn("failed to marshal application payload for logging", "error", err)
+	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
 	var appResp ApplicationResponse
@@ -555,7 +602,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	}
 
 	if createAppResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(createAppResp)
+		desc := FormatErrorDescription(createAppResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrAppCreate, desc)
 
 		ec.Logger.Error("create Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
@@ -572,9 +619,13 @@ func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, 
 	logger := ec.Logger
 
 	if agentsRaw, ok := d.GetOk("agents"); ok {
-		agentsList := agentsRaw.([]interface{})
+		agentsList, ok := agentsRaw.([]interface{})
+		if !ok {
+			logger.Error("configure agents failed. agents is invalid")
+			return ErrInvalidType
+		}
 		var agents AssignAgents
-		agents.AppId = appID
+		agents.AppID = appID
 		for _, v := range agentsList {
 			if name, ok := v.(string); ok {
 				agents.AgentNames = append(agents.AgentNames, name)
@@ -594,32 +645,45 @@ func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, 
 func ConfigureAuthentication(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
 	logger := ec.Logger
 
-	auth_enabled := "false"
+	authEnabled := "false"
 	if aE, ok := d.GetOk("auth_enabled"); ok {
-		auth_enabled = aE.(string)
+		authEnabledValue, ok := aE.(string)
+		if !ok {
+			logger.Error("configure authentication failed. auth_enabled is invalid")
+			return ErrInvalidType
+		}
+		authEnabled = authEnabledValue
 	}
 
-	if auth_enabled == "true" {
+	if authEnabled == "true" {
 		if appAuth, ok := d.GetOk("app_authentication"); ok {
-			appAuthList := appAuth.([]interface{})
+			appAuthList, ok := appAuth.([]interface{})
+			if !ok {
+				logger.Error("invalid authentication list")
+				return ErrInvalidType
+			}
 			if appAuthList == nil {
 				return ErrInvalidValue
 			}
 			if len(appAuthList) > 0 {
-				appAuthenticationMap := appAuthList[0].(map[string]interface{})
+				appAuthenticationMap, ok := appAuthList[0].(map[string]interface{})
+				if !ok {
+					logger.Error("invalid authentication data")
+					return ErrInvalidType
+				}
 				if appAuthenticationMap == nil {
 					logger.Error("invalid authentication data")
 					return ErrInvalidValue
 				}
 
 				// Check if app_idp key is present
-				if app_idp_name, ok := appAuthenticationMap["app_idp"].(string); ok {
-					idpData, err := GetIdpWithName(ctx, ec, app_idp_name)
+				if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
+					idpData, err := GetIdpWithName(ctx, ec, appIDPName)
 					if err != nil || idpData == nil {
 						logger.Error("get idp with name error, err ", err)
 						return err
 					}
-					logger.Debug("appID: ", appID, "app_idp_name: ", app_idp_name, "idpData.UUIDURL: ", idpData.UUIDURL)
+					logger.Debug("appID: ", appID, "app_idp_name: ", appIDPName, "idpData.UUIDURL: ", idpData.UUIDURL)
 
 					logger.Debug("Assigning IDP to application")
 
@@ -632,7 +696,7 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 						logger.Error("IDP assign error: ", err)
 						return fmt.Errorf("assigning IDP to the app failed: %v", err)
 					}
-					logger.Debug("IDP assigned successfully, appID = ", appID, "idp = ", app_idp_name)
+					logger.Debug("IDP assigned successfully, appID = ", appID, "idp = ", appIDPName)
 
 					// check if app_directories are present
 					if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
@@ -667,7 +731,7 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 		return err
 	}
 	if getResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		logger.Error("failed to get app for advanced settings configuration. StatusCode %d %s", getResp.StatusCode, desc)
 		return fmt.Errorf("failed to get app: %s", desc)
 	}
@@ -723,7 +787,7 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 		return err
 	}
 	if getResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		logger.Error("failed to get app for deployment. StatusCode %d %s", getResp.StatusCode, desc)
 		return fmt.Errorf("failed to get app: %s", desc)
 	}
@@ -849,18 +913,18 @@ func (app *Application) FromResponse(ar *ApplicationResponse) {
 	app.WSFED = ar.WSFED
 }
 
-func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
+func (app *Application) UpdateG2O(ec *EaaClient) (*G2OResponse, error) {
 	ec.Logger.Debug("updateG2O")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/g2o", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
-	var g2oResp G2O_Response
+	var g2oResp G2OResponse
 	g2ohttpResp, err := ec.SendAPIRequest(apiURL, "POST", nil, &g2oResp, false)
 	if err != nil {
 		ec.Logger.Error("g2o request failed. err: ", err)
 		return nil, err
 	}
 	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(g2ohttpResp)
+		desc := FormatErrorDescription(g2ohttpResp)
 		g2oErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
 		ec.Logger.Error("g2o request failed. g2ohttpResp.StatusCode: desc: ", g2ohttpResp.StatusCode, desc)
@@ -869,18 +933,18 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2O_Response, error) {
 	return &g2oResp, nil
 }
 
-func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuth_Response, error) {
+func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuthResponse, error) {
 	ec.Logger.Debug("UpdateEdgeAuthentication")
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/edgekey", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
-	var edgeAuthResp EdgeAuth_Response
+	var edgeAuthResp EdgeAuthResponse
 	edgeAuthhttpResp, err := ec.SendAPIRequest(apiURL, "POST", nil, &edgeAuthResp, false)
 	if err != nil {
 		ec.Logger.Error("edge auth request failed. err: ", err)
 		return nil, err
 	}
 	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(edgeAuthhttpResp)
+		desc := FormatErrorDescription(edgeAuthhttpResp)
 		edgeuthErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
 		ec.Logger.Error("edge authentication cookie request failed. edgeAuthhttpResp.StatusCode: desc: ", edgeAuthhttpResp.StatusCode, desc)
@@ -920,11 +984,11 @@ func (app *Application) DeleteApplication(ec *EaaClient) error {
 }
 
 type ApplicationUpdateRequest struct {
-	OIDCSettings     *OIDCConfig               `json:"oidc_settings"`
-	Domain           string                    `json:"domain"`
-	AdvancedSettings AdvancedSettings_Complete `json:"advanced_settings"`
-	SAMLSettings     []SAMLConfig              `json:"saml_settings"`
-	WSFEDSettings    []WSFEDConfig             `json:"wsfed_settings"`
+	OIDCSettings     *OIDCConfig              `json:"oidc_settings"`
+	Domain           string                   `json:"domain"`
+	AdvancedSettings AdvancedSettingsComplete `json:"advanced_settings"`
+	SAMLSettings     []SAMLConfig             `json:"saml_settings"`
+	WSFEDSettings    []WSFEDConfig            `json:"wsfed_settings"`
 	Application
 }
 
@@ -982,19 +1046,21 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	if tunnelInternalHosts, ok := d.GetOk("tunnel_internal_hosts"); ok {
 		if tunnelInternalHostsList, ok := tunnelInternalHosts.([]interface{}); ok {
 			for _, th := range tunnelInternalHostsList {
-				if thData, ok := th.(map[string]interface{}); ok {
-					tunnelInternalHost := TunnelInternalHost{}
-					if h, ok := thData["host"].(string); ok {
-						tunnelInternalHost.Host = h
-					}
-					if pr, ok := thData["port_range"].(string); ok {
-						tunnelInternalHost.PortRange = pr
-					}
-					if pt, ok := thData["proto_type"].(int); ok {
-						tunnelInternalHost.ProtoType = pt
-					}
-					appUpdateReq.TunnelInternalHosts = append(appUpdateReq.TunnelInternalHosts, tunnelInternalHost)
+				thData, ok := th.(map[string]interface{})
+				if !ok {
+					continue
 				}
+				tunnelInternalHost := TunnelInternalHost{}
+				if h, ok := thData["host"].(string); ok {
+					tunnelInternalHost.Host = h
+				}
+				if pr, ok := thData["port_range"].(string); ok {
+					tunnelInternalHost.PortRange = pr
+				}
+				if pt, ok := thData["proto_type"].(int); ok {
+					tunnelInternalHost.ProtoType = pt
+				}
+				appUpdateReq.TunnelInternalHosts = append(appUpdateReq.TunnelInternalHosts, tunnelInternalHost)
 			}
 		}
 	}
@@ -1003,7 +1069,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if acValue, ok := ac.(string); ok {
 
 			if acValue != "" {
-				uuid, err := GetAppCategoryUuid(ec, acValue)
+				uuid, err := GetAppCategoryUUID(ec, acValue)
 				if err == nil {
 					category := AppCategory{}
 					category.Name = acValue
@@ -1098,11 +1164,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					return err
 				}
 				advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
-				advSettings.SlaObjectUrl = &edgeAuthResp.SlaObjectUrl
+				advSettings.SLAObjectURL = &edgeAuthResp.SLAObjectURL
 			}
 
 			// Use the UpdateAdvancedSettings function to properly update the struct
-			UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, *advSettings)
+			UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
 
 			// Explicitly set the AppAuth field to ensure it's preserved
 			appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
@@ -1267,7 +1333,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 				// Merge SP settings
 				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
-					spBlock := spBlocks[0].(map[string]interface{})
+					spBlock, err := firstMapBlock(spBlocks, "wsfed_settings.sp")
+					if err != nil {
+						ec.Logger.Error("UPDATE FLOW: Failed to read nested WSFED SP block:", err)
+						return err
+					}
 
 					if entityID, ok := spBlock["entity_id"].(string); ok && entityID != "" {
 						wsfedConfig.SP.EntityID = entityID
@@ -1291,7 +1361,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 				// Merge IDP settings
 				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
-					idpBlock := idpBlocks[0].(map[string]interface{})
+					idpBlock, err := firstMapBlock(idpBlocks, "wsfed_settings.idp")
+					if err != nil {
+						ec.Logger.Error("UPDATE FLOW: Failed to read nested WSFED IDP block:", err)
+						return err
+					}
 
 					if entityID, ok := idpBlock["entity_id"].(string); ok && entityID != "" {
 						wsfedConfig.IDP.EntityID = entityID
@@ -1312,7 +1386,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 				// Merge Subject settings
 				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
-					subjectBlock := subjectBlocks[0].(map[string]interface{})
+					subjectBlock, err := firstMapBlock(subjectBlocks, "wsfed_settings.subject")
+					if err != nil {
+						ec.Logger.Error("UPDATE FLOW: Failed to read nested WSFED subject block:", err)
+						return err
+					}
 
 					if fmtVal, ok := subjectBlock["fmt"].(string); ok && fmtVal != "" {
 						wsfedConfig.Subject.Fmt = fmtVal
@@ -1335,28 +1413,30 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				if attrmapBlocks, ok := wsfedBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
 					var attrmap []WSFEDAttrMapping
 					for _, attrBlock := range attrmapBlocks {
-						if attrMap, ok := attrBlock.(map[string]interface{}); ok {
-							attr := WSFEDAttrMapping{}
-							if name, ok := attrMap["name"].(string); ok {
-								attr.Name = name
-							}
-							if fmtVal, ok := attrMap["fmt"].(string); ok {
-								attr.Fmt = fmtVal
-							}
-							if customFmt, ok := attrMap["custom_fmt"].(string); ok {
-								attr.CustomFmt = customFmt
-							}
-							if val, ok := attrMap["val"].(string); ok {
-								attr.Val = val
-							}
-							if src, ok := attrMap["src"].(string); ok {
-								attr.Src = src
-							}
-							if rule, ok := attrMap["rule"].(string); ok {
-								attr.Rule = rule
-							}
-							attrmap = append(attrmap, attr)
+						attrMap, ok := attrBlock.(map[string]interface{})
+						if !ok {
+							continue
 						}
+						attr := WSFEDAttrMapping{}
+						if name, ok := attrMap["name"].(string); ok {
+							attr.Name = name
+						}
+						if fmtVal, ok := attrMap["fmt"].(string); ok {
+							attr.Fmt = fmtVal
+						}
+						if customFmt, ok := attrMap["custom_fmt"].(string); ok {
+							attr.CustomFmt = customFmt
+						}
+						if val, ok := attrMap["val"].(string); ok {
+							attr.Val = val
+						}
+						if src, ok := attrMap["src"].(string); ok {
+							attr.Src = src
+						}
+						if rule, ok := attrMap["rule"].(string); ok {
+							attr.Rule = rule
+						}
+						attrmap = append(attrmap, attr)
 					}
 					wsfedConfig.Attrmap = attrmap
 				}
@@ -1382,7 +1462,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			ec.Logger.Debug("UPDATE FLOW: Found oidc_settings blocks")
 			if oidcSettingsList, ok := oidcSettingsData.([]interface{}); ok && len(oidcSettingsList) > 0 {
 				// Convert nested blocks to OIDCConfig (consistent with CREATE flow)
-				convertedConfig, err := convertNestedBlocksToOIDCConfig(oidcSettingsList[0].(map[string]interface{}))
+				oidcBlock, err := firstMapBlock(oidcSettingsList, "oidc_settings")
+				if err != nil {
+					ec.Logger.Error("UPDATE FLOW: Failed to read nested OIDC block:", err)
+					return err
+				}
+				convertedConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 				if err != nil {
 					ec.Logger.Error("UPDATE FLOW: Failed to convert nested blocks to OIDC config:", err)
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
@@ -1420,22 +1505,24 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	if servers, ok := d.GetOk("servers"); ok {
 		if serversList, ok := servers.([]interface{}); ok {
 			for _, s := range serversList {
-				if sData, ok := s.(map[string]interface{}); ok {
-					server := Server{}
-					if oh, ok := sData["origin_host"].(string); ok {
-						server.OriginHost = oh
-					}
-					if ot, ok := sData["orig_tls"].(bool); ok {
-						server.OrigTLS = ot
-					}
-					if op, ok := sData["origin_port"].(int); ok {
-						server.OriginPort = op
-					}
-					if opr, ok := sData["origin_protocol"].(string); ok {
-						server.OriginProtocol = opr
-					}
-					appUpdateReq.Servers = append(appUpdateReq.Servers, server)
+				sData, ok := s.(map[string]interface{})
+				if !ok {
+					continue
 				}
+				server := Server{}
+				if oh, ok := sData["origin_host"].(string); ok {
+					server.OriginHost = oh
+				}
+				if ot, ok := sData["orig_tls"].(bool); ok {
+					server.OrigTLS = ot
+				}
+				if op, ok := sData["origin_port"].(int); ok {
+					server.OriginPort = op
+				}
+				if opr, ok := sData["origin_protocol"].(string); ok {
+					server.OriginProtocol = opr
+				}
+				appUpdateReq.Servers = append(appUpdateReq.Servers, server)
 			}
 		}
 	}
@@ -1462,7 +1549,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if popregionstr, ok := popRegion.(string); ok {
 			appUpdateReq.POPRegion = popregionstr
 			if popRegion != "" {
-				popname, uuid, err := GetPopUuid(ec, popregionstr)
+				popname, uuid, err := GetPopUUID(ec, popregionstr)
 				if err == nil {
 					appUpdateReq.POPName = popname
 					appUpdateReq.POP = uuid
@@ -1531,22 +1618,22 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 			appUpdateReq.Cert = &certObj.UUIDURL
 			ec.Logger.Debug("Using existing self-signed certificate: ", appUpdateReq.Cert)
 			return nil
-		} else {
-			ec.Logger.Debug("Generating self-signed certificate")
-			// Create a new self-signed certificate
-			var certReq CreateSelfSignedCertRequest
-			certReq.HostName = *appUpdateReq.Host
-			certReq.CertType = CERT_TYPE_APP_SSC
-			certResp, err := certReq.CreateSelfSignedCertificate(ctx, ec)
-			if err != nil {
-				return fmt.Errorf("failed to generate self-signed certificate: %w", err)
-			}
-
-			// Update application request with the generated certificate
-			appUpdateReq.Cert = &certResp.UUIDURL
-			ec.Logger.Debug("Generated self-signed certificate: ", appUpdateReq.Cert)
-			return nil
 		}
+
+		ec.Logger.Debug("Generating self-signed certificate")
+		// Create a new self-signed certificate
+		var certReq CreateSelfSignedCertRequest
+		certReq.HostName = *appUpdateReq.Host
+		certReq.CertType = CERT_TYPE_APP_SSC
+		certResp, err := certReq.CreateSelfSignedCertificate(ctx, ec)
+		if err != nil {
+			return fmt.Errorf("failed to generate self-signed certificate: %w", err)
+		}
+
+		// Update application request with the generated certificate
+		appUpdateReq.Cert = &certResp.UUIDURL
+		ec.Logger.Debug("Generated self-signed certificate: ", appUpdateReq.Cert)
+		return nil
 	}
 	if appCert == CertUploaded {
 		cert, ok := d.GetOk("cert_name")
@@ -1564,12 +1651,9 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 			return fmt.Errorf("the uploaded cert does not exist: %w", err)
 		}
 
-		if certObj != nil {
-			// Use existing self-signed certificate
-			appUpdateReq.Cert = &certObj.UUIDURL
-			ec.Logger.Debug("using uploaded cert : ", appUpdateReq.Cert)
-			return nil
-		}
+		// Use existing self-signed certificate
+		appUpdateReq.Cert = &certObj.UUIDURL
+		ec.Logger.Debug("using uploaded cert : ", appUpdateReq.Cert)
 	}
 
 	return nil
@@ -1583,8 +1667,11 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	ec.Logger.Debug("FINAL PAYLOAD: AppBundle = '%s'", appUpdateReq.AppBundle)
 
 	// Debug: Log the complete request payload
-	payloadJSON, _ := json.MarshalIndent(appUpdateReq, "", "  ")
-	ec.Logger.Debug("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
+	if payloadJSON, err := json.MarshalIndent(appUpdateReq, "", "  "); err == nil {
+		ec.Logger.Debug("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
+	} else {
+		ec.Logger.Warn("failed to marshal application update payload for logging", "error", err)
+	}
 
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
@@ -1593,7 +1680,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	}
 
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(appUpdResp)
+		desc := FormatErrorDescription(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
 		ec.Logger.Error("update application failed. appUpdResp.StatusCode: desc ", appUpdResp.StatusCode, desc)
@@ -1601,12 +1688,19 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	}
 
 	// Parse the response to show the returned values
-	responseBody, _ := io.ReadAll(appUpdResp.Body)
+	responseBody, err := io.ReadAll(appUpdResp.Body)
+	if err != nil {
+		ec.Logger.Warn("failed to read application update response body", "error", err)
+		return nil
+	}
 	var responseData map[string]interface{}
 	if err := json.Unmarshal(responseBody, &responseData); err == nil {
 		ec.Logger.Debug("API RESPONSE:")
-		responseJSON, _ := json.MarshalIndent(responseData, "", "  ")
-		ec.Logger.Debug(string(responseJSON))
+		if responseJSON, err := json.MarshalIndent(responseData, "", "  "); err == nil {
+			ec.Logger.Debug(string(responseJSON))
+		} else {
+			ec.Logger.Warn("failed to marshal application update response for logging", "error", err)
+		}
 
 		// Show specific advanced settings from response
 		if advancedSettings, ok := responseData["advanced_settings"].(map[string]interface{}); ok {
@@ -1658,53 +1752,53 @@ type AppCategory struct {
 }
 
 type ApplicationResponse struct {
-	AdvancedSettings       AdvancedSettings_Complete `json:"advanced_settings"`
-	OriginHost             *string                   `json:"origin_host"`
-	Host                   *string                   `json:"host"`
-	AppLogo                *string                   `json:"app_logo"`
-	OIDCSettings           *OIDCSettings             `json:"oidc_settings,omitempty"`
-	Description            *string                   `json:"description"`
-	AppProfileID           *string                   `json:"app_profile_id"`
-	CName                  *string                   `json:"cname"`
-	TLSSuiteName           *string                   `json:"tls_suite_name"`
-	Cert                   *string                   `json:"cert"`
-	AppCategory            AppCategory               `json:"app_category"`
-	CreatedAt              string                    `json:"created_at"`
-	Domain                 int                       `json:"domain"`
-	DomainSuffix           string                    `json:"domain_suffix"`
-	AuthEnabled            string                    `json:"auth_enabled"`
-	RDPVersion             string                    `json:"rdp_version"`
-	UUIDURL                string                    `json:"uuid_url"`
-	Resource               string                    `json:"resource"`
-	BookmarkURL            string                    `json:"bookmark_url"`
-	POP                    string                    `json:"pop"`
-	FailoverPopName        string                    `json:"failover_popName"`
-	SSLCACert              string                    `json:"ssl_ca_cert"`
-	POPRegion              string                    `json:"popRegion"`
-	ModifiedAt             string                    `json:"modified_at"`
-	Name                   string                    `json:"name"`
-	POPName                string                    `json:"popName"`
-	OrigTLS                string                    `json:"orig_tls"`
-	AppBundle              string                    `json:"app_bundle,omitempty"`
-	WSFEDSettings          []WSFEDConfig             `json:"wsfed_settings,omitempty"`
-	SAMLSettings           []SAMLConfig              `json:"saml_settings,omitempty"`
-	Servers                []Server                  `json:"servers"`
-	OIDCClients            []OIDCClient              `json:"oidcclients,omitempty"`
-	TunnelInternalHosts    []TunnelInternalHost      `json:"tunnel_internal_hosts"`
-	AuthType               int                       `json:"auth_type"`
-	AppStatus              int                       `json:"app_status"`
-	OriginPort             int                       `json:"origin_port"`
-	AppOperational         int                       `json:"app_operational"`
-	AppProfile             int                       `json:"app_profile"`
-	Status                 int                       `json:"status"`
-	SupportedClientVersion int                       `json:"supported_client_version"`
-	ClientAppMode          int                       `json:"client_app_mode"`
-	AppType                int                       `json:"app_type"`
-	FQDNBridgeEnabled      bool                      `json:"fqdn_bridge_enabled"`
-	WSFED                  bool                      `json:"wsfed"`
-	SAML                   bool                      `json:"saml"`
-	Oidc                   bool                      `json:"oidc"`
-	AppDeployed            bool                      `json:"app_deployed"`
+	AdvancedSettings       AdvancedSettingsComplete `json:"advanced_settings"`
+	AppCategory            AppCategory              `json:"app_category"`
+	WSFEDSettings          []WSFEDConfig            `json:"wsfed_settings,omitempty"`
+	SAMLSettings           []SAMLConfig             `json:"saml_settings,omitempty"`
+	Servers                []Server                 `json:"servers"`
+	OIDCClients            []OIDCClient             `json:"oidcclients,omitempty"`
+	OIDCSettings           *OIDCSettings            `json:"oidc_settings,omitempty"`
+	OriginHost             *string                  `json:"origin_host"`
+	Host                   *string                  `json:"host"`
+	AppLogo                *string                  `json:"app_logo"`
+	Description            *string                  `json:"description"`
+	AppProfileID           *string                  `json:"app_profile_id"`
+	CName                  *string                  `json:"cname"`
+	TLSSuiteName           *string                  `json:"tls_suite_name"`
+	Cert                   *string                  `json:"cert"`
+	CreatedAt              string                   `json:"created_at"`
+	DomainSuffix           string                   `json:"domain_suffix"`
+	AuthEnabled            string                   `json:"auth_enabled"`
+	RDPVersion             string                   `json:"rdp_version"`
+	UUIDURL                string                   `json:"uuid_url"`
+	Resource               string                   `json:"resource"`
+	BookmarkURL            string                   `json:"bookmark_url"`
+	POP                    string                   `json:"pop"`
+	FailoverPopName        string                   `json:"failover_popName"`
+	SSLCACert              string                   `json:"ssl_ca_cert"`
+	POPRegion              string                   `json:"popRegion"`
+	ModifiedAt             string                   `json:"modified_at"`
+	Name                   string                   `json:"name"`
+	POPName                string                   `json:"popName"`
+	OrigTLS                string                   `json:"orig_tls"`
+	AppBundle              string                   `json:"app_bundle,omitempty"`
+	TunnelInternalHosts    []TunnelInternalHost     `json:"tunnel_internal_hosts"`
+	Domain                 int                      `json:"domain"`
+	AuthType               int                      `json:"auth_type"`
+	AppStatus              int                      `json:"app_status"`
+	OriginPort             int                      `json:"origin_port"`
+	AppOperational         int                      `json:"app_operational"`
+	AppProfile             int                      `json:"app_profile"`
+	Status                 int                      `json:"status"`
+	SupportedClientVersion int                      `json:"supported_client_version"`
+	ClientAppMode          int                      `json:"client_app_mode"`
+	AppType                int                      `json:"app_type"`
+	FQDNBridgeEnabled      bool                     `json:"fqdn_bridge_enabled"`
+	WSFED                  bool                     `json:"wsfed"`
+	SAML                   bool                     `json:"saml"`
+	Oidc                   bool                     `json:"oidc"`
+	AppDeployed            bool                     `json:"app_deployed"`
 }
 
 type ResourceStatus struct {
@@ -1720,15 +1814,15 @@ type ResourceStatus struct {
 	PopStatus          int  `json:"pop_status"`
 }
 
-type G2O_Response struct {
+type G2OResponse struct {
 	G2OEnabled string `json:"g2o_enabled,omitempty"`
 	G2ONonce   string `json:"g2o_nonce,omitempty"`
 	G2OKey     string `json:"g2o_key,omitempty"`
 }
 
-type EdgeAuth_Response struct {
+type EdgeAuthResponse struct {
 	EdgeCookieKey string `json:"edge_cookie_key,omitempty"`
-	SlaObjectUrl  string `json:"sla_object_url,omitempty"`
+	SLAObjectURL  string `json:"sla_object_url,omitempty"`
 }
 
 // CustomHeader represents a custom header configuration
@@ -1749,7 +1843,7 @@ type AdvancedSettings struct {
 	G2OKey                       *string                `json:"g2o_key,omitempty"`
 	InternalHostname             *string                `json:"internal_hostname,omitempty"`
 	EdgeCookieKey                *string                `json:"edge_cookie_key,omitempty"`
-	SlaObjectUrl                 *string                `json:"sla_object_url,omitempty"`
+	SLAObjectURL                 *string                `json:"sla_object_url,omitempty"`
 	UserName                     *string                `json:"user_name"`
 	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie"`
 	RequestParameters            map[string]interface{} `json:"request_parameters"`
@@ -1883,7 +1977,7 @@ type AdvancedSettings struct {
 	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
 }
 
-type AdvancedSettings_Complete struct {
+type AdvancedSettingsComplete struct {
 	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
 	LogoutURL                    *string                `json:"logout_url,omitempty"`
 	InternalHostname             *string                `json:"internal_hostname,omitempty"`
@@ -2039,7 +2133,7 @@ type OIDCSettings struct {
 	UserinfoEndpoint      string `json:"userinfo_endpoint"`
 }
 
-// Simple SAML configuration object that matches the API expectation
+// SAMLConfig matches the SAML configuration shape returned by the API.
 type SAMLConfig struct {
 	SP      SPConfig      `json:"sp"`
 	IDP     IDPConfig     `json:"idp"`
@@ -2094,7 +2188,7 @@ type AttrMapping struct {
 	Rule  string `json:"rule"`
 }
 
-// WS-Federation configuration structs
+// WSFEDConfig groups WS-Federation configuration sections from the API.
 type WSFEDConfig struct {
 	SP      WSFEDSPConfig      `json:"sp"`
 	IDP     WSFEDIDPConfig     `json:"idp"`
@@ -2136,7 +2230,7 @@ type WSFEDAttrMapping struct {
 	Rule      string `json:"rule"`
 }
 
-// OIDC configuration structs
+// OIDCConfig groups OIDC client configuration from the API.
 type OIDCConfig struct {
 	OIDCClients []OIDCClient `json:"oidc_clients,omitempty"`
 }
@@ -2170,7 +2264,7 @@ type OIDCClaim struct {
 	Rule  string `json:"rule"`
 }
 
-// Legacy structs for backward compatibility with response parsing
+// SAMLSettings preserves the legacy response shape used during SAML parsing.
 type SAMLSettings struct {
 	Title string       `json:"title"`
 	Type  string       `json:"type"`
@@ -2319,7 +2413,10 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 
 	// Convert SP block
 	if spBlocks, ok := nestedData["sp"].([]interface{}); ok && len(spBlocks) > 0 {
-		spData := spBlocks[0].(map[string]interface{})
+		spData, err := firstMapBlock(spBlocks, "saml_settings.sp")
+		if err != nil {
+			return config, err
+		}
 
 		if entityID, ok := spData["entity_id"].(string); ok {
 			config.SP.EntityID = entityID
@@ -2344,7 +2441,10 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 
 	// Convert IDP block
 	if idpBlocks, ok := nestedData["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
-		idpData := idpBlocks[0].(map[string]interface{})
+		idpData, err := firstMapBlock(idpBlocks, "saml_settings.idp")
+		if err != nil {
+			return config, err
+		}
 
 		if entityID, ok := idpData["entity_id"].(string); ok {
 			config.IDP.EntityID = entityID
@@ -2365,10 +2465,13 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 
 	// Convert Subject block
 	if subjectBlocks, ok := nestedData["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
-		subjectData := subjectBlocks[0].(map[string]interface{})
+		subjectData, err := firstMapBlock(subjectBlocks, "saml_settings.subject")
+		if err != nil {
+			return config, err
+		}
 
-		if fmt, ok := subjectData["fmt"].(string); ok {
-			config.Subject.Fmt = fmt
+		if subjectFmt, ok := subjectData["fmt"].(string); ok {
+			config.Subject.Fmt = subjectFmt
 		}
 		if src, ok := subjectData["src"].(string); ok {
 			config.Subject.Src = src
@@ -2385,28 +2488,30 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 	if attrmapBlocks, ok := nestedData["attrmap"].([]interface{}); ok {
 		config.Attrmap = make([]AttrMapping, 0, len(attrmapBlocks))
 		for _, attrmapData := range attrmapBlocks {
-			if attrmapMap, ok := attrmapData.(map[string]interface{}); ok {
-				attrMapping := AttrMapping{}
-				if name, ok := attrmapMap["name"].(string); ok {
-					attrMapping.Name = name
-				}
-				if fname, ok := attrmapMap["fname"].(string); ok {
-					attrMapping.Fname = fname
-				}
-				if fmt, ok := attrmapMap["fmt"].(string); ok {
-					attrMapping.Fmt = fmt
-				}
-				if val, ok := attrmapMap["val"].(string); ok {
-					attrMapping.Val = val
-				}
-				if src, ok := attrmapMap["src"].(string); ok {
-					attrMapping.Src = src
-				}
-				if rule, ok := attrmapMap["rule"].(string); ok {
-					attrMapping.Rule = rule
-				}
-				config.Attrmap = append(config.Attrmap, attrMapping)
+			attrmapMap, ok := attrmapData.(map[string]interface{})
+			if !ok {
+				continue
 			}
+			attrMapping := AttrMapping{}
+			if name, ok := attrmapMap["name"].(string); ok {
+				attrMapping.Name = name
+			}
+			if fname, ok := attrmapMap["fname"].(string); ok {
+				attrMapping.Fname = fname
+			}
+			if attrFmt, ok := attrmapMap["fmt"].(string); ok {
+				attrMapping.Fmt = attrFmt
+			}
+			if val, ok := attrmapMap["val"].(string); ok {
+				attrMapping.Val = val
+			}
+			if src, ok := attrmapMap["src"].(string); ok {
+				attrMapping.Src = src
+			}
+			if rule, ok := attrmapMap["rule"].(string); ok {
+				attrMapping.Rule = rule
+			}
+			config.Attrmap = append(config.Attrmap, attrMapping)
 		}
 	}
 
@@ -2424,70 +2529,74 @@ func convertNestedBlocksToOIDCConfig(nestedData map[string]interface{}) (*OIDCCo
 	if oidcClients, ok := nestedData["oidc_clients"].([]interface{}); ok {
 		config.OIDCClients = make([]OIDCClient, 0, len(oidcClients))
 		for _, clientData := range oidcClients {
-			if clientMap, ok := clientData.(map[string]interface{}); ok {
-				client := OIDCClient{}
-				if clientName, ok := clientMap["client_name"].(string); ok {
-					client.ClientName = clientName
-				}
-				if clientID, ok := clientMap["client_id"].(string); ok {
-					client.ClientID = clientID
-				}
-				if responseType, ok := clientMap["response_type"].([]interface{}); ok {
-					client.ResponseType = make([]string, 0, len(responseType))
-					for _, rt := range responseType {
-						if rtStr, ok := rt.(string); ok {
-							client.ResponseType = append(client.ResponseType, rtStr)
-						}
-					}
-				}
-				if implicitGrant, ok := clientMap["implicit_grant"].(bool); ok {
-					client.ImplicitGrant = implicitGrant
-				}
-				if clientType, ok := clientMap["type"].(string); ok {
-					client.Type = clientType
-				}
-				if redirectURIs, ok := clientMap["redirect_uris"].([]interface{}); ok {
-					client.RedirectURIs = make([]string, 0, len(redirectURIs))
-					for _, uri := range redirectURIs {
-						if uriStr, ok := uri.(string); ok {
-							client.RedirectURIs = append(client.RedirectURIs, uriStr)
-						}
-					}
-				}
-				if jsOrigins, ok := clientMap["javascript_origins"].([]interface{}); ok {
-					client.JavaScriptOrigins = make([]string, 0, len(jsOrigins))
-					for _, origin := range jsOrigins {
-						if originStr, ok := origin.(string); ok {
-							client.JavaScriptOrigins = append(client.JavaScriptOrigins, originStr)
-						}
-					}
-				}
-				if claims, ok := clientMap["claims"].([]interface{}); ok {
-					client.Claims = make([]OIDCClaim, 0, len(claims))
-					for _, claimData := range claims {
-						if claimMap, ok := claimData.(map[string]interface{}); ok {
-							claim := OIDCClaim{}
-							if name, ok := claimMap["name"].(string); ok {
-								claim.Name = name
-							}
-							if scope, ok := claimMap["scope"].(string); ok {
-								claim.Scope = scope
-							}
-							if val, ok := claimMap["val"].(string); ok {
-								claim.Val = val
-							}
-							if src, ok := claimMap["src"].(string); ok {
-								claim.Src = src
-							}
-							if rule, ok := claimMap["rule"].(string); ok {
-								claim.Rule = rule
-							}
-							client.Claims = append(client.Claims, claim)
-						}
-					}
-				}
-				config.OIDCClients = append(config.OIDCClients, client)
+			clientMap, ok := clientData.(map[string]interface{})
+			if !ok {
+				continue
 			}
+			client := OIDCClient{}
+			if clientName, ok := clientMap["client_name"].(string); ok {
+				client.ClientName = clientName
+			}
+			if clientID, ok := clientMap["client_id"].(string); ok {
+				client.ClientID = clientID
+			}
+			if responseType, ok := clientMap["response_type"].([]interface{}); ok {
+				client.ResponseType = make([]string, 0, len(responseType))
+				for _, rt := range responseType {
+					if rtStr, ok := rt.(string); ok {
+						client.ResponseType = append(client.ResponseType, rtStr)
+					}
+				}
+			}
+			if implicitGrant, ok := clientMap["implicit_grant"].(bool); ok {
+				client.ImplicitGrant = implicitGrant
+			}
+			if clientType, ok := clientMap["type"].(string); ok {
+				client.Type = clientType
+			}
+			if redirectURIs, ok := clientMap["redirect_uris"].([]interface{}); ok {
+				client.RedirectURIs = make([]string, 0, len(redirectURIs))
+				for _, uri := range redirectURIs {
+					if uriStr, ok := uri.(string); ok {
+						client.RedirectURIs = append(client.RedirectURIs, uriStr)
+					}
+				}
+			}
+			if jsOrigins, ok := clientMap["javascript_origins"].([]interface{}); ok {
+				client.JavaScriptOrigins = make([]string, 0, len(jsOrigins))
+				for _, origin := range jsOrigins {
+					if originStr, ok := origin.(string); ok {
+						client.JavaScriptOrigins = append(client.JavaScriptOrigins, originStr)
+					}
+				}
+			}
+			if claims, ok := clientMap["claims"].([]interface{}); ok {
+				client.Claims = make([]OIDCClaim, 0, len(claims))
+				for _, claimData := range claims {
+					claimMap, ok := claimData.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					claim := OIDCClaim{}
+					if name, ok := claimMap["name"].(string); ok {
+						claim.Name = name
+					}
+					if scope, ok := claimMap["scope"].(string); ok {
+						claim.Scope = scope
+					}
+					if val, ok := claimMap["val"].(string); ok {
+						claim.Val = val
+					}
+					if src, ok := claimMap["src"].(string); ok {
+						claim.Src = src
+					}
+					if rule, ok := claimMap["rule"].(string); ok {
+						claim.Rule = rule
+					}
+					client.Claims = append(client.Claims, claim)
+				}
+			}
+			config.OIDCClients = append(config.OIDCClients, client)
 		}
 	}
 

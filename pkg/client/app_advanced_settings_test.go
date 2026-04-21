@@ -53,8 +53,8 @@ func TestParseAdvancedSettingsRemoteSparkSnakeCaseAliases(t *testing.T) {
 		t.Fatalf("RemoteSparkMapPrinter = %q, want %q", advSettings.RemoteSparkMapPrinter, "true")
 	}
 
-	var complete AdvancedSettings_Complete
-	UpdateAdvancedSettings(&complete, *advSettings)
+	var complete AdvancedSettingsComplete
+	UpdateAdvancedSettings(&complete, advSettings)
 
 	payload, err := json.Marshal(complete)
 	if err != nil {

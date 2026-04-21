@@ -1,7 +1,6 @@
 package eaaprovider
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -54,7 +53,7 @@ func stringPointerValue(value *string) interface{} {
 // }
 
 // cleanupOrphanedApp cleans up orphaned apps that may exist in EAA
-func cleanupOrphanedApp(ctx context.Context, eaaclient *client.EaaClient, appID string) bool {
+func cleanupOrphanedApp(eaaclient *client.EaaClient, appID string) bool {
 	logger := eaaclient.Logger
 	logger.Debug("Starting cleanup for orphaned app:", appID)
 

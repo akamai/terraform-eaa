@@ -63,7 +63,8 @@ func (ec *EaaClient) GetAppBundleByName(name string) (string, error) {
 		return "", fmt.Errorf("failed to fetch app bundles: %w", err)
 	}
 
-	for _, bundle := range appBundles.Objects {
+	for index := range appBundles.Objects {
+		bundle := &appBundles.Objects[index]
 		if bundle.Name == name {
 			return bundle.UUIDURL, nil
 		}

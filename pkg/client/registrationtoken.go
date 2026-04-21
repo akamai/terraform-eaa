@@ -58,14 +58,20 @@ func (r *CreateRegistrationTokenRequest) CreateRegistrationTokenRequestFromSchem
 		return fmt.Errorf("no registration tokens found in schema")
 	}
 
-	tokensList := tokens.([]interface{})
+	tokensList, ok := tokens.([]interface{})
+	if !ok {
+		return fmt.Errorf("registration_tokens must be a list, got %T", tokens)
+	}
 	if len(tokensList) == 0 {
 		return fmt.Errorf("registration tokens list is empty")
 	}
 
 	// For now, we'll use the first token in the list
 	// In a real implementation, you might want to handle multiple tokens differently
-	tokenData := tokensList[0].(map[string]interface{})
+	tokenData, ok := tokensList[0].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("registration token must be an object, got %T", tokensList[0])
+	}
 
 	// Validate and set the token name
 	tokenName, err := ValidateRequiredString(d, "registration_tokens.0.name", client)
@@ -140,7 +146,7 @@ func (r *CreateRegistrationTokenRequest) createTokenViaAPI(client *EaaClient) ([
 	client.Logger.Info("Response status:", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		errorDetail, _ := FormatErrorResponse(resp)
+		errorDetail := FormatErrorDescription(resp)
 		return nil, fmt.Errorf("failed to create registration token: %s", errorDetail)
 	}
 
@@ -167,7 +173,7 @@ func (r *CreateRegistrationTokenRequest) fetchTokensFromList(client *EaaClient) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errorDetail, _ := FormatErrorResponse(resp)
+		errorDetail := FormatErrorDescription(resp)
 		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
 	}
 
@@ -196,7 +202,8 @@ func (r *CreateRegistrationTokenRequest) parseAndFindToken(client *EaaClient, bo
 
 	client.Logger.Info("=== PARSED AS LIST FORMAT ===")
 	client.Logger.Info("Total tokens in response:", len(listResponse.Objects))
-	for i, token := range listResponse.Objects {
+	for i := range listResponse.Objects {
+		token := &listResponse.Objects[i]
 		client.Logger.Info(fmt.Sprintf("Token %d - Name: %s, UUID: %s, ConnectorPool: %s", i+1, token.Name, token.UUIDURL, token.ConnectorPool))
 	}
 	client.Logger.Info("=== END LIST FORMAT ===")
@@ -285,7 +292,7 @@ func (client *EaaClient) GetRegistrationTokens(connectorPool string) ([]Registra
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errorDetail, _ := FormatErrorResponse(resp)
+		errorDetail := FormatErrorDescription(resp)
 		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
 	}
 
@@ -319,7 +326,7 @@ func (client *EaaClient) GetRegistrationTokenByUUID(uuidURL, connectorPool strin
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errorDetail, _ := FormatErrorResponse(resp)
+		errorDetail := FormatErrorDescription(resp)
 		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
 	}
 
@@ -338,7 +345,8 @@ func (client *EaaClient) GetRegistrationTokenByUUID(uuidURL, connectorPool strin
 	client.Logger.Info("Total tokens found:", len(response.Objects))
 
 	// Find the token by UUID
-	for i, token := range response.Objects {
+	for i := range response.Objects {
+		token := &response.Objects[i]
 		client.Logger.Info(fmt.Sprintf("Token %d - UUID: %s, Name: %s", i+1, token.UUIDURL, token.Name))
 		if token.UUIDURL == uuidURL {
 			client.Logger.Info("=== FOUND MATCHING TOKEN ===")
@@ -346,7 +354,7 @@ func (client *EaaClient) GetRegistrationTokenByUUID(uuidURL, connectorPool strin
 			client.Logger.Info("Token Name:", token.Name)
 			client.Logger.Info("Token Value:", token.Token)
 			client.Logger.Info("=== END MATCHING TOKEN ===")
-			return &token, nil
+			return token, nil
 		}
 	}
 
@@ -354,7 +362,8 @@ func (client *EaaClient) GetRegistrationTokenByUUID(uuidURL, connectorPool strin
 	client.Logger.Error("Searched for UUID:", uuidURL)
 	client.Logger.Error("In connector pool:", connectorPool)
 	client.Logger.Error("Available tokens:")
-	for i, token := range response.Objects {
+	for i := range response.Objects {
+		token := &response.Objects[i]
 		client.Logger.Error(fmt.Sprintf("  %d. UUID: %s, Name: %s", i+1, token.UUIDURL, token.Name))
 	}
 	client.Logger.Error("=== END TOKEN NOT FOUND ===")
@@ -381,7 +390,7 @@ func DeleteRegistrationTokenByUUID(ctx context.Context, client *EaaClient, token
 
 	// Check if the deletion was successful
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		errorDetail, _ := FormatErrorResponse(resp)
+		errorDetail := FormatErrorDescription(resp)
 		return fmt.Errorf("failed to delete registration token: %s", errorDetail)
 	}
 
@@ -396,9 +405,15 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 		return nil
 	}
 
-	tokensList := tokens.([]interface{})
+	tokensList, ok := tokens.([]interface{})
+	if !ok {
+		return fmt.Errorf("registration_tokens must be a list, got %T", tokens)
+	}
 	for _, tokenInterface := range tokensList {
-		tokenData := tokenInterface.(map[string]interface{})
+		tokenData, ok := tokenInterface.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("registration token must be an object, got %T", tokenInterface)
+		}
 
 		// Validate max_use and expires_in_days fields
 		maxUse, err := ValidateIntegerField(tokenData["max_use"], "max_use", 1, 1000, eaaclient)
@@ -415,12 +430,22 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 		now := time.Now().UTC()
 		expiresAt := now.AddDate(0, 0, expiresInDays).Format(time.RFC3339)
 
+		tokenName, ok := tokenData["name"].(string)
+		if !ok || tokenName == "" {
+			return fmt.Errorf("registration token name must be a non-empty string")
+		}
+
+		generateEmbeddedImg, ok := tokenData["generate_embedded_img"].(bool)
+		if !ok {
+			return fmt.Errorf("registration token generate_embedded_img must be a bool")
+		}
+
 		createTokenRequest := CreateRegistrationTokenRequest{
-			Name:                tokenData["name"].(string),
+			Name:                tokenName,
 			MaxUse:              maxUse,
 			ExpiresAt:           expiresAt,
 			ConnectorPool:       poolUUID,
-			GenerateEmbeddedImg: tokenData["generate_embedded_img"].(bool),
+			GenerateEmbeddedImg: generateEmbeddedImg,
 		}
 
 		_, err3 := createTokenRequest.CreateRegistrationToken(ctx, eaaclient)

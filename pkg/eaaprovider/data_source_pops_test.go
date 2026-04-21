@@ -19,7 +19,7 @@ func TestDataPops(t *testing.T) {
 			ProviderFactories: testAccProviders,
 			Steps: []resource.TestStep{
 				{
-					Config: testAccEaaAppPopsConfig_basic(),
+					Config: testAccEaaAppPopsConfigBasic(),
 					Check: resource.ComposeAggregateTestCheckFunc(
 						resource.TestCheckResourceAttr("data.eaa_data_source_pops.pops", "id", "eaa_pops"),
 						func(s *terraform.State) error {
@@ -48,7 +48,7 @@ func TestDataPops(t *testing.T) {
 	})
 }
 
-func testAccEaaAppPopsConfig_basic() string {
+func testAccEaaAppPopsConfigBasic() string {
 	return `
 	data "eaa_data_source_pops" "pops"{
 	}

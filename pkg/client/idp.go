@@ -57,7 +57,7 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
 		return nil, getIdpErrMsg
 	}
@@ -94,7 +94,7 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
 		return nil, getIdpErrMsg
 	}
@@ -140,7 +140,7 @@ func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		getIdpDirsErrMsg := fmt.Errorf("%w: %s", ErrIDPDirectoriesGet, desc)
 		return nil, getIdpDirsErrMsg
 	}
@@ -172,7 +172,7 @@ func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
 	return directoryList, nil
 }
 
-func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interface{}, app_uuid_url string, ec *EaaClient) error {
+func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interface{}, appUUIDURL string, ec *EaaClient) error {
 	ec.Logger.Info("assigning directories to application")
 	if appDirsList, ok := appDirs.([]interface{}); ok {
 		for _, s := range appDirsList {
@@ -189,7 +189,7 @@ func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interf
 						continue
 					}
 					appdir.UUID = dirData.UUID
-					appdir.APP_ID = app_uuid_url
+					appdir.APP_ID = appUUIDURL
 					err = appdir.AssignIdpDirectory(ctx, ec)
 					if err != nil {
 						ec.Logger.Info("directory assignment failed")
@@ -198,9 +198,9 @@ func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interf
 
 					if appGroupsList, ok := sData["app_groups"].([]interface{}); ok {
 						if len(appGroupsList) > 0 {
-							err = dirData.AssignIdpDirectoryGroups(ctx, ec, app_uuid_url, appGroupsList)
+							err = dirData.AssignIdpDirectoryGroups(ctx, ec, appUUIDURL, appGroupsList)
 						} else {
-							err = dirData.AssignAllDirectoryGroups(ctx, ec, app_uuid_url)
+							err = dirData.AssignAllDirectoryGroups(ctx, ec, appUUIDURL)
 						}
 						if err != nil {
 							ec.Logger.Info("directory groups assignment failed")

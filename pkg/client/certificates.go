@@ -28,16 +28,16 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL)
 
 	var ssCertResp CertificateResponse
-	ssCertHttpResp, err := ec.SendAPIRequest(apiURL, "POST", sscert, &ssCertResp, false)
+	ssCertHTTPResp, err := ec.SendAPIRequest(apiURL, "POST", sscert, &ssCertResp, false)
 	if err != nil {
 		ec.Logger.Error("self certificate generation request failed. err: ", err)
 		return nil, err
 	}
-	if ssCertHttpResp.StatusCode < http.StatusOK || ssCertHttpResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(ssCertHttpResp)
+	if ssCertHTTPResp.StatusCode < http.StatusOK || ssCertHTTPResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(ssCertHTTPResp)
 		ssCertErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
-		ec.Logger.Error("self signed certificate generation failed. ssCertHttpResp.StatusCode: desc: ", ssCertHttpResp.StatusCode, desc)
+		ec.Logger.Error("self signed certificate generation failed. ssCertHTTPResp.StatusCode: desc: ", ssCertHTTPResp.StatusCode, desc)
 		return nil, ssCertErrMsg
 	}
 	return &ssCertResp, nil
@@ -87,7 +87,7 @@ func GetCertificates(ec *EaaClient) ([]CertObject, error) {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
 		return nil, updErrMsg
 	}
@@ -115,8 +115,8 @@ func DoesSelfSignedCertExistForHost(ec *EaaClient, host string) (*CertObject, er
 	return nil, nil
 }
 
-func GetCertificate(ec *EaaClient, cert_uuid_url string) (*CertificateResponse, error) {
-	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, cert_uuid_url)
+func GetCertificate(ec *EaaClient, certUUIDURL string) (*CertificateResponse, error) {
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
 	certResponse := CertificateResponse{}
 
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &certResponse, false)
@@ -124,7 +124,7 @@ func GetCertificate(ec *EaaClient, cert_uuid_url string) (*CertificateResponse, 
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
 		return nil, updErrMsg
 	}

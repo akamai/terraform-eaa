@@ -13,16 +13,16 @@ import (
 
 // SettingRule defines validation rules for a specific advanced setting
 type SettingRule struct {
-	DependsOn   map[string]string      // Field dependencies: {"field_name": "required_value"}
 	Conditional map[string]interface{} // Conditional validation rules
-	Type        string                 // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
-	ValidValues []string               // Allowed values (for enum fields)
-	AppTypes    []string               // Allowed app types
-	Profiles    []string               // Allowed app profiles
-	MinValue    int                    // Minimum value for numeric fields
-	MaxValue    int                    // Maximum value for numeric fields
-	Required    bool                   // Whether field is required (nullable fields should be false)
+	DependsOn   map[string]string      // Field dependencies: {"field_name": "required_value"}
 	Default     any
+	Type        string   // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
+	ValidValues []string // Allowed values (for enum fields)
+	AppTypes    []string // Allowed app types
+	Profiles    []string // Allowed app profiles
+	MinValue    int      // Minimum value for numeric fields
+	MaxValue    int      // Maximum value for numeric fields
+	Required    bool     // Whether field is required (nullable fields should be false)
 }
 
 // SETTINGS_RULES defines validation rules for all advanced settings
@@ -2769,7 +2769,7 @@ func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfi
 		}
 
 		// Validate the setting against its rule
-		if err := validateSetting(settingName, settingValue, rule, settings, appType, appProfile, logger); err != nil {
+		if err := validateSetting(settingName, settingValue, &rule, settings, appType, appProfile, logger); err != nil {
 			logger.Warn(err.Error())
 			diags = append(diags, warningDiagnostic(
 				"Advanced settings validation warning",
@@ -2824,7 +2824,7 @@ func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 		if value, exists := settings[field]; exists {
 			// Get the rule for this field from SETTINGS_RULES
 			if rule, hasRule := SETTINGS_RULES[field]; hasRule {
-				if err := validateSetting(field, value, rule, settings, appType, appProfile, logger); err != nil {
+				if err := validateSetting(field, value, &rule, settings, appType, appProfile, logger); err != nil {
 					logger.Warn(err.Error())
 					diags = append(diags, warningDiagnostic(
 						"Health check validation warning",
@@ -2958,7 +2958,7 @@ func validateFieldConflicts(settings map[string]interface{}, logger hclog.Logger
 }
 
 // validateSetting validates a single setting against its rule
-func validateSetting(settingName string, value interface{}, rule SettingRule, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+func validateSetting(settingName string, value interface{}, rule *SettingRule, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
 	logger.Debug("Validating setting '%s' with value: %v", settingName, value)
 
 	// Empty optional collections are effectively unset in HCL.
@@ -2996,7 +2996,7 @@ func validateSetting(settingName string, value interface{}, rule SettingRule, se
 	}
 
 	// Check Conditional rules
-	if rule.Conditional != nil && len(rule.Conditional) > 0 {
+	if len(rule.Conditional) > 0 {
 		logger.Debug("Setting '%s' has conditional rules: %v", settingName, rule.Conditional)
 		if err := validateConditionalRules(settingName, value, rule.Conditional, settings, appType, appProfile, logger); err != nil {
 			return err
@@ -3013,9 +3013,9 @@ func validateSetting(settingName string, value interface{}, rule SettingRule, se
 }
 
 // validateSettingDependencies validates field dependencies for a setting
-func validateSettingDependencies(settingName string, rule SettingRule, settings map[string]interface{}, logger hclog.Logger) error {
+func validateSettingDependencies(settingName string, rule *SettingRule, settings map[string]interface{}, logger hclog.Logger) error {
 	// Check DependsOn rules
-	if rule.DependsOn != nil && len(rule.DependsOn) > 0 {
+	if len(rule.DependsOn) > 0 {
 		for dependentField, requiredValue := range rule.DependsOn {
 			logger.Debug("Setting '%s' depends on field '%s' having value '%s'", settingName, dependentField, requiredValue)
 
@@ -3036,7 +3036,7 @@ func validateSettingDependencies(settingName string, rule SettingRule, settings 
 }
 
 // validateConditionalRules validates conditional rules for a setting
-func validateConditionalRules(settingName string, value interface{}, conditional map[string]interface{}, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+func validateConditionalRules(settingName string, value interface{}, conditional, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
 	// Delegate auth-specific conditional checks
 	if err := handleAuthConditionalRules(settingName, value, settings, appType, appProfile, logger); err != nil {
 		return err
@@ -3073,7 +3073,7 @@ func validateConditionalRules(settingName string, value interface{}, conditional
 }
 
 // applyConditionalRules applies specific conditional rules to a setting value
-func applyConditionalRules(settingName string, value interface{}, rules interface{}, logger hclog.Logger) error {
+func applyConditionalRules(settingName string, value, rules interface{}, logger hclog.Logger) error {
 	if rulesMap, ok := rules.(map[string]interface{}); ok {
 		// Handle ValidValues restriction
 		if validValues, hasValidValues := rulesMap["ValidValues"]; hasValidValues {
@@ -3162,7 +3162,7 @@ func validateDependencyValue(fieldValue interface{}, requiredValue string, logge
 }
 
 // validateSettingValue validates the value of a setting based on its type and constraints
-func validateSettingValue(value interface{}, rule SettingRule, logger hclog.Logger) error {
+func validateSettingValue(value interface{}, rule *SettingRule, logger hclog.Logger) error {
 	// Handle null values
 	if value == nil {
 		if rule.Required {
@@ -3190,13 +3190,13 @@ func validateSettingValue(value interface{}, rule SettingRule, logger hclog.Logg
 }
 
 // validateStringSettingWithReflect validates string settings using reflect for comprehensive type checking
-func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	var strValue string
 
 	// Handle different input types more comprehensively
 	switch kind {
 	case reflect.String:
-		strValue = value.(string)
+		strValue = reflect.ValueOf(value).String()
 	case reflect.Ptr:
 		// Handle pointer types (*string, *int, etc.)
 		ptrValue := reflect.ValueOf(value)
@@ -3232,7 +3232,7 @@ func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule
 		}
 	case reflect.Bool:
 		// Convert boolean to string representation
-		boolValue := value.(bool)
+		boolValue := reflect.ValueOf(value).Bool()
 		strValue = fmt.Sprintf("%t", boolValue)
 		logger.Debug("Converted boolean %v to string '%s'", boolValue, strValue)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -3346,7 +3346,7 @@ func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule
 // }
 
 // validateIntSettingWithReflect validates integer settings using reflect for comprehensive type checking
-func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	var intValue int
 
 	switch kind {
@@ -3378,7 +3378,7 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 		case reflect.String:
 			strVal := elemValue.String()
 			// Handle string-to-integer mapping for enum fields
-			if rule.ValidValues != nil && len(rule.ValidValues) > 0 {
+			if len(rule.ValidValues) > 0 {
 				// Check if this is an enum field that maps strings to integers
 				if contains(rule.ValidValues, strVal) {
 					// Map enum string values to integers based on their position
@@ -3394,12 +3394,12 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 				}
 			} else {
 				// For other integer fields, try to parse the string as an integer
-				if parsed, err := strconv.Atoi(strVal); err != nil {
+				parsed, err := strconv.Atoi(strVal)
+				if err != nil {
 					return fmt.Errorf("expected integer, got '%s'", strVal)
-				} else {
-					intValue = parsed
-					logger.Debug("Dereferenced string '%s' to int %d", strVal, intValue)
 				}
+				intValue = parsed
+				logger.Debug("Dereferenced string '%s' to int %d", strVal, intValue)
 			}
 		case reflect.Bool:
 			// Convert boolean to integer (true=1, false=0)
@@ -3420,7 +3420,7 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 	case reflect.String:
 		strVal := reflect.ValueOf(value).String()
 		// Handle string-to-integer mapping for enum fields
-		if rule.ValidValues != nil && len(rule.ValidValues) > 0 {
+		if len(rule.ValidValues) > 0 {
 			// Check if this is an enum field that maps strings to integers
 			if contains(rule.ValidValues, strVal) {
 				// Map enum string values to integers based on their position
@@ -3436,12 +3436,12 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 			}
 		} else {
 			// For other integer fields, try to parse the string as an integer
-			if parsed, err := strconv.Atoi(strVal); err != nil {
+			parsed, err := strconv.Atoi(strVal)
+			if err != nil {
 				return fmt.Errorf("expected integer, got '%s'", strVal)
-			} else {
-				intValue = parsed
-				logger.Debug("Converted string '%s' to int %d", strVal, intValue)
 			}
+			intValue = parsed
+			logger.Debug("Converted string '%s' to int %d", strVal, intValue)
 		}
 	case reflect.Bool:
 		// Convert boolean to integer (true=1, false=0)
@@ -3558,7 +3558,7 @@ func stringValue(value interface{}) (string, bool) {
 	return reflected.String(), true
 }
 
-func isEmptyOptionalCollection(value interface{}, rule SettingRule) bool {
+func isEmptyOptionalCollection(value interface{}, rule *SettingRule) bool {
 	if rule.Required || value == nil {
 		return false
 	}
@@ -3609,7 +3609,7 @@ func isEmptyOptionalCollection(value interface{}, rule SettingRule) bool {
 // }
 
 // validateArraySettingWithReflect validates array settings using reflect for comprehensive type checking
-func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	// For custom_headers, we just need to ensure it's an array/slice
 	// The detailed validation is handled by ValidateCustomHeadersConfiguration()
 	switch kind {

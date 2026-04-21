@@ -92,9 +92,9 @@ type AccessRule struct {
 	Status   int          `json:"status,omitempty"`
 }
 
-func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, service_uuid_url string) error {
+func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serviceUUIDURL string) error {
 	ec.Logger.Info("CreateAccessRule")
-	if service_uuid_url == "" {
+	if serviceUUIDURL == "" {
 		ec.Logger.Error("create Access Rule failed. empty uuid_url")
 		return ErrRuleCreate
 	}
@@ -108,11 +108,11 @@ func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serv
 		ModifiedAt:  time.Now(),
 		Name:        rule.Name,
 		RuleType:    RULE_TYPE_ACCESS_CTRL,
-		Service:     service_uuid_url,
+		Service:     serviceUUIDURL,
 		Settings:    rule.Settings,
 		Status:      rule.Status,
 	}
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules", URL_SCHEME, ec.Host, SERVICES_URL, service_uuid_url)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules", URL_SCHEME, ec.Host, SERVICES_URL, serviceUUIDURL)
 	createRuleResp, err := ec.SendAPIRequest(apiURL, "POST", arReq, nil, false)
 
 	if err != nil {
@@ -121,7 +121,7 @@ func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serv
 	}
 
 	if createRuleResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(createRuleResp)
+		desc := FormatErrorDescription(createRuleResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrRuleCreate, desc)
 
 		ec.Logger.Error("create Access Rule failed. StatusCode %d %s", createRuleResp.StatusCode, desc)
@@ -131,12 +131,12 @@ func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serv
 	return nil
 }
 
-func (rule AccessRule) DeleteAccessRule(ctx context.Context, ec *EaaClient, service_uuid_url string) error {
-	if rule.UUID_URL == "" || service_uuid_url == "" {
+func (rule AccessRule) DeleteAccessRule(ctx context.Context, ec *EaaClient, serviceUUIDURL string) error {
+	if rule.UUID_URL == "" || serviceUUIDURL == "" {
 		ec.Logger.Error("delete Access Rule failed. empty uuid_url")
 		return ErrRuleDelete
 	}
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules/%s", URL_SCHEME, ec.Host, SERVICES_URL, service_uuid_url, rule.UUID_URL)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules/%s", URL_SCHEME, ec.Host, SERVICES_URL, serviceUUIDURL, rule.UUID_URL)
 	deleteResp, err := ec.SendAPIRequest(apiURL, http.MethodDelete, nil, nil, false)
 	if err != nil {
 		return err
@@ -148,9 +148,9 @@ func (rule AccessRule) DeleteAccessRule(ctx context.Context, ec *EaaClient, serv
 	return nil
 }
 
-func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, service_uuid_url string) error {
+func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serviceUUIDURL string) error {
 	ec.Logger.Info("ModifyAccessRule")
-	if rule.UUID_URL == "" || service_uuid_url == "" {
+	if rule.UUID_URL == "" || serviceUUIDURL == "" {
 		ec.Logger.Error("modify Access Rule failed. empty uuid_url")
 		return ErrRuleModify
 	}
@@ -163,11 +163,11 @@ func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serv
 		ModifiedAt:  time.Now(),
 		Name:        rule.Name,
 		RuleType:    RULE_TYPE_ACCESS_CTRL,
-		Service:     service_uuid_url,
+		Service:     serviceUUIDURL,
 		Settings:    rule.Settings,
 		Status:      rule.Status,
 	}
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules/%s", URL_SCHEME, ec.Host, SERVICES_URL, service_uuid_url, rule.UUID_URL)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules/%s", URL_SCHEME, ec.Host, SERVICES_URL, serviceUUIDURL, rule.UUID_URL)
 	createRuleResp, err := ec.SendAPIRequest(apiURL, "PUT", arReq, nil, false)
 
 	if err != nil {
@@ -176,8 +176,7 @@ func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serv
 	}
 
 	if createRuleResp.StatusCode < http.StatusOK || createRuleResp.StatusCode >= http.StatusMultipleChoices {
-
-		desc, _ := FormatErrorResponse(createRuleResp)
+		desc := FormatErrorDescription(createRuleResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrRuleModify, desc)
 
 		ec.Logger.Error("modify Access Rule failed. StatusCode %d %s", createRuleResp.StatusCode, desc)
@@ -225,7 +224,7 @@ func (appService AppService) EnableService(ec *EaaClient) error {
 		return fmt.Errorf("failed to enable app service: %w", err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrEnableService, desc)
 		return appServiceErrMsg
 	}
@@ -278,7 +277,18 @@ func (appService AppService) CreateAppServiceStruct(ec *EaaClient) ([]interface{
 			rules = append(rules, ruleMap)
 		}
 		sort.SliceStable(rules, func(i, j int) bool {
-			return rules[i]["type"].(string) < rules[j]["type"].(string)
+			typeI, okI := rules[i]["type"].(string)
+			typeJ, okJ := rules[j]["type"].(string)
+			switch {
+			case !okI && !okJ:
+				return false
+			case !okI:
+				return false
+			case !okJ:
+				return true
+			default:
+				return typeI < typeJ
+			}
 		})
 		rule["rule"] = rules
 		accessRules = append(accessRules, rule)
@@ -286,20 +296,31 @@ func (appService AppService) CreateAppServiceStruct(ec *EaaClient) ([]interface{
 	}
 
 	sort.SliceStable(accessRules, func(i, j int) bool {
-		return accessRules[i]["name"].(string) < accessRules[j]["name"].(string)
+		nameI, okI := accessRules[i]["name"].(string)
+		nameJ, okJ := accessRules[j]["name"].(string)
+		switch {
+		case !okI && !okJ:
+			return false
+		case !okI:
+			return false
+		case !okJ:
+			return true
+		default:
+			return nameI < nameJ
+		}
 	})
 
 	appSvc["access_rule"] = accessRules
 	return []interface{}{appSvc}, nil
 }
 
-func GetACLService(ec *EaaClient, app_uuid_url string) (*AppService, error) {
+func GetACLService(ec *EaaClient, appUUIDURL string) (*AppService, error) {
 	ec.Logger.Info("GetACLService")
-	if app_uuid_url == "" {
+	if appUUIDURL == "" {
 		ec.Logger.Error("get access service failed. empty uuid_url")
 		return nil, ErrEnableService
 	}
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/services", URL_SCHEME, ec.Host, APPS_URL, app_uuid_url)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/services", URL_SCHEME, ec.Host, APPS_URL, appUUIDURL)
 	asResponse := AppServicesResponse{}
 
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &asResponse, false)
@@ -307,7 +328,7 @@ func GetACLService(ec *EaaClient, app_uuid_url string) (*AppService, error) {
 		return nil, fmt.Errorf("failed to get app services: %w", err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrAppServicesGet, desc)
 		return nil, appServiceErrMsg
 	}
@@ -379,31 +400,31 @@ func ExtractACLService(ctx context.Context, d *schema.ResourceData, ec *EaaClien
 			}
 
 			for _, ruleRaw := range rulesRaw {
-				ruleMap, ok := ruleRaw.(map[string]interface{})
-				if !ok {
+				ruleMap, ruleMapOK := ruleRaw.(map[string]interface{})
+				if !ruleMapOK {
 					ec.Logger.Info("invalid rule configuration.")
 					return nil, fmt.Errorf("invalid rule configuration")
 				}
 
-				operator, ok := ruleMap["operator"].(string)
-				if !ok {
+				ruleOperator, ruleOperatorOK := ruleMap["operator"].(string)
+				if !ruleOperatorOK {
 					ec.Logger.Info("Invalid or missing rule operator.")
 					return nil, fmt.Errorf("invalid or missing rule operator")
 				}
 
-				ruleType, ok := ruleMap["type"].(string)
-				if !ok {
+				ruleType, ruleTypeOK := ruleMap["type"].(string)
+				if !ruleTypeOK {
 					ec.Logger.Info("Invalid or missing rule type.")
 					return nil, fmt.Errorf("invalid or missing rule type")
 				}
 
-				value, ok := ruleMap["value"].(string)
-				if !ok {
+				value, valueOK := ruleMap["value"].(string)
+				if !valueOK {
 					ec.Logger.Info("invalid or missing rule value.")
 					return nil, fmt.Errorf("invalid or missing rule value")
 				}
 				rule := ACLSetting{
-					Operator: operator,
+					Operator: ruleOperator,
 					Type:     ruleType,
 					Value:    value,
 				}
@@ -445,13 +466,13 @@ type ACLRulesResponse struct {
 	ACLRules []AccessRule `json:"objects,omitempty"`
 }
 
-func GetAccessControlRules(ec *EaaClient, service_uuid_url string) (*ACLRulesResponse, error) {
+func GetAccessControlRules(ec *EaaClient, serviceUUIDURL string) (*ACLRulesResponse, error) {
 	ec.Logger.Info("GetAccessControlRules")
-	if service_uuid_url == "" {
+	if serviceUUIDURL == "" {
 		ec.Logger.Error("get access control rules failed. empty uuid_url")
 		return nil, ErrEnableService
 	}
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules", URL_SCHEME, ec.Host, SERVICES_URL, service_uuid_url)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules", URL_SCHEME, ec.Host, SERVICES_URL, serviceUUIDURL)
 	asResponse := ACLRulesResponse{}
 
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &asResponse, false)
@@ -459,7 +480,7 @@ func GetAccessControlRules(ec *EaaClient, service_uuid_url string) (*ACLRulesRes
 		return nil, fmt.Errorf("failed to get access control rules: %w", err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appServiceErrMsg := fmt.Errorf("%w: %s", ErrAppServicesGet, desc)
 		return nil, appServiceErrMsg
 	}

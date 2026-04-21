@@ -66,7 +66,7 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 		return err
 	}
 	if appDirResp.StatusCode < http.StatusOK || appDirResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(appDirResp)
+		desc := FormatErrorDescription(appDirResp)
 		assignDirErrMsg := fmt.Errorf("%w: %s", ErrAssignDirectoryFailure, desc)
 		ec.Logger.Error("assign directories to application failed. appDirResp.StatusCode", appDirResp.StatusCode)
 		return assignDirErrMsg
@@ -88,37 +88,39 @@ func (dirData *DirectoryData) GetIdpDirectoryGroup(ctx context.Context, ec *EaaC
 }
 
 // AssignIdpDirectoryGroups assigns IDP directory groups to an application
-func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *EaaClient, app_uuid_url string, appGroupsList []interface{}) error {
+func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *EaaClient, appUUIDURL string, appGroupsList []interface{}) error {
 	var groups []map[string]interface{}
 
 	for _, s := range appGroupsList {
-		if gData, ok := s.(map[string]interface{}); ok {
-			appgroup := AppGroup{}
-			gn, ok := gData["name"].(string)
-			if !ok || gn == "" {
-				continue
-			}
-			grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)
-			if err != nil {
-				continue
-			}
-			appgroup.UUIDURL = grp.UUID_URL
-
-			if em, ok := gData["enable_mfa"].(string); ok {
-				appgroup.EnableMFA = &em
-			}
-
-			group := map[string]interface{}{
-				"uuid_url":   appgroup.UUIDURL,
-				"enable_mfa": appgroup.EnableMFA,
-			}
-			groups = append(groups, group)
+		gData, ok := s.(map[string]interface{})
+		if !ok {
+			continue
 		}
+		appgroup := AppGroup{}
+		gn, ok := gData["name"].(string)
+		if !ok || gn == "" {
+			continue
+		}
+		grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)
+		if err != nil {
+			continue
+		}
+		appgroup.UUIDURL = grp.UUID_URL
+
+		if em, ok := gData["enable_mfa"].(string); ok {
+			appgroup.EnableMFA = &em
+		}
+
+		group := map[string]interface{}{
+			"uuid_url":   appgroup.UUIDURL,
+			"enable_mfa": appgroup.EnableMFA,
+		}
+		groups = append(groups, group)
 	}
 	if len(groups) == 0 {
 		return nil
 	}
-	app := []string{app_uuid_url}
+	app := []string{appUUIDURL}
 	data := []map[string]interface{}{
 		{
 			"apps":   app,
@@ -139,7 +141,7 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(appGroupResp)
+		desc := FormatErrorDescription(appGroupResp)
 		assignGrpErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
 		ec.Logger.Error("assign groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)
 		return assignGrpErrMsg
@@ -148,12 +150,10 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 }
 
 // AssignAllDirectoryGroups assigns all directory groups to an application with an "inherit" enable_mfa value
-func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *EaaClient, app_uuid_url string) error {
+func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *EaaClient, appUUIDURL string) error {
 	var groups []map[string]interface{}
 
 	for _, grp := range dirData.Groups {
-		appgroup := AppGroup{}
-		appgroup.UUIDURL = grp.UUID_URL
 		group := map[string]interface{}{
 			"uuid_url":   grp.UUID_URL,
 			"enable_mfa": "inherit",
@@ -163,7 +163,7 @@ func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *
 	if len(groups) == 0 {
 		return nil
 	}
-	app := []string{app_uuid_url}
+	app := []string{appUUIDURL}
 	data := []map[string]interface{}{
 		{
 			"apps":   app,
@@ -184,7 +184,7 @@ func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(appGroupResp)
+		desc := FormatErrorDescription(appGroupResp)
 		appGroupErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
 		ec.Logger.Error("assign directory groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)
 		return appGroupErrMsg

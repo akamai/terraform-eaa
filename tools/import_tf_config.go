@@ -50,12 +50,12 @@ func main() {
 	edgercPath := filepath.Join(currentDir, edgercFile)
 
 	// Check if the file exists in the current directory
-	if _, err := os.Stat(edgercPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(edgercPath); os.IsNotExist(statErr) {
 		fmt.Printf("File '%s' not found in current directory '%s'.\n", edgercFile, currentDir)
 		fmt.Print("Please enter the full path to the .edgerc file (API token): ")
-		newPath, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading newPath:", err)
+		newPath, readErr := reader.ReadString('\n')
+		if readErr != nil {
+			fmt.Println("Error reading newPath:", readErr)
 			return
 		}
 		if newPath != "" {
@@ -67,7 +67,7 @@ func main() {
 		}
 
 		// Check if the new file path exists
-		if _, err := os.Stat(edgercPath); os.IsNotExist(err) {
+		if _, statErr := os.Stat(edgercPath); os.IsNotExist(statErr) {
 			fmt.Printf("File '%s' does not exist.\n", edgercPath)
 			return
 		}
@@ -91,11 +91,11 @@ func main() {
 		fmt.Println(err)
 	} else {
 		println()
-		println(generate_info)
+		println(generateInfo)
 	}
 }
 
-func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) error {
+func GenerateConfiguration(ec *EaaClient, edgercPath, appNames string) error {
 	fmt.Println("generating import blocks ...")
 	fmt.Println()
 
@@ -115,7 +115,7 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 			}
 
 			if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-				desc, _ := FormatErrorResponse(getResp)
+				desc := FormatErrorDescription(getResp)
 				getAppErrMsg := fmt.Errorf("%w: %s", ErrGetApp, desc)
 				return getAppErrMsg
 			}
@@ -151,8 +151,8 @@ func GenerateConfiguration(ec *EaaClient, edgercPath string, appNames string) er
 			return err
 		}
 		defer func() {
-			if err := file.Close(); err != nil {
-				fmt.Printf("Error closing file: %v", err)
+			if closeErr := file.Close(); closeErr != nil {
+				fmt.Printf("Error closing file: %v", closeErr)
 			}
 		}()
 		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)

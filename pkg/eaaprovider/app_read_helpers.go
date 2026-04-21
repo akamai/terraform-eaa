@@ -25,14 +25,14 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 	}
 	attrs["app_profile"] = profileString
 
-	aType := client.ClientAppTypeInt(appResp.AppType)
+	aType := client.AppTypeInt(appResp.AppType)
 	typeString, err := aType.String()
 	if err != nil {
 		eaaclient.Logger.Info("error converting app_type")
 	}
 	attrs["app_type"] = typeString
 
-	aMode := client.ClientAppModeInt(appResp.ClientAppMode)
+	aMode := client.AppModeInt(appResp.ClientAppMode)
 	modeString, err := aMode.String()
 	if err != nil {
 		eaaclient.Logger.Info("error converting client_app_mode")
@@ -130,7 +130,7 @@ func mapServersAndTunnelHostsFromResponse(d *schema.ResourceData, appResp *clien
 		return diag.FromErr(err)
 	}
 
-	if client.ClientAppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
+	if client.AppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
 		tunnelInternalHosts := make([]map[string]interface{}, len(appResp.TunnelInternalHosts))
 		for i, host := range appResp.TunnelInternalHosts {
 			tunnelInternalHosts[i] = map[string]interface{}{
@@ -326,8 +326,8 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 	}
 
 	if appResp.AuthEnabled == "true" {
-		appAuthData, err := app.CreateAppAuthenticationStruct(eaaclient)
-		if err == nil {
+		appAuthData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
+		if authErr == nil {
 			err = d.Set("app_authentication", appAuthData)
 			if err != nil {
 				return diag.FromErr(err)
@@ -336,8 +336,8 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 	}
 
 	if appResp.Cert != nil {
-		appCertData, err := client.GetCertificate(eaaclient, *appResp.Cert)
-		if err == nil {
+		appCertData, certErr := client.GetCertificate(eaaclient, *appResp.Cert)
+		if certErr == nil {
 			err = d.Set("cert", appCertData.Cert)
 			if err != nil {
 				return diag.FromErr(err)
@@ -365,7 +365,8 @@ func mapSAMLSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 	var samlSettings []map[string]interface{}
 
 	if len(appResp.SAMLSettings) > 0 {
-		for _, samlConfig := range appResp.SAMLSettings {
+		for i := range appResp.SAMLSettings {
+			samlConfig := &appResp.SAMLSettings[i]
 			samlBlock := make(map[string]interface{})
 
 			// Convert SP block
@@ -426,7 +427,8 @@ func mapWSFEDSettingsFromResponse(d *schema.ResourceData, appResp *client.Applic
 	var wsfedSettings []map[string]interface{}
 
 	if len(appResp.WSFEDSettings) > 0 {
-		for _, wsfedConfig := range appResp.WSFEDSettings {
+		for i := range appResp.WSFEDSettings {
+			wsfedConfig := &appResp.WSFEDSettings[i]
 			wsfedBlock := make(map[string]interface{})
 
 			// SP block
@@ -536,7 +538,8 @@ func mapOIDCSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 		// Convert OIDC clients
 		if len(appResp.OIDCClients) > 0 {
 			var oidcClients []map[string]interface{}
-			for _, oidcClient := range appResp.OIDCClients {
+			for i := range appResp.OIDCClients {
+				oidcClient := &appResp.OIDCClients[i]
 				clientBlock := make(map[string]interface{})
 				clientBlock["client_name"] = oidcClient.ClientName
 				clientBlock["client_id"] = oidcClient.ClientID

@@ -1,7 +1,6 @@
 package eaaprovider
 
 import (
-	"context"
 	"fmt"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -34,7 +33,7 @@ func validateAppBundle(val interface{}, key string) (warns []string, errors []er
 }
 
 // validateAppBundleRestrictions validates app bundle based on app type and profile restrictions
-func validateAppBundleRestrictions(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+func validateAppBundleRestrictions(d *schema.ResourceDiff, logger hclog.Logger) error {
 	logger.Debug("validateAppBundleRestrictions called")
 
 	// Check if app_bundle is provided

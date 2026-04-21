@@ -179,20 +179,6 @@ func TestHelperFunctions(t *testing.T) {
 			t.Fatalf("login_url = %#v, want null", got)
 		}
 	})
-
-	t.Run("validateAdvancedSettingsWarningDiagnostics is permissive", func(t *testing.T) {
-		resource := resourceEaaApplication()
-		d := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{
-			"app_type":          "enterprise",
-			"app_profile":       "http",
-			"client_app_mode":   "tcp",
-			"advanced_settings": `{"unknown_provider_future_key":"value","custom_headers":[{"header":"","attribute_type":""}],"health_check_type":"future-value"}`,
-		})
-
-		if diags := validateAdvancedSettingsWarningDiagnostics(d, hclog.NewNullLogger()); len(diags) != 0 {
-			t.Fatalf("validateAdvancedSettingsWarningDiagnostics() returned unexpected diagnostics: %v", diags)
-		}
-	})
 }
 
 // TestValidateHealthCheckConfiguration tests the validateHealthCheckConfiguration function
@@ -459,7 +445,7 @@ func TestValidateAppAuthForTypeAndProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAppAuthForTypeAndProfile(tt.appAuth, tt.appType, tt.appProfile)
+			err := validateAppAuthValue(tt.appAuth)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
@@ -942,7 +928,7 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			// Get app_auth value
 			if appAuth, exists := settings["app_auth"]; exists {
 				if appAuthStr, ok := appAuth.(string); ok {
-					err := validateAppAuthForTypeAndProfile(appAuthStr, tt.appType, "http")
+					err := validateAppAuthValue(appAuthStr)
 
 					if tt.expectError && err == nil {
 						t.Errorf("Expected error for %s but got none: %s", tt.description, err)
@@ -1022,7 +1008,7 @@ func TestAppAuthConflictWithTopLevelFlags(t *testing.T) {
 			}
 
 			// Simulate advanced_settings with app_auth
-			advSettings := fmt.Sprintf(`{"app_auth": "%s"}`, tt.appAuthValue)
+			advSettings := fmt.Sprintf(`{"app_auth": %q}`, tt.appAuthValue)
 			d.Set("advanced_settings", advSettings)
 
 			// Note: This test structure simulates the conflict
@@ -1195,7 +1181,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 				"objects": []map[string]interface{}{
 					{
 						"service": map[string]interface{}{
-							"service_type": 6, // SERVICE_TYPE_ACCESS_CTRL = 6
+							"service_type": 6,
 							"uuid_url":     "service-uuid-123",
 						},
 						"status":   1,

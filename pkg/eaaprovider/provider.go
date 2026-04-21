@@ -57,10 +57,19 @@ func Provider() *schema.Provider {
 }
 
 func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
-	contractID := d.Get("contractid").(string)
-	accountSwitchKey := d.Get("accountswitchkey").(string)
+	contractID, ok := d.Get("contractid").(string)
+	if !ok || contractID == "" {
+		return nil, diag.Errorf("contractid must be a non-empty string")
+	}
+	accountSwitchKey, ok := d.Get("accountswitchkey").(string)
+	if !ok {
+		return nil, diag.Errorf("accountswitchkey must be a string")
+	}
 
-	edgercPath := d.Get("edgerc").(string)
+	edgercPath, ok := d.Get("edgerc").(string)
+	if !ok {
+		return nil, diag.Errorf("edgerc must be a string")
+	}
 
 	edgerc, err := edgegrid.New(edgegrid.WithEnv(true), edgegrid.WithFile(edgercPath))
 	if err != nil {

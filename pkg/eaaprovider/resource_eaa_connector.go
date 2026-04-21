@@ -148,7 +148,10 @@ func resourceEaaConnectorCreate(ctx context.Context, d *schema.ResourceData, m i
 func resourceEaaConnectorRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 
 	id := d.Id()
-	eaaclient := m.(*client.EaaClient)
+	eaaclient, err := Client(m)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	var connResp client.Connector
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.AGENTS_URL, id)
@@ -158,7 +161,7 @@ func resourceEaaConnectorRead(ctx context.Context, d *schema.ResourceData, m int
 		return diag.FromErr(err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := client.FormatErrorResponse(getResp)
+		desc := client.FormatErrorDescription(getResp)
 		getConnErrMsg := fmt.Errorf("%w: %s", ErrGetConnector, desc)
 		return diag.FromErr(getConnErrMsg)
 	}
@@ -213,7 +216,7 @@ func resourceEaaConnectorUpdate(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := client.FormatErrorResponse(getResp)
+		desc := client.FormatErrorDescription(getResp)
 		getConnErrMsg := fmt.Errorf("%w: %s", ErrGetConnector, desc)
 		return diag.FromErr(getConnErrMsg)
 	}
@@ -245,10 +248,13 @@ func resourceEaaConnectorUpdate(ctx context.Context, d *schema.ResourceData, m i
 func resourceEaaConnectorDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	// Read the resource ID from d
 	id := d.Id()
-	eaaclient := m.(*client.EaaClient)
+	eaaclient, err := Client(m)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	// Send the delete connector REST endpoint
-	err := client.DeleteConnector(eaaclient, id)
+	err = client.DeleteConnector(eaaclient, id)
 	if err != nil {
 		return diag.FromErr(err)
 	}

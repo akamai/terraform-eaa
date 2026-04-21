@@ -26,7 +26,7 @@ func GetTLSCipherSuites(ec *EaaClient, appUUIDURL string) (*TLSCipherSuitesRespo
 	}
 
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		getTLSCipherSuitesErrMsg := fmt.Errorf("%w: %s", ErrTLSCipherSuitesGet, desc)
 		return nil, getTLSCipherSuitesErrMsg
 	}

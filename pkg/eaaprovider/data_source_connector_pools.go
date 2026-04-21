@@ -117,9 +117,9 @@ func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.Eaa
 }
 
 // fetchDetailedConnectorInfo fetches detailed connector information from the agents API
-func fetchDetailedConnectorInfo(client *client.EaaClient, uuidURL string) map[string]interface{} {
+func fetchDetailedConnectorInfo(eaaClient *client.EaaClient, uuidURL string) map[string]interface{} {
 	// Build API URL to get detailed connector info with expanded fields
-	apiURL := fmt.Sprintf("https://%s/crux/v1/mgmt-pop/agents?uuid_url=%s&expand=true&fields=name,uuid_url,package,state,status,created_at,description,load_status,localization,reach,agent_infra_type,geo_location,last_checkin,is_enabled,modified_at,resource_uri,operating_mode,package_type,infra_type", client.Host, uuidURL)
+	apiURL := fmt.Sprintf("https://%s/crux/v1/mgmt-pop/agents?uuid_url=%s&expand=true&fields=name,uuid_url,package,state,status,created_at,description,load_status,localization,reach,agent_infra_type,geo_location,last_checkin,is_enabled,modified_at,resource_uri,operating_mode,package_type,infra_type", eaaClient.Host, uuidURL)
 
 	// Define comprehensive response structure
 	var response struct {
@@ -149,7 +149,7 @@ func fetchDetailedConnectorInfo(client *client.EaaClient, uuidURL string) map[st
 	}
 
 	// Make API request
-	resp, err := client.SendAPIRequest(apiURL, "GET", nil, &response, false)
+	resp, err := eaaClient.SendAPIRequest(apiURL, "GET", nil, &response, false)
 	if err != nil {
 
 		return nil
@@ -504,13 +504,13 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 		}
 
 		var response connectorPoolsListResponse
-		resp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &response, false)
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to get connector pools: %w", err))
+		apiResp, requestErr := eaaclient.SendAPIRequest(apiURL, "GET", nil, &response, false)
+		if requestErr != nil {
+			return diag.FromErr(fmt.Errorf("failed to get connector pools: %w", requestErr))
 		}
 
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			desc, _ := client.FormatErrorResponse(resp)
+		if apiResp.StatusCode < 200 || apiResp.StatusCode >= 300 {
+			desc := client.FormatErrorDescription(apiResp)
 			getErrMsg := fmt.Errorf("get connector pools failed: %s", desc)
 
 			return diag.FromErr(getErrMsg)
@@ -523,8 +523,8 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 		}
 
 		// Process each pool in this batch
-		for _, pool := range response.Objects {
-			poolData := convertConnectorPoolToMap(&pool, eaaclient)
+		for i := range response.Objects {
+			poolData := convertConnectorPoolToMap(&response.Objects[i], eaaclient)
 
 			allPools = append(allPools, poolData)
 		}

@@ -132,7 +132,7 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 		SessionSticky:             string(DefaultSessionSticky),
 		SessionStickyCookieMaxAge: "0",
 		SessionStickyServerCookie: nil,
-		SlaObjectUrl:              nil,
+		SLAObjectURL:              nil,
 		SingleHostContentRW:       string(DefaultSingleHostContentRW),
 		SingleHostCookieDomain:    string(DefaultSingleHostCookieDomain),
 		SingleHostEnable:          string(DefaultSingleHostEnable),
@@ -168,6 +168,7 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
 
 	// Field mapping: JSON key -> struct field name
+	// #nosec G101 -- static field-name mapping includes auth/key labels but does not contain secrets
 	fieldMapping := map[string]string{
 		"is_ssl_verification_enabled":        "IsSSLVerificationEnabled",
 		"g2o_enabled":                        "G2OEnabled",
@@ -371,33 +372,14 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 						switch v := value.(type) {
 						case string:
 							strVal = v
-						case int, int32, int64:
-							strVal = fmt.Sprintf("%v", v)
-						case float32, float64:
+						case int, int32, int64, float32, float64, bool:
 							strVal = fmt.Sprintf("%v", v)
 						default:
-							strVal = fmt.Sprintf("%v", v)
+							continue
 						}
 						field.SetString(strVal)
 					}
-				case reflect.Ptr:
-					// For pointer fields (like *string), create a pointer to the value
-					if field.Type().Elem().Kind() == reflect.String {
-						var strVal string
-						switch v := value.(type) {
-						case string:
-							strVal = v
-						case int, int32, int64:
-							strVal = fmt.Sprintf("%v", v)
-						case float32, float64:
-							strVal = fmt.Sprintf("%v", v)
-						default:
-							strVal = fmt.Sprintf("%v", v)
-						}
-						field.Set(reflect.ValueOf(&strVal))
-					}
 				case reflect.Int, reflect.Int32, reflect.Int64:
-					// For integer fields, convert from various numeric types
 					var intVal int64
 					switch v := value.(type) {
 					case int:
@@ -423,36 +405,62 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 				case reflect.Slice:
 					// Special handling for CustomHeaders slice
 					if jsonKey == "custom_headers" {
-						if interfaceSlice, ok := value.([]interface{}); ok {
-							// Convert []interface{} to []CustomHeader
-							customHeaders := make([]CustomHeader, len(interfaceSlice))
-							for i, v := range interfaceSlice {
-								if headerMap, ok := v.(map[string]interface{}); ok {
-									customHeader := CustomHeader{}
-									if attrType, exists := headerMap["attribute_type"]; exists {
-										if str, ok := attrType.(string); ok {
-											customHeader.AttributeType = str
-										}
-									}
-									if header, exists := headerMap["header"]; exists {
-										if str, ok := header.(string); ok {
-											customHeader.Header = str
-										}
-									}
-									if attr, exists := headerMap["attribute"]; exists {
-										if str, ok := attr.(string); ok {
-											customHeader.Attribute = str
-										}
-									}
-									customHeaders[i] = customHeader
+						interfaceSlice, ok := value.([]interface{})
+						if !ok {
+							continue
+						}
+						// Convert []interface{} to []CustomHeader
+						customHeaders := make([]CustomHeader, len(interfaceSlice))
+						for i, v := range interfaceSlice {
+							headerMap, ok := v.(map[string]interface{})
+							if !ok {
+								continue
+							}
+
+							customHeader := CustomHeader{}
+							if attrType, exists := headerMap["attribute_type"]; exists {
+								if str, ok := attrType.(string); ok {
+									customHeader.AttributeType = str
 								}
 							}
-							field.Set(reflect.ValueOf(customHeaders))
+							if header, exists := headerMap["header"]; exists {
+								if str, ok := header.(string); ok {
+									customHeader.Header = str
+								}
+							}
+							if attr, exists := headerMap["attribute"]; exists {
+								if str, ok := attr.(string); ok {
+									customHeader.Attribute = str
+								}
+							}
+							customHeaders[i] = customHeader
+						}
+						field.Set(reflect.ValueOf(customHeaders))
+						continue
+					}
+
+					// For slice fields, handle type conversion properly
+					switch typedValue := value.(type) {
+					case []interface{}:
+						if field.Type().Elem().Kind() == reflect.String {
+							stringSlice := make([]string, len(typedValue))
+							for i, v := range typedValue {
+								if strVal, ok := v.(string); ok {
+									stringSlice[i] = strVal
+								} else {
+									stringSlice[i] = fmt.Sprintf("%v", v)
+								}
+							}
+							field.Set(reflect.ValueOf(stringSlice))
+							continue
+						}
+					case []string:
+						if field.Type().Elem().Kind() == reflect.String {
+							field.Set(reflect.ValueOf(typedValue))
 							continue
 						}
 					}
 
-					// For slice fields, handle type conversion properly
 					if field.Type().Elem().Kind() == reflect.String {
 						// Special handling for form_post_attributes: convert string to string slice
 						if jsonKey == "form_post_attributes" {
@@ -468,29 +476,11 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 							}
 						}
 
-						// Convert []interface{} to []string
-						if interfaceSlice, ok := value.([]interface{}); ok {
-							stringSlice := make([]string, len(interfaceSlice))
-							for i, v := range interfaceSlice {
-								if strVal, ok := v.(string); ok {
-									stringSlice[i] = strVal
-								} else {
-									stringSlice[i] = fmt.Sprintf("%v", v)
-								}
-							}
-							field.Set(reflect.ValueOf(stringSlice))
-						} else if stringSlice, ok := value.([]string); ok {
-							// Already a string slice
-							field.Set(reflect.ValueOf(stringSlice))
-						} else {
-							// For form_post_attributes, default to empty slice if conversion fails
-							if jsonKey == "form_post_attributes" {
-
-								field.Set(reflect.ValueOf([]string{}))
-							} else {
-							}
-							continue
+						// For form_post_attributes, default to empty slice if conversion fails
+						if jsonKey == "form_post_attributes" {
+							field.Set(reflect.ValueOf([]string{}))
 						}
+						continue
 					} else {
 						// For non-string slices, handle type conversion properly
 						if reflect.TypeOf(value).AssignableTo(field.Type()) {

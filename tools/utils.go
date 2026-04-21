@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	generate_info = "The config file `import_existing_apps.tf` with import blocks is generated.\n" +
+	generateInfo = "The config file `import_existing_apps.tf` with import blocks is generated.\n" +
 		"1. To generate the configuration, run the following command:\n" +
 		"   terraform plan -generate-config-out=generated_resources.tf\n" +
 		"2. In the resultant resources configuration file, add the provider section\n" +
@@ -83,7 +83,7 @@ type EaaClient struct {
 }
 
 // SendAPIRequest will sign and execute the request using the client edgegrid.Config
-func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}, out interface{}, global bool) (*http.Response, error) {
+func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, global bool) (*http.Response, error) {
 	if !global {
 		parsedURL, err := url.Parse(apiURL)
 		if err != nil {
@@ -107,14 +107,17 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 	}
 
 	fmt.Println(apiURL)
-	r, _ := http.NewRequest(method, apiURL, http.NoBody)
+	r, err := http.NewRequest(method, apiURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
 	r.Header.Set("Content-Type", "application/json")
 
 	r.URL.RawQuery = r.URL.Query().Encode()
 	if in != nil {
-		data, err := json.Marshal(in)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrMarshaling, err)
+		data, marshalErr := json.Marshal(in)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("%w: %s", ErrMarshaling, marshalErr)
 		}
 
 		r.Body = io.NopCloser(bytes.NewBuffer(data))
@@ -156,6 +159,23 @@ func FormatErrorResponse(errResp *http.Response) (string, error) {
 	return "", ErrUnmarshaling
 }
 
+func FormatErrorDescription(errResp *http.Response) string {
+	if errResp == nil {
+		return "unknown error"
+	}
+
+	desc, err := FormatErrorResponse(errResp)
+	if err == nil && desc != "" {
+		return desc
+	}
+
+	if errResp.Status != "" {
+		return errResp.Status
+	}
+
+	return "unknown error"
+}
+
 func writeProviderBlock(file *os.File, cid, ask, edgercPath string) error {
 	terraformBlock := fmt.Sprintf(`terraform {
 		required_providers {
@@ -184,7 +204,7 @@ func writeProviderBlock(file *os.File, cid, ask, edgercPath string) error {
 }
 
 func generateImportBlock(file *os.File, resourceID, resourceType string) error {
-	importBlock := fmt.Sprintf("import {\n  to = %s\n  id = \"%s\"\n}\n\n", resourceType, resourceID)
+	importBlock := fmt.Sprintf("import {\n  to = %s\n  id = %q\n}\n\n", resourceType, resourceID)
 	_, err := file.WriteString(importBlock)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
@@ -214,7 +234,7 @@ func convertToValidTFName(appName string) string {
 	tfName = re.ReplaceAllString(tfName, "_")
 	tfName = strings.Trim(tfName, "_")
 
-	if len(tfName) > 0 && !isLetter(rune(tfName[0])) {
+	if tfName != "" && !isLetter(rune(tfName[0])) {
 		tfName = "a_" + tfName
 	}
 

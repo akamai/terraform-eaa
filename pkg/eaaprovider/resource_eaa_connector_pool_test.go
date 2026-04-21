@@ -426,7 +426,7 @@ func TestResourceEaaConnectorPoolCreate(t *testing.T) {
 			d := createTestResourceData(tt.resourceData)
 
 			// Test the Create function
-			diags := resourceEaaConnectorPoolCreate(nil, d, nil)
+			diags := resourceEaaConnectorPoolCreate(context.TODO(), d, nil)
 
 			if tt.expectedError {
 				if len(diags) == 0 {
@@ -476,7 +476,7 @@ func TestResourceEaaConnectorPoolRead(t *testing.T) {
 			d := createTestResourceData(tt.resourceData)
 
 			// Test the Read function
-			diags := resourceEaaConnectorPoolRead(nil, d, nil)
+			diags := resourceEaaConnectorPoolRead(context.TODO(), d, nil)
 
 			if tt.expectedError {
 				if len(diags) == 0 {
@@ -528,7 +528,7 @@ func TestResourceEaaConnectorPoolUpdate(t *testing.T) {
 			d := createTestResourceData(tt.resourceData)
 
 			// Test the Update function
-			diags := resourceEaaConnectorPoolUpdate(nil, d, nil)
+			diags := resourceEaaConnectorPoolUpdate(context.TODO(), d, nil)
 
 			if tt.expectedError {
 				if len(diags) == 0 {
@@ -578,7 +578,7 @@ func TestResourceEaaConnectorPoolDelete(t *testing.T) {
 			d := createTestResourceData(tt.resourceData)
 
 			// Test the Delete function
-			diags := resourceEaaConnectorPoolDelete(nil, d, nil)
+			diags := resourceEaaConnectorPoolDelete(context.TODO(), d, nil)
 
 			if tt.expectedError {
 				if len(diags) == 0 {

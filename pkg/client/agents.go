@@ -17,7 +17,7 @@ var (
 )
 
 type ConnAdvancedSettings struct {
-	Network_Info []string `json:"network_info,omitempty"`
+	NetworkInfo []string `json:"network_info,omitempty"`
 }
 
 type CreateConnectorRequest struct {
@@ -29,137 +29,6 @@ type CreateConnectorRequest struct {
 	AuthService           bool                 `json:"auth_service"`
 	DataService           bool                 `json:"data_service"`
 	DebugChannelPermitted bool                 `json:"debug_channel_permitted"`
-}
-
-func (ccr *CreateConnectorRequest) CreateConnectorRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
-	logger := ec.Logger
-
-	// validate and set the name field
-	name, ok := d.GetOk("name")
-	if !ok {
-		logger.Error("create Connector failed. 'name' is required but missing")
-		return ErrInvalidValue
-	}
-	nameStr, ok := name.(string)
-	if !ok || nameStr == "" {
-		logger.Error("create Connector failed. 'name' must be a non-empty string")
-		return ErrInvalidType
-	}
-	ccr.Name = nameStr
-
-	// set the description field if present
-	if description, ok := d.GetOk("description"); ok {
-		descriptionStr, ok := description.(string)
-		if ok && descriptionStr != "" {
-			ccr.Description = &descriptionStr
-		}
-	}
-
-	// set the debug_channel_permitted field with default value if not present
-	if debugPermitted, ok := d.GetOk("debug_channel_permitted"); ok {
-		debugChPermitted, ok := debugPermitted.(bool)
-		if ok {
-			ccr.DebugChannelPermitted = debugChPermitted
-		} else {
-			logger.Error("create Connector failed. 'debug_channel_permitted' must be a boolean")
-			return ErrInvalidType
-		}
-	} else {
-		logger.Info("debug_channel_permitted is not present, defaulting to false")
-		ccr.DebugChannelPermitted = false
-	}
-
-	// validate and set the package field
-	connPackage, ok := d.GetOk("package")
-	if !ok {
-		logger.Error("create Connector failed. 'package' is required but missing")
-		return ErrInvalidValue
-	}
-	connPackageStr, ok := connPackage.(string)
-	if !ok {
-		logger.Error("create Connector failed. 'package' must be a string")
-		return ErrInvalidType
-	}
-	atype := ConnPackageType(connPackageStr)
-	value, err := atype.ToInt()
-	if err != nil {
-		logger.Error("create Connector failed. 'package' is invalid")
-		return ErrInvalidValue
-	}
-	ccr.Package = value
-
-	// handle advanced_settings if present
-	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		advSettingsList, ok := advSettingsData.([]interface{})
-		if ok && len(advSettingsList) > 0 {
-			if advSettingsData, ok := advSettingsList[0].(map[string]interface{}); ok {
-				advSettings := ConnAdvancedSettings{}
-				if networkInfoData, ok := advSettingsData["network_info"]; ok {
-					networkInfoList, ok := networkInfoData.([]interface{})
-					if ok {
-						for _, networkInfo := range networkInfoList {
-							if ip, ok := networkInfo.(string); ok {
-								advSettings.Network_Info = append(advSettings.Network_Info, ip)
-							}
-						}
-					}
-				}
-
-				// assign default value if 'Network_Info' is empty
-				if len(advSettings.Network_Info) == 0 {
-					advSettings.Network_Info = []string{"0.0.0.0/0"}
-				}
-
-				ccr.AdvancedSettings = advSettings
-			}
-		}
-	}
-
-	// set default 'AdvancedSettings' if not populated
-	if ccr.AdvancedSettings.Network_Info == nil {
-		ccr.AdvancedSettings = ConnAdvancedSettings{
-			Network_Info: []string{"0.0.0.0/0"},
-		}
-	}
-
-	// Set additional fields
-	ccr.Status = STATE_ENABLED
-	ccr.AuthService = true
-	ccr.DataService = true
-
-	return nil
-}
-
-func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceData, ec *EaaClient) (*Connector, error) {
-	createRequest := CreateConnectorRequest{}
-	err := createRequest.CreateConnectorRequestFromSchema(ctx, d, ec)
-	if err != nil {
-		ec.Logger.Error("create connector failed. err ", err)
-		return nil, err
-	}
-	cur.Name = createRequest.Name
-	cur.Description = createRequest.Description
-	cur.AdvancedSettings = createRequest.AdvancedSettings
-	cur.DebugChannelPermitted = createRequest.DebugChannelPermitted
-	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, AGENTS_URL, cur.UUIDURL)
-
-	var connResp Connector
-	updateConnResp, err := ec.SendAPIRequest(apiURL, "PUT", cur, &connResp, false)
-	if err != nil {
-		ec.Logger.Error("update Connector failed.", "error", err)
-		return nil, err
-	}
-
-	if updateConnResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(updateConnResp)
-		updateErrMsg := fmt.Errorf("%w: %s", ErrConnUpdate, desc)
-
-		ec.Logger.Error("update Connector failed. StatusCode %d %s", updateConnResp.StatusCode, desc)
-		return nil, updateErrMsg
-	}
-
-	ec.Logger.Info("update Connector succeeded.", "name", cur.Name)
-	return &connResp, nil
 }
 
 type Connector struct {
@@ -207,6 +76,137 @@ type Connector struct {
 	OSUpgradesUpToDate    bool                 `json:"os_upgrades_up_to_date,omitempty"`
 }
 
+func (ccr *CreateConnectorRequest) CreateConnectorRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	// validate and set the name field
+	name, ok := d.GetOk("name")
+	if !ok {
+		logger.Error("create Connector failed. 'name' is required but missing")
+		return ErrInvalidValue
+	}
+	nameStr, ok := name.(string)
+	if !ok || nameStr == "" {
+		logger.Error("create Connector failed. 'name' must be a non-empty string")
+		return ErrInvalidType
+	}
+	ccr.Name = nameStr
+
+	// set the description field if present
+	if description, hasDescription := d.GetOk("description"); hasDescription {
+		descriptionStr, descriptionOK := description.(string)
+		if descriptionOK && descriptionStr != "" {
+			ccr.Description = &descriptionStr
+		}
+	}
+
+	// set the debug_channel_permitted field with default value if not present
+	if debugPermitted, hasDebugPermitted := d.GetOk("debug_channel_permitted"); hasDebugPermitted {
+		debugChPermitted, debugPermittedOK := debugPermitted.(bool)
+		if debugPermittedOK {
+			ccr.DebugChannelPermitted = debugChPermitted
+		} else {
+			logger.Error("create Connector failed. 'debug_channel_permitted' must be a boolean")
+			return ErrInvalidType
+		}
+	} else {
+		logger.Info("debug_channel_permitted is not present, defaulting to false")
+		ccr.DebugChannelPermitted = false
+	}
+
+	// validate and set the package field
+	connPackage, ok := d.GetOk("package")
+	if !ok {
+		logger.Error("create Connector failed. 'package' is required but missing")
+		return ErrInvalidValue
+	}
+	connPackageStr, ok := connPackage.(string)
+	if !ok {
+		logger.Error("create Connector failed. 'package' must be a string")
+		return ErrInvalidType
+	}
+	atype := ConnPackageType(connPackageStr)
+	value, err := atype.ToInt()
+	if err != nil {
+		logger.Error("create Connector failed. 'package' is invalid")
+		return ErrInvalidValue
+	}
+	ccr.Package = value
+
+	// handle advanced_settings if present
+	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
+		advSettingsList, ok := advSettingsData.([]interface{})
+		if ok && len(advSettingsList) > 0 {
+			if advSettingsData, ok := advSettingsList[0].(map[string]interface{}); ok {
+				advSettings := ConnAdvancedSettings{}
+				if networkInfoData, ok := advSettingsData["network_info"]; ok {
+					networkInfoList, ok := networkInfoData.([]interface{})
+					if ok {
+						for _, networkInfo := range networkInfoList {
+							if ip, ok := networkInfo.(string); ok {
+								advSettings.NetworkInfo = append(advSettings.NetworkInfo, ip)
+							}
+						}
+					}
+				}
+
+				// assign default value if 'Network_Info' is empty
+				if len(advSettings.NetworkInfo) == 0 {
+					advSettings.NetworkInfo = []string{"0.0.0.0/0"}
+				}
+
+				ccr.AdvancedSettings = advSettings
+			}
+		}
+	}
+
+	// set default 'AdvancedSettings' if not populated
+	if ccr.AdvancedSettings.NetworkInfo == nil {
+		ccr.AdvancedSettings = ConnAdvancedSettings{
+			NetworkInfo: []string{"0.0.0.0/0"},
+		}
+	}
+
+	// Set additional fields
+	ccr.Status = STATE_ENABLED
+	ccr.AuthService = true
+	ccr.DataService = true
+
+	return nil
+}
+
+func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceData, ec *EaaClient) (*Connector, error) {
+	createRequest := CreateConnectorRequest{}
+	err := createRequest.CreateConnectorRequestFromSchema(ctx, d, ec)
+	if err != nil {
+		ec.Logger.Error("create connector failed. err ", err)
+		return nil, err
+	}
+	cur.Name = createRequest.Name
+	cur.Description = createRequest.Description
+	cur.AdvancedSettings = createRequest.AdvancedSettings
+	cur.DebugChannelPermitted = createRequest.DebugChannelPermitted
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, AGENTS_URL, cur.UUIDURL)
+
+	var connResp Connector
+	updateConnResp, err := ec.SendAPIRequest(apiURL, "PUT", cur, &connResp, false)
+	if err != nil {
+		ec.Logger.Error("update Connector failed.", "error", err)
+		return nil, err
+	}
+
+	if updateConnResp.StatusCode != http.StatusOK {
+		desc := FormatErrorDescription(updateConnResp)
+		updateErrMsg := fmt.Errorf("%w: %s", ErrConnUpdate, desc)
+
+		ec.Logger.Error("update Connector failed. StatusCode %d %s", updateConnResp.StatusCode, desc)
+		return nil, updateErrMsg
+	}
+
+	ec.Logger.Info("update Connector succeeded.", "name", cur.Name)
+	return &connResp, nil
+}
+
 func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaClient) (*Connector, error) {
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, AGENTS_URL)
 
@@ -218,7 +218,7 @@ func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaC
 	}
 
 	if createConnResp.StatusCode != http.StatusOK {
-		desc, _ := FormatErrorResponse(createConnResp)
+		desc := FormatErrorDescription(createConnResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrConnCreate, desc)
 
 		ec.Logger.Error("create Connector failed. StatusCode %d %s", createConnResp.StatusCode, desc)
@@ -250,18 +250,19 @@ func GetAgents(ec *EaaClient) ([]Connector, error) {
 	}
 
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
 
 		return nil, updErrMsg
 	}
 
 	var agents []Connector
-	for _, conn := range agentsResponse.Connectors {
+	for i := range agentsResponse.Connectors {
+		conn := &agentsResponse.Connectors[i]
 		if conn.Name == "" || conn.UUIDURL == "" {
 			continue
 		}
-		agents = append(agents, conn)
+		agents = append(agents, *conn)
 	}
 
 	return agents, nil
@@ -275,7 +276,8 @@ func GetAgentUUIDs(ec *EaaClient, agentNames []string) ([]string, error) {
 
 	agentUUIDs := make([]string, 0)
 	for _, agentName := range agentNames {
-		for _, agentData := range agents {
+		for i := range agents {
+			agentData := &agents[i]
 			if agentName == agentData.Name {
 				agentUUIDs = append(agentUUIDs, agentData.UUIDURL)
 				break
@@ -286,8 +288,8 @@ func GetAgentUUIDs(ec *EaaClient, agentNames []string) ([]string, error) {
 	return agentUUIDs, nil
 }
 
-func DeleteConnector(ec *EaaClient, conn_uuid_url string) error {
-	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, AGENTS_URL, conn_uuid_url)
+func DeleteConnector(ec *EaaClient, connUUIDURL string) error {
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, AGENTS_URL, connUUIDURL)
 
 	deleteResp, err := ec.SendAPIRequest(apiURL, http.MethodDelete, nil, nil, false)
 	if err != nil {

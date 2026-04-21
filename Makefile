@@ -6,6 +6,11 @@ ifeq ($(GO),)
 $(error Go binary not found in PATH. Please install Go or specify GO=<path>)
 endif
 
+GO_BIN_DIR := $(shell $(GO) env GOBIN)
+ifeq ($(GO_BIN_DIR),)
+GO_BIN_DIR := $(shell $(GO) env GOPATH)/bin
+endif
+
 BINDIR          := $(CURDIR)/bin
 
 BINNAME := terraform-provider-eaa
@@ -170,7 +175,16 @@ setup:
 		echo "   ✓ gosec installed successfully"; \
 	fi
 	@echo ""
-	@echo "3. Installing govulncheck..."
+	@echo "3. Installing goimports..."
+	@if command -v goimports >/dev/null 2>&1; then \
+		echo "   ✓ goimports already installed ($$(goimports -version 2>/dev/null || echo installed))"; \
+	else \
+		echo "   → Installing goimports..."; \
+		go install golang.org/x/tools/cmd/goimports@latest && \
+		echo "   ✓ goimports installed successfully"; \
+	fi
+	@echo ""
+	@echo "4. Installing govulncheck..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
 		echo "   ✓ govulncheck already installed"; \
 	else \
@@ -179,7 +193,7 @@ setup:
 		echo "   ✓ govulncheck installed successfully"; \
 	fi
 	@echo ""
-	@echo "4. Installing pre-commit..."
+	@echo "5. Installing pre-commit..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		echo "   ✓ pre-commit already installed ($$(pre-commit --version))"; \
 	else \
@@ -196,7 +210,7 @@ setup:
 		fi; \
 	fi
 	@echo ""
-	@echo "5. Installing pre-commit hooks..."
+	@echo "6. Installing pre-commit hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit install --install-hooks && \
 		pre-commit install --hook-type commit-msg && \
@@ -205,9 +219,13 @@ setup:
 		echo "   ⚠ Skipping pre-commit hooks installation"; \
 	fi
 	@echo ""
-	@echo "6. Downloading Go module dependencies..."
+	@echo "7. Downloading Go module dependencies..."
 	@$(GO) mod download
 	@echo "   ✓ Dependencies downloaded"
+	@echo ""
+	@echo "Go tool binaries are expected in: $(GO_BIN_DIR)"
+	@echo "If hooks still report missing tools, add this to your shell profile:"
+	@echo "  export PATH=\"$(GO_BIN_DIR):$$PATH\""
 	@echo ""
 	@echo "✓ Development environment setup complete!"
 	@echo ""
