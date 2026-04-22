@@ -949,21 +949,6 @@ func validateAdvancedSettingsAtPlanTime(diff *schema.ResourceDiff, m interface{}
 	}
 	logger.Debug("App auth conflict validation passed")
 
-	// Validate health check configuration (skip for tunnel apps)
-	// if appType != string(client.ClientAppTypeTunnel) {
-	// 	logger.Debug("Validating health check for app_type: %s", appType)
-	// 	if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-	// 		logger.Error("Health check validation failed for app_type %s: %v", appType, err)
-	// 		return err
-	// 	}
-	// } else {
-	// 	logger.Debug("Skipping health check validation for tunnel app")
-	// }
-
-	// Server load balancing configuration validation is now handled by SETTINGS_RULES
-
-	// Related applications settings validation is now handled by SETTINGS_RULES
-
 	// Validate TLS Suite configuration restrictions because the provider rewrites these fields.
 	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
 		return client.ErrTLSSuiteRestrictionsValidationFailed

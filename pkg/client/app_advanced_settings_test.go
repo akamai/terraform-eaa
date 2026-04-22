@@ -74,3 +74,32 @@ func TestParseAdvancedSettingsRemoteSparkSnakeCaseAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAdvancedSettingsAppliesPointerStringFields(t *testing.T) {
+	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
+		"external_cookie_domain": "",
+		"login_url": null,
+		"user_name": "alice"
+	}`)
+	if err != nil {
+		t.Fatalf("ParseAdvancedSettingsWithDefaults returned error: %v", err)
+	}
+
+	if advSettings.ExternalCookieDomain == nil {
+		t.Fatal("ExternalCookieDomain = nil, want non-nil pointer to empty string")
+	}
+	if *advSettings.ExternalCookieDomain != "" {
+		t.Fatalf("ExternalCookieDomain = %q, want empty string", *advSettings.ExternalCookieDomain)
+	}
+
+	if advSettings.LoginURL != nil {
+		t.Fatalf("LoginURL = %v, want nil", *advSettings.LoginURL)
+	}
+
+	if advSettings.UserName == nil {
+		t.Fatal("UserName = nil, want non-nil pointer")
+	}
+	if *advSettings.UserName != "alice" {
+		t.Fatalf("UserName = %q, want %q", *advSettings.UserName, "alice")
+	}
+}

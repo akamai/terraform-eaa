@@ -14,7 +14,6 @@ linters:
     - unused        # Check for unused constants, variables, functions and types
     - misspell      # Find commonly misspelled English words
     - gocritic      # Opinionated Go linter
-    - gosec         # Security problems
     - revive        # Fast, configurable, extensible, flexible linter
   settings:
     errcheck:
@@ -31,13 +30,6 @@ linters:
         - performance
         - experimental
         - opinionated
-
-    gosec:
-      severity: medium
-      confidence: medium
-      excludes:
-        - G104  # Audit errors not checked (covered by errcheck)
-        - G304  # File path provided as taint input (common in file operations)
 
     revive:
       rules:
@@ -57,7 +49,6 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
-          - gosec
 
       # Allow this specific revive ALL_CAPS warning across the repo.
       - linters:

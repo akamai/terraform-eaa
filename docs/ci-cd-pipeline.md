@@ -20,21 +20,20 @@ The main CI pipeline runs on every push and pull request to the main branches. I
   - Code style issues
   - Potential bugs
   - Performance problems
-  - Security vulnerabilities
   - Best practices violations
 - Run locally: `make lint`
 
 #### 3. **Security Scanning**
 - **Gosec**: Scans for common security issues in Go code
 - **Govulncheck**: Checks for known vulnerabilities in dependencies
-- Results are uploaded to GitHub Security tab
+- Uploads SARIF results to the GitHub Security tab
+- Fails the CI job when `gosec` or `govulncheck` reports findings
 - Run locally: `make security` and `make vuln-check`
 
 #### 4. **Testing**
 - Runs on multiple platforms: Ubuntu, macOS, and Windows
 - Executes all unit tests with race detection
-- Generates coverage reports on Ubuntu
-- Uploads coverage to Codecov (optional)
+- Generates coverage reports on Ubuntu only
 - Run locally: `make test` or `make test-coverage`
 
 #### 5. **Build Verification**
@@ -82,7 +81,7 @@ make help               # Show all available targets
 ## Local Development Setup
 
 ### Prerequisites
-1. Go 1.23.0 or later
+1. Go 1.26.2 or later
 2. golangci-lint (optional, but recommended)
    ```bash
    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
@@ -133,9 +132,8 @@ Dependabot is configured (`.github/dependabot.yml`) to automatically:
 ## Coverage Reports
 
 Coverage reports are:
-- Generated on every test run with `make test-coverage`
+- Generated in CI on the Ubuntu test job with `make test-coverage`
 - Saved as `coverage.out` (machine-readable) and `coverage.html` (human-readable)
-- Uploaded to Codecov in CI (optional, requires Codecov token)
 
 View coverage locally:
 ```bash
@@ -158,7 +156,7 @@ Review the linter output and fix issues. Some common fixes:
 
 ### Security Warnings
 Review gosec output carefully:
-- Some warnings may be false positives (configure in `.golangci.yml`)
+- Some warnings may be false positives (suppress specific cases with targeted `#nosec` annotations or by adjusting the security job)
 - Address genuine security concerns before merging
 
 ### Test Failures

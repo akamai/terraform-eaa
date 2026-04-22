@@ -159,63 +159,6 @@ func shouldEnableWSFED(d *schema.ResourceData) bool {
 	return shouldEnableAuthForSchema(d, config)
 }
 
-// shouldEnableSAMLFromDiff determines if SAML should be automatically enabled based on diff data
-// func shouldEnableSAMLFromDiff(diff *schema.ResourceDiff) bool {
-// 	config := AuthEnableConfig{
-// 		AppAuthValues: []string{string(client.AppAuthSAML), string(client.AppAuthSAML2)},
-// 		SettingsKey:   "saml_settings",
-// 		CheckContent:  false,
-// 	}
-// 	return shouldEnableAuthForSchema(diff, config)
-// }
-
-// shouldEnableOIDCFromDiff determines if OIDC should be automatically enabled based on diff data
-// func shouldEnableOIDCFromDiff(diff *schema.ResourceDiff) bool {
-// 	config := AuthEnableConfig{
-// 		AppAuthValues: []string{string(client.AppAuthOIDC), string(client.AppAuthOIDCFull)},
-// 		SettingsKey:   "oidc_settings",
-// 		CheckContent:  true, // OIDC requires content checking
-// 	}
-// 	return shouldEnableAuthForSchema(diff, config)
-// }
-
-// shouldEnableWSFEDFromDiff determines if WS-Federation should be automatically enabled based on diff data
-// func shouldEnableWSFEDFromDiff(diff *schema.ResourceDiff) bool {
-// 	config := AuthEnableConfig{
-// 		AppAuthValues: []string{string(client.AppAuthWSFED), string(client.AppAuthWSFEDFull)},
-// 		SettingsKey:   "wsfed_settings",
-// 		CheckContent:  false,
-// 	}
-// 	return shouldEnableAuthForSchema(diff, config)
-// }
-
-// validateAppAuthBasedOnTypeAndProfile validates app_auth based on app_type and app_profile
-// func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string, errors []error) {
-// 	value, ok := v.(string)
-// 	if !ok {
-// 		errors = append(errors, client.ErrExpectedString)
-// 		return
-// 	}
-//
-// 	// Basic validation - detailed validation will be done in the resource
-// 	validValues := client.AllAppAuthValidValues
-//
-// 	isValid := false
-// 	for _, validValue := range validValues {
-// 		if value == validValue {
-// 			isValid = true
-// 			break
-// 		}
-// 	}
-//
-// 	if !isValid {
-// 		errors = append(errors, client.ErrInvalidAppAuthValue)
-// 		return
-// 	}
-//
-// 	return
-// }
-
 // validateAuthenticationMethodsForAppType validates that authentication method flags are appropriate for the app type
 func validateAuthenticationMethodsForAppType(d *schema.ResourceData) error {
 	// Get app_type for validation

@@ -402,6 +402,29 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 						continue
 					}
 					field.SetInt(intVal)
+				case reflect.Ptr:
+					if value == nil {
+						field.Set(reflect.Zero(field.Type()))
+						continue
+					}
+
+					if field.Type().Elem().Kind() != reflect.String {
+						continue
+					}
+
+					var strVal string
+					switch v := value.(type) {
+					case string:
+						strVal = v
+					case int, int32, int64, float32, float64, bool:
+						strVal = fmt.Sprintf("%v", v)
+					default:
+						continue
+					}
+
+					ptrVal := reflect.New(field.Type().Elem())
+					ptrVal.Elem().SetString(strVal)
+					field.Set(ptrVal)
 				case reflect.Slice:
 					// Special handling for CustomHeaders slice
 					if jsonKey == "custom_headers" {

@@ -25,33 +25,6 @@ func stringPointerValue(value *string) interface{} {
 	return *value
 }
 
-// getValidCipherSuitesFromAPI retrieves valid TLS cipher suites from the API
-// func getValidCipherSuitesFromAPI(meta interface{}) ([]string, error) {
-// 	eaaclient, err := Client(meta)
-// 	if err != nil {
-// 		return []string{}, err
-// 	}
-//
-// 	// For validation purposes, we need a dummy app UUID URL
-// 	// In practice, this should be the actual app UUID URL being validated
-// 	// For now, we'll use a placeholder that works with the API
-// 	dummyAppUUID := "dummy-app-uuid-for-validation"
-//
-// 	tlsResponse, err := client.GetTLSCipherSuites(eaaclient, dummyAppUUID)
-// 	if err != nil {
-// 		// Return empty slice instead of error to prevent validation blocking
-// 		return []string{}, nil
-// 	}
-//
-// 	// Extract cipher suite names from API response
-// 	cipherSuites := make([]string, 0, len(tlsResponse.TLSCipherSuite))
-// 	for name := range tlsResponse.TLSCipherSuite {
-// 		cipherSuites = append(cipherSuites, name)
-// 	}
-//
-// 	return cipherSuites, nil
-// }
-
 // cleanupOrphanedApp cleans up orphaned apps that may exist in EAA
 func cleanupOrphanedApp(eaaclient *client.EaaClient, appID string) bool {
 	logger := eaaclient.Logger
