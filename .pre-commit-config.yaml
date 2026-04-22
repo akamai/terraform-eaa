@@ -46,13 +46,15 @@ repos:
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.7.2
     hooks:
-      - id: golangci-lint
+      - id: golangci-lint-full
         name: golangci-lint
         description: Fast linters runner for Go
-        entry: golangci-lint run --fix
         types: [go]
-        language: system
         pass_filenames: false
+
+      - id: golangci-lint-config-verify
+        name: golangci-lint config verify
+        description: Verify golangci-lint configuration
 
   # Go security
   - repo: local
