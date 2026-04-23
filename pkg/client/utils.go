@@ -25,6 +25,10 @@ func SetAttrs(d *schema.ResourceData, attributeValues map[string]interface{}) er
 }
 
 func SetAdvancedSettings(d *schema.ResourceData, settings *AdvancedSettings) error {
+	if settings == nil {
+		return fmt.Errorf("advanced settings cannot be nil")
+	}
+
 	advancedSettingsMap := make(map[string]interface{})
 
 	v := reflect.ValueOf(settings).Elem()

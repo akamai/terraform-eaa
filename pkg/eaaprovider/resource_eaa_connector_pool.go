@@ -725,6 +725,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 			logger.Error(fmt.Sprintf("Failed to disassociate apps from pool: %v", err))
 			// Continue with deletion even if disassociation fails
 			// The API might handle this automatically
+		} else {
 			logger.Info("Successfully disassociated apps from pool")
 		}
 	}

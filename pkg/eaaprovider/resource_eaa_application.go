@@ -18,6 +18,15 @@ var (
 	ErrInvalidData = errors.New("invalid data in schema")
 )
 
+func getAppError(resp *http.Response) error {
+	desc := client.FormatErrorDescription(resp)
+	if desc == "" || desc == "unknown error" {
+		return client.ErrGetAppFailed
+	}
+
+	return fmt.Errorf("%w: %s", client.ErrGetAppFailed, desc)
+}
+
 func resourceEaaApplication() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceEaaApplicationCreateTwoPhase,
@@ -1075,9 +1084,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		_ = client.FormatErrorDescription(getResp)
-		getAppErrMsg := client.ErrGetAppFailed
-		return diag.FromErr(getAppErrMsg)
+		return diag.FromErr(getAppError(getResp))
 	}
 
 	// Map basic attributes
@@ -1142,9 +1149,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		return append(warningDiags, diag.FromErr(err)...)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		_ = client.FormatErrorDescription(getResp)
-		getAppErrMsg := client.ErrGetAppFailed
-		return append(warningDiags, diag.FromErr(getAppErrMsg)...)
+		return append(warningDiags, diag.FromErr(getAppError(getResp))...)
 	}
 
 	// Store the update request for later use after IDP assignment
@@ -1392,9 +1397,7 @@ func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		_ = client.FormatErrorDescription(getResp)
-		getAppErrMsg := client.ErrGetAppFailed
-		return diag.FromErr(getAppErrMsg)
+		return diag.FromErr(getAppError(getResp))
 	}
 	err = appResp.DeleteApplication(eaaclient)
 	if err != nil {

@@ -68,19 +68,26 @@ define section_banner
 endef
 
 
-default: install buildtool
+default:
+	$(MAKE) setup
+	$(MAKE) fmt
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) install
+	$(MAKE) buildtool
 
-build: lint $(SRC)
+
+build: $(SRC)
 	$(call section_banner,BUILD)
 	@echo "Building for $(PLUGIN_ARCH)"
 	$(GO) build -v -o $(BINDIR)/$(BINNAME) .
 
-buildtool: setup $(SRC)
+buildtool: $(SRC)
 	$(call section_banner,BUILD TOOL)
 	@echo build import tool binary
 	$(GO) build -v -o $(BINDIR)/$(BINNAME_TOOL) ./tools
 
-fmt: setup
+fmt:
 	$(call section_banner,FORMAT)
 	@echo go fmt ./...
 	$(GO) fmt ./...
@@ -100,7 +107,7 @@ else
 	@echo "Provider installed to: $$HOME/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
 endif
 
-lint: fmt
+lint:
 	$(call section_banner,LINT)
 	@echo run golangci-lint on project
 	@if command -v golangci-lint >/dev/null 2>&1; then \
@@ -117,7 +124,7 @@ clean:
 test:
 	$(call section_banner,TEST)
 	@echo "Running tests..."
-	$(GO) test -v -race -timeout 10m ./...
+	$(GO) test -race -timeout 10m ./...
 
 test-coverage:
 	$(call section_banner,TEST COVERAGE)
@@ -221,43 +228,18 @@ setup:
 		echo "   ✓ govulncheck installed successfully"; \
 	fi
 	@echo ""
-	@echo "5. Installing pre-commit..."
-	@if command -v pre-commit >/dev/null 2>&1; then \
-		echo "   ✓ pre-commit already installed ($$(pre-commit --version))"; \
-	else \
-		echo "   → Installing pre-commit..."; \
-		if command -v pip3 >/dev/null 2>&1; then \
-			pip3 install pre-commit && \
-			echo "   ✓ pre-commit installed successfully"; \
-		elif command -v brew >/dev/null 2>&1; then \
-			brew install pre-commit && \
-			echo "   ✓ pre-commit installed successfully"; \
-		else \
-			echo "   ⚠ Could not install pre-commit. Please install manually:"; \
-			echo "     pip3 install pre-commit"; \
-		fi; \
-	fi
-	@echo ""
-	@echo "6. Installing pre-commit hooks..."
-	@if command -v pre-commit >/dev/null 2>&1; then \
-		pre-commit install --install-hooks && \
-		pre-commit install --hook-type commit-msg && \
-		echo "   ✓ Pre-commit hooks installed"; \
-	else \
-		echo "   ⚠ Skipping pre-commit hooks installation"; \
-	fi
-	@echo ""
-	@echo "7. Downloading Go module dependencies..."
+	@echo "5. Downloading Go module dependencies..."
 	@$(GO) mod download
 	@echo "   ✓ Dependencies downloaded"
 	@echo ""
 	@echo "Go tool binaries are expected in: $(GO_BIN_DIR)"
-	@echo "If hooks still report missing tools, add this to your shell profile:"
+	@echo "If installed tools are not found, add this to your shell profile:"
 	@echo "  export PATH=\"$(GO_BIN_DIR):$$PATH\""
 	@echo ""
 	@echo "✓ Development environment setup complete!"
 	@echo ""
 	@echo "Next steps:"
+	@echo "  - Run 'make pre-commit-install' to enable local Git hooks"
 	@echo "  - Run 'make test' to verify tests pass"
 	@echo "  - Run 'make lint' to check code quality"
 	@echo "  - Run 'make build' to build the provider"
@@ -266,15 +248,26 @@ setup:
 # PRE-COMMIT
 pre-commit-install:
 	$(call section_banner,PRE-COMMIT INSTALL)
-	@echo "Installing pre-commit hooks..."
+	@echo "Installing pre-commit and hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
-		pre-commit install --install-hooks && \
-		pre-commit install --hook-type commit-msg && \
-		echo "✓ Pre-commit hooks installed"; \
+		echo "✓ pre-commit already installed ($$(pre-commit --version))"; \
 	else \
-		echo "pre-commit not found. Run 'make setup' to install it."; \
-		exit 1; \
+		echo "→ Installing pre-commit..."; \
+		if command -v pip3 >/dev/null 2>&1; then \
+			pip3 install pre-commit && \
+			echo "✓ pre-commit installed successfully"; \
+		elif command -v brew >/dev/null 2>&1; then \
+			brew install pre-commit && \
+			echo "✓ pre-commit installed successfully"; \
+		else \
+			echo "⚠ Could not install pre-commit. Please install manually:"; \
+			echo "  pip3 install pre-commit"; \
+			exit 1; \
+		fi; \
 	fi
+	@pre-commit install --install-hooks
+	@pre-commit install --hook-type commit-msg
+	@echo "✓ Pre-commit hooks installed"
 
 pre-commit-run:
 	$(call section_banner,PRE-COMMIT RUN)

@@ -4,7 +4,29 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+func TestSetAdvancedSettingsReturnsErrorOnNilSettings(t *testing.T) {
+	resourceSchema := map[string]*schema.Schema{
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+		},
+	}
+
+	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{})
+
+	err := SetAdvancedSettings(d, nil)
+	if err == nil {
+		t.Fatal("SetAdvancedSettings returned nil error, want non-nil")
+	}
+
+	if !strings.Contains(err.Error(), "advanced settings cannot be nil") {
+		t.Fatalf("SetAdvancedSettings error = %q, want message containing %q", err.Error(), "advanced settings cannot be nil")
+	}
+}
 
 func TestParseAdvancedSettingsAppliesCORSSupportCredentialDefault(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
