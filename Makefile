@@ -1,4 +1,4 @@
-.PHONY: default fmt lint build buildtool install clean
+.PHONY: default fmt lint build buildtool install clean setup
 
 # Detect Go binary automatically (safe and portable)
 GO ?= $(shell which go)
@@ -10,6 +10,8 @@ GO_BIN_DIR := $(shell $(GO) env GOBIN)
 ifeq ($(GO_BIN_DIR),)
 GO_BIN_DIR := $(shell $(GO) env GOPATH)/bin
 endif
+
+export PATH := $(GO_BIN_DIR):$(PATH)
 
 BINDIR          := $(CURDIR)/bin
 
@@ -54,27 +56,37 @@ else
 endif
 
 VERSION_STR := 1.0.0
+GOLANGCI_LINT_VERSION := v2.11.4
 SRC          := $(shell find . -type f -name '*.go' -print)
-
 
 SHELL      = /usr/bin/env bash
 
+define section_banner
+	@printf '\n%s\n' '============================================================'
+	@printf '====== %-46s ======\n' '$(1)'
+	@printf '%s\n' '============================================================'
+endef
 
-default: fmt lint build buildtool install
 
-build: $(SRC)
+default: install buildtool
+
+build: lint $(SRC)
+	$(call section_banner,BUILD)
 	@echo "Building for $(PLUGIN_ARCH)"
 	$(GO) build -v -o $(BINDIR)/$(BINNAME) .
 
-buildtool: $(SRC)
+buildtool: setup $(SRC)
+	$(call section_banner,BUILD TOOL)
 	@echo build import tool binary
 	$(GO) build -v -o $(BINDIR)/$(BINNAME_TOOL) ./tools
 
-fmt:
+fmt: setup
+	$(call section_banner,FORMAT)
 	@echo go fmt ./...
 	$(GO) fmt ./...
 
-install:
+install: build
+	$(call section_banner,INSTALL)
 	@echo "Installing for $(PLUGIN_ARCH)"
 ifeq ($(OS),Windows_NT)
 	@echo "Creating Windows Terraform plugins directory..."
@@ -88,7 +100,8 @@ else
 	@echo "Provider installed to: $$HOME/.terraform.d/plugins/terraform.eaaprovider.dev/eaaprovider/eaa/$(VERSION_STR)/$(PLUGIN_ARCH)"
 endif
 
-lint:
+lint: fmt
+	$(call section_banner,LINT)
 	@echo run golangci-lint on project
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run --allow-parallel-runners ./...; \
@@ -102,16 +115,19 @@ clean:
 
 # TESTS
 test:
+	$(call section_banner,TEST)
 	@echo "Running tests..."
 	$(GO) test -v -race -timeout 10m ./...
 
 test-coverage:
+	$(call section_banner,TEST COVERAGE)
 	@echo "Running tests with coverage..."
 	$(GO) test -v -race -timeout 10m -coverprofile=coverage.out -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
 test-short:
+	$(call section_banner,TEST SHORT)
 	@echo "Running short tests..."
 	$(GO) test -short -v ./...
 
@@ -127,6 +143,7 @@ fmt-check:
 
 # SECURITY CHECKS
 security:
+	$(call section_banner,SECURITY)
 	@echo "Running security checks..."
 	@if command -v gosec >/dev/null 2>&1; then \
 		gosec -quiet ./...; \
@@ -135,6 +152,7 @@ security:
 	fi
 
 vuln-check:
+	$(call section_banner,VULNERABILITY CHECK)
 	@echo "Checking for vulnerabilities..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
 		govulncheck ./...; \
@@ -144,16 +162,19 @@ vuln-check:
 
 # DEPENDENCY MANAGEMENT
 tidy:
+	$(call section_banner,TIDY)
 	@echo "Tidying Go modules..."
 	$(GO) mod tidy
 	$(GO) mod verify
 
 vendor:
+	$(call section_banner,VENDOR)
 	@echo "Vendoring dependencies..."
 	$(GO) mod vendor
 
 # SETUP DEVELOPMENT ENVIRONMENT
 setup:
+	$(call section_banner,SETUP)
 	@echo "Setting up development environment..."
 	@echo "Installing required tools..."
 	@echo ""
@@ -162,7 +183,14 @@ setup:
 		echo "   ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	else \
 		echo "   → Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+		if command -v curl >/dev/null 2>&1; then \
+			curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(GO_BIN_DIR)" $(GOLANGCI_LINT_VERSION); \
+		elif command -v wget >/dev/null 2>&1; then \
+			wget -O- -nv https://golangci-lint.run/install.sh | sh -s -- -b "$(GO_BIN_DIR)" $(GOLANGCI_LINT_VERSION); \
+		else \
+			echo "   ✗ Neither curl nor wget is installed. Please install one of them and rerun 'make setup'."; \
+			exit 1; \
+		fi; \
 		echo "   ✓ golangci-lint installed successfully"; \
 	fi
 	@echo ""
@@ -237,6 +265,7 @@ setup:
 
 # PRE-COMMIT
 pre-commit-install:
+	$(call section_banner,PRE-COMMIT INSTALL)
 	@echo "Installing pre-commit hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit install --install-hooks && \
@@ -248,6 +277,7 @@ pre-commit-install:
 	fi
 
 pre-commit-run:
+	$(call section_banner,PRE-COMMIT RUN)
 	@echo "Running pre-commit on all files..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit run --all-files; \
@@ -257,6 +287,7 @@ pre-commit-run:
 	fi
 
 pre-commit-update:
+	$(call section_banner,PRE-COMMIT UPDATE)
 	@echo "Updating pre-commit hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit autoupdate; \
@@ -267,6 +298,7 @@ pre-commit-update:
 
 # HELP
 help:
+	$(call section_banner,HELP)
 	@echo "Available targets:"
 	@echo "  make setup              - Install all required development tools"
 	@echo "  make build              - Build the provider binary"
