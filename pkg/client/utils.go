@@ -15,8 +15,8 @@ var (
 	ErrNotFound = errors.New("key not found")
 )
 
-func SetAttrs(d *schema.ResourceData, AttributeValues map[string]interface{}) error {
-	for attr, value := range AttributeValues {
+func SetAttrs(d *schema.ResourceData, attributeValues map[string]interface{}) error {
+	for attr, value := range attributeValues {
 		if err := d.Set(attr, value); err != nil {
 			return err
 		}
@@ -24,10 +24,14 @@ func SetAttrs(d *schema.ResourceData, AttributeValues map[string]interface{}) er
 	return nil
 }
 
-func SetAdvancedSettings(d *schema.ResourceData, settings AdvancedSettings) error {
+func SetAdvancedSettings(d *schema.ResourceData, settings *AdvancedSettings) error {
+	if settings == nil {
+		return fmt.Errorf("advanced settings cannot be nil")
+	}
+
 	advancedSettingsMap := make(map[string]interface{})
 
-	v := reflect.ValueOf(settings)
+	v := reflect.ValueOf(settings).Elem()
 	t := v.Type()
 
 	for i := 0; i < v.NumField(); i++ {
@@ -88,9 +92,9 @@ func DifferenceIgnoreCase(slice1, slice2 []string) []string {
 	return diff
 }
 
-func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedSettings) {
+func UpdateAdvancedSettings(complete *AdvancedSettingsComplete, delta *AdvancedSettings) {
 	completeVal := reflect.ValueOf(complete).Elem()
-	deltaVal := reflect.ValueOf(delta)
+	deltaVal := reflect.ValueOf(delta).Elem()
 	for i := 0; i < deltaVal.NumField(); i++ {
 		deltaField := deltaVal.Field(i)
 		fieldName := deltaVal.Type().Field(i).Name
@@ -102,14 +106,15 @@ func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedS
 
 		// Always copy the field value, regardless of whether it's zero or not
 		// This ensures ALL fields (including defaults) are included in the final payload
-		if completeField.Kind() == reflect.String {
+		switch completeField.Kind() {
+		case reflect.String:
 			// Handle string fields - convert pointer to string if needed
 			if deltaField.Kind() == reflect.Ptr && !deltaField.IsNil() {
 				completeField.SetString(deltaField.Elem().String())
 			} else if deltaField.Kind() == reflect.String {
 				completeField.SetString(deltaField.String())
 			}
-		} else if completeField.Kind() == reflect.Ptr {
+		case reflect.Ptr:
 			// Handle pointer fields - create pointer to the value
 			if deltaField.Kind() == reflect.String {
 				// Create a pointer to the string value
@@ -119,11 +124,9 @@ func UpdateAdvancedSettings(complete *AdvancedSettings_Complete, delta AdvancedS
 				// For other types, copy the pointer directly
 				completeField.Set(deltaField)
 			}
-		} else if completeField.Kind() == reflect.Slice {
+		case reflect.Slice, reflect.Map:
 			completeField.Set(deltaField)
-		} else if completeField.Kind() == reflect.Map {
-			completeField.Set(deltaField)
-		} else {
+		default:
 			// For other types (int, bool, etc.), copy directly
 			completeField.Set(deltaField)
 		}
@@ -157,7 +160,6 @@ func ConvertIntToEnumStringForDataSource(intValue int, converter func(int) (stri
 // DATA CONVERSION UTILITIES
 // ============================================================================
 
-// ConvertConnectorsToObjects converts JSON connector data to interface slice for schema
 // ConnectorSummary represents a simplified connector view for data sources
 type ConnectorSummary struct {
 	Name           string `json:"name"`
@@ -202,7 +204,8 @@ func ConvertConnectorsToMap(connectors json.RawMessage) []map[string]interface{}
 	if err := json.Unmarshal(connectors, &connectorArray); err == nil {
 		// Convert to map format with correct field names
 		var result []map[string]interface{}
-		for _, connector := range connectorArray {
+		for i := range connectorArray {
+			connector := &connectorArray[i]
 			connectorMap := map[string]interface{}{
 				"name":             connector.Name,
 				"package":          connector.Package, // lowercase to match schema
@@ -277,7 +280,7 @@ func ValidateOptionalString(d *schema.ResourceData, fieldName string, ec *EaaCli
 }
 
 // ValidateStringInSlice validates that a string value is in a given slice of valid values
-func ValidateStringInSlice(val string, key string, validValues []string) (warns []string, errs []error) {
+func ValidateStringInSlice(val, key string, validValues []string) (warns []string, errs []error) {
 	found := false
 	for _, validValue := range validValues {
 		if val == validValue {
@@ -294,7 +297,7 @@ func ValidateStringInSlice(val string, key string, validValues []string) (warns 
 }
 
 // ValidateIntegerField validates an integer field with type checking and range validation
-func ValidateIntegerField(value interface{}, fieldName string, min, max int, client *EaaClient) (int, error) {
+func ValidateIntegerField(value interface{}, fieldName string, minValue, maxValue int, client *EaaClient) (int, error) {
 	// Type checking
 	intValue, ok := value.(int)
 	if !ok {
@@ -303,9 +306,9 @@ func ValidateIntegerField(value interface{}, fieldName string, min, max int, cli
 	}
 
 	// Range validation
-	if intValue < min || intValue > max {
-		client.Logger.Error(fmt.Sprintf("%s must be in the range of %d to %d", fieldName, min, max))
-		return 0, fmt.Errorf("%s must be in the range of %d to %d, got %d", fieldName, min, max, intValue)
+	if intValue < minValue || intValue > maxValue {
+		client.Logger.Error(fmt.Sprintf("%s must be in the range of %d to %d", fieldName, minValue, maxValue))
+		return 0, fmt.Errorf("%s must be in the range of %d to %d, got %d", fieldName, minValue, maxValue, intValue)
 	}
 
 	return intValue, nil

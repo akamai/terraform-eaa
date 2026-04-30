@@ -26,7 +26,7 @@ var (
 )
 
 type AssignAgents struct {
-	AppId      string   `json:"app_id"`
+	AppID      string   `json:"app_id"`
 	AgentNames []string `json:"agents"`
 }
 
@@ -59,7 +59,7 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 		return nil
 	}
 
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, aar.AppId)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
 	ec.Logger.Info(apiURL)
 	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
 	if err != nil {
@@ -67,7 +67,7 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(agentsResp)
+		desc := FormatErrorDescription(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsAssign, desc)
 		ec.Logger.Error("assign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)
 		return assignErrMsg
@@ -85,7 +85,7 @@ func (app *Application) GetAppAgents(ec *EaaClient) ([]string, error) {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
 
 		return nil, updErrMsg
@@ -121,7 +121,7 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 		return nil
 	}
 
-	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents?method=delete", URL_SCHEME, ec.Host, APPS_URL, aar.AppId)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents?method=delete", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
 	ec.Logger.Info(apiURL)
 	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
 	if err != nil {
@@ -129,7 +129,7 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(agentsResp)
+		desc := FormatErrorDescription(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsUnAssign, desc)
 		ec.Logger.Error("unassign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)
 		return assignErrMsg

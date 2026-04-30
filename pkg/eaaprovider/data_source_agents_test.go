@@ -18,7 +18,7 @@ func TestDataAgents(t *testing.T) {
 			ProviderFactories: testAccProviders,
 			Steps: []resource.TestStep{
 				{
-					Config: testAccEaaAgentsConfig_basic(),
+					Config: testAccEaaAgentsConfigBasic(),
 					Check: resource.ComposeAggregateTestCheckFunc(
 						resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
 						func(s *terraform.State) error {
@@ -47,7 +47,7 @@ func TestDataAgents(t *testing.T) {
 	})
 }
 
-func testAccEaaAgentsConfig_basic() string {
+func testAccEaaAgentsConfigBasic() string {
 	return `
 	data "eaa_data_source_agents" "agents"{
 	}

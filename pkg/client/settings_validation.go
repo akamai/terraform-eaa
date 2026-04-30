@@ -8,19 +8,21 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
 // SettingRule defines validation rules for a specific advanced setting
 type SettingRule struct {
-	DependsOn   map[string]string      // Field dependencies: {"field_name": "required_value"}
 	Conditional map[string]interface{} // Conditional validation rules
-	Type        string                 // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
-	ValidValues []string               // Allowed values (for enum fields)
-	AppTypes    []string               // Allowed app types
-	Profiles    []string               // Allowed app profiles
-	MinValue    int                    // Minimum value for numeric fields
-	MaxValue    int                    // Maximum value for numeric fields
-	Required    bool                   // Whether field is required (nullable fields should be false)
+	DependsOn   map[string]string      // Field dependencies: {"field_name": "required_value"}
+	Default     any
+	Type        string   // Field type: "string", "int" (boolean fields use "string" with ValidValues, supports pointer types)
+	ValidValues []string // Allowed values (for enum fields)
+	AppTypes    []string // Allowed app types
+	Profiles    []string // Allowed app profiles
+	MinValue    int      // Minimum value for numeric fields
+	MaxValue    int      // Maximum value for numeric fields
+	Required    bool     // Whether field is required (nullable fields should be false)
 }
 
 // SETTINGS_RULES defines validation rules for all advanced settings
@@ -54,6 +56,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileConfluence),
 			string(AppProfileRDP),
 		},
+		Default: DefaultAppAuth,
 		// Conditional dependency: When wapp_auth is "certonly", app_auth behavior depends on profile
 		// For RDP profile: when wapp_auth=certonly, app_auth can only be "none", "auto", "service account"
 		// For non-RDP profiles: when wapp_auth=certonly, app_auth can only be "none", "kerberos", "oidc"
@@ -91,6 +94,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultWappAuth,
 		// Conditional: certonly is only allowed for RDP profile
 		Conditional: map[string]interface{}{
 			"profile": map[string]interface{}{
@@ -169,13 +173,34 @@ var SETTINGS_RULES = map[string]SettingRule{
 			},
 			// Conflict validation: JWT fields conflict with non-JWT auth types
 			string(WappAuthTypeBasic): map[string]interface{}{
-				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
+				"ConflictsWith": []string{
+					"jwt_audience",
+					"jwt_grace_period",
+					"jwt_issuers",
+					"jwt_return_option",
+					"jwt_return_url",
+					"jwt_username",
+				},
 			},
 			string(WappAuthTypeCertOnly): map[string]interface{}{
-				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
+				"ConflictsWith": []string{
+					"jwt_audience",
+					"jwt_grace_period",
+					"jwt_issuers",
+					"jwt_return_option",
+					"jwt_return_url",
+					"jwt_username",
+				},
 			},
 			string(WappAuthTypeBasicCookie): map[string]interface{}{
-				"ConflictsWith": []string{"jwt_audience", "jwt_grace_period", "jwt_issuers", "jwt_return_option", "jwt_return_url", "jwt_username"},
+				"ConflictsWith": []string{
+					"jwt_audience",
+					"jwt_grace_period",
+					"jwt_issuers",
+					"jwt_return_option",
+					"jwt_return_url",
+					"jwt_username",
+				},
 			},
 		},
 	},
@@ -271,6 +296,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: HealthCheckTypeDefault,
 	},
 	"health_check_http_url": {
 		Type: "string",
@@ -291,6 +317,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"health_check_type": "HTTP|HTTPS",
 		},
+		Default: DefaultHealthCheckHttpURL,
 	},
 	"health_check_http_version": {
 		Type: "string",
@@ -317,6 +344,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"health_check_type": "HTTP|HTTPS",
 		},
+		Default: DefaultHealthCheckHttpVersion,
 	},
 	"health_check_http_host_header": {
 		Type: "string",
@@ -333,6 +361,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: "",
 	},
 	"health_check_rise": {
 		Type:     "string",
@@ -348,6 +377,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHealthCheckRise,
 	},
 	"health_check_fall": {
 		Type:     "string",
@@ -366,6 +396,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHealthCheckFall,
 	},
 	"health_check_timeout": {
 		Type:     "string",
@@ -384,6 +415,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHealthCheckTimeout,
 	},
 	"health_check_interval": {
 		Type:     "string",
@@ -437,10 +469,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 				},
 			},
 		},
+		Default: DefaultLoadBalancingMetric,
 	},
 	"session_sticky": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -453,6 +489,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileConfluence),
 			string(AppProfileTCP),
 		},
+		Default: DefaultSessionSticky,
 		// Blocked for RDP/SSH/VNC profiles (remote desktop protocols)
 		Conditional: map[string]interface{}{
 			"app_type": map[string]interface{}{
@@ -486,8 +523,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"tcp_optimization": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
@@ -544,14 +584,18 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"rdp_tls1": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRDPTLS1,
 	},
 	"rdp_keyboard_lang": {
 		Type: "string",
@@ -561,6 +605,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: "",
 	},
 	"rdp_window_color_depth": {
 		Type: "string",
@@ -570,6 +615,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: "",
 	},
 	"rdp_window_height": {
 		Type: "string",
@@ -579,6 +625,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: "",
 	},
 	"rdp_window_width": {
 		Type: "string",
@@ -588,40 +635,53 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: "",
 	},
 
 	// RDP Remote Spark Features (RDP V2 only)
-	"remote_spark_mapClipboard": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+	"remote_spark_map_clipboard": {
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRemoteSparkMapClipboard,
 	},
 	"rdp_legacy_mode": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRDPLegacyMode,
 	},
 	"remote_spark_audio": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRemoteSparkAudio,
 	},
-	"remote_spark_mapPrinter": {
+	"remote_spark_map_printer": {
 		Type: "string",
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
@@ -629,6 +689,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRemoteSparkMapPrinter,
 	},
 	"remote_spark_printer": {
 		Type: "string",
@@ -640,10 +701,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: Remote printer requires mapPrinter to be enabled
 		DependsOn: map[string]string{
-			"remote_spark_mapPrinter": "true",
+			"remote_spark_map_printer": "true",
 		},
+		Default: DefaultRemoteSparkPrinter,
 	},
-	"remote_spark_mapDisk": {
+	"remote_spark_map_disk": {
 		Type: "string",
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
@@ -651,6 +713,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRemoteSparkMapDisk,
 	},
 	"remote_spark_disk": {
 		Type: "string",
@@ -662,18 +725,23 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		// Dependency: Remote disk requires mapDisk to be enabled
 		DependsOn: map[string]string{
-			"remote_spark_mapDisk": "true",
+			"remote_spark_map_disk": "true",
 		},
+		Default: DefaultRemoteSparkDisk,
 	},
 	"remote_spark_recording": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileRDP),
 		},
+		Default: DefaultRemoteSparkRecording,
 	},
 
 	// TLS Configuration Settings
@@ -728,18 +796,25 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"ssh_audit_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
 		Profiles: []string{
 			string(AppProfileSSH),
 		},
+		Default: DefaultSSHAuditEnabled,
 	},
 	"allow_cors": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -753,6 +828,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultAllowCORS,
 	},
 	"cors_origin_list": {
 		Type: "string",
@@ -773,6 +849,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"allow_cors": "true",
 		},
+		Default: DefaultCorsOriginList,
 	},
 	"cors_header_list": {
 		Type: "string",
@@ -793,6 +870,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"allow_cors": "true",
 		},
+		Default: DefaultCorsHeaderList,
 	},
 	"cors_method_list": {
 		Type: "string",
@@ -813,10 +891,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"allow_cors": "true",
 		},
+		Default: DefaultCorsMethodList,
 	},
 	"cors_support_credential": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -830,10 +912,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
-		// Dependency: CORS detail fields require allow_cors to be enabled
-		DependsOn: map[string]string{
-			"allow_cors": "true",
-		},
+		Default: DefaultCORSSupportCredential,
 	},
 	"cors_max_age": {
 		Type:     "string",
@@ -856,10 +935,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"allow_cors": "true",
 		},
+		Default: DefaultCorsMaxAge,
 	},
 	"websocket_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -875,10 +958,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultWebSocketEnabled,
 	},
 	"https_sslv3": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -892,10 +979,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHTTPSSSLV3,
 	},
 	"logging_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppModeTunnel),
@@ -911,10 +1002,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultLoggingEnabled,
 	},
 	"hidden_app": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -928,10 +1023,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHiddenApp,
 	},
 	"saas_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -945,10 +1044,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultSaaSEnabled,
 	},
 	"sticky_agent": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -962,11 +1065,12 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultStickyAgent,
 	},
 	"x_wapp_read_timeout": {
 		Type:     "int",
 		MinValue: 1,
-		MaxValue: 300,
+		MaxValue: 1000,
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
@@ -981,10 +1085,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultXWappReadTimeout,
 	},
 	"dynamic_ip": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -1000,10 +1108,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultDynamicIP,
 	},
 	"sticky_cookies": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -1019,10 +1131,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultStickyCookies,
 	},
 	"offload_onpremise_traffic": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1036,10 +1152,15 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultOffloadOnpremiseTraffic,
 	},
 	"x_wapp_pool_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false", "inherit"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+			"inherit",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
@@ -1047,6 +1168,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileTCP),
 			string(AppProfileSMB),
 		},
+		Default: DefaultXWappPoolEnabled,
 	},
 	"x_wapp_pool_size": {
 		Type:     "int",
@@ -1056,6 +1178,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(ClientAppTypeTunnel),
 		},
 		Profiles: []string{},
+		Default:  DefaultXWappPoolSize,
 	},
 	"x_wapp_pool_timeout": {
 		Type:     "int",
@@ -1065,6 +1188,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(ClientAppTypeTunnel),
 		},
 		Profiles: []string{},
+		Default:  DefaultXWappPoolTimeout,
 	},
 
 	// Tunnel Client Parameters (EAA Client Parameters - Tunnel Apps Only)
@@ -1078,26 +1202,38 @@ var SETTINGS_RULES = map[string]SettingRule{
 		DependsOn: map[string]string{
 			"wildcard_internal_hostname": "true",
 		},
+		Default: "",
 	},
 	"wildcard_internal_hostname": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
 		Profiles: []string{},
+		Default:  DefaultWildcardInternalHostname,
 	},
 	"acceleration": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
 		Profiles: []string{},
+		Default:  DefaultAcceleration,
 	},
 	"force_ip_route": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeTunnel),
 		},
@@ -1105,6 +1241,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileTCP),
 			string(AppProfileSMB),
 		},
+		Default: DefaultForceIPRoute,
 	},
 
 	// Enterprise Connectivity Parameters
@@ -1127,6 +1264,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultIdleConnFloor,
 	},
 	"idle_conn_ceil": {
 		Type:     "string",
@@ -1147,6 +1285,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultIdleConnCeil,
 	},
 	"idle_conn_step": {
 		Type:     "string",
@@ -1167,6 +1306,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultIdleConnStep,
 	},
 
 	"idle_close_time_seconds": {
@@ -1188,6 +1328,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultIdleCloseTimeSeconds,
 	},
 
 	"app_server_read_timeout": {
@@ -1209,6 +1350,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultAppServerReadTimeout,
 	},
 	"hsts_age": {
 		Type:     "string",
@@ -1229,6 +1371,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileSSH),
 			string(AppProfileTCP),
 		},
+		Default: DefaultHSTSAge,
 	},
 
 	// Related Applications Settings
@@ -1244,6 +1387,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileJenkins),
 			string(AppProfileConfluence),
 		},
+		Default: "",
 		// Note: Detailed validation (VNC/SSH exclusions, etc.) is handled by ValidateRelatedApplications function
 	},
 
@@ -1263,6 +1407,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: "",
 	},
 	"form_post_url": {
 		Type: "string",
@@ -1279,6 +1424,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: "",
 	},
 	"form_post_attributes": {
 		Type: "array",
@@ -1297,8 +1443,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"app_client_cert_auth": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1312,6 +1461,24 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultAppClientCertAuth,
+	},
+	"app_location": {
+		Type: "string",
+		AppTypes: []string{
+			string(ClientAppTypeEnterprise),
+		},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: "",
 	},
 	"app_cookie_domain": {
 		Type: "string",
@@ -1472,8 +1639,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"kerberos_negotiate_once": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1489,8 +1659,11 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 	},
 	"forward_ticket_granting_ticket": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1504,10 +1677,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultForwardTicketGrantingTicket,
 	},
 	"http_only_cookie": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1521,10 +1698,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultHTTPOnlyCookie,
 	},
 	"disable_user_agent_check": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1538,10 +1719,14 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultDisableUserAgentCheck,
 	},
 	"preauth_consent": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1555,10 +1740,15 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultPreauthConsent,
 	},
 	"sentry_redirect_401": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1572,6 +1762,7 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultSentryRedirect401,
 	},
 
 	// Additional Load Balancing Fields
@@ -1593,9 +1784,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileTCP),
 		},
 		// Dependency: Only relevant when session_sticky is enabled
-		DependsOn: map[string]string{
-			"session_sticky": "true",
-		},
+		// DependsOn: map[string]string{
+		// 	"session_sticky": "true",
+		// },
+		Default: "0",
 	},
 	"session_sticky_server_cookie": {
 		Type: "string",
@@ -1613,13 +1805,16 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileTCP),
 		},
 		// Dependency: Only relevant when session_sticky is enabled
-		DependsOn: map[string]string{
-			"session_sticky": "true",
-		},
+		// DependsOn: map[string]string{
+		// 	"session_sticky": "true",
+		// },
 	},
 	"refresh_sticky_cookie": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 			string(ClientAppTypeTunnel),
@@ -1634,9 +1829,10 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileTCP),
 		},
 		// Dependency: Only relevant when session_sticky is enabled
-		DependsOn: map[string]string{
-			"session_sticky": "true",
-		},
+		// DependsOn: map[string]string{
+		// 	"session_sticky": "true",
+		// },
+		Default: DefaultRefreshStickyCookie,
 	},
 
 	// Additional Miscellaneous Fields
@@ -1692,12 +1888,16 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: "",
 	},
 
 	// Additional Authentication Fields (from payload analysis)
 	"sentry_restore_form_post": {
-		Type:        "string",
-		ValidValues: []string{"on", "off"},
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
 		AppTypes: []string{
 			string(ClientAppTypeEnterprise),
 		},
@@ -1711,71 +1911,870 @@ var SETTINGS_RULES = map[string]SettingRule{
 			string(AppProfileVNC),
 			string(AppProfileSSH),
 		},
+		Default: DefaultSentryRestoreFormPost,
+	},
+	"sla_object_url": {
+		Type: "string",
+		AppTypes: []string{
+			string(ClientAppTypeEnterprise),
+			string(ClientAppTypeTunnel),
+		},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+			string(AppProfileTCP),
+		},
 	},
 
 	// Additional Settings Support
 	"edge_authentication_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
-		AppTypes:    []string{string(ClientAppTypeEnterprise)},
-		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultEdgeAuthenticationEnabled,
 	},
 	"ignore_cname_resolution": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
-		AppTypes:    []string{string(ClientAppTypeEnterprise)},
-		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultIgnoreCNameResolution,
 	},
 	"g2o_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
-		AppTypes:    []string{string(ClientAppTypeEnterprise)},
-		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence)},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultG2OEnabled,
 	},
 	"is_ssl_verification_enabled": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
-		AppTypes:    []string{string(ClientAppTypeEnterprise), string(ClientAppTypeTunnel)},
-		Profiles:    []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence), string(AppProfileRDP), string(AppProfileVNC), string(AppProfileSSH), string(AppProfileSMB), string(AppProfileTCP)},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{
+			string(ClientAppTypeEnterprise),
+			string(ClientAppTypeTunnel),
+		},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+			string(AppProfileSMB),
+			string(AppProfileTCP),
+		},
+		Default: DefaultIsSSLVerificationEnabled,
 	},
 	"service_principal_name": {
 		Type:     "string",
 		AppTypes: []string{string(ClientAppTypeEnterprise)},
-		Profiles: []string{string(AppProfileHTTP), string(AppProfileSharePoint), string(AppProfileJira), string(AppProfileJenkins), string(AppProfileConfluence), string(AppProfileRDP)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+		},
 	},
 	"internal_host_port": {
-		Type:     "string",
-		AppTypes: []string{string(ClientAppTypeEnterprise), string(ClientAppTypeTunnel)},
+		Type: "string",
+		AppTypes: []string{
+			string(ClientAppTypeEnterprise),
+			string(ClientAppTypeTunnel),
+		},
 		Profiles: []string{string(AppProfileTCP)},
+		Default:  DefaultInternalHostPort,
 	},
 	"internal_hostname": {
 		Type:     "string",
 		AppTypes: []string{string(ClientAppTypeTunnel)},
 		Profiles: []string{string(AppProfileTCP)},
+		Default:  "",
 	},
 	"ip_access_allow": {
-		Type:        "string",
-		ValidValues: []string{"true", "false"},
-		AppTypes:    []string{string(ClientAppTypeTunnel)},
-		Profiles:    []string{string(AppProfileTCP)},
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeTunnel)},
+		Profiles: []string{string(AppProfileTCP)},
+		Default:  DefaultIPAccessAllow,
+	},
+	"anonymous_server_conn_limit": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultAnonymousServerConnLimit,
+	},
+	"anonymous_server_request_limit": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultAnonymousServerRequestLimit,
+	},
+	"authenticated_server_conn_limit": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultAuthenticatedServerConnLimit,
+	},
+	"authenticated_server_request_limit": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultAuthenticatedServerRequestLimit,
+	},
+	"client_cert_auth": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultClientCertAuth,
+	},
+	"client_cert_user_param": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: "",
+	},
+	"edge_cookie_key": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+			string(AppProfileTCP),
+		},
+	},
+	"edge_transport_manual_mode": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultEdgeTransportManualMode,
+	},
+	"edge_transport_property_id": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+	},
+	"enable_client_side_xhr_rewrite": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultEnableClientSideXHRRewrite,
+	},
+	"external_cookie_domain": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultExternalCookieDomain,
+	},
+	"force_mfa": {
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultForceMFA,
+	},
+	"host_key": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"idp_idle_expiry": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"idp_max_expiry": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"ignore_bypass_mfa": {
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultIgnoreBypassMFA,
+	},
+	"inject_ajax_javascript": {
+		Type: "string",
+		ValidValues: []string{
+			"on",
+			"off",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultInjectAjaxJavascript,
+	},
+	"is_brotli_enabled": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultIsBrotliEnabled,
+	},
+	"keepalive_connection_pool": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultKeepAliveConnectionPool,
+	},
+	"keepalive_enable": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultKeepaliveEnable,
+	},
+	"keepalive_timeout": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultKeepAliveTimeout,
+	},
+	"keyed_keepalive_enable": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"login_timeout": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultLoginTimeout,
+	},
+	"mdc_enable": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultMDCEnable,
+	},
+	"mfa": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+			"inherit",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultMFA,
+	},
+	"onramp": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+			"inherit",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultOnramp,
+	},
+	"pass_phrase": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"preauth_enforce_url": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: "",
+	},
+	"private_key": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"proxy_disable_clipboard": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{string(AppProfileRDP)},
+	},
+	"rate_limit": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"rdp_remote_apps": {
+		Type:     "array",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{string(AppProfileRDP)},
+	},
+	"request_body_rewrite": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultRequestBodyRewrite,
+	},
+	"request_parameters": {
+		Type:     "map",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+	},
+	"segmentation_policy_enable": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultSegmentationPolicyEnable,
+	},
+	"server_cert_validate": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultServerCertValidate,
+	},
+	"server_request_burst": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultServerRequestBurst,
+	},
+	"single_host_content_rw": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultSingleHostContentRW,
+	},
+	"single_host_cookie_domain": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultSingleHostCookieDomain,
+	},
+	"single_host_enable": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: DefaultSingleHostEnable,
+	},
+	"single_host_fqdn": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: "",
+	},
+	"single_host_path": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+		},
+		Default: "",
+	},
+	"spdy_enabled": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultSPDYEnabled,
+	},
+	"sso": {
+		Type: "string",
+		ValidValues: []string{
+			"true",
+			"false",
+		},
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
+		Default: DefaultSSO,
+	},
+	"user_name": {
+		Type:     "string",
+		AppTypes: []string{string(ClientAppTypeEnterprise)},
+		Profiles: []string{
+			string(AppProfileHTTP),
+			string(AppProfileSharePoint),
+			string(AppProfileJira),
+			string(AppProfileJenkins),
+			string(AppProfileConfluence),
+			string(AppProfileRDP),
+			string(AppProfileVNC),
+			string(AppProfileSSH),
+		},
 	},
 }
 
+func warningDiagnostic(summary, detail string) diag.Diagnostic {
+	return diag.Diagnostic{
+		Severity: diag.Warning,
+		Summary:  summary,
+		Detail:   detail,
+	}
+}
+
 // ValidateAdvancedSettings validates all advanced settings using the generic rules
-func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfile, clientAppMode string, logger hclog.Logger) error {
+func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfile, clientAppMode string, logger hclog.Logger) diag.Diagnostics {
 	logger.Debug("Validating advanced settings for app_type='%s', app_profile='%s', client_app_mode='%s'", appType, appProfile, clientAppMode)
+	var diags diag.Diagnostics
 
 	// Validate each setting
 	for settingName, settingValue := range settings {
 		rule, exists := SETTINGS_RULES[settingName]
 		if !exists {
 			logger.Warn("Unknown setting '%s' found in advanced_settings", settingName)
-			return fmt.Errorf("unknown setting '%s' in advanced_settings", settingName)
+			diags = append(diags, warningDiagnostic(
+				"Unknown advanced setting",
+				fmt.Sprintf("Unknown setting '%s' found in advanced_settings", settingName),
+			))
 		}
 
 		// Validate the setting against its rule
-		if err := validateSetting(settingName, settingValue, rule, settings, appType, appProfile, logger); err != nil {
-			return err
+		if err := validateSetting(settingName, settingValue, &rule, settings, appType, appProfile, logger); err != nil {
+			logger.Warn(err.Error())
+			diags = append(diags, warningDiagnostic(
+				"Advanced settings validation warning",
+				err.Error(),
+			))
 		}
 	}
 
@@ -1784,7 +2783,11 @@ func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfi
 
 	// STEP 2.1: Validate field conflicts using SETTINGS_RULES
 	if err := validateFieldConflicts(settings, logger); err != nil {
-		return err
+		logger.Warn(err.Error())
+		diags = append(diags, warningDiagnostic(
+			"Advanced settings conflict warning",
+			err.Error(),
+		))
 	}
 
 	// Format validation is now handled by SETTINGS_RULES validation system
@@ -1793,11 +2796,13 @@ func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfi
 	logger.Debug("Context-dependent validation handled by SETTINGS_RULES")
 
 	logger.Debug("Advanced settings validation completed successfully")
-	return nil
+	return diags
 }
 
 // ValidateHealthCheckConfiguration validates health check configuration using SETTINGS_RULES
-func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	// Check if health check settings are present
 	hasHealthCheckSettings := false
 	for _, field := range HealthCheckFields {
@@ -1809,7 +2814,7 @@ func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 
 	// If no health check settings are present, skip validation
 	if !hasHealthCheckSettings {
-		return nil
+		return diags
 	}
 
 	logger.Debug("Health check settings found, proceeding with validation using SETTINGS_RULES")
@@ -1819,11 +2824,19 @@ func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 		if value, exists := settings[field]; exists {
 			// Get the rule for this field from SETTINGS_RULES
 			if rule, hasRule := SETTINGS_RULES[field]; hasRule {
-				if err := validateSetting(field, value, rule, settings, appType, appProfile, logger); err != nil {
-					return err
+				if err := validateSetting(field, value, &rule, settings, appType, appProfile, logger); err != nil {
+					logger.Warn(err.Error())
+					diags = append(diags, warningDiagnostic(
+						"Health check validation warning",
+						err.Error(),
+					))
 				}
 			} else {
 				logger.Warn("No validation rule found for health check field: %s", field)
+				diags = append(diags, warningDiagnostic(
+					"Health check validation warning",
+					fmt.Sprintf("No validation rule found for health check field: %s", field),
+				))
 			}
 		}
 	}
@@ -1831,11 +2844,15 @@ func ValidateHealthCheckConfiguration(settings map[string]interface{}, appType, 
 	// STEP 2: Check for missing required fields when dependencies are met
 	logger.Debug("Checking for missing required fields when dependencies are met")
 	if err := validateHealthCheckRequiredDependencies(settings, logger); err != nil {
-		return err
+		logger.Warn(err.Error())
+		diags = append(diags, warningDiagnostic(
+			"Health check validation warning",
+			err.Error(),
+		))
 	}
 
 	logger.Debug("Health check configuration validation completed successfully using SETTINGS_RULES")
-	return nil
+	return diags
 }
 
 // validateHealthCheckRequiredDependencies validates that required fields are present when dependencies are met
@@ -1941,14 +2958,24 @@ func validateFieldConflicts(settings map[string]interface{}, logger hclog.Logger
 }
 
 // validateSetting validates a single setting against its rule
-func validateSetting(settingName string, value interface{}, rule SettingRule, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+func validateSetting(settingName string, value interface{}, rule *SettingRule, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
 	logger.Debug("Validating setting '%s' with value: %v", settingName, value)
+
+	// Empty optional collections are effectively unset in HCL.
+	if isEmptyOptionalCollection(value, rule) {
+		return nil
+	}
+
+	// if value is default then skip validation
+	if settingValueMatchesDefault(rule.Default, value) {
+		return nil
+	}
 
 	// Check if setting is allowed for this app type
 	if len(rule.AppTypes) > 0 {
 		if !contains(rule.AppTypes, appType) {
-			return fmt.Errorf("setting '%s' is not allowed for app_type='%s'. Allowed app types: %v",
-				settingName, appType, rule.AppTypes)
+			return fmt.Errorf("(def:%s, val:%s), setting '%s' is not allowed for app_type='%s'. Allowed app types: %v",
+				rule.Default, value, settingName, appType, rule.AppTypes)
 		}
 	}
 
@@ -1956,8 +2983,8 @@ func validateSetting(settingName string, value interface{}, rule SettingRule, se
 	// Skip profile validation for tunnel apps
 	if len(rule.Profiles) > 0 && appType != string(ClientAppTypeTunnel) {
 		if !contains(rule.Profiles, appProfile) {
-			return fmt.Errorf("setting '%s' is not allowed for app_profile='%s'. Allowed profiles: %v",
-				settingName, appProfile, rule.Profiles)
+			return fmt.Errorf("(def:%s, val:%s), setting '%s' is not allowed for app_profile='%s'. Allowed profiles: %v",
+				rule.Default, value, settingName, appProfile, rule.Profiles)
 		}
 	}
 
@@ -1969,7 +2996,7 @@ func validateSetting(settingName string, value interface{}, rule SettingRule, se
 	}
 
 	// Check Conditional rules
-	if rule.Conditional != nil && len(rule.Conditional) > 0 {
+	if len(rule.Conditional) > 0 {
 		logger.Debug("Setting '%s' has conditional rules: %v", settingName, rule.Conditional)
 		if err := validateConditionalRules(settingName, value, rule.Conditional, settings, appType, appProfile, logger); err != nil {
 			return err
@@ -1986,9 +3013,9 @@ func validateSetting(settingName string, value interface{}, rule SettingRule, se
 }
 
 // validateSettingDependencies validates field dependencies for a setting
-func validateSettingDependencies(settingName string, rule SettingRule, settings map[string]interface{}, logger hclog.Logger) error {
+func validateSettingDependencies(settingName string, rule *SettingRule, settings map[string]interface{}, logger hclog.Logger) error {
 	// Check DependsOn rules
-	if rule.DependsOn != nil && len(rule.DependsOn) > 0 {
+	if len(rule.DependsOn) > 0 {
 		for dependentField, requiredValue := range rule.DependsOn {
 			logger.Debug("Setting '%s' depends on field '%s' having value '%s'", settingName, dependentField, requiredValue)
 
@@ -2009,7 +3036,7 @@ func validateSettingDependencies(settingName string, rule SettingRule, settings 
 }
 
 // validateConditionalRules validates conditional rules for a setting
-func validateConditionalRules(settingName string, value interface{}, conditional map[string]interface{}, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
+func validateConditionalRules(settingName string, value interface{}, conditional, settings map[string]interface{}, appType, appProfile string, logger hclog.Logger) error {
 	// Delegate auth-specific conditional checks
 	if err := handleAuthConditionalRules(settingName, value, settings, appType, appProfile, logger); err != nil {
 		return err
@@ -2046,7 +3073,7 @@ func validateConditionalRules(settingName string, value interface{}, conditional
 }
 
 // applyConditionalRules applies specific conditional rules to a setting value
-func applyConditionalRules(settingName string, value interface{}, rules interface{}, logger hclog.Logger) error {
+func applyConditionalRules(settingName string, value, rules interface{}, logger hclog.Logger) error {
 	if rulesMap, ok := rules.(map[string]interface{}); ok {
 		// Handle ValidValues restriction
 		if validValues, hasValidValues := rulesMap["ValidValues"]; hasValidValues {
@@ -2135,7 +3162,7 @@ func validateDependencyValue(fieldValue interface{}, requiredValue string, logge
 }
 
 // validateSettingValue validates the value of a setting based on its type and constraints
-func validateSettingValue(value interface{}, rule SettingRule, logger hclog.Logger) error {
+func validateSettingValue(value interface{}, rule *SettingRule, logger hclog.Logger) error {
 	// Handle null values
 	if value == nil {
 		if rule.Required {
@@ -2155,19 +3182,21 @@ func validateSettingValue(value interface{}, rule SettingRule, logger hclog.Logg
 		return validateIntSettingWithReflect(value, valueKind, rule, logger)
 	case "array":
 		return validateArraySettingWithReflect(value, valueKind, rule, logger)
+	case "map":
+		return validateMapSettingWithReflect(value, valueKind, logger)
 	default:
 		return fmt.Errorf("unsupported setting type: %s", rule.Type)
 	}
 }
 
 // validateStringSettingWithReflect validates string settings using reflect for comprehensive type checking
-func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	var strValue string
 
 	// Handle different input types more comprehensively
 	switch kind {
 	case reflect.String:
-		strValue = value.(string)
+		strValue = reflect.ValueOf(value).String()
 	case reflect.Ptr:
 		// Handle pointer types (*string, *int, etc.)
 		ptrValue := reflect.ValueOf(value)
@@ -2203,7 +3232,7 @@ func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule
 		}
 	case reflect.Bool:
 		// Convert boolean to string representation
-		boolValue := value.(bool)
+		boolValue := reflect.ValueOf(value).Bool()
 		strValue = fmt.Sprintf("%t", boolValue)
 		logger.Debug("Converted boolean %v to string '%s'", boolValue, strValue)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -2236,88 +3265,88 @@ func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule
 }
 
 // validateStringSetting validates string settings (legacy function for backward compatibility)
-func validateStringSetting(value interface{}, rule SettingRule, logger hclog.Logger) error {
-	strValue, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("expected string, got %T", value)
-	}
-
-	// Check if empty string is allowed
-	if strValue == "" && rule.Required {
-		return fmt.Errorf("required setting cannot be empty")
-	}
-
-	// Validate enum values
-	if len(rule.ValidValues) > 0 {
-		if !contains(rule.ValidValues, strValue) {
-			return fmt.Errorf("must be one of %v, got '%s'", rule.ValidValues, strValue)
-		}
-	}
-
-	return nil
-}
+// func validateStringSetting(value interface{}, rule SettingRule, logger hclog.Logger) error {
+// 	strValue, ok := value.(string)
+// 	if !ok {
+// 		return fmt.Errorf("expected string, got %T", value)
+// 	}
+//
+// 	// Check if empty string is allowed
+// 	if strValue == "" && rule.Required {
+// 		return fmt.Errorf("required setting cannot be empty")
+// 	}
+//
+// 	// Validate enum values
+// 	if len(rule.ValidValues) > 0 {
+// 		if !contains(rule.ValidValues, strValue) {
+// 			return fmt.Errorf("must be one of %v, got '%s'", rule.ValidValues, strValue)
+// 		}
+// 	}
+//
+// 	return nil
+// }
 
 // validateIntSetting validates integer settings
-func validateIntSetting(value interface{}, rule SettingRule, logger hclog.Logger) error {
-	var intValue int
-
-	switch v := value.(type) {
-	case int:
-		intValue = v
-	case float64:
-		intValue = int(v)
-	case string:
-		// Handle string-to-integer mapping only for TLS suite types
-		if rule.ValidValues != nil && len(rule.ValidValues) > 0 && rule.ValidValues[0] == "default" {
-			// This is a TLS suite type field that accepts "default" or "custom"
-			switch v {
-			case "default":
-				intValue = 1
-			case "custom":
-				intValue = 2
-			default:
-				return fmt.Errorf("expected 'default' or 'custom', got '%s'", v)
-			}
-		} else {
-			// For other integer fields, try to parse the string as an integer
-			if parsed, err := strconv.Atoi(v); err != nil {
-				return fmt.Errorf("expected integer, got '%s'", v)
-			} else {
-				intValue = parsed
-			}
-		}
-	default:
-		return fmt.Errorf("expected integer, got %T", value)
-	}
-
-	// Validate range
-	if rule.MinValue != 0 || rule.MaxValue != 0 {
-		if intValue < rule.MinValue || intValue > rule.MaxValue {
-			return fmt.Errorf("must be between %d and %d, got %d", rule.MinValue, rule.MaxValue, intValue)
-		}
-	}
-
-	// Validate enum values (for string representations of integers and string mappings)
-	if len(rule.ValidValues) > 0 {
-		// Check if the original value was a string that maps to this integer
-		if strValue, ok := value.(string); ok {
-			if !contains(rule.ValidValues, strValue) {
-				return fmt.Errorf("must be one of %v, got '%s'", rule.ValidValues, strValue)
-			}
-		} else {
-			// For integer values, check the string representation
-			strValue := strconv.Itoa(intValue)
-			if !contains(rule.ValidValues, strValue) {
-				return fmt.Errorf("must be one of %v, got %d", rule.ValidValues, intValue)
-			}
-		}
-	}
-
-	return nil
-}
+// func validateIntSetting(value interface{}, rule SettingRule, logger hclog.Logger) error {
+// 	var intValue int
+//
+// 	switch v := value.(type) {
+// 	case int:
+// 		intValue = v
+// 	case float64:
+// 		intValue = int(v)
+// 	case string:
+// 		// Handle string-to-integer mapping only for TLS suite types
+// 		if rule.ValidValues != nil && len(rule.ValidValues) > 0 && rule.ValidValues[0] == "default" {
+// 			// This is a TLS suite type field that accepts "default" or "custom"
+// 			switch v {
+// 			case "default":
+// 				intValue = 1
+// 			case "custom":
+// 				intValue = 2
+// 			default:
+// 				return fmt.Errorf("expected 'default' or 'custom', got '%s'", v)
+// 			}
+// 		} else {
+// 			// For other integer fields, try to parse the string as an integer
+// 			if parsed, err := strconv.Atoi(v); err != nil {
+// 				return fmt.Errorf("expected integer, got '%s'", v)
+// 			} else {
+// 				intValue = parsed
+// 			}
+// 		}
+// 	default:
+// 		return fmt.Errorf("expected integer, got %T", value)
+// 	}
+//
+// 	// Validate range
+// 	if rule.MinValue != 0 || rule.MaxValue != 0 {
+// 		if intValue < rule.MinValue || intValue > rule.MaxValue {
+// 			return fmt.Errorf("must be between %d and %d, got %d", rule.MinValue, rule.MaxValue, intValue)
+// 		}
+// 	}
+//
+// 	// Validate enum values (for string representations of integers and string mappings)
+// 	if len(rule.ValidValues) > 0 {
+// 		// Check if the original value was a string that maps to this integer
+// 		if strValue, ok := value.(string); ok {
+// 			if !contains(rule.ValidValues, strValue) {
+// 				return fmt.Errorf("must be one of %v, got '%s'", rule.ValidValues, strValue)
+// 			}
+// 		} else {
+// 			// For integer values, check the string representation
+// 			strValue := strconv.Itoa(intValue)
+// 			if !contains(rule.ValidValues, strValue) {
+// 				return fmt.Errorf("must be one of %v, got %d", rule.ValidValues, intValue)
+// 			}
+// 		}
+// 	}
+//
+// 	return nil
+// }
 
 // validateIntSettingWithReflect validates integer settings using reflect for comprehensive type checking
-func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	var intValue int
 
 	switch kind {
@@ -2349,7 +3378,7 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 		case reflect.String:
 			strVal := elemValue.String()
 			// Handle string-to-integer mapping for enum fields
-			if rule.ValidValues != nil && len(rule.ValidValues) > 0 {
+			if len(rule.ValidValues) > 0 {
 				// Check if this is an enum field that maps strings to integers
 				if contains(rule.ValidValues, strVal) {
 					// Map enum string values to integers based on their position
@@ -2365,12 +3394,12 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 				}
 			} else {
 				// For other integer fields, try to parse the string as an integer
-				if parsed, err := strconv.Atoi(strVal); err != nil {
+				parsed, err := strconv.Atoi(strVal)
+				if err != nil {
 					return fmt.Errorf("expected integer, got '%s'", strVal)
-				} else {
-					intValue = parsed
-					logger.Debug("Dereferenced string '%s' to int %d", strVal, intValue)
 				}
+				intValue = parsed
+				logger.Debug("Dereferenced string '%s' to int %d", strVal, intValue)
 			}
 		case reflect.Bool:
 			// Convert boolean to integer (true=1, false=0)
@@ -2391,7 +3420,7 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 	case reflect.String:
 		strVal := reflect.ValueOf(value).String()
 		// Handle string-to-integer mapping for enum fields
-		if rule.ValidValues != nil && len(rule.ValidValues) > 0 {
+		if len(rule.ValidValues) > 0 {
 			// Check if this is an enum field that maps strings to integers
 			if contains(rule.ValidValues, strVal) {
 				// Map enum string values to integers based on their position
@@ -2407,12 +3436,12 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule Se
 			}
 		} else {
 			// For other integer fields, try to parse the string as an integer
-			if parsed, err := strconv.Atoi(strVal); err != nil {
+			parsed, err := strconv.Atoi(strVal)
+			if err != nil {
 				return fmt.Errorf("expected integer, got '%s'", strVal)
-			} else {
-				intValue = parsed
-				logger.Debug("Converted string '%s' to int %d", strVal, intValue)
 			}
+			intValue = parsed
+			logger.Debug("Converted string '%s' to int %d", strVal, intValue)
 		}
 	case reflect.Bool:
 		// Convert boolean to integer (true=1, false=0)
@@ -2464,37 +3493,123 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// validateCORSFields validates CORS fields (non-tunnel apps only)
-func validateCORSFields(settings map[string]interface{}, appType string) error {
-	// CORS fields are not available for tunnel apps
-	// Based on HTML: ng-if="$ctrl.application.app_type!==$ctrl.ApplicationType.APP_TYPE_TUNNEL"
-	corsFields := []string{"allow_cors", "cors_origin_list", "cors_header_list", "cors_method_list", "cors_support_credential", "cors_max_age"}
-
-	for _, field := range corsFields {
-		if _, exists := settings[field]; exists {
-			if appType == "tunnel" {
-				return ErrMiscFieldNotAvailableForTunnel
-			}
-		}
+func settingValueMatchesDefault(defaultValue, value interface{}) bool {
+	if reflect.DeepEqual(defaultValue, value) {
+		return true
 	}
 
-	// Additional validation: CORS detail fields only when allow_cors is true
-	if allowCors, exists := settings["allow_cors"]; exists {
-		if allowCors == "true" {
-			requiredCorsFields := []string{"cors_origin_list", "cors_header_list", "cors_method_list", "cors_support_credential", "cors_max_age"}
-			for _, field := range requiredCorsFields {
-				if _, fieldExists := settings[field]; !fieldExists {
-					return ErrMiscCORSFieldRequired
-				}
-			}
-		}
+	defaultString, defaultIsString := stringValue(defaultValue)
+	valueString, valueIsString := stringValue(value)
+	if defaultIsString && valueIsString {
+		return defaultString == valueString
 	}
 
-	return nil
+	defaultFloat, defaultIsNumber := numericValue(defaultValue)
+	valueFloat, valueIsNumber := numericValue(value)
+	if defaultIsNumber && valueIsNumber {
+		return defaultFloat == valueFloat
+	}
+
+	return false
 }
 
+func numericValue(value interface{}) (float64, bool) {
+	if value == nil {
+		return 0, false
+	}
+
+	reflected := reflect.ValueOf(value)
+	for reflected.Kind() == reflect.Ptr {
+		if reflected.IsNil() {
+			return 0, false
+		}
+		reflected = reflected.Elem()
+	}
+
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(reflected.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return float64(reflected.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		return reflected.Float(), true
+	default:
+		return 0, false
+	}
+}
+
+func stringValue(value interface{}) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+
+	reflected := reflect.ValueOf(value)
+	for reflected.Kind() == reflect.Ptr {
+		if reflected.IsNil() {
+			return "", false
+		}
+		reflected = reflected.Elem()
+	}
+
+	if reflected.Kind() != reflect.String {
+		return "", false
+	}
+
+	return reflected.String(), true
+}
+
+func isEmptyOptionalCollection(value interface{}, rule *SettingRule) bool {
+	if rule.Required || value == nil {
+		return false
+	}
+
+	reflected := reflect.ValueOf(value)
+	for reflected.Kind() == reflect.Ptr {
+		if reflected.IsNil() {
+			return false
+		}
+		reflected = reflected.Elem()
+	}
+
+	switch reflected.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+		return reflected.Len() == 0
+	default:
+		return false
+	}
+}
+
+// validateCORSFields validates CORS fields (non-tunnel apps only)
+// func validateCORSFields(settings map[string]interface{}, appType string) error {
+// 	// CORS fields are not available for tunnel apps
+// 	// Based on HTML: ng-if="$ctrl.application.app_type!==$ctrl.ApplicationType.APP_TYPE_TUNNEL"
+// 	corsFields := []string{"allow_cors", "cors_origin_list", "cors_header_list", "cors_method_list", "cors_support_credential", "cors_max_age"}
+//
+// 	for _, field := range corsFields {
+// 		if _, exists := settings[field]; exists {
+// 			if appType == "tunnel" {
+// 				return ErrMiscFieldNotAvailableForTunnel
+// 			}
+// 		}
+// 	}
+//
+// 	// Additional validation: CORS detail fields only when allow_cors is true
+// 	if allowCors, exists := settings["allow_cors"]; exists {
+// 		if allowCors == "true" {
+// 			requiredCorsFields := []string{"cors_origin_list", "cors_header_list", "cors_method_list", "cors_support_credential", "cors_max_age"}
+// 			for _, field := range requiredCorsFields {
+// 				if _, fieldExists := settings[field]; !fieldExists {
+// 					return ErrMiscCORSFieldRequired
+// 				}
+// 			}
+// 		}
+// 	}
+//
+// 	return nil
+// }
+
 // validateArraySettingWithReflect validates array settings using reflect for comprehensive type checking
-func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule SettingRule, logger hclog.Logger) error {
+func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
 	// For custom_headers, we just need to ensure it's an array/slice
 	// The detailed validation is handled by ValidateCustomHeadersConfiguration()
 	switch kind {
@@ -2503,5 +3618,15 @@ func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule 
 		return nil
 	default:
 		return fmt.Errorf("setting must be an array, got %s", kind)
+	}
+}
+
+func validateMapSettingWithReflect(value interface{}, kind reflect.Kind, logger hclog.Logger) error {
+	switch kind {
+	case reflect.Map:
+		logger.Debug("Map setting validated successfully")
+		return nil
+	default:
+		return fmt.Errorf("setting must be a map, got %s", kind)
 	}
 }

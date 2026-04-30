@@ -45,7 +45,7 @@ func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, e
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAppIdpMembershipGet, desc)
 		return nil, appIdpErrMsg
 	}
@@ -86,14 +86,11 @@ func (app *Application) GetAppDirectoryMembership(ec *EaaClient) ([]AppDirectory
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appDirErrMsg := fmt.Errorf("%w: %s", ErrAppDirectoryMembershipGet, desc)
 		return nil, appDirErrMsg
 	}
-	if len(appdirectoryMembershipResponse.AppDirectoryMemberships) >= 0 {
-		return appdirectoryMembershipResponse.AppDirectoryMemberships, nil
-	}
-	return nil, ErrAppDirectoryMembershipGet
+	return appdirectoryMembershipResponse.AppDirectoryMemberships, nil
 }
 
 type GroupMembership struct {
@@ -125,14 +122,11 @@ func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembersh
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appGrpErrMsg := fmt.Errorf("%w: %s", ErrAppGroupMembershipGet, desc)
 		return nil, appGrpErrMsg
 	}
-	if len(appgroupMembershipResponse.AppGroupMemberships) >= 0 {
-		return appgroupMembershipResponse.AppGroupMemberships, nil
-	}
-	return nil, ErrAppGroupMembershipGet
+	return appgroupMembershipResponse.AppGroupMemberships, nil
 }
 
 func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interface{}, error) {
@@ -167,7 +161,8 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 		directories[dirName]["name"] = dirName
 	}
 
-	for _, group := range appGroupMemberships {
+	for index := range appGroupMemberships {
+		group := &appGroupMemberships[index]
 		dirName := group.Group.DirName
 		groupName := group.Group.GroupName
 
@@ -178,7 +173,11 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 			}
 			groupInfo := make(map[string]interface{})
 			groupInfo["name"] = groupName
-			dir["app_groups"] = append(dir["app_groups"].([]map[string]interface{}), groupInfo)
+			appGroups, ok := dir["app_groups"].([]map[string]interface{})
+			if !ok {
+				continue
+			}
+			dir["app_groups"] = append(appGroups, groupInfo)
 		}
 	}
 
@@ -192,7 +191,18 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	// add "app_directories" key if the list is not empty
 	if len(directoriesData) > 0 {
 		sort.Slice(directoriesData, func(i, j int) bool {
-			return directoriesData[i]["name"].(string) < directoriesData[j]["name"].(string)
+			nameI, okI := directoriesData[i]["name"].(string)
+			nameJ, okJ := directoriesData[j]["name"].(string)
+			switch {
+			case !okI && !okJ:
+				return false
+			case !okI:
+				return false
+			case !okJ:
+				return true
+			default:
+				return nameI < nameJ
+			}
 		})
 		appAuth["app_directories"] = directoriesData
 	}

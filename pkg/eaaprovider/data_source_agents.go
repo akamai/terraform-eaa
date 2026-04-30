@@ -103,7 +103,8 @@ func dataSourceAgentsRead(ctx context.Context, d *schema.ResourceData, m interfa
 		return diag.FromErr(err)
 	}
 	var connDataList []interface{}
-	for _, conn := range agents {
+	for i := range agents {
+		conn := &agents[i]
 		connData := map[string]interface{}{
 			"name":       conn.Name,
 			"uuid":       conn.UUID,

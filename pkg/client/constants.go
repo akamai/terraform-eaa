@@ -33,8 +33,8 @@ const (
 	APP_ACCESS_GROUPS_URL             = "crux/v1/mgmt-pop/app-access-groups"
 	APP_CONNECTOR_POOLS_ASSOCIATE_URL = "crux/v1/mgmt-pop/apps/%s/connector-pools/associate"
 	APPS_V3_URL                       = "crux/v3/mgmt-pop/apps"
-	REGISTRATION_TOKEN_URL            = "crux/v1/zt/registration-token"
-	REGISTRATION_TOKEN_GET_URL        = "crux/v3/mgmt-pop/registrationtokens"
+	REGISTRATION_TOKEN_URL            = "crux/v1/zt/registration-token"       // #nosec G101 -- API path constant, not a credential
+	REGISTRATION_TOKEN_GET_URL        = "crux/v3/mgmt-pop/registrationtokens" // #nosec G101 -- API path constant, not a credential
 	URL_SCHEME                        = "https"
 )
 
@@ -43,6 +43,7 @@ const (
 	DEFAULT_TOKEN_EXPIRATION_DAYS = 30 // Default expiration days for registration tokens
 )
 
+// All Error Types
 var (
 	ErrInvalidArgument = errors.New("invalid arguments provided")
 	ErrMarshaling      = errors.New("marshaling input")
@@ -426,14 +427,14 @@ func (cam AppProfileInt) String() (string, error) {
 	}
 }
 
-type ClientAppMode string
+type AppMode string
 
 const (
-	ClientAppModeTCP    ClientAppMode = "tcp"
-	ClientAppModeTunnel ClientAppMode = "tunnel"
+	ClientAppModeTCP    AppMode = "tcp"
+	ClientAppModeTunnel AppMode = "tunnel"
 )
 
-func (cam ClientAppMode) ToInt() (int, error) {
+func (cam AppMode) ToInt() (int, error) {
 	switch cam {
 	case ClientAppModeTCP:
 		return int(CLIENT_APP_MODE_TCP), nil
@@ -444,14 +445,14 @@ func (cam ClientAppMode) ToInt() (int, error) {
 	}
 }
 
-type ClientAppModeInt int
+type AppModeInt int
 
 const (
-	CLIENT_APP_MODE_TCP ClientAppModeInt = 1 + iota
+	CLIENT_APP_MODE_TCP AppModeInt = 1 + iota
 	CLIENT_APP_MODE_TUNNEL
 )
 
-func (cam ClientAppModeInt) String() (string, error) {
+func (cam AppModeInt) String() (string, error) {
 	switch cam {
 	case CLIENT_APP_MODE_TCP:
 		return string(ClientAppModeTCP), nil
@@ -462,16 +463,16 @@ func (cam ClientAppModeInt) String() (string, error) {
 	}
 }
 
-type ClientAppType string
+type AppType string
 
 const (
-	ClientAppTypeEnterprise ClientAppType = "enterprise"
-	ClientAppTypeSaaS       ClientAppType = "saas"
-	ClientAppTypeBookmark   ClientAppType = "bookmark"
-	ClientAppTypeTunnel     ClientAppType = "tunnel"
+	ClientAppTypeEnterprise AppType = "enterprise"
+	ClientAppTypeSaaS       AppType = "saas"
+	ClientAppTypeBookmark   AppType = "bookmark"
+	ClientAppTypeTunnel     AppType = "tunnel"
 )
 
-func (cat ClientAppType) ToInt() (int, error) {
+func (cat AppType) ToInt() (int, error) {
 	switch cat {
 	case ClientAppTypeEnterprise:
 		return int(APP_TYPE_ENTERPRISE_HOSTED), nil
@@ -486,16 +487,16 @@ func (cat ClientAppType) ToInt() (int, error) {
 	}
 }
 
-type ClientAppTypeInt int
+type AppTypeInt int
 
 const (
-	APP_TYPE_ENTERPRISE_HOSTED ClientAppTypeInt = 1 + iota
+	APP_TYPE_ENTERPRISE_HOSTED AppTypeInt = 1 + iota
 	APP_TYPE_SAAS
 	APP_TYPE_BOOKMARK
 	APP_TYPE_TUNNEL
 )
 
-func (cat ClientAppTypeInt) String() (string, error) {
+func (cat AppTypeInt) String() (string, error) {
 	switch cat {
 	case APP_TYPE_ENTERPRISE_HOSTED:
 		return string(ClientAppTypeEnterprise), nil
@@ -1121,7 +1122,7 @@ func (om OperatingModeInt) String() (string, error) {
 	}
 }
 
-// Health check field names for validation
+// HealthCheckFields lists health check field names used during validation.
 var HealthCheckFields = []string{
 	"health_check_type",
 	"health_check_rise",
@@ -1133,7 +1134,7 @@ var HealthCheckFields = []string{
 	"health_check_http_host_header",
 }
 
-// Numeric health check field names for validation
+// NumericHealthCheckFields lists health check fields with numeric values.
 var NumericHealthCheckFields = []string{
 	"health_check_rise",
 	"health_check_fall",
@@ -1141,9 +1142,9 @@ var NumericHealthCheckFields = []string{
 	"health_check_interval",
 }
 
-// Custom Header Attribute Types
 type CustomHeaderAttributeType string
 
+// Custom Header Attribute Types
 const (
 	CustomHeaderAttributeTypeUser     CustomHeaderAttributeType = "user"
 	CustomHeaderAttributeTypeGroup    CustomHeaderAttributeType = "group"
@@ -1152,17 +1153,17 @@ const (
 	CustomHeaderAttributeTypeCustom   CustomHeaderAttributeType = "custom"
 )
 
-// SAML Response Binding Types
 type SAMLResponseBinding string
 
+// SAML Response Binding Types
 const (
 	SAMLResponseBindingPost     SAMLResponseBinding = "post"
 	SAMLResponseBindingRedirect SAMLResponseBinding = "redirect"
 )
 
-// SAML Signing Algorithms
 type SAMLSigningAlgorithm string
 
+// SAML Signing Algorithms
 const (
 	SAMLSigningAlgorithmSHA1   SAMLSigningAlgorithm = "SHA1"
 	SAMLSigningAlgorithmSHA256 SAMLSigningAlgorithm = "SHA256"
@@ -1170,9 +1171,9 @@ const (
 	SAMLSigningAlgorithmSHA512 SAMLSigningAlgorithm = "SHA512"
 )
 
-// SAML Encryption Algorithms
 type SAMLEncryptionAlgorithm string
 
+// SAML Encryption Algorithms
 const (
 	SAMLEncryptionAlgorithmAES128CBC    SAMLEncryptionAlgorithm = "aes128-cbc"
 	SAMLEncryptionAlgorithmAES192CBC    SAMLEncryptionAlgorithm = "aes192-cbc"
@@ -1180,9 +1181,9 @@ const (
 	SAMLEncryptionAlgorithmTripleDESCBC SAMLEncryptionAlgorithm = "tripledes-cbc"
 )
 
-// SAML Subject Formats
 type SAMLSubjectFormat string
 
+// SAML Subject Formats
 const (
 	SAMLSubjectFormatEmail      SAMLSubjectFormat = "email"
 	SAMLSubjectFormatNameID     SAMLSubjectFormat = "nameid"
@@ -1190,18 +1191,18 @@ const (
 	SAMLSubjectFormatTransient  SAMLSubjectFormat = "transient"
 )
 
-// OIDC Client Types
 type OIDCClientType string
 
+// OIDC Client Types
 const (
 	OIDCClientTypeStandard     OIDCClientType = "standard"
 	OIDCClientTypeConfidential OIDCClientType = "confidential"
 	OIDCClientTypePublic       OIDCClientType = "public"
 )
 
-// OIDC Response Types
 type OIDCResponseType string
 
+// OIDC Response Types
 const (
 	OIDCResponseTypeCode             OIDCResponseType = "code"
 	OIDCResponseTypeIDToken          OIDCResponseType = "id_token"
@@ -1255,57 +1256,94 @@ const (
 	DefaultWSFEDTokenLife          = 3600
 
 	// Default Advanced Settings Values
-	DefaultAppAuth                     = AppAuthNone
-	DefaultWappAuth                    = WappAuthForm
-	DefaultAcceleration                = STR_FALSE
-	DefaultAllowCORS                   = STR_TRUE
-	DefaultAppClientCertAuth           = STR_FALSE
-	DefaultClientCertAuth              = STR_FALSE
-	DefaultCORSSupportCredential       = CORSValueOff
-	DefaultDisableUserAgentCheck       = STR_FALSE
-	DefaultEdgeAuthenticationEnabled   = STR_FALSE
-	DefaultEnableClientSideXHRRewrite  = STR_FALSE
-	DefaultForceIPRoute                = STR_FALSE
-	DefaultForceMFA                    = CORSValueOff
-	DefaultForwardTicketGrantingTicket = STR_FALSE
-	DefaultHiddenApp                   = STR_FALSE
-	DefaultHTTPOnlyCookie              = STR_TRUE
-	DefaultHTTPSSSLV3                  = STR_FALSE
-	DefaultIgnoreBypassMFA             = CORSValueOff
-	DefaultInjectAjaxJavascript        = CORSValueOff
-	DefaultIPAccessAllow               = STR_FALSE
-	DefaultIsBrotliEnabled             = STR_FALSE
-	DefaultIsSSLVerificationEnabled    = STR_FALSE
-	DefaultKeepaliveEnable             = STR_TRUE
-	DefaultLoggingEnabled              = STR_TRUE
-	DefaultMDCEnable                   = STR_FALSE
-	DefaultOffloadOnpremiseTraffic     = STR_FALSE
-	DefaultOnramp                      = "inherit"
-	DefaultPreauthConsent              = STR_FALSE
-	DefaultRemoteSparkAudio            = STR_TRUE
-	DefaultRemoteSparkMapClipboard     = CORSValueOn
-	DefaultRemoteSparkMapDisk          = STR_TRUE
-	DefaultRemoteSparkMapPrinter       = STR_TRUE
-	DefaultRemoteSparkRecording        = STR_FALSE
-	DefaultRequestBodyRewrite          = STR_FALSE
-	DefaultSaaSEnabled                 = STR_FALSE
-	DefaultSegmentationPolicyEnable    = STR_FALSE
-	DefaultSentryRedirect401           = CORSValueOff
-	DefaultSentryRestoreFormPost       = CORSValueOff
-	DefaultServerCertValidate          = STR_TRUE
-	DefaultRefreshStickyCookie         = CORSValueOn
-	DefaultSessionSticky               = STR_FALSE
-	DefaultSingleHostContentRW         = STR_FALSE
-	DefaultSingleHostEnable            = STR_FALSE
-	DefaultSPDYEnabled                 = STR_TRUE
-	DefaultSSHAuditEnabled             = STR_FALSE
-	DefaultSSO                         = STR_TRUE
-	DefaultStickyAgent                 = STR_FALSE
-	DefaultWebSocketEnabled            = STR_FALSE
-	DefaultWildcardInternalHostname    = STR_FALSE
-	DefaultXWappPoolEnabled            = "inherit"
-	DefaultDynamicIP                   = STR_FALSE
-	DefaultStickyCookies               = STR_FALSE
-	DefaultRDPLegacyMode               = STR_FALSE
-	DefaultRDPTLS1                     = STR_FALSE
+	DefaultAppAuth                         = AppAuthNone
+	DefaultWappAuth                        = WappAuthForm
+	DefaultAcceleration                    = STR_FALSE
+	DefaultAllowCORS                       = STR_FALSE
+	DefaultAppClientCertAuth               = STR_FALSE
+	DefaultClientCertAuth                  = STR_FALSE
+	DefaultCORSSupportCredential           = CORSValueOn
+	DefaultDisableUserAgentCheck           = STR_FALSE
+	DefaultEdgeAuthenticationEnabled       = STR_FALSE
+	DefaultEnableClientSideXHRRewrite      = STR_FALSE
+	DefaultForceIPRoute                    = STR_FALSE
+	DefaultForceMFA                        = CORSValueOff
+	DefaultForwardTicketGrantingTicket     = STR_FALSE
+	DefaultHiddenApp                       = STR_FALSE
+	DefaultHTTPOnlyCookie                  = STR_TRUE
+	DefaultHTTPSSSLV3                      = STR_FALSE
+	DefaultIgnoreBypassMFA                 = CORSValueOff
+	DefaultInjectAjaxJavascript            = CORSValueOff
+	DefaultIPAccessAllow                   = STR_FALSE
+	DefaultIsBrotliEnabled                 = STR_FALSE
+	DefaultIsSSLVerificationEnabled        = STR_TRUE
+	DefaultKeepaliveEnable                 = STR_TRUE
+	DefaultLoggingEnabled                  = STR_TRUE
+	DefaultMDCEnable                       = STR_FALSE
+	DefaultOffloadOnpremiseTraffic         = STR_FALSE
+	DefaultOnramp                          = "inherit"
+	DefaultPreauthConsent                  = STR_FALSE
+	DefaultRemoteSparkDisk                 = "LOCALSHARE"
+	DefaultRemoteSparkPrinter              = "LOCALPRINTER"
+	DefaultRemoteSparkAudio                = STR_TRUE
+	DefaultRemoteSparkMapClipboard         = CORSValueOn
+	DefaultRemoteSparkMapDisk              = STR_TRUE
+	DefaultRemoteSparkMapPrinter           = STR_TRUE
+	DefaultRemoteSparkRecording            = STR_FALSE
+	DefaultRequestBodyRewrite              = STR_FALSE
+	DefaultSaaSEnabled                     = STR_FALSE
+	DefaultSegmentationPolicyEnable        = STR_FALSE
+	DefaultSentryRedirect401               = CORSValueOff
+	DefaultSentryRestoreFormPost           = CORSValueOff
+	DefaultServerCertValidate              = STR_TRUE
+	DefaultRefreshStickyCookie             = CORSValueOn
+	DefaultSessionSticky                   = ""
+	DefaultSingleHostContentRW             = STR_FALSE
+	DefaultSingleHostEnable                = STR_FALSE
+	DefaultSPDYEnabled                     = STR_TRUE
+	DefaultSSHAuditEnabled                 = STR_FALSE
+	DefaultSSO                             = STR_TRUE
+	DefaultStickyAgent                     = STR_FALSE
+	DefaultWebSocketEnabled                = STR_FALSE
+	DefaultWildcardInternalHostname        = STR_FALSE
+	DefaultXWappPoolEnabled                = "inherit"
+	DefaultXWappPoolSize                   = 20
+	DefaultXWappPoolTimeout                = 120
+	DefaultXWappReadTimeout                = "900"
+	DefaultDynamicIP                       = STR_FALSE
+	DefaultStickyCookies                   = STR_FALSE
+	DefaultRDPLegacyMode                   = STR_FALSE
+	DefaultRDPTLS1                         = STR_FALSE
+	DefaultIgnoreCNameResolution           = STR_FALSE
+	DefaultG2OEnabled                      = STR_FALSE
+	DefaultInternalHostPort                = "0"
+	DefaultSingleHostCookieDomain          = STR_FALSE
+	DefaultServerRequestBurst              = "100"
+	DefaultLoginTimeout                    = "5"
+	DefaultKeepAliveTimeout                = "3"
+	DefaultKeepAliveConnectionPool         = "50"
+	DefaultAnonymousServerConnLimit        = "50"
+	DefaultAnonymousServerRequestLimit     = "100"
+	DefaultAuthenticatedServerConnLimit    = "50"
+	DefaultAuthenticatedServerRequestLimit = "100"
+	DefaultHSTSAge                         = "15552000"
+	DefaultAppServerReadTimeout            = "60"
+	DefaultIdleCloseTimeSeconds            = "1200"
+	DefaultIdleConnStep                    = "10"
+	DefaultIdleConnCeil                    = "75"
+	DefaultIdleConnFloor                   = "50"
+	DefaultCorsMaxAge                      = 86400
+	DefaultCorsHeaderList                  = "unbounded"
+	DefaultCorsMethodList                  = "unbounded"
+	DefaultCorsOriginList                  = "unbounded"
+	DefaultMFA                             = "inherit"
+	DefaultHealthCheckHttpURL              = "/"
+	DefaultHealthCheckHttpVersion          = "1.1"
+	DefaultHealthCheckRise                 = "2"
+	DefaultHealthCheckFall                 = "3"
+	DefaultHealthCheckTimeout              = "50000"
+	DefaultHealthCheckInterval             = "30000"
+	DefaultLoadBalancingMetric             = "round-robin"
+	DefaultExternalCookieDomain            = ""
+	DefaultEdgeTransportManualMode         = STR_TRUE
 )

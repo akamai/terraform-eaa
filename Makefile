@@ -1,10 +1,17 @@
-.PHONY: default fmt lint build buildtool install clean
+.PHONY: default fmt lint build buildtool install clean setup
 
 # Detect Go binary automatically (safe and portable)
 GO ?= $(shell which go)
 ifeq ($(GO),)
 $(error Go binary not found in PATH. Please install Go or specify GO=<path>)
 endif
+
+GO_BIN_DIR := $(shell $(GO) env GOBIN)
+ifeq ($(GO_BIN_DIR),)
+GO_BIN_DIR := $(shell $(GO) env GOPATH)/bin
+endif
+
+export PATH := $(GO_BIN_DIR):$(PATH)
 
 BINDIR          := $(CURDIR)/bin
 
@@ -49,27 +56,44 @@ else
 endif
 
 VERSION_STR := 1.0.0
+GOLANGCI_LINT_VERSION := v2.11.4
 SRC          := $(shell find . -type f -name '*.go' -print)
-
 
 SHELL      = /usr/bin/env bash
 
+define section_banner
+	@printf '\n%s\n' '============================================================'
+	@printf '====== %-46s ======\n' '$(1)'
+	@printf '%s\n' '============================================================'
+endef
 
-default: fmt lint build buildtool install
+
+default:
+	$(MAKE) setup
+	$(MAKE) fmt
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) install
+	$(MAKE) buildtool
+
 
 build: $(SRC)
+	$(call section_banner,BUILD)
 	@echo "Building for $(PLUGIN_ARCH)"
 	$(GO) build -v -o $(BINDIR)/$(BINNAME) .
 
 buildtool: $(SRC)
+	$(call section_banner,BUILD TOOL)
 	@echo build import tool binary
 	$(GO) build -v -o $(BINDIR)/$(BINNAME_TOOL) ./tools
 
 fmt:
+	$(call section_banner,FORMAT)
 	@echo go fmt ./...
 	$(GO) fmt ./...
 
-install:
+install: build
+	$(call section_banner,INSTALL)
 	@echo "Installing for $(PLUGIN_ARCH)"
 ifeq ($(OS),Windows_NT)
 	@echo "Creating Windows Terraform plugins directory..."
@@ -84,6 +108,7 @@ else
 endif
 
 lint:
+	$(call section_banner,LINT)
 	@echo run golangci-lint on project
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run --allow-parallel-runners ./...; \
@@ -97,16 +122,19 @@ clean:
 
 # TESTS
 test:
+	$(call section_banner,TEST)
 	@echo "Running tests..."
-	$(GO) test -v -race -timeout 10m ./...
+	$(GO) test -race -timeout 10m ./...
 
 test-coverage:
+	$(call section_banner,TEST COVERAGE)
 	@echo "Running tests with coverage..."
 	$(GO) test -v -race -timeout 10m -coverprofile=coverage.out -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
 test-short:
+	$(call section_banner,TEST SHORT)
 	@echo "Running short tests..."
 	$(GO) test -short -v ./...
 
@@ -122,6 +150,7 @@ fmt-check:
 
 # SECURITY CHECKS
 security:
+	$(call section_banner,SECURITY)
 	@echo "Running security checks..."
 	@if command -v gosec >/dev/null 2>&1; then \
 		gosec -quiet ./...; \
@@ -130,6 +159,7 @@ security:
 	fi
 
 vuln-check:
+	$(call section_banner,VULNERABILITY CHECK)
 	@echo "Checking for vulnerabilities..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
 		govulncheck ./...; \
@@ -139,16 +169,19 @@ vuln-check:
 
 # DEPENDENCY MANAGEMENT
 tidy:
+	$(call section_banner,TIDY)
 	@echo "Tidying Go modules..."
 	$(GO) mod tidy
 	$(GO) mod verify
 
 vendor:
+	$(call section_banner,VENDOR)
 	@echo "Vendoring dependencies..."
 	$(GO) mod vendor
 
 # SETUP DEVELOPMENT ENVIRONMENT
 setup:
+	$(call section_banner,SETUP)
 	@echo "Setting up development environment..."
 	@echo "Installing required tools..."
 	@echo ""
@@ -157,7 +190,14 @@ setup:
 		echo "   ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	else \
 		echo "   → Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+		if command -v curl >/dev/null 2>&1; then \
+			curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(GO_BIN_DIR)" $(GOLANGCI_LINT_VERSION); \
+		elif command -v wget >/dev/null 2>&1; then \
+			wget -O- -nv https://golangci-lint.run/install.sh | sh -s -- -b "$(GO_BIN_DIR)" $(GOLANGCI_LINT_VERSION); \
+		else \
+			echo "   ✗ Neither curl nor wget is installed. Please install one of them and rerun 'make setup'."; \
+			exit 1; \
+		fi; \
 		echo "   ✓ golangci-lint installed successfully"; \
 	fi
 	@echo ""
@@ -170,7 +210,16 @@ setup:
 		echo "   ✓ gosec installed successfully"; \
 	fi
 	@echo ""
-	@echo "3. Installing govulncheck..."
+	@echo "3. Installing goimports..."
+	@if command -v goimports >/dev/null 2>&1; then \
+		echo "   ✓ goimports already installed ($$(goimports -version 2>/dev/null || echo installed))"; \
+	else \
+		echo "   → Installing goimports..."; \
+		go install golang.org/x/tools/cmd/goimports@latest && \
+		echo "   ✓ goimports installed successfully"; \
+	fi
+	@echo ""
+	@echo "4. Installing govulncheck..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
 		echo "   ✓ govulncheck already installed"; \
 	else \
@@ -179,39 +228,18 @@ setup:
 		echo "   ✓ govulncheck installed successfully"; \
 	fi
 	@echo ""
-	@echo "4. Installing pre-commit..."
-	@if command -v pre-commit >/dev/null 2>&1; then \
-		echo "   ✓ pre-commit already installed ($$(pre-commit --version))"; \
-	else \
-		echo "   → Installing pre-commit..."; \
-		if command -v pip3 >/dev/null 2>&1; then \
-			pip3 install pre-commit && \
-			echo "   ✓ pre-commit installed successfully"; \
-		elif command -v brew >/dev/null 2>&1; then \
-			brew install pre-commit && \
-			echo "   ✓ pre-commit installed successfully"; \
-		else \
-			echo "   ⚠ Could not install pre-commit. Please install manually:"; \
-			echo "     pip3 install pre-commit"; \
-		fi; \
-	fi
-	@echo ""
-	@echo "5. Installing pre-commit hooks..."
-	@if command -v pre-commit >/dev/null 2>&1; then \
-		pre-commit install --install-hooks && \
-		pre-commit install --hook-type commit-msg && \
-		echo "   ✓ Pre-commit hooks installed"; \
-	else \
-		echo "   ⚠ Skipping pre-commit hooks installation"; \
-	fi
-	@echo ""
-	@echo "6. Downloading Go module dependencies..."
+	@echo "5. Downloading Go module dependencies..."
 	@$(GO) mod download
 	@echo "   ✓ Dependencies downloaded"
+	@echo ""
+	@echo "Go tool binaries are expected in: $(GO_BIN_DIR)"
+	@echo "If installed tools are not found, add this to your shell profile:"
+	@echo "  export PATH=\"$(GO_BIN_DIR):$$PATH\""
 	@echo ""
 	@echo "✓ Development environment setup complete!"
 	@echo ""
 	@echo "Next steps:"
+	@echo "  - Run 'make pre-commit-install' to enable local Git hooks"
 	@echo "  - Run 'make test' to verify tests pass"
 	@echo "  - Run 'make lint' to check code quality"
 	@echo "  - Run 'make build' to build the provider"
@@ -219,17 +247,30 @@ setup:
 
 # PRE-COMMIT
 pre-commit-install:
-	@echo "Installing pre-commit hooks..."
+	$(call section_banner,PRE-COMMIT INSTALL)
+	@echo "Installing pre-commit and hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
-		pre-commit install --install-hooks && \
-		pre-commit install --hook-type commit-msg && \
-		echo "✓ Pre-commit hooks installed"; \
+		echo "✓ pre-commit already installed ($$(pre-commit --version))"; \
 	else \
-		echo "pre-commit not found. Run 'make setup' to install it."; \
-		exit 1; \
+		echo "→ Installing pre-commit..."; \
+		if command -v pip3 >/dev/null 2>&1; then \
+			pip3 install pre-commit && \
+			echo "✓ pre-commit installed successfully"; \
+		elif command -v brew >/dev/null 2>&1; then \
+			brew install pre-commit && \
+			echo "✓ pre-commit installed successfully"; \
+		else \
+			echo "⚠ Could not install pre-commit. Please install manually:"; \
+			echo "  pip3 install pre-commit"; \
+			exit 1; \
+		fi; \
 	fi
+	@pre-commit install --install-hooks
+	@pre-commit install --hook-type commit-msg
+	@echo "✓ Pre-commit hooks installed"
 
 pre-commit-run:
+	$(call section_banner,PRE-COMMIT RUN)
 	@echo "Running pre-commit on all files..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit run --all-files; \
@@ -239,6 +280,7 @@ pre-commit-run:
 	fi
 
 pre-commit-update:
+	$(call section_banner,PRE-COMMIT UPDATE)
 	@echo "Updating pre-commit hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit autoupdate; \
@@ -249,6 +291,7 @@ pre-commit-update:
 
 # HELP
 help:
+	$(call section_banner,HELP)
 	@echo "Available targets:"
 	@echo "  make setup              - Install all required development tools"
 	@echo "  make build              - Build the provider binary"

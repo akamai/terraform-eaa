@@ -1,7 +1,6 @@
 package eaaprovider
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -19,43 +18,15 @@ func convertStringToInt(value string) int {
 	return 0
 }
 
-// convertStringPointerToString converts *string to string, returns null string for nil
-func convertStringPointerToString(value *string) string {
+func stringPointerValue(value *string) interface{} {
 	if value == nil {
-		return "null"
+		return nil
 	}
 	return *value
 }
 
-// getValidCipherSuitesFromAPI retrieves valid TLS cipher suites from the API
-func getValidCipherSuitesFromAPI(meta interface{}) ([]string, error) {
-	eaaclient, err := Client(meta)
-	if err != nil {
-		return []string{}, err
-	}
-
-	// For validation purposes, we need a dummy app UUID URL
-	// In practice, this should be the actual app UUID URL being validated
-	// For now, we'll use a placeholder that works with the API
-	dummyAppUUID := "dummy-app-uuid-for-validation"
-
-	tlsResponse, err := client.GetTLSCipherSuites(eaaclient, dummyAppUUID)
-	if err != nil {
-		// Return empty slice instead of error to prevent validation blocking
-		return []string{}, nil
-	}
-
-	// Extract cipher suite names from API response
-	cipherSuites := make([]string, 0, len(tlsResponse.TLSCipherSuite))
-	for name := range tlsResponse.TLSCipherSuite {
-		cipherSuites = append(cipherSuites, name)
-	}
-
-	return cipherSuites, nil
-}
-
 // cleanupOrphanedApp cleans up orphaned apps that may exist in EAA
-func cleanupOrphanedApp(ctx context.Context, eaaclient *client.EaaClient, appID string) bool {
+func cleanupOrphanedApp(eaaclient *client.EaaClient, appID string) bool {
 	logger := eaaclient.Logger
 	logger.Debug("Starting cleanup for orphaned app:", appID)
 

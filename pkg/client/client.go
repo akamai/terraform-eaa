@@ -29,8 +29,8 @@ type ErrorResponse struct {
 	ProblemID string `json:"problemId"`
 }
 
-// Exec will sign and execute the request using the client edgegrid.Config
-func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}, out interface{}, global bool) (*http.Response, error) {
+// SendAPIRequest signs and executes the request using the client edgegrid config.
+func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, global bool) (*http.Response, error) {
 	if !global {
 		parsedURL, err := url.Parse(apiURL)
 		if err != nil {
@@ -51,18 +51,20 @@ func (ec *EaaClient) SendAPIRequest(apiURL string, method string, in interface{}
 
 		apiURL = parsedURL.String()
 
-		// apiURL = fmt.Sprintf("%s?%s", apiURL, queryParams.Encode())
 	}
 
 	ec.Logger.Info(apiURL)
-	r, _ := http.NewRequest(method, apiURL, http.NoBody)
+	r, err := http.NewRequest(method, apiURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
 	r.Header.Set("Content-Type", "application/json")
 
 	r.URL.RawQuery = r.URL.Query().Encode()
 	if in != nil {
-		data, err := json.Marshal(in)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrMarshaling, err)
+		data, marshalErr := json.Marshal(in)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("%w: %s", ErrMarshaling, marshalErr)
 		}
 
 		r.Body = io.NopCloser(bytes.NewBuffer(data))
@@ -108,4 +110,21 @@ func FormatErrorResponse(errResp *http.Response) (string, error) {
 		return errResponse.Detail, nil
 	}
 	return "", ErrUnmarshaling
+}
+
+func FormatErrorDescription(errResp *http.Response) string {
+	if errResp == nil {
+		return "unknown error"
+	}
+
+	desc, err := FormatErrorResponse(errResp)
+	if err == nil && desc != "" {
+		return desc
+	}
+
+	if errResp.Status != "" {
+		return errResp.Status
+	}
+
+	return "unknown error"
 }

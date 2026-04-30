@@ -57,7 +57,10 @@ func dataSourceTLSCipherSuitesRead(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	// Get the app_uuid_url parameter
-	appUUIDURL := d.Get("app_uuid_url").(string)
+	appUUIDURL, ok := d.Get("app_uuid_url").(string)
+	if !ok || appUUIDURL == "" {
+		return diag.Errorf("app_uuid_url must be a non-empty string")
+	}
 
 	// Make API call to get TLS cipher suites
 	tlsResponse, err := client.GetTLSCipherSuites(eaaClient, appUUIDURL)
@@ -96,9 +99,15 @@ func dataSourceTLSCipherSuitesRead(ctx context.Context, d *schema.ResourceData, 
 
 	// Set the data source attributes
 	d.SetId(appUUIDURL) // Use app_uuid_url as the ID
-	d.Set("cipher_suites", cipherSuitesMap)
-	d.Set("cipher_suite_names", cipherSuiteNames)
-	d.Set("default_suite_name", defaultSuiteName)
+	if err := d.Set("cipher_suites", cipherSuitesMap); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("cipher_suite_names", cipherSuiteNames); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("default_suite_name", defaultSuiteName); err != nil {
+		return diag.FromErr(err)
+	}
 
 	return diags
 }

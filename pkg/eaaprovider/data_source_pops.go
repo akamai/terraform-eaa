@@ -91,7 +91,8 @@ func dataSourcePopsRead(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	var popDataList []interface{}
-	for _, pop := range pops {
+	for i := range pops {
+		pop := &pops[i]
 		popData := map[string]interface{}{
 			"region":                pop.Region,
 			"description":           pop.Description,

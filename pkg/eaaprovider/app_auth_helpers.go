@@ -21,6 +21,40 @@ type AuthEnableConfig struct {
 	CheckContent  bool     // Whether to check for actual content in settings (OIDC-specific)
 }
 
+func getSchemaStringValue(getter SchemaGetter, key string) string {
+	value, ok := getter.GetOk(key)
+	if !ok {
+		return ""
+	}
+
+	stringValue, ok := value.(string)
+	if !ok {
+		return ""
+	}
+
+	return stringValue
+}
+
+func getResourceDataBool(d *schema.ResourceData, key string) bool {
+	value, ok := d.GetOk(key)
+	if !ok {
+		return false
+	}
+
+	boolValue, ok := value.(bool)
+	return ok && boolValue
+}
+
+func getResourceDiffBool(d *schema.ResourceDiff, key string) bool {
+	value, ok := d.GetOk(key)
+	if !ok {
+		return false
+	}
+
+	boolValue, ok := value.(bool)
+	return ok && boolValue
+}
+
 // getAppAuthFromSchema extracts app_auth from advanced_settings in the schema
 func getAppAuthFromSchema(getter SchemaGetter) string {
 	var appAuth string
@@ -95,16 +129,6 @@ func shouldEnableAuthForSchema(getter SchemaGetter, config AuthEnableConfig) boo
 	return false
 }
 
-// contains checks if a string slice contains a specific value
-func contains(slice []string, value string) bool {
-	for _, v := range slice {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
 // shouldEnableSAML determines if SAML should be automatically enabled based on app configuration
 func shouldEnableSAML(d *schema.ResourceData) bool {
 	config := AuthEnableConfig{
@@ -135,91 +159,20 @@ func shouldEnableWSFED(d *schema.ResourceData) bool {
 	return shouldEnableAuthForSchema(d, config)
 }
 
-// shouldEnableSAMLFromDiff determines if SAML should be automatically enabled based on diff data
-func shouldEnableSAMLFromDiff(diff *schema.ResourceDiff) bool {
-	config := AuthEnableConfig{
-		AppAuthValues: []string{string(client.AppAuthSAML), string(client.AppAuthSAML2)},
-		SettingsKey:   "saml_settings",
-		CheckContent:  false,
-	}
-	return shouldEnableAuthForSchema(diff, config)
-}
-
-// shouldEnableOIDCFromDiff determines if OIDC should be automatically enabled based on diff data
-func shouldEnableOIDCFromDiff(diff *schema.ResourceDiff) bool {
-	config := AuthEnableConfig{
-		AppAuthValues: []string{string(client.AppAuthOIDC), string(client.AppAuthOIDCFull)},
-		SettingsKey:   "oidc_settings",
-		CheckContent:  true, // OIDC requires content checking
-	}
-	return shouldEnableAuthForSchema(diff, config)
-}
-
-// shouldEnableWSFEDFromDiff determines if WS-Federation should be automatically enabled based on diff data
-func shouldEnableWSFEDFromDiff(diff *schema.ResourceDiff) bool {
-	config := AuthEnableConfig{
-		AppAuthValues: []string{string(client.AppAuthWSFED), string(client.AppAuthWSFEDFull)},
-		SettingsKey:   "wsfed_settings",
-		CheckContent:  false,
-	}
-	return shouldEnableAuthForSchema(diff, config)
-}
-
-// validateAppAuthBasedOnTypeAndProfile validates app_auth based on app_type and app_profile
-func validateAppAuthBasedOnTypeAndProfile(v interface{}, k string) (ws []string, errors []error) {
-	value, ok := v.(string)
-	if !ok {
-		errors = append(errors, client.ErrExpectedString)
-		return
-	}
-
-	// Basic validation - detailed validation will be done in the resource
-	validValues := client.AllAppAuthValidValues
-
-	isValid := false
-	for _, validValue := range validValues {
-		if value == validValue {
-			isValid = true
-			break
-		}
-	}
-
-	if !isValid {
-		errors = append(errors, client.ErrInvalidAppAuthValue)
-		return
-	}
-
-	return
-}
-
-// validateAppAuthForTypeAndProfile validates app_auth based on app_type and app_profile
-func validateAppAuthForTypeAndProfile(appAuth, appType, appProfile string) error {
-	// First validate the app_auth value itself
-	if err := validateAppAuthValue(appAuth); err != nil {
-		return err
-	}
-
-	// All app types now support app_auth in advanced_settings
-	return nil
-}
-
 // validateAuthenticationMethodsForAppType validates that authentication method flags are appropriate for the app type
 func validateAuthenticationMethodsForAppType(d *schema.ResourceData) error {
 	// Get app_type for validation
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
+	appType := getSchemaStringValue(d, "app_type")
 
 	// Check if tunnel app is trying to use advanced authentication methods
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeTunnel) {
 		switch {
-		case func() bool { saml, ok := d.GetOk("saml"); return ok && saml.(bool) }():
+		case getResourceDataBool(d, "saml"):
 			return fmt.Errorf("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
-		case func() bool { oidc, ok := d.GetOk("oidc"); return ok && oidc.(bool) }():
+		case getResourceDataBool(d, "oidc"):
 			return fmt.Errorf("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
-		case func() bool { wsfed, ok := d.GetOk("wsfed"); return ok && wsfed.(bool) }():
+		case getResourceDataBool(d, "wsfed"):
 			return fmt.Errorf("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
 		}
 	}
@@ -228,11 +181,11 @@ func validateAuthenticationMethodsForAppType(d *schema.ResourceData) error {
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeBookmark) {
 		switch {
-		case func() bool { saml, ok := d.GetOk("saml"); return ok && saml.(bool) }():
+		case getResourceDataBool(d, "saml"):
 			return fmt.Errorf("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
-		case func() bool { oidc, ok := d.GetOk("oidc"); return ok && oidc.(bool) }():
+		case getResourceDataBool(d, "oidc"):
 			return fmt.Errorf("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
-		case func() bool { wsfed, ok := d.GetOk("wsfed"); return ok && wsfed.(bool) }():
+		case getResourceDataBool(d, "wsfed"):
 			return fmt.Errorf("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
 		}
 	}
@@ -243,41 +196,17 @@ func validateAuthenticationMethodsForAppType(d *schema.ResourceData) error {
 // validateAuthenticationMethodsForAppTypeWithDiff validates authentication methods using ResourceDiff
 func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) error {
 	// Get app_type for validation
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
+	appType := getSchemaStringValue(d, "app_type")
 
 	// Check if tunnel app is trying to use advanced authentication methods
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeTunnel) {
 		switch {
-		case func() bool {
-			saml, ok := d.GetOk("saml")
-			if !ok {
-				return false
-			}
-			samlBool, ok := saml.(bool)
-			return ok && samlBool
-		}():
+		case getResourceDiffBool(d, "saml"):
 			return client.ErrTunnelAppSAMLNotAllowed
-		case func() bool {
-			oidc, ok := d.GetOk("oidc")
-			if !ok {
-				return false
-			}
-			oidcBool, ok := oidc.(bool)
-			return ok && oidcBool
-		}():
+		case getResourceDiffBool(d, "oidc"):
 			return client.ErrTunnelAppOIDCNotAllowed
-		case func() bool {
-			wsfed, ok := d.GetOk("wsfed")
-			if !ok {
-				return false
-			}
-			wsfedBool, ok := wsfed.(bool)
-			return ok && wsfedBool
-		}():
+		case getResourceDiffBool(d, "wsfed"):
 			return client.ErrTunnelAppWSFEDNotAllowed
 		}
 	}
@@ -286,32 +215,11 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
 	if appType == string(client.ClientAppTypeBookmark) {
 		switch {
-		case func() bool {
-			saml, ok := d.GetOk("saml")
-			if !ok {
-				return false
-			}
-			samlBool, ok := saml.(bool)
-			return ok && samlBool
-		}():
+		case getResourceDiffBool(d, "saml"):
 			return client.ErrBookmarkAppSAMLNotAllowed
-		case func() bool {
-			oidc, ok := d.GetOk("oidc")
-			if !ok {
-				return false
-			}
-			oidcBool, ok := oidc.(bool)
-			return ok && oidcBool
-		}():
+		case getResourceDiffBool(d, "oidc"):
 			return client.ErrBookmarkAppOIDCNotAllowed
-		case func() bool {
-			wsfed, ok := d.GetOk("wsfed")
-			if !ok {
-				return false
-			}
-			wsfedBool, ok := wsfed.(bool)
-			return ok && wsfedBool
-		}():
+		case getResourceDiffBool(d, "wsfed"):
 			return client.ErrBookmarkAppWSFEDNotAllowed
 		}
 	}
@@ -337,7 +245,7 @@ func validateAppAuthConflictsWithResourceLevelAuth(settings map[string]interface
 	logger.Debug("Validating app_auth conflicts for value: %s", appAuthStr)
 
 	// Additional validation: specific conflicts with SAML
-	if saml, ok := diff.GetOk("saml"); ok && saml.(bool) {
+	if getResourceDiffBool(diff, "saml") {
 		// When SAML is enabled, app_auth cannot be kerberos, NTLMv1, or NTLMv2
 		for _, conflictingValue := range client.SAMLConflictingAppAuthValues {
 			if appAuthStr == conflictingValue {
@@ -347,122 +255,6 @@ func validateAppAuthConflictsWithResourceLevelAuth(settings map[string]interface
 	}
 
 	logger.Debug("App auth conflict validation passed")
-	return nil
-}
-
-// validateAppAuthWithResourceData validates app_auth with access to resource data for SAML/OIDC/WSFED conflicts
-func validateAppAuthWithResourceData(appAuth string, d *schema.ResourceData) error {
-	// First validate the app_auth value itself
-	if err := validateAppAuthValue(appAuth); err != nil {
-		return err
-	}
-
-	// Get app_type for tunnel app validation
-	appType := ""
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	// Check if tunnel app is trying to use advanced authentication methods
-	if appType == string(client.ClientAppTypeTunnel) {
-		// Check if SAML is enabled
-		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("saml=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
-		}
-
-		// Check if OIDC is enabled
-		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("oidc=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
-		}
-
-		// Check if WSFED is enabled
-		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("wsfed=true is not allowed for tunnel apps. Tunnel apps use basic authentication")
-		}
-	}
-
-	// Check if bookmark app is trying to use advanced authentication methods
-	if appType == string(client.ClientAppTypeBookmark) {
-		// Check if SAML is enabled
-		if saml, ok := d.GetOk("saml"); ok && saml.(bool) {
-			return fmt.Errorf("saml=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
-		}
-
-		// Check if OIDC is enabled
-		if oidc, ok := d.GetOk("oidc"); ok && oidc.(bool) {
-			return fmt.Errorf("oidc=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
-		}
-
-		// Check if WSFED is enabled
-		if wsfed, ok := d.GetOk("wsfed"); ok && wsfed.(bool) {
-			return fmt.Errorf("wsfed=true is not allowed for bookmark apps. Bookmark apps use basic authentication")
-		}
-	}
-
-	// Check for SAML/OIDC/WSFED conflicts - when enabled, app_auth must match or be "none"
-	// EXCEPTION: Allow app_auth to match the enabled method when auto-enabled
-	// Process only one auth method at a time (priority: SAML > OIDC > WSFED)
-	if appAuth != string(client.AppAuthNone) {
-		switch {
-		case shouldEnableSAML(d):
-			// Validate SAML: app_auth must be a valid SAML value
-			if !contains(client.SAMLValidValues, appAuth) {
-				return fmt.Errorf("when saml is enabled (saml=true), app_auth must be set to '%s' in advanced_settings, got '%s'", string(client.AppAuthNone), appAuth)
-			}
-			// Additional validation: SAML conflicts with kerberos, NTLMv1, or NTLMv2
-			for _, conflictingValue := range client.SAMLConflictingAppAuthValues {
-				if appAuth == conflictingValue {
-					return fmt.Errorf("when saml is enabled (saml=true), app_auth cannot be '%s' in advanced_settings. Use '%s' instead", conflictingValue, string(client.AppAuthNone))
-				}
-			}
-		case shouldEnableOIDC(d):
-			// Validate OIDC: app_auth must be a valid OIDC value
-			if !contains(client.OIDCValidValues, appAuth) {
-				return fmt.Errorf("when oidc is enabled (oidc=true), app_auth must be set to '%s' in advanced_settings, got '%s'", string(client.AppAuthNone), appAuth)
-			}
-		case shouldEnableWSFED(d):
-			// Validate WSFED: app_auth must be a valid WSFED value
-			if !contains(client.WSFEDValidValues, appAuth) {
-				return fmt.Errorf("when wsfed is enabled (wsfed=true), app_auth must be set to '%s' in advanced_settings, got '%s'", string(client.AppAuthNone), appAuth)
-			}
-		}
-	}
-
-	// Get app_profile for additional validation
-	appProfile := ""
-
-	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
-	}
-
-	if ap, ok := d.GetOk("app_profile"); ok {
-		appProfile = ap.(string)
-	}
-
-	// Apply validation rules based on the requirements
-	switch {
-	case appType == string(client.ClientAppTypeEnterprise) && appProfile == string(client.AppProfileSSH):
-		// app_auth is disabled - field should not be present in advanced_settings
-		return client.ErrAppAuthDisabledForEnterpriseSSH
-
-	case appType == string(client.ClientAppTypeSaaS):
-		// app_auth should not be present in advanced_settings for SaaS apps
-		// Authentication is handled at resource level using boolean flags (saml: true, oidc: true, wsfed: true)
-		return client.ErrAppAuthNotAllowedForSaaS
-
-	case appType == string(client.ClientAppTypeBookmark):
-		// app_auth should not be present in advanced_settings - it's set at resource level
-		return client.ErrAppAuthNotAllowedForBookmark
-
-	case appType == string(client.ClientAppTypeTunnel):
-		// app_auth should not be present in advanced_settings - it's set at resource level as "tcp"
-		return client.ErrAppAuthNotAllowedForTunnel
-
-	case appType == string(client.ClientAppTypeEnterprise) && appProfile == string(client.AppProfileVNC):
-		// app_auth is disabled - field should not be present in advanced_settings
-		return client.ErrAppAuthDisabledForEnterpriseVNC
-	}
-
 	return nil
 }
 

@@ -136,7 +136,7 @@ func applyAuthTransformation(d *schema.ResourceData) AuthTransformationResult {
 
 // decideAuthFromConfig centralizes auth-mode selection from schema and appAuth
 // It returns which auth to enable and the normalized appAuth to send (AppAuthNone when an auth flag is used)
-func decideAuthFromConfig(d *schema.ResourceData, appAuth string) (enableSAML bool, enableOIDC bool, enableWSFED bool, normalizedAppAuth string) {
+func decideAuthFromConfig(d *schema.ResourceData, appAuth string) (enableSAML, enableOIDC, enableWSFED bool, normalizedAppAuth string) {
 	// Check protocols in priority order: SAML > OIDC > WSFED
 	protocolOrder := []AuthProtocolType{
 		AuthProtocolTypeSAML,

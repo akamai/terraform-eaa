@@ -25,21 +25,29 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 	}
 	attrs["app_profile"] = profileString
 
-	aType := client.ClientAppTypeInt(appResp.AppType)
+	aType := client.AppTypeInt(appResp.AppType)
 	typeString, err := aType.String()
 	if err != nil {
 		eaaclient.Logger.Info("error converting app_type")
 	}
 	attrs["app_type"] = typeString
 
-	aMode := client.ClientAppModeInt(appResp.ClientAppMode)
+	aMode := client.AppModeInt(appResp.ClientAppMode)
 	modeString, err := aMode.String()
 	if err != nil {
 		eaaclient.Logger.Info("error converting client_app_mode")
 	}
 	attrs["client_app_mode"] = modeString
 
-	attrs["domain"] = appResp.DomainSuffix
+	appDomain := client.DomainInt(appResp.Domain)
+	domainString, err := appDomain.String()
+	if err != nil {
+		eaaclient.Logger.Info("error converting domain")
+		attrs["domain"] = ""
+	} else {
+		attrs["domain"] = domainString
+	}
+	attrs["domain_suffix"] = appResp.DomainSuffix
 
 	if appResp.Host != nil {
 		attrs["host"] = *appResp.Host
@@ -122,7 +130,7 @@ func mapServersAndTunnelHostsFromResponse(d *schema.ResourceData, appResp *clien
 		return diag.FromErr(err)
 	}
 
-	if client.ClientAppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
+	if client.AppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
 		tunnelInternalHosts := make([]map[string]interface{}, len(appResp.TunnelInternalHosts))
 		for i, host := range appResp.TunnelInternalHosts {
 			tunnelInternalHosts[i] = map[string]interface{}{
@@ -185,26 +193,26 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["app_auth_domain"] = appResp.AdvancedSettings.AppAuthDomain
 	advSettingsMap["app_client_cert_auth"] = appResp.AdvancedSettings.AppClientCertAuth
 	advSettingsMap["app_bundle"] = appResp.AppBundle
-	advSettingsMap["app_location"] = appResp.AdvancedSettings.AppLocation
+	advSettingsMap["app_location"] = stringPointerValue(appResp.AdvancedSettings.AppLocation)
 	advSettingsMap["app_server_read_timeout"] = appResp.AdvancedSettings.AppServerReadTimeout
 	advSettingsMap["authenticated_server_conn_limit"] = appResp.AdvancedSettings.AuthenticatedServerConnLimit
 	advSettingsMap["authenticated_server_request_limit"] = appResp.AdvancedSettings.AuthenticatedServerReqLimit
 	advSettingsMap["client_cert_auth"] = appResp.AdvancedSettings.ClientCertAuth
 	advSettingsMap["client_cert_user_param"] = appResp.AdvancedSettings.ClientCertUserParam
-	advSettingsMap["cookie_domain"] = convertStringPointerToString(appResp.AdvancedSettings.CookieDomain)
+	advSettingsMap["cookie_domain"] = stringPointerValue(appResp.AdvancedSettings.CookieDomain)
 	advSettingsMap["disable_user_agent_check"] = appResp.AdvancedSettings.DisableUserAgentCheck
 	advSettingsMap["domain_exception_list"] = appResp.AdvancedSettings.DomainExceptionList
 	advSettingsMap["edge_transport_manual_mode"] = appResp.AdvancedSettings.EdgeTransportManualMode
-	advSettingsMap["edge_transport_property_id"] = appResp.AdvancedSettings.EdgeTransportPropertyID
+	advSettingsMap["edge_transport_property_id"] = stringPointerValue(appResp.AdvancedSettings.EdgeTransportPropertyID)
 	advSettingsMap["enable_client_side_xhr_rewrite"] = appResp.AdvancedSettings.EnableClientSideXHRRewrite
-	advSettingsMap["external_cookie_domain"] = appResp.AdvancedSettings.ExternalCookieDomain
+	advSettingsMap["external_cookie_domain"] = stringPointerValue(appResp.AdvancedSettings.ExternalCookieDomain)
 	advSettingsMap["force_ip_route"] = appResp.AdvancedSettings.ForceIPRoute
 	advSettingsMap["force_mfa"] = appResp.AdvancedSettings.ForceMFA
 	advSettingsMap["form_post_attributes"] = appResp.AdvancedSettings.FormPostAttributes
 	advSettingsMap["form_post_url"] = appResp.AdvancedSettings.FormPostURL
 	advSettingsMap["forward_ticket_granting_ticket"] = appResp.AdvancedSettings.ForwardTicketGrantingTicket
 	advSettingsMap["health_check_fall"] = appResp.AdvancedSettings.HealthCheckFall
-	advSettingsMap["health_check_http_host_header"] = appResp.AdvancedSettings.HealthCheckHTTPHostHeader
+	advSettingsMap["health_check_http_host_header"] = stringPointerValue(appResp.AdvancedSettings.HealthCheckHTTPHostHeader)
 	advSettingsMap["health_check_http_url"] = appResp.AdvancedSettings.HealthCheckHTTPURL
 	advSettingsMap["health_check_http_version"] = appResp.AdvancedSettings.HealthCheckHTTPVersion
 	advSettingsMap["health_check_interval"] = appResp.AdvancedSettings.HealthCheckInterval
@@ -212,7 +220,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["health_check_timeout"] = appResp.AdvancedSettings.HealthCheckTimeout
 	advSettingsMap["health_check_type"] = client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
 	advSettingsMap["hidden_app"] = appResp.AdvancedSettings.HiddenApp
-	advSettingsMap["host_key"] = appResp.AdvancedSettings.HostKey
+	advSettingsMap["host_key"] = stringPointerValue(appResp.AdvancedSettings.HostKey)
 	advSettingsMap["hsts_age"] = appResp.AdvancedSettings.HSTSage
 	advSettingsMap["http_only_cookie"] = appResp.AdvancedSettings.HTTPOnlyCookie
 	advSettingsMap["https_sslv3"] = appResp.AdvancedSettings.HTTPSSSLV3
@@ -220,8 +228,8 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["idle_conn_ceil"] = appResp.AdvancedSettings.IdleConnCeil
 	advSettingsMap["idle_conn_floor"] = appResp.AdvancedSettings.IdleConnFloor
 	advSettingsMap["idle_conn_step"] = appResp.AdvancedSettings.IdleConnStep
-	advSettingsMap["idp_idle_expiry"] = appResp.AdvancedSettings.IDPIdleExpiry
-	advSettingsMap["idp_max_expiry"] = appResp.AdvancedSettings.IDPMaxExpiry
+	advSettingsMap["idp_idle_expiry"] = stringPointerValue(appResp.AdvancedSettings.IDPIdleExpiry)
+	advSettingsMap["idp_max_expiry"] = stringPointerValue(appResp.AdvancedSettings.IDPMaxExpiry)
 	advSettingsMap["ignore_bypass_mfa"] = appResp.AdvancedSettings.IgnoreBypassMFA
 	advSettingsMap["inject_ajax_javascript"] = appResp.AdvancedSettings.InjectAjaxJavascript
 	advSettingsMap["intercept_url"] = appResp.AdvancedSettings.InterceptURL
@@ -232,15 +240,15 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["load_balancing_metric"] = appResp.AdvancedSettings.LoadBalancingMetric
 	advSettingsMap["logging_enabled"] = appResp.AdvancedSettings.LoggingEnabled
 	advSettingsMap["login_timeout"] = appResp.AdvancedSettings.LoginTimeout
-	advSettingsMap["login_url"] = appResp.AdvancedSettings.LoginURL
+	advSettingsMap["login_url"] = stringPointerValue(appResp.AdvancedSettings.LoginURL)
 	advSettingsMap["mdc_enable"] = appResp.AdvancedSettings.MDCEnable
 	advSettingsMap["mfa"] = appResp.AdvancedSettings.MFA
 	advSettingsMap["offload_onpremise_traffic"] = appResp.AdvancedSettings.OffloadOnPremiseTraffic
 	advSettingsMap["onramp"] = appResp.AdvancedSettings.Onramp
-	advSettingsMap["pass_phrase"] = appResp.AdvancedSettings.PassPhrase
+	advSettingsMap["pass_phrase"] = stringPointerValue(appResp.AdvancedSettings.PassPhrase)
 	advSettingsMap["preauth_consent"] = appResp.AdvancedSettings.PreauthConsent
 	advSettingsMap["preauth_enforce_url"] = appResp.AdvancedSettings.PreauthEnforceURL
-	advSettingsMap["private_key"] = appResp.AdvancedSettings.PrivateKey
+	advSettingsMap["private_key"] = stringPointerValue(appResp.AdvancedSettings.PrivateKey)
 	advSettingsMap["remote_spark_audio"] = appResp.AdvancedSettings.RemoteSparkAudio
 	advSettingsMap["remote_spark_disk"] = appResp.AdvancedSettings.RemoteSparkDisk
 	advSettingsMap["remote_spark_map_clipboard"] = appResp.AdvancedSettings.RemoteSparkMapClipboard
@@ -255,10 +263,10 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["sentry_restore_form_post"] = appResp.AdvancedSettings.SentryRestoreFormPost
 	advSettingsMap["server_cert_validate"] = appResp.AdvancedSettings.ServerCertValidate
 	advSettingsMap["server_request_burst"] = appResp.AdvancedSettings.ServerRequestBurst
-	advSettingsMap["service_principle_name"] = appResp.AdvancedSettings.ServicePrincipalName
+	advSettingsMap["service_principle_name"] = stringPointerValue(appResp.AdvancedSettings.ServicePrincipalName)
 	advSettingsMap["session_sticky"] = appResp.AdvancedSettings.SessionSticky
 	advSettingsMap["session_sticky_cookie_maxage"] = appResp.AdvancedSettings.SessionStickyCookieMaxAge
-	advSettingsMap["session_sticky_server_cookie"] = appResp.AdvancedSettings.SessionStickyServerCookie
+	advSettingsMap["session_sticky_server_cookie"] = stringPointerValue(appResp.AdvancedSettings.SessionStickyServerCookie)
 	advSettingsMap["single_host_content_rw"] = appResp.AdvancedSettings.SingleHostContentRW
 	advSettingsMap["single_host_cookie_domain"] = appResp.AdvancedSettings.SingleHostCookieDomain
 	advSettingsMap["single_host_enable"] = appResp.AdvancedSettings.SingleHostEnable
@@ -267,7 +275,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	advSettingsMap["spdy_enabled"] = appResp.AdvancedSettings.SPDYEnabled
 	advSettingsMap["ssh_audit_enabled"] = appResp.AdvancedSettings.SSHAuditEnabled
 	advSettingsMap["sso"] = appResp.AdvancedSettings.SSO
-	advSettingsMap["user_name"] = appResp.AdvancedSettings.UserName
+	advSettingsMap["user_name"] = stringPointerValue(appResp.AdvancedSettings.UserName)
 	advSettingsMap["wapp_auth"] = appResp.AdvancedSettings.WappAuth
 	advSettingsMap["x_wapp_pool_enabled"] = appResp.AdvancedSettings.XWappPoolEnabled
 	advSettingsMap["x_wapp_pool_size"] = convertStringToInt(appResp.AdvancedSettings.XWappPoolSize)
@@ -318,8 +326,8 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 	}
 
 	if appResp.AuthEnabled == "true" {
-		appAuthData, err := app.CreateAppAuthenticationStruct(eaaclient)
-		if err == nil {
+		appAuthData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
+		if authErr == nil {
 			err = d.Set("app_authentication", appAuthData)
 			if err != nil {
 				return diag.FromErr(err)
@@ -328,8 +336,8 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 	}
 
 	if appResp.Cert != nil {
-		appCertData, err := client.GetCertificate(eaaclient, *appResp.Cert)
-		if err == nil {
+		appCertData, certErr := client.GetCertificate(eaaclient, *appResp.Cert)
+		if certErr == nil {
 			err = d.Set("cert", appCertData.Cert)
 			if err != nil {
 				return diag.FromErr(err)
@@ -357,7 +365,8 @@ func mapSAMLSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 	var samlSettings []map[string]interface{}
 
 	if len(appResp.SAMLSettings) > 0 {
-		for _, samlConfig := range appResp.SAMLSettings {
+		for i := range appResp.SAMLSettings {
+			samlConfig := &appResp.SAMLSettings[i]
 			samlBlock := make(map[string]interface{})
 
 			// Convert SP block
@@ -418,7 +427,8 @@ func mapWSFEDSettingsFromResponse(d *schema.ResourceData, appResp *client.Applic
 	var wsfedSettings []map[string]interface{}
 
 	if len(appResp.WSFEDSettings) > 0 {
-		for _, wsfedConfig := range appResp.WSFEDSettings {
+		for i := range appResp.WSFEDSettings {
+			wsfedConfig := &appResp.WSFEDSettings[i]
 			wsfedBlock := make(map[string]interface{})
 
 			// SP block
@@ -528,7 +538,8 @@ func mapOIDCSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 		// Convert OIDC clients
 		if len(appResp.OIDCClients) > 0 {
 			var oidcClients []map[string]interface{}
-			for _, oidcClient := range appResp.OIDCClients {
+			for i := range appResp.OIDCClients {
+				oidcClient := &appResp.OIDCClients[i]
 				clientBlock := make(map[string]interface{})
 				clientBlock["client_name"] = oidcClient.ClientName
 				clientBlock["client_id"] = oidcClient.ClientID

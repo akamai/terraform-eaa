@@ -37,7 +37,7 @@ func GetAppCategories(ec *EaaClient) ([]AppCate, error) {
 		return nil, fmt.Errorf("failed to get app categories: %w", err)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		desc, _ := FormatErrorResponse(getResp)
+		desc := FormatErrorDescription(getResp)
 		appCatErrMsg := fmt.Errorf("%w: %s", ErrAppCategoriesGet, desc)
 		return nil, appCatErrMsg
 	}
@@ -53,8 +53,8 @@ func GetAppCategories(ec *EaaClient) ([]AppCate, error) {
 	return acs, nil
 }
 
-// GetAppCategoryUuid method fetches categories and then searches for a specific category by name to return its UUID
-func GetAppCategoryUuid(ec *EaaClient, categoryName string) (string, error) {
+// GetAppCategoryUUID fetches categories and returns the UUID for the requested category name.
+func GetAppCategoryUUID(ec *EaaClient, categoryName string) (string, error) {
 	acs, err := GetAppCategories(ec)
 	if err != nil {
 		return "", ErrAppCategoriesGet

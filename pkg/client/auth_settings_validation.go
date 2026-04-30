@@ -8,16 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// getMapKeys returns the keys of a map as a slice of strings
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-// validateCustomHeadersConfiguration validates custom headers configuration
+// ValidateCustomHeadersConfiguration validates custom headers configuration.
 func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType string, logger hclog.Logger) error {
 	// Check if custom headers are present
 	if customHeaders, exists := settings["custom_headers"]; exists {
@@ -58,27 +49,30 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 			// Filter out empty headers (Table 8: Empty Headers validation)
 			sanitizedHeaders := []interface{}{}
 			for _, header := range headersList {
-				if headerMap, ok := header.(map[string]interface{}); ok {
-					// Check if header is empty (both header and attribute_type are empty)
-					headerValue, hasHeader := headerMap["header"]
-					attributeTypeValue, hasAttributeType := headerMap["attribute_type"]
+				headerMap, ok := header.(map[string]interface{})
+				if !ok {
+					continue
+				}
 
-					isEmpty := false
-					if hasHeader && hasAttributeType {
-						if headerStr, headerOk := headerValue.(string); headerOk {
-							if attributeTypeStr, attributeTypeOk := attributeTypeValue.(string); attributeTypeOk {
-								if headerStr == "" && attributeTypeStr == "" {
-									isEmpty = true
-								}
+				// Check if header is empty (both header and attribute_type are empty)
+				headerValue, hasHeader := headerMap["header"]
+				attributeTypeValue, hasAttributeType := headerMap["attribute_type"]
+
+				isEmpty := false
+				if hasHeader && hasAttributeType {
+					if headerStr, headerOk := headerValue.(string); headerOk {
+						if attributeTypeStr, attributeTypeOk := attributeTypeValue.(string); attributeTypeOk {
+							if headerStr == "" && attributeTypeStr == "" {
+								isEmpty = true
 							}
 						}
 					}
+				}
 
-					if !isEmpty {
-						sanitizedHeaders = append(sanitizedHeaders, header)
-					} else {
-						logger.Debug("Sanitized empty custom header: %v", headerMap)
-					}
+				if !isEmpty {
+					sanitizedHeaders = append(sanitizedHeaders, header)
+				} else {
+					logger.Debug("Sanitized empty custom header: %v", headerMap)
 				}
 			}
 
@@ -86,12 +80,12 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 
 			// Validate each non-empty custom header
 			for i, header := range sanitizedHeaders {
-				if headerMap, ok := header.(map[string]interface{}); ok {
-					if err := validateCustomHeader(headerMap, i, logger); err != nil {
-						return ErrCustomHeaderValidation
-					}
-				} else {
+				headerMap, ok := header.(map[string]interface{})
+				if !ok {
 					return ErrCustomHeaderNotObject
+				}
+				if err := validateCustomHeader(headerMap, i, logger); err != nil {
+					return ErrCustomHeaderValidation
 				}
 			}
 		} else {
@@ -278,7 +272,7 @@ func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName str
 	return nil
 }
 
-// validateWSFEDNestedBlocks validates WSFED nested blocks configuration
+// ValidateWSFEDNestedBlocks validates WSFED nested blocks configuration.
 func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateWSFEDNestedBlocks called")
 
@@ -314,7 +308,7 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 	return nil
 }
 
-// validateSAMLNestedBlocks validates SAML nested blocks configuration
+// ValidateSAMLNestedBlocks validates SAML nested blocks configuration.
 func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateSAMLNestedBlocks called")
 
@@ -371,7 +365,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 	return nil
 }
 
-// validateOIDCNestedBlocks validates OIDC nested blocks configuration
+// ValidateOIDCNestedBlocks validates OIDC nested blocks configuration.
 func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateOIDCNestedBlocks called")
 

@@ -9,103 +9,54 @@ import (
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// validateAdvancedSettingsWithAppTypeAndProfile validates advanced_settings with app_type and app_profile context
-func validateAdvancedSettingsWithAppTypeAndProfile(d *schema.ResourceData) error {
-	// Create a null logger for schema validation (this function doesn't have access to meta)
-	logger := hclog.NewNullLogger()
-
-	// Get app_type and app_profile first
+func validateAdvancedSettingsWarningDiagnostics(d *schema.ResourceData, logger hclog.Logger) diag.Diagnostics {
 	appType := ""
 	appProfile := ""
+	clientAppMode := ""
 
 	if at, ok := d.GetOk("app_type"); ok {
-		appType = at.(string)
+		if appTypeStr, ok := at.(string); ok {
+			appType = appTypeStr
+		}
 	}
 
 	if ap, ok := d.GetOk("app_profile"); ok {
-		appProfile = ap.(string)
-	}
-
-	// For bookmark and saas, advanced_settings should not be allowed at all
-	// These app types should use resource-level configuration instead
-	if appType == string(client.ClientAppTypeBookmark) || appType == string(client.ClientAppTypeSaaS) {
-		advSettings, ok := d.GetOk("advanced_settings")
-		if ok {
-			advSettingsStr, ok := advSettings.(string)
-			if ok && advSettingsStr != "" && advSettingsStr != "{}" {
-				return client.ErrAdvancedSettingsNotAllowedForAppType
-			}
+		if appProfileStr, ok := ap.(string); ok {
+			appProfile = appProfileStr
 		}
+	}
+
+	if cam, ok := d.GetOk("client_app_mode"); ok {
+		if clientAppModeStr, ok := cam.(string); ok {
+			clientAppMode = clientAppModeStr
+		}
+	}
+
+	advancedSettingsStr, ok := d.GetOk("advanced_settings")
+	if !ok {
 		return nil
 	}
 
-	// Get advanced_settings for other app types
-	advSettings, ok := d.GetOk("advanced_settings")
-	if !ok {
-		return nil // No advanced settings provided
-	}
-
-	advSettingsStr, ok := advSettings.(string)
-	if !ok {
-		return client.ErrAdvancedSettingsNotString
-	}
-
-	// If empty, it's valid (will use defaults)
-	if advSettingsStr == "" || advSettingsStr == "{}" {
+	advancedSettingsJSON, ok := advancedSettingsStr.(string)
+	if !ok || advancedSettingsJSON == "" || advancedSettingsJSON == "{}" {
 		return nil
 	}
 
-	// Parse the JSON
 	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advSettingsStr), &settings); err != nil {
-		return client.ErrAdvancedSettingsInvalidJSON
+	if err := json.Unmarshal([]byte(advancedSettingsJSON), &settings); err != nil {
+		// JSON validity is handled by schema validation; ignore here to avoid duplicate blocking behavior.
+		return nil
 	}
 
-	// Validate app_auth if present
-	if appAuth, exists := settings["app_auth"]; exists {
-		if appAuthStr, ok := appAuth.(string); ok {
-			if err := validateAppAuthForTypeAndProfile(appAuthStr, appType, appProfile); err != nil {
-				return err
-			}
-		}
-	}
+	var diags diag.Diagnostics
+	diags = append(diags, client.ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger)...)
+	diags = append(diags, client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger)...)
 
-	// Validate health check settings if present (skip for tunnel apps)
-	if appType != string(client.ClientAppTypeTunnel) {
-		logger.Debug("Validating health check for app_type: %s", appType)
-		if err := client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger); err != nil {
-			logger.Error("Health check validation failed for app_type %s: %v", appType, err)
-			return err // Return the specific error instead of generic one
-		}
-	} else {
-		logger.Debug("Skipping health check validation for tunnel app")
-	}
-
-	// Server load balancing settings validation is now handled by SETTINGS_RULES
-
-	// Related applications settings validation is now handled by SETTINGS_RULES
-
-	// Note: Enterprise connectivity, miscellaneous parameters, RDP configuration, and tunnel client parameters
-	// are now validated by the comprehensive generic validation system in ValidateAdvancedSettings()
-
-	// Validate TLS Suite configuration restrictions
-	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
-		return client.ErrTLSSuiteRestrictionsValidationFailed
-	}
-
-	// Validate TLS Suite required dependencies
-	if err := validateTLSSuiteRequiredDependencies(settings, logger); err != nil {
-		return err
-	}
-
-	// Note: TLS custom suite name validation is skipped in schema validation
-	// as this function doesn't have access to the client/meta for API calls
-	// This validation is performed in plan-time validation instead
-
-	return nil
+	return diags
 }
 
 // validateTLSSuiteRequiredDependencies validates that required fields are present when dependencies are met
@@ -196,80 +147,35 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 	return nil
 }
 
-// validateTLSCustomSuiteName validates that when tlsSuiteType = 2 (CUSTOM), tls_suite_name must be a valid cipher suite
-func validateTLSCustomSuiteName(settings map[string]interface{}, validCipherSuites []string) error {
-	// Check if tlsSuiteType is present and equals 2 (CUSTOM)
-	tlsSuiteType, exists := settings["tlsSuiteType"]
-	if !exists {
-		return nil // No TLS Suite Type to validate
-	}
-
-	tlsSuiteTypeNum, ok := tlsSuiteType.(float64)
-	if !ok {
-		return nil // Invalid TLS Suite Type
-	}
-
-	// Only validate when tlsSuiteType = 2 (CUSTOM)
-	if tlsSuiteTypeNum != 2 {
-		return nil
-	}
-
-	// Get tls_suite_name
-	tlsSuiteName, exists := settings["tls_suite_name"]
-	if !exists {
-		return client.ErrTLSSuiteNameRequired
-	}
-
-	tlsSuiteNameStr, ok := tlsSuiteName.(string)
-	if !ok {
-		return client.ErrTLSSuiteNameNotString
-	}
-
-	// Check if the provided tls_suite_name is valid
-	isValid := false
-	for _, validSuite := range validCipherSuites {
-		if tlsSuiteNameStr == validSuite {
-			isValid = true
-			break
-		}
-	}
-
-	if !isValid {
-		return client.ErrTLSSuiteNameInvalid
-	}
-
-	return nil
-}
-
 // validateAdvancedSettingsJSON validates that advanced_settings is valid JSON
 func validateAdvancedSettingsJSON(i interface{}, k string) ([]string, []error) {
 	var warnings []string
-	var errors []error
+	var errs []error
 
 	// Get the advanced_settings value
 	advancedSettingsStr, ok := i.(string)
 	if !ok {
-		errors = append(errors, client.ErrAdvancedSettingsNotString)
-		return warnings, errors
+		errs = append(errs, client.ErrAdvancedSettingsNotString)
+		return warnings, errs
 	}
 
 	// If empty, it's valid (will use defaults)
 	if advancedSettingsStr == "" || advancedSettingsStr == "{}" {
-		return warnings, errors
+		return warnings, errs
 	}
 
 	// Parse the JSON to validate it's valid
 	var settings map[string]interface{}
 	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
-		errors = append(errors, client.ErrAdvancedSettingsInvalidJSON)
-		return warnings, errors
+		errs = append(errs, client.ErrAdvancedSettingsInvalidJSON)
+		return warnings, errs
 	}
 
 	// For now, we can't access app_type from ValidateFunc
 	// This is a limitation of the Terraform SDK
 	// We'll need to use a different approach
 
-	return warnings, errors
+	return warnings, errs
 }
 
 // validateTunnelAppAdvancedSettings validates that tunnel apps only use allowed parameter categories
@@ -340,15 +246,16 @@ func validateTunnelAppAdvancedSettings(settings map[string]interface{}, logger h
 		if !allowedFields[fieldName] {
 			// Determine which category this field belongs to (for better error message)
 			category := "unknown"
-			if isAuthField(fieldName) {
+			switch {
+			case isAuthField(fieldName):
 				category = "authentication"
-			} else if isCORSField(fieldName) {
+			case isCORSField(fieldName):
 				category = "CORS"
-			} else if isTLSField(fieldName) {
+			case isTLSField(fieldName):
 				category = "TLS Suite"
-			} else if isMiscField(fieldName) {
+			case isMiscField(fieldName):
 				category = "miscellaneous"
-			} else if isRDPField(fieldName) {
+			case isRDPField(fieldName):
 				category = "RDP configuration"
 			}
 

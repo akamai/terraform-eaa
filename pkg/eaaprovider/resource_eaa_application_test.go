@@ -126,20 +126,57 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("convertStringPointerToString", func(t *testing.T) {
+	t.Run("stringPointerValue", func(t *testing.T) {
 		tests := []struct {
 			input    *string
-			expected string
+			expected interface{}
 		}{
 			{stringPtr("test"), "test"},
-			{nil, "null"},
+			{stringPtr(""), ""},
+			{nil, nil},
 		}
 
 		for _, tt := range tests {
-			result := convertStringPointerToString(tt.input)
+			result := stringPointerValue(tt.input)
 			if result != tt.expected {
-				t.Errorf("convertStringPointerToString(%v) = %s, expected %s", tt.input, result, tt.expected)
+				t.Errorf("stringPointerValue(%v) = %#v, expected %#v", tt.input, result, tt.expected)
 			}
+		}
+	})
+
+	t.Run("mapAdvancedSettingsFromResponse preserves empty strings", func(t *testing.T) {
+		resource := resourceEaaApplication()
+		d := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{})
+
+		empty := ""
+		appResp := &client.ApplicationResponse{}
+		appResp.AdvancedSettings.UserName = &empty
+		appResp.AdvancedSettings.ServicePrincipalName = &empty
+		appResp.AdvancedSettings.LoginURL = nil
+
+		if diags := mapAdvancedSettingsFromResponse(d, appResp); diags.HasError() {
+			t.Fatalf("mapAdvancedSettingsFromResponse returned errors: %v", diags)
+		}
+
+		advancedSettingsRaw := d.Get("advanced_settings")
+		advancedSettings, ok := advancedSettingsRaw.(string)
+		if !ok {
+			t.Fatalf("advanced_settings type = %T, want string", advancedSettingsRaw)
+		}
+
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(advancedSettings), &settings); err != nil {
+			t.Fatalf("failed to unmarshal advanced_settings JSON: %v", err)
+		}
+
+		if got, ok := settings["user_name"].(string); !ok || got != "" {
+			t.Fatalf("user_name = %#v, want empty string", settings["user_name"])
+		}
+		if got, ok := settings["service_principle_name"].(string); !ok || got != "" {
+			t.Fatalf("service_principle_name = %#v, want empty string", settings["service_principle_name"])
+		}
+		if got, exists := settings["login_url"]; !exists || got != nil {
+			t.Fatalf("login_url = %#v, want null", got)
 		}
 	})
 }
@@ -149,58 +186,58 @@ func TestValidateHealthCheckConfiguration(t *testing.T) {
 	logger := hclog.NewNullLogger()
 
 	tests := []struct {
-		name        string
-		settings    map[string]interface{}
-		appType     string
-		appProfile  string
-		expectError bool
+		name       string
+		settings   map[string]interface{}
+		appType    string
+		appProfile string
+		expectWarn bool
 	}{
 		{
-			name:        "tunnel app - valid TCP health check",
-			settings:    map[string]interface{}{"health_check_type": "TCP"},
-			appType:     "tunnel",
-			appProfile:  "tcp",
-			expectError: false, // TCP health check is now allowed for tunnel apps
+			name:       "tunnel app - valid TCP health check",
+			settings:   map[string]interface{}{"health_check_type": "TCP"},
+			appType:    "tunnel",
+			appProfile: "tcp",
+			expectWarn: false, // TCP health check is now allowed for tunnel apps
 		},
 		{
-			name:        "enterprise app - valid TCP health check",
-			settings:    map[string]interface{}{"health_check_type": "TCP"},
-			appType:     "enterprise",
-			appProfile:  "tcp",
-			expectError: false, // TCP health check is now allowed for enterprise apps
+			name:       "enterprise app - valid TCP health check",
+			settings:   map[string]interface{}{"health_check_type": "TCP"},
+			appType:    "enterprise",
+			appProfile: "tcp",
+			expectWarn: false, // TCP health check is now allowed for enterprise apps
 		},
 		{
-			name:        "enterprise app - valid HTTP health check",
-			settings:    map[string]interface{}{"health_check_type": "HTTP", "health_check_http_url": "/health", "health_check_http_version": "1.1", "health_check_http_host_header": "example.com"},
-			appType:     "enterprise",
-			appProfile:  "http",
-			expectError: false,
+			name:       "enterprise app - valid HTTP health check",
+			settings:   map[string]interface{}{"health_check_type": "HTTP", "health_check_http_url": "/health", "health_check_http_version": "1.1", "health_check_http_host_header": "example.com"},
+			appType:    "enterprise",
+			appProfile: "http",
+			expectWarn: false,
 		},
 		{
-			name:        "enterprise app - invalid health check type",
-			settings:    map[string]interface{}{"health_check_type": "INVALID"},
-			appType:     "enterprise",
-			appProfile:  "tcp",
-			expectError: true,
+			name:       "enterprise app - invalid health check type",
+			settings:   map[string]interface{}{"health_check_type": "INVALID"},
+			appType:    "enterprise",
+			appProfile: "tcp",
+			expectWarn: true,
 		},
 		{
-			name:        "enterprise app - missing health check type",
-			settings:    map[string]interface{}{},
-			appType:     "enterprise",
-			appProfile:  "tcp",
-			expectError: false,
+			name:       "enterprise app - missing health check type",
+			settings:   map[string]interface{}{},
+			appType:    "enterprise",
+			appProfile: "tcp",
+			expectWarn: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := client.ValidateHealthCheckConfiguration(tt.settings, tt.appType, tt.appProfile, logger)
+			diags := client.ValidateHealthCheckConfiguration(tt.settings, tt.appType, tt.appProfile, logger)
 
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
+			if tt.expectWarn && len(diags) == 0 {
+				t.Errorf("Expected warning but got none")
 			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+			if !tt.expectWarn && len(diags) != 0 {
+				t.Errorf("Unexpected warnings: %v", diags)
 			}
 		})
 	}
@@ -215,70 +252,70 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 		settings      map[string]interface{}
 		appType       string
 		clientAppMode string
-		expectError   bool
+		expectWarn    bool
 	}{
 		{
 			name:          "tunnel app with valid tunnel client parameters",
 			settings:      map[string]interface{}{"acceleration": "true", "force_ip_route": "false"},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   false,
+			expectWarn:    false,
 		},
 		{
 			name:          "tunnel app with domain_exception_list and wildcard enabled",
 			settings:      map[string]interface{}{"domain_exception_list": "test.com,example.com", "wildcard_internal_hostname": "true"},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   false,
+			expectWarn:    false,
 		},
 		{
 			name:          "tunnel app with domain_exception_list without wildcard",
 			settings:      map[string]interface{}{"domain_exception_list": "test.com,example.com"},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   true,
+			expectWarn:    true,
 		},
 		{
 			name:          "enterprise app with tunnel client parameters - should fail",
 			settings:      map[string]interface{}{"acceleration": "true"},
 			appType:       "enterprise",
 			clientAppMode: "tunnel",
-			expectError:   true,
+			expectWarn:    true,
 		},
 		{
 			name:          "tunnel app with invalid client app mode",
 			settings:      map[string]interface{}{"acceleration": "true"},
 			appType:       "tunnel",
 			clientAppMode: "enterprise",
-			expectError:   false, // Current validation logic only checks appType, not clientAppMode consistency
+			expectWarn:    false, // Current validation logic only checks appType, not clientAppMode consistency
 		},
 		{
 			name:          "tunnel app with invalid x_wapp_pool_size",
 			settings:      map[string]interface{}{"x_wapp_pool_size": "100"},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   true,
+			expectWarn:    true,
 		},
 		{
 			name:          "tunnel app with valid x_wapp_pool_size",
 			settings:      map[string]interface{}{"x_wapp_pool_size": 25},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   false,
+			expectWarn:    false,
 		},
 		{
 			name:          "tunnel app with invalid x_wapp_pool_timeout",
 			settings:      map[string]interface{}{"x_wapp_pool_timeout": "10"},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   true,
+			expectWarn:    true,
 		},
 		{
 			name:          "tunnel app with valid x_wapp_pool_timeout",
 			settings:      map[string]interface{}{"x_wapp_pool_timeout": 300},
 			appType:       "tunnel",
 			clientAppMode: "tunnel",
-			expectError:   false,
+			expectWarn:    false,
 		},
 	}
 
@@ -290,13 +327,64 @@ func TestValidateTunnelClientParameters(t *testing.T) {
 			if tt.name == "enterprise app with tunnel client parameters - should fail" {
 				appProfile = "http" // Enterprise apps use http profile
 			}
-			err := client.ValidateAdvancedSettings(tt.settings, tt.appType, appProfile, tt.clientAppMode, logger)
+			diags := client.ValidateAdvancedSettings(tt.settings, tt.appType, appProfile, tt.clientAppMode, logger)
 
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
+			if tt.expectWarn && len(diags) == 0 {
+				t.Errorf("Expected warning but got none")
 			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+			if !tt.expectWarn && len(diags) != 0 {
+				t.Errorf("Unexpected warnings: %v", diags)
+			}
+		})
+	}
+}
+
+func TestValidateAdvancedSettingsAdditionalCompatibility(t *testing.T) {
+	logger := hclog.NewNullLogger()
+
+	tests := []struct {
+		name       string
+		settings   map[string]interface{}
+		appType    string
+		appProfile string
+	}{
+		{
+			name:       "http app accepts external cookie and keepalive settings",
+			settings:   map[string]interface{}{"external_cookie_domain": "external.example.com", "keepalive_enable": "true", "keepalive_timeout": "300"},
+			appType:    "enterprise",
+			appProfile: "http",
+		},
+		{
+			name:       "http app accepts request parameters map",
+			settings:   map[string]interface{}{"request_parameters": map[string]interface{}{"key": "value"}, "request_body_rewrite": "false"},
+			appType:    "enterprise",
+			appProfile: "http",
+		},
+		{
+			name:       "http app accepts single host settings",
+			settings:   map[string]interface{}{"single_host_enable": "true", "single_host_fqdn": "single.example.com", "single_host_path": "/single", "single_host_content_rw": "false"},
+			appType:    "enterprise",
+			appProfile: "http",
+		},
+		{
+			name:       "rdp app accepts rdp remote apps",
+			settings:   map[string]interface{}{"rdp_remote_apps": []interface{}{map[string]interface{}{"remote_app": "calc.exe"}}, "proxy_disable_clipboard": "false"},
+			appType:    "enterprise",
+			appProfile: "rdp",
+		},
+		{
+			name:       "http app accepts additional auth and misc settings",
+			settings:   map[string]interface{}{"client_cert_auth": "false", "force_mfa": "off", "mfa": "inherit", "segmentation_policy_enable": "false", "sso": "true", "user_name": "username"},
+			appType:    "enterprise",
+			appProfile: "http",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			diags := client.ValidateAdvancedSettings(tt.settings, tt.appType, tt.appProfile, "tcp", logger)
+			if len(diags) != 0 {
+				t.Fatalf("unexpected warnings: %v", diags)
 			}
 		})
 	}
@@ -357,7 +445,7 @@ func TestValidateAppAuthForTypeAndProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAppAuthForTypeAndProfile(tt.appAuth, tt.appType, tt.appProfile)
+			err := validateAppAuthValue(tt.appAuth)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
@@ -840,7 +928,7 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			// Get app_auth value
 			if appAuth, exists := settings["app_auth"]; exists {
 				if appAuthStr, ok := appAuth.(string); ok {
-					err := validateAppAuthForTypeAndProfile(appAuthStr, tt.appType, "http")
+					err := validateAppAuthValue(appAuthStr)
 
 					if tt.expectError && err == nil {
 						t.Errorf("Expected error for %s but got none: %s", tt.description, err)
@@ -920,7 +1008,7 @@ func TestAppAuthConflictWithTopLevelFlags(t *testing.T) {
 			}
 
 			// Simulate advanced_settings with app_auth
-			advSettings := fmt.Sprintf(`{"app_auth": "%s"}`, tt.appAuthValue)
+			advSettings := fmt.Sprintf(`{"app_auth": %q}`, tt.appAuthValue)
 			d.Set("advanced_settings", advSettings)
 
 			// Note: This test structure simulates the conflict
@@ -1093,7 +1181,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 				"objects": []map[string]interface{}{
 					{
 						"service": map[string]interface{}{
-							"service_type": 6, // SERVICE_TYPE_ACCESS_CTRL = 6
+							"service_type": 6,
 							"uuid_url":     "service-uuid-123",
 						},
 						"status":   1,
