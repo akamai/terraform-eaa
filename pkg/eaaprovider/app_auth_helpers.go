@@ -56,21 +56,17 @@ func getResourceDiffBool(d *schema.ResourceDiff, key string) bool {
 	return ok && boolValue
 }
 
-// getAppAuthFromSchema extracts app_auth from the advanced_settings TypeList block in the schema
+// getAppAuthFromSchema extracts app_auth from the advanced_settings TypeMap block in the schema
 func getAppAuthFromSchema(getter SchemaGetter) string {
 	advSettingsData, ok := getter.GetOk("advanced_settings")
 	if !ok {
 		return ""
 	}
-	list, ok := advSettingsData.([]interface{})
-	if !ok || len(list) == 0 {
-		return ""
-	}
-	block, ok := list[0].(map[string]interface{})
+	settings, ok := advSettingsData.(map[string]interface{})
 	if !ok {
 		return ""
 	}
-	appAuth, ok := block["app_auth"].(string)
+	appAuth, ok := settings["app_auth"].(string)
 	if !ok {
 		return ""
 	}

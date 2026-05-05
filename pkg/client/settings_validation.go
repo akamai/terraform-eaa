@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -3204,7 +3205,7 @@ func validateStringSettingWithReflect(value interface{}, kind reflect.Kind, rule
 	switch kind {
 	case reflect.String:
 		strValue = reflect.ValueOf(value).String()
-	case reflect.Ptr:
+	case reflect.Pointer:
 		// Handle pointer types (*string, *int, etc.)
 		ptrValue := reflect.ValueOf(value)
 		if ptrValue.IsNil() {
@@ -3360,7 +3361,7 @@ func validateIntSettingWithReflect(value interface{}, kind reflect.Kind, rule *S
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		intValue = int(reflect.ValueOf(value).Int())
 		logger.Debug("Validated integer value: %d", intValue)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		// Handle pointer types (*int, *string, etc.)
 		ptrValue := reflect.ValueOf(value)
 		if ptrValue.IsNil() {
@@ -3526,7 +3527,7 @@ func numericValue(value interface{}) (float64, bool) {
 	}
 
 	reflected := reflect.ValueOf(value)
-	for reflected.Kind() == reflect.Ptr {
+	for reflected.Kind() == reflect.Pointer {
 		if reflected.IsNil() {
 			return 0, false
 		}
@@ -3551,7 +3552,7 @@ func stringValue(value interface{}) (string, bool) {
 	}
 
 	reflected := reflect.ValueOf(value)
-	for reflected.Kind() == reflect.Ptr {
+	for reflected.Kind() == reflect.Pointer {
 		if reflected.IsNil() {
 			return "", false
 		}
@@ -3571,7 +3572,7 @@ func isEmptyOptionalCollection(value interface{}, rule *SettingRule) bool {
 	}
 
 	reflected := reflect.ValueOf(value)
-	for reflected.Kind() == reflect.Ptr {
+	for reflected.Kind() == reflect.Pointer {
 		if reflected.IsNil() {
 			return false
 		}
@@ -3615,13 +3616,23 @@ func isEmptyOptionalCollection(value interface{}, rule *SettingRule) bool {
 // 	return nil
 // }
 
-// validateArraySettingWithReflect validates array settings using reflect for comprehensive type checking
+// validateArraySettingWithReflect validates array settings using reflect for comprehensive type checking.
+// Accepts both actual slices and JSON-encoded strings (TypeMap stores complex fields as JSON strings).
 func validateArraySettingWithReflect(value interface{}, kind reflect.Kind, rule *SettingRule, logger hclog.Logger) error {
-	// For custom_headers, we just need to ensure it's an array/slice
-	// The detailed validation is handled by ValidateCustomHeadersConfiguration()
 	switch kind {
 	case reflect.Slice, reflect.Array:
 		logger.Debug("Array setting validated successfully")
+		return nil
+	case reflect.String:
+		s := reflect.ValueOf(value).String()
+		if s == "" {
+			return nil
+		}
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(s), &decoded); err != nil {
+			return fmt.Errorf("setting must be a JSON-encoded array, got invalid JSON: %w", err)
+		}
+		logger.Debug("Array setting (JSON string) validated successfully")
 		return nil
 	default:
 		return fmt.Errorf("setting must be an array, got %s", kind)
@@ -3632,6 +3643,17 @@ func validateMapSettingWithReflect(value interface{}, kind reflect.Kind, logger 
 	switch kind {
 	case reflect.Map:
 		logger.Debug("Map setting validated successfully")
+		return nil
+	case reflect.String:
+		s := reflect.ValueOf(value).String()
+		if s == "" {
+			return nil
+		}
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(s), &decoded); err != nil {
+			return fmt.Errorf("setting must be a JSON-encoded object, got invalid JSON: %w", err)
+		}
+		logger.Debug("Map setting (JSON string) validated successfully")
 		return nil
 	default:
 		return fmt.Errorf("setting must be a map, got %s", kind)

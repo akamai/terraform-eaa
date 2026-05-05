@@ -178,11 +178,10 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	// form_post_attributes: stored as JSON string in TypeMap; decode to []interface{} for reflection.
 	if fpaStr, ok := block["form_post_attributes"].(string); ok && fpaStr != "" {
 		var decoded []interface{}
-		if err := json.Unmarshal([]byte(fpaStr), &decoded); err == nil {
-			flat["form_post_attributes"] = decoded
-		} else {
-			flat["form_post_attributes"] = []interface{}{}
+		if err := json.Unmarshal([]byte(fpaStr), &decoded); err != nil {
+			return nil, fmt.Errorf("invalid form_post_attributes JSON: %w", err)
 		}
+		flat["form_post_attributes"] = decoded
 	} else {
 		flat["form_post_attributes"] = []interface{}{}
 	}
@@ -190,11 +189,10 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	// custom_headers: stored as JSON string in state; decode back to []interface{} for reflection.
 	if chStr, ok := block["custom_headers"].(string); ok && chStr != "" {
 		var decoded []interface{}
-		if err := json.Unmarshal([]byte(chStr), &decoded); err == nil {
-			flat["custom_headers"] = decoded
-		} else {
-			flat["custom_headers"] = []interface{}{}
+		if err := json.Unmarshal([]byte(chStr), &decoded); err != nil {
+			return nil, fmt.Errorf("invalid custom_headers JSON: %w", err)
 		}
+		flat["custom_headers"] = decoded
 	} else {
 		flat["custom_headers"] = []interface{}{}
 	}
@@ -212,9 +210,10 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	// request_parameters: stored as JSON string in TypeMap; decode to map[string]interface{} for reflection.
 	if rpStr, ok := block["request_parameters"].(string); ok && rpStr != "" {
 		var decoded map[string]interface{}
-		if err := json.Unmarshal([]byte(rpStr), &decoded); err == nil {
-			flat["request_parameters"] = decoded
+		if err := json.Unmarshal([]byte(rpStr), &decoded); err != nil {
+			return nil, fmt.Errorf("invalid request_parameters JSON: %w", err)
 		}
+		flat["request_parameters"] = decoded
 	}
 
 	// tls_suite_type / tls_suite_name are handled at the call site (CREATE/UPDATE flows),
@@ -480,7 +479,7 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 						continue
 					}
 					field.SetInt(intVal)
-				case reflect.Ptr:
+				case reflect.Pointer:
 					if value == nil {
 						field.Set(reflect.Zero(field.Type()))
 						continue
