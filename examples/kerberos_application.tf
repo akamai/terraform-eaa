@@ -5,7 +5,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -50,14 +50,14 @@ resource "eaa_application" "kerberos_basic" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth                       = "kerberos"
     app_auth_domain                = "EXAMPLE.COM"
     app_client_cert_auth           = "false"
     forward_ticket_granting_ticket = "false"
     keytab                         = ""
-    service_principal_name         = "HTTP/kerberos-basic.example.com"
-  })
+    service_principle_name         = "HTTP/kerberos-basic.example.com"
+  }
 }
 
 # Kerberos Authentication Application with Client Certificate Auth
@@ -94,12 +94,12 @@ resource "eaa_application" "kerberos_client_cert" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth                       = "kerberos"
     app_auth_domain                = "EXAMPLE.COM"
     app_client_cert_auth           = "true"
     forward_ticket_granting_ticket = "true"
     keytab                         = ""
-    service_principal_name         = "HTTP/kerberos-client-cert.example.com"
-  })
+    service_principle_name         = "HTTP/kerberos-client-cert.example.com"
+  }
 }

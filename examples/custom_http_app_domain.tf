@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -41,12 +41,12 @@ resource "eaa_application" "tfapp5" {
     origin_host     = "origin-perftest.akamaidemo.net"
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     is_ssl_verification_enabled = "false"
     ignore_cname_resolution     = "true"
     g2o_enabled                 = "true"
     edge_authentication_enabled = "true"
-  })
+  }
 
   popregion = "us-east-1"
 
@@ -95,12 +95,12 @@ resource "eaa_application" "tfapp7" {
     origin_host     = "origin-perftest.akamaidemo.net"
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     is_ssl_verification_enabled = "false"
     ignore_cname_resolution     = "true"
     g2o_enabled                 = "true"
     edge_authentication_enabled = "true"
-  })
+  }
 
   popregion = "us-east-1"
 

@@ -1981,6 +1981,12 @@ var SETTINGS_RULES = map[string]SettingRule{
 		},
 		Default: DefaultG2OEnabled,
 	},
+	"g2o_key": {
+		Type: "string",
+	},
+	"g2o_nonce": {
+		Type: "string",
+	},
 	"is_ssl_verification_enabled": {
 		Type: "string",
 		ValidValues: []string{
@@ -2763,9 +2769,10 @@ func ValidateAdvancedSettings(settings map[string]interface{}, appType, appProfi
 		if !exists {
 			logger.Warn("Unknown setting '%s' found in advanced_settings", settingName)
 			diags = append(diags, warningDiagnostic(
-				"Unknown advanced setting",
-				fmt.Sprintf("Unknown setting '%s' found in advanced_settings", settingName),
+				fmt.Sprintf("Unknown advanced setting: %s", settingName),
+				fmt.Sprintf("'%s' is not a recognised advanced_settings key. It will be forwarded to the API unchanged but may be silently ignored by the API.", settingName),
 			))
+			continue
 		}
 
 		// Validate the setting against its rule
@@ -2974,8 +2981,8 @@ func validateSetting(settingName string, value interface{}, rule *SettingRule, s
 	// Check if setting is allowed for this app type
 	if len(rule.AppTypes) > 0 {
 		if !contains(rule.AppTypes, appType) {
-			return fmt.Errorf("(def:%s, val:%s), setting '%s' is not allowed for app_type='%s'. Allowed app types: %v",
-				rule.Default, value, settingName, appType, rule.AppTypes)
+			return fmt.Errorf("setting '%s' is not allowed for app_type='%s'. Allowed app types: %v",
+				settingName, appType, rule.AppTypes)
 		}
 	}
 
@@ -2983,8 +2990,8 @@ func validateSetting(settingName string, value interface{}, rule *SettingRule, s
 	// Skip profile validation for tunnel apps
 	if len(rule.Profiles) > 0 && appType != string(ClientAppTypeTunnel) {
 		if !contains(rule.Profiles, appProfile) {
-			return fmt.Errorf("(def:%s, val:%s), setting '%s' is not allowed for app_profile='%s'. Allowed profiles: %v",
-				rule.Default, value, settingName, appProfile, rule.Profiles)
+			return fmt.Errorf("setting '%s' is not allowed for app_profile='%s'. Allowed profiles: %v",
+				settingName, appProfile, rule.Profiles)
 		}
 	}
 

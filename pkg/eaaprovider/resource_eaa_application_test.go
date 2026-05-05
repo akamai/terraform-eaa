@@ -159,14 +159,9 @@ func TestHelperFunctions(t *testing.T) {
 		}
 
 		advancedSettingsRaw := d.Get("advanced_settings")
-		advancedSettings, ok := advancedSettingsRaw.(string)
+		settings, ok := advancedSettingsRaw.(map[string]interface{})
 		if !ok {
-			t.Fatalf("advanced_settings type = %T, want string", advancedSettingsRaw)
-		}
-
-		var settings map[string]interface{}
-		if err := json.Unmarshal([]byte(advancedSettings), &settings); err != nil {
-			t.Fatalf("failed to unmarshal advanced_settings JSON: %v", err)
+			t.Fatalf("advanced_settings type = %T, want map[string]interface{}", advancedSettingsRaw)
 		}
 
 		if got, ok := settings["user_name"].(string); !ok || got != "" {
@@ -175,8 +170,8 @@ func TestHelperFunctions(t *testing.T) {
 		if got, ok := settings["service_principle_name"].(string); !ok || got != "" {
 			t.Fatalf("service_principle_name = %#v, want empty string", settings["service_principle_name"])
 		}
-		if got, exists := settings["login_url"]; !exists || got != nil {
-			t.Fatalf("login_url = %#v, want null", got)
+		if got, ok := settings["login_url"].(string); ok && got != "" {
+			t.Fatalf("login_url = %#v, want empty string", got)
 		}
 	})
 }
@@ -606,59 +601,6 @@ func TestValidateTLSSuiteRestrictions(t *testing.T) {
 			}
 			if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
-			}
-		})
-	}
-}
-
-// TestValidateAdvancedSettingsJSON tests the validateAdvancedSettingsJSON function
-func TestValidateAdvancedSettingsJSON(t *testing.T) {
-	tests := []struct {
-		input       interface{}
-		name        string
-		expectError bool
-	}{
-		{
-			name:        "valid JSON string",
-			input:       `{"app_auth": "none", "websocket_enabled": true}`,
-			expectError: false,
-		},
-		{
-			name:        "valid empty JSON",
-			input:       `{}`,
-			expectError: false,
-		},
-		{
-			name:        "valid empty string",
-			input:       "",
-			expectError: false,
-		},
-		{
-			name:        "invalid JSON",
-			input:       `{"app_auth": "none", "websocket_enabled": true`,
-			expectError: true,
-		},
-		{
-			name:        "non-string input",
-			input:       123,
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warnings, errors := validateAdvancedSettingsJSON(tt.input, "advanced_settings")
-
-			if tt.expectError && len(errors) == 0 {
-				t.Errorf("Expected error but got none")
-			}
-			if !tt.expectError && len(errors) > 0 {
-				t.Errorf("Unexpected errors: %v", errors)
-			}
-
-			// Warnings should be empty for all test cases
-			if len(warnings) > 0 {
-				t.Errorf("Unexpected warnings: %v", warnings)
 			}
 		})
 	}

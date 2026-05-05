@@ -2,7 +2,6 @@ package eaaprovider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -757,11 +756,13 @@ func resourceEaaApplication() *schema.Resource {
 				Optional: true,
 			},
 			"advanced_settings": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Description:  "Advanced settings in JSON format. Use jsonencode() to convert HCL map to JSON.",
-				Default:      "{}",
-				ValidateFunc: validateAdvancedSettingsJSON,
+				Type:     schema.TypeMap,
+				Optional: true,
+				Computed: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Description: "Flat map of advanced settings key/value pairs. All values are strings. " +
+					"Known keys are validated; unrecognised keys are passed to the API with a warning. " +
+					"Complex fields (form_post_attributes, request_parameters, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
 			},
 			"app_bundle": {
 				Type:         schema.TypeString,
@@ -934,17 +935,11 @@ func validateAdvancedSettingsAtPlanTime(diff *schema.ResourceDiff, m interface{}
 		return client.ErrAppProfileRequired
 	}
 
-	// Get advanced_settings from the diff
-	advancedSettingsStr, ok := diff.Get("advanced_settings").(string)
-	if !ok || advancedSettingsStr == "" || advancedSettingsStr == "{}" {
-		// No advanced settings to validate
+	// Get advanced_settings from the diff (TypeMap)
+	advRaw := diff.Get("advanced_settings")
+	settings, ok := advRaw.(map[string]interface{})
+	if !ok || len(settings) == 0 {
 		return nil
-	}
-
-	// Parse the JSON
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
-		return client.ErrAdvancedSettingsInvalidJSONFormat
 	}
 
 	// Restrict plan-time validation to provider-owned checks only.

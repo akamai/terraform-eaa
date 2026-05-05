@@ -234,76 +234,51 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	}
 
 	// Handle advanced settings for CREATE flow - ALWAYS set defaults
-	// SUPER VISIBLE LOGGING
 
-	// Get advanced settings JSON or use empty JSON to force defaults
-	var advSettingsJSON string
-	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if jsonStr, ok := advSettingsData.(string); ok {
-			advSettingsJSON = jsonStr
-		}
-	}
-	if advSettingsJSON == "" {
-		advSettingsJSON = "{}" // Force parsing with empty JSON to apply defaults
-	}
-
-	logger.Debug("CREATE FLOW: Using JSON:", advSettingsJSON)
-
-	// ALWAYS parse and apply malformed defaults
-	advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
-	if err != nil {
-		return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
-	}
-
-	// Extract TLS Suite fields from advanced_settings and set them at the top level
-	// Parse the advanced_settings JSON to extract TLS Suite fields
-	logger.Debug("CREATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
+	// Build a settings map from the TypeMap block (or empty map if not set)
 	var userSettings map[string]interface{}
-	if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
-		logger.Debug("CREATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
-
-		// Extract tlsSuiteType
-		if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
-			logger.Debug("CREATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
-
-			var tlsSuiteTypeInt int
-			switch v := tlsSuiteTypeVal.(type) {
-			case string:
-				// Handle string values: "default" -> 1, "custom" -> 2
-				switch v {
-				case "default":
-					tlsSuiteTypeInt = 1
-				case "custom":
-					tlsSuiteTypeInt = 2
-				default:
-					logger.Error("CREATE FLOW: Invalid tlsSuiteType string value:", v)
-				}
-			case float64:
-				// Handle numeric values (for backward compatibility)
-				tlsSuiteTypeInt = int(v)
-			default:
-				logger.Error("CREATE FLOW: Invalid tlsSuiteType type:", v)
-				return fmt.Errorf("invalid tlsSuiteType type: %T", v)
-			}
-
-			car.TLSSuiteType = &tlsSuiteTypeInt
-			logger.Debug("CREATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
-		} else {
-			logger.Debug("CREATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
+	if advMap, ok := d.GetOk("advanced_settings"); ok {
+		if m, ok := advMap.(map[string]interface{}); ok {
+			userSettings = m
 		}
+	}
+	if userSettings == nil {
+		userSettings = map[string]interface{}{}
+	}
 
-		// Extract tls_suite_name
-		if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
-			logger.Debug("CREATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
-			if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
-				car.TLSSuiteName = &tlsSuiteNameStr
-				logger.Debug("CREATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
-			}
-		} else {
-			logger.Debug("CREATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
+	logger.Debug("CREATE FLOW: Using advanced_settings block with keys:", len(userSettings))
+
+	// ALWAYS parse and apply defaults
+	advSettings, err := advancedSettingsFromBlock(userSettings)
+	if err != nil {
+		return fmt.Errorf("failed to parse advanced settings block: %w", err)
+	}
+
+	// Extract TLS Suite fields from the structured block
+	logger.Debug("CREATE FLOW: TLS Suite extraction from block")
+	if tlsSuiteTypeStr, ok := userSettings["tls_suite_type"].(string); ok && tlsSuiteTypeStr != "" {
+		logger.Debug("CREATE FLOW: TLS Suite extraction - found tls_suite_type:", tlsSuiteTypeStr)
+		var tlsSuiteTypeInt int
+		switch tlsSuiteTypeStr {
+		case "default":
+			tlsSuiteTypeInt = 1
+		case "custom":
+			tlsSuiteTypeInt = 2
+		default:
+			logger.Error("CREATE FLOW: Invalid tls_suite_type string value:", tlsSuiteTypeStr)
+			return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
 		}
+		car.TLSSuiteType = &tlsSuiteTypeInt
+		logger.Debug("CREATE FLOW: Set TLSSuiteType:", tlsSuiteTypeInt)
 	} else {
-		logger.Error("CREATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
+		logger.Debug("CREATE FLOW: tls_suite_type not set in block")
+	}
+
+	if tlsSuiteNameStr, ok := userSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
+		logger.Debug("CREATE FLOW: Set tls_suite_name:", tlsSuiteNameStr)
+		car.TLSSuiteName = &tlsSuiteNameStr
+	} else {
+		logger.Debug("CREATE FLOW: tls_suite_name not set in block")
 	}
 
 	// Set authentication flags based on Terraform boolean flags for CREATE flow
@@ -1080,125 +1055,99 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 	}
 
-	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
-			// Parse JSON and apply defaults
-			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
-			if err != nil {
-				return fmt.Errorf("failed to parse advanced settings JSON: %w", err)
-			}
-
-			// Preserve user-provided app_auth value from advanced_settings
-			ec.Logger.Debug("UPDATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
-
-			// Extract TLS Suite fields from advanced_settings and set them at the top level
-			// Parse the advanced_settings JSON to extract TLS Suite fields
-			ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - advSettingsJSON:", advSettingsJSON)
-			var userSettings map[string]interface{}
-			if err := json.Unmarshal([]byte(advSettingsJSON), &userSettings); err == nil {
-				ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - parsed userSettings:", userSettings)
-
-				// Extract tlsSuiteType
-				if tlsSuiteTypeVal, exists := userSettings["tlsSuiteType"]; exists {
-					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - found tlsSuiteType:", tlsSuiteTypeVal)
-
-					var tlsSuiteTypeInt int
-					switch v := tlsSuiteTypeVal.(type) {
-					case string:
-						// Handle string values: "default" -> 1, "custom" -> 2
-						switch v {
-						case "default":
-							tlsSuiteTypeInt = 1
-						case "custom":
-							tlsSuiteTypeInt = 2
-						default:
-							ec.Logger.Error("UPDATE FLOW: Invalid tlsSuiteType string value:", v)
-							return fmt.Errorf("invalid tlsSuiteType string value: %s", v)
-						}
-					case float64:
-						// Handle numeric values (for backward compatibility)
-						tlsSuiteTypeInt = int(v)
-					default:
-						ec.Logger.Error("UPDATE FLOW: Invalid tlsSuiteType type:", v)
-						return fmt.Errorf("invalid tlsSuiteType type: %T", v)
-					}
-
-					appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
-					ec.Logger.Debug("UPDATE FLOW: Set tlsSuiteType from advanced_settings:", tlsSuiteTypeInt)
-				} else {
-					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - tlsSuiteType not found in userSettings")
-				}
-
-				// Extract tls_suite_name
-				if tlsSuiteNameVal, exists := userSettings["tls_suite_name"]; exists {
-					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - found tls_suite_name:", tlsSuiteNameVal)
-					if tlsSuiteNameStr, ok := tlsSuiteNameVal.(string); ok {
-						appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
-						ec.Logger.Debug("UPDATE FLOW: Set tls_suite_name from advanced_settings:", tlsSuiteNameStr)
-					}
-				} else {
-					ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction - tls_suite_name not found in userSettings")
-				}
-			} else {
-				ec.Logger.Error("UPDATE FLOW: TLS Suite extraction - failed to parse advSettingsJSON:", err)
-			}
-
-			// Note: SAML/OIDC/WS-FED settings are now handled outside this block
-			// to ensure they run regardless of whether advanced_settings is provided
-
-			// Handle special cases that require API calls
-			if advSettings.G2OEnabled == STR_TRUE {
-				g2oResp, err := appUpdateReq.UpdateG2O(ec)
-				if err != nil {
-					ec.Logger.Error("g2o request failed. err: ", err)
-					return err
-				}
-				advSettings.G2OKey = &g2oResp.G2OKey
-				advSettings.G2ONonce = &g2oResp.G2ONonce
-			}
-
-			if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
-				edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
-				if err != nil {
-					ec.Logger.Error("edge auth cookie request failed. err: ", err)
-					return err
-				}
-				advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
-				advSettings.SLAObjectURL = &edgeAuthResp.SLAObjectURL
-			}
-
-			// Use the UpdateAdvancedSettings function to properly update the struct
-			UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
-
-			// Explicitly set the AppAuth field to ensure it's preserved
-			appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
-
-			// Set the app bundle UUID on the Application struct (top-level field)
-			if validatedAppBundleUUID != "" {
-				appUpdateReq.AppBundle = validatedAppBundleUUID
-				ec.Logger.Debug("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
-			}
-
-			// Log the final advanced settings to see what's being sent
-			ec.Logger.Debug("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
-
-			// Debug output for RDP fields
-
+	// Handle advanced settings for UPDATE flow - read from TypeMap block
+	var updateUserSettings map[string]interface{}
+	if advMap, ok := d.GetOk("advanced_settings"); ok {
+		if m, ok := advMap.(map[string]interface{}); ok {
+			updateUserSettings = m
 		}
+	}
+
+	if updateUserSettings != nil {
+		// Parse and apply defaults
+		advSettings, err := advancedSettingsFromBlock(updateUserSettings)
+		if err != nil {
+			return fmt.Errorf("failed to parse advanced settings block: %w", err)
+		}
+
+		// Preserve user-provided app_auth value from advanced_settings
+		ec.Logger.Debug("UPDATE FLOW: Using app_auth from advanced_settings block:", advSettings.AppAuth)
+
+		// Extract TLS Suite fields from the structured block
+		ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction from block")
+		if tlsSuiteTypeStr, ok := updateUserSettings["tls_suite_type"].(string); ok && tlsSuiteTypeStr != "" {
+			var tlsSuiteTypeInt int
+			switch tlsSuiteTypeStr {
+			case "default":
+				tlsSuiteTypeInt = 1
+			case "custom":
+				tlsSuiteTypeInt = 2
+			default:
+				ec.Logger.Error("UPDATE FLOW: Invalid tls_suite_type value:", tlsSuiteTypeStr)
+				return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
+			}
+			appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
+			ec.Logger.Debug("UPDATE FLOW: Set TLSSuiteType:", tlsSuiteTypeInt)
+		} else {
+			ec.Logger.Debug("UPDATE FLOW: tls_suite_type not set in block")
+		}
+
+		if tlsSuiteNameStr, ok := updateUserSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
+			appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
+			ec.Logger.Debug("UPDATE FLOW: Set tls_suite_name:", tlsSuiteNameStr)
+		} else {
+			ec.Logger.Debug("UPDATE FLOW: tls_suite_name not set in block")
+		}
+
+		// Note: SAML/OIDC/WS-FED settings are now handled outside this block
+		// to ensure they run regardless of whether advanced_settings is provided
+
+		// Handle special cases that require API calls
+		if advSettings.G2OEnabled == STR_TRUE {
+			g2oResp, err := appUpdateReq.UpdateG2O(ec)
+			if err != nil {
+				ec.Logger.Error("g2o request failed. err: ", err)
+				return err
+			}
+			advSettings.G2OKey = &g2oResp.G2OKey
+			advSettings.G2ONonce = &g2oResp.G2ONonce
+		}
+
+		if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
+			edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
+			if err != nil {
+				ec.Logger.Error("edge auth cookie request failed. err: ", err)
+				return err
+			}
+			advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
+			advSettings.SLAObjectURL = &edgeAuthResp.SLAObjectURL
+		}
+
+		// Use the UpdateAdvancedSettings function to properly update the struct
+		UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)
+
+		// Explicitly set the AppAuth field to ensure it's preserved
+		appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
+
+		// Set the app bundle UUID on the Application struct (top-level field)
+		if validatedAppBundleUUID != "" {
+			appUpdateReq.AppBundle = validatedAppBundleUUID
+			ec.Logger.Debug("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
+		}
+
+		// Log the final advanced settings to see what's being sent
+		ec.Logger.Debug("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
 	}
 
 	// Set authentication flags based on Terraform boolean flags for UPDATE flow
 	// This logic runs regardless of whether advanced_settings is provided
 
 	// Determine SAML automatically based on business logic for UPDATE flow
-	// Get app_auth from advanced_settings for business logic
+	// Get app_auth from the structured advanced_settings block
 	var appAuth string
-	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
-			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
-			if err == nil && advSettings != nil {
-				appAuth = advSettings.AppAuth
-			}
+	if updateUserSettings != nil {
+		if appAuthVal, ok := updateUserSettings["app_auth"].(string); ok {
+			appAuth = appAuthVal
 		}
 	}
 

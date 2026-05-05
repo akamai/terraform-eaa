@@ -2,7 +2,6 @@ package eaaprovider
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -148,164 +147,201 @@ func mapServersAndTunnelHostsFromResponse(d *schema.ResourceData, appResp *clien
 	return nil
 }
 
-// mapAdvancedSettingsFromResponse maps advanced settings from API response to schema
+// derefStr returns the dereferenced string or "" for nil.
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// mapAdvancedSettingsFromResponse maps advanced settings from API response to schema.
+// advanced_settings is a TypeMap so all values must be strings.
 func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.ApplicationResponse) diag.Diagnostics {
-	advSettingsMap := make(map[string]interface{})
+	m := map[string]string{
+		"acceleration":                       appResp.AdvancedSettings.Acceleration,
+		"allow_cors":                         appResp.AdvancedSettings.AllowCORS,
+		"anonymous_server_conn_limit":        appResp.AdvancedSettings.AnonymousServerConnLimit,
+		"anonymous_server_request_limit":     appResp.AdvancedSettings.AnonymousServerReqLimit,
+		"app_auth":                           appResp.AdvancedSettings.AppAuth,
+		"app_auth_domain":                    appResp.AdvancedSettings.AppAuthDomain,
+		"app_bundle":                         appResp.AppBundle,
+		"app_client_cert_auth":               appResp.AdvancedSettings.AppClientCertAuth,
+		"app_cookie_domain":                  derefStr(appResp.AdvancedSettings.AppCookieDomain),
+		"app_location":                       derefStr(appResp.AdvancedSettings.AppLocation),
+		"app_server_read_timeout":            appResp.AdvancedSettings.AppServerReadTimeout,
+		"authenticated_server_conn_limit":    appResp.AdvancedSettings.AuthenticatedServerConnLimit,
+		"authenticated_server_request_limit": appResp.AdvancedSettings.AuthenticatedServerReqLimit,
+		"client_cert_auth":                   appResp.AdvancedSettings.ClientCertAuth,
+		"client_cert_user_param":             appResp.AdvancedSettings.ClientCertUserParam,
+		"cookie_domain":                      derefStr(appResp.AdvancedSettings.CookieDomain),
+		"cors_header_list":                   appResp.AdvancedSettings.CORSHeaderList,
+		"cors_max_age":                       appResp.AdvancedSettings.CORSMaxAge,
+		"cors_method_list":                   appResp.AdvancedSettings.CORSMethodList,
+		"cors_origin_list":                   appResp.AdvancedSettings.CORSOriginList,
+		"cors_support_credential":            appResp.AdvancedSettings.CORSSupportCredential,
+		"disable_user_agent_check":           appResp.AdvancedSettings.DisableUserAgentCheck,
+		"domain_exception_list":              appResp.AdvancedSettings.DomainExceptionList,
+		"edge_authentication_enabled":        appResp.AdvancedSettings.EdgeAuthenticationEnabled,
+		"edge_cookie_key":                    appResp.AdvancedSettings.EdgeCookieKey,
+		"edge_transport_manual_mode":         appResp.AdvancedSettings.EdgeTransportManualMode,
+		"edge_transport_property_id":         derefStr(appResp.AdvancedSettings.EdgeTransportPropertyID),
+		"enable_client_side_xhr_rewrite":     appResp.AdvancedSettings.EnableClientSideXHRRewrite,
+		"external_cookie_domain":             derefStr(appResp.AdvancedSettings.ExternalCookieDomain),
+		"force_ip_route":                     appResp.AdvancedSettings.ForceIPRoute,
+		"force_mfa":                          appResp.AdvancedSettings.ForceMFA,
+		"form_post_url":                      appResp.AdvancedSettings.FormPostURL,
+		"forward_ticket_granting_ticket":     appResp.AdvancedSettings.ForwardTicketGrantingTicket,
+		"g2o_enabled":                        appResp.AdvancedSettings.G2OEnabled,
+		"g2o_key":                            derefStr(appResp.AdvancedSettings.G2OKey),
+		"g2o_nonce":                          derefStr(appResp.AdvancedSettings.G2ONonce),
+		"health_check_fall":                  appResp.AdvancedSettings.HealthCheckFall,
+		"health_check_http_host_header":      derefStr(appResp.AdvancedSettings.HealthCheckHTTPHostHeader),
+		"health_check_http_url":              appResp.AdvancedSettings.HealthCheckHTTPURL,
+		"health_check_http_version":          appResp.AdvancedSettings.HealthCheckHTTPVersion,
+		"health_check_interval":              appResp.AdvancedSettings.HealthCheckInterval,
+		"health_check_rise":                  appResp.AdvancedSettings.HealthCheckRise,
+		"health_check_timeout":               appResp.AdvancedSettings.HealthCheckTimeout,
+		"health_check_type":                  client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType),
+		"hidden_app":                         appResp.AdvancedSettings.HiddenApp,
+		"host_key":                           derefStr(appResp.AdvancedSettings.HostKey),
+		"hsts_age":                           appResp.AdvancedSettings.HSTSage,
+		"http_only_cookie":                   appResp.AdvancedSettings.HTTPOnlyCookie,
+		"https_sslv3":                        appResp.AdvancedSettings.HTTPSSSLV3,
+		"idle_close_time_seconds":            appResp.AdvancedSettings.IdleCloseTimeSeconds,
+		"idle_conn_ceil":                     appResp.AdvancedSettings.IdleConnCeil,
+		"idle_conn_floor":                    appResp.AdvancedSettings.IdleConnFloor,
+		"idle_conn_step":                     appResp.AdvancedSettings.IdleConnStep,
+		"idp_idle_expiry":                    derefStr(appResp.AdvancedSettings.IDPIdleExpiry),
+		"idp_max_expiry":                     derefStr(appResp.AdvancedSettings.IDPMaxExpiry),
+		"ignore_bypass_mfa":                  appResp.AdvancedSettings.IgnoreBypassMFA,
+		"ignore_cname_resolution":            appResp.AdvancedSettings.IgnoreCnameResolution,
+		"inject_ajax_javascript":             appResp.AdvancedSettings.InjectAjaxJavascript,
+		"intercept_url":                      appResp.AdvancedSettings.InterceptURL,
+		"internal_host_port":                 appResp.AdvancedSettings.InternalHostPort,
+		"internal_hostname":                  derefStr(appResp.AdvancedSettings.InternalHostname),
+		"ip_access_allow":                    appResp.AdvancedSettings.IPAccessAllow,
+		"is_brotli_enabled":                  appResp.AdvancedSettings.IsBrotliEnabled,
+		"is_ssl_verification_enabled":        appResp.AdvancedSettings.IsSSLVerificationEnabled,
+		"jwt_audience":                       appResp.AdvancedSettings.JWTAudience,
+		"jwt_grace_period":                   appResp.AdvancedSettings.JWTGracePeriod,
+		"jwt_issuers":                        appResp.AdvancedSettings.JWTIssuers,
+		"jwt_return_option":                  appResp.AdvancedSettings.JWTReturnOption,
+		"jwt_return_url":                     appResp.AdvancedSettings.JWTReturnURL,
+		"jwt_username":                       appResp.AdvancedSettings.JWTUsername,
+		"keepalive_connection_pool":          appResp.AdvancedSettings.KeepaliveConnectionPool,
+		"keepalive_enable":                   appResp.AdvancedSettings.KeepaliveEnable,
+		"keepalive_timeout":                  appResp.AdvancedSettings.KeepaliveTimeout,
+		"keytab":                             appResp.AdvancedSettings.Keytab,
+		"load_balancing_metric":              appResp.AdvancedSettings.LoadBalancingMetric,
+		"logging_enabled":                    appResp.AdvancedSettings.LoggingEnabled,
+		"login_timeout":                      appResp.AdvancedSettings.LoginTimeout,
+		"login_url":                          derefStr(appResp.AdvancedSettings.LoginURL),
+		"logout_url":                         derefStr(appResp.AdvancedSettings.LogoutURL),
+		"mdc_enable":                         appResp.AdvancedSettings.MDCEnable,
+		"mfa":                                appResp.AdvancedSettings.MFA,
+		"offload_onpremise_traffic":          appResp.AdvancedSettings.OffloadOnPremiseTraffic,
+		"onramp":                             appResp.AdvancedSettings.Onramp,
+		"pass_phrase":                        derefStr(appResp.AdvancedSettings.PassPhrase),
+		"preauth_consent":                    appResp.AdvancedSettings.PreauthConsent,
+		"preauth_enforce_url":                appResp.AdvancedSettings.PreauthEnforceURL,
+		"private_key":                        derefStr(appResp.AdvancedSettings.PrivateKey),
+		"rdp_initial_program":                derefStr(appResp.AdvancedSettings.RDPInitialProgram),
+		"rdp_keyboard_lang":                  appResp.AdvancedSettings.RDPKeyboardLang,
+		"rdp_legacy_mode":                    appResp.AdvancedSettings.RDPLegacyMode,
+		"rdp_tls1":                           appResp.AdvancedSettings.RDPTLS1,
+		"rdp_window_color_depth":             appResp.AdvancedSettings.RDPWindowColorDepth,
+		"rdp_window_height":                  appResp.AdvancedSettings.RDPWindowHeight,
+		"rdp_window_width":                   appResp.AdvancedSettings.RDPWindowWidth,
+		"refresh_sticky_cookie":              appResp.AdvancedSettings.RefreshStickyCookie,
+		"remote_spark_audio":                 appResp.AdvancedSettings.RemoteSparkAudio,
+		"remote_spark_disk":                  appResp.AdvancedSettings.RemoteSparkDisk,
+		"remote_spark_map_clipboard":         appResp.AdvancedSettings.RemoteSparkMapClipboard,
+		"remote_spark_map_disk":              appResp.AdvancedSettings.RemoteSparkMapDisk,
+		"remote_spark_map_printer":           appResp.AdvancedSettings.RemoteSparkMapPrinter,
+		"remote_spark_printer":               appResp.AdvancedSettings.RemoteSparkPrinter,
+		"remote_spark_recording":             appResp.AdvancedSettings.RemoteSparkRecording,
+		"request_body_rewrite":               appResp.AdvancedSettings.RequestBodyRewrite,
+		"saas_enabled":                       appResp.AdvancedSettings.SaaSEnabled,
+		"segmentation_policy_enable":         appResp.AdvancedSettings.SegmentationPolicyEnable,
+		"sentry_redirect_401":                appResp.AdvancedSettings.SentryRedirect401,
+		"sentry_restore_form_post":           appResp.AdvancedSettings.SentryRestoreFormPost,
+		"server_cert_validate":               appResp.AdvancedSettings.ServerCertValidate,
+		"server_request_burst":               appResp.AdvancedSettings.ServerRequestBurst,
+		"service_principle_name":             derefStr(appResp.AdvancedSettings.ServicePrincipalName),
+		"session_sticky":                     appResp.AdvancedSettings.SessionSticky,
+		"session_sticky_cookie_maxage":       appResp.AdvancedSettings.SessionStickyCookieMaxAge,
+		"session_sticky_server_cookie":       derefStr(appResp.AdvancedSettings.SessionStickyServerCookie),
+		"single_host_content_rw":             appResp.AdvancedSettings.SingleHostContentRW,
+		"single_host_cookie_domain":          appResp.AdvancedSettings.SingleHostCookieDomain,
+		"single_host_enable":                 appResp.AdvancedSettings.SingleHostEnable,
+		"single_host_fqdn":                   appResp.AdvancedSettings.SingleHostFQDN,
+		"single_host_path":                   appResp.AdvancedSettings.SingleHostPath,
+		"sla_object_url":                     appResp.AdvancedSettings.SLAObjectURL,
+		"spdy_enabled":                       appResp.AdvancedSettings.SPDYEnabled,
+		"ssh_audit_enabled":                  appResp.AdvancedSettings.SSHAuditEnabled,
+		"sso":                                appResp.AdvancedSettings.SSO,
+		"sticky_agent":                       appResp.AdvancedSettings.StickyAgent,
+		"tls_suite_name":                     derefStr(appResp.AdvancedSettings.TLSSuiteName),
+		"user_name":                          derefStr(appResp.AdvancedSettings.UserName),
+		"wapp_auth":                          appResp.AdvancedSettings.WappAuth,
+		"websocket_enabled":                  appResp.AdvancedSettings.WebSocketEnabled,
+		"wildcard_internal_hostname":         appResp.AdvancedSettings.WildcardInternalHostname,
+		"x_wapp_pool_enabled":                appResp.AdvancedSettings.XWappPoolEnabled,
+		"x_wapp_pool_size":                   appResp.AdvancedSettings.XWappPoolSize,
+		"x_wapp_pool_timeout":                appResp.AdvancedSettings.XWappPoolTimeout,
+		"x_wapp_read_timeout":                appResp.AdvancedSettings.XWappReadTimeout,
+	}
 
-	// Add all the advanced settings fields
-	advSettingsMap["g2o_enabled"] = appResp.AdvancedSettings.G2OEnabled
-	if appResp.AdvancedSettings.G2ONonce != nil {
-		advSettingsMap["g2o_nonce"] = *appResp.AdvancedSettings.G2ONonce
-	}
-	if appResp.AdvancedSettings.G2OKey != nil {
-		advSettingsMap["g2o_key"] = *appResp.AdvancedSettings.G2OKey
-	}
-	advSettingsMap["is_ssl_verification_enabled"] = appResp.AdvancedSettings.IsSSLVerificationEnabled
-	advSettingsMap["ignore_cname_resolution"] = appResp.AdvancedSettings.IgnoreCnameResolution
-	advSettingsMap["edge_authentication_enabled"] = appResp.AdvancedSettings.EdgeAuthenticationEnabled
-	advSettingsMap["edge_cookie_key"] = appResp.AdvancedSettings.EdgeCookieKey
-	advSettingsMap["sla_object_url"] = appResp.AdvancedSettings.SLAObjectURL
-	advSettingsMap["x_wapp_read_timeout"] = appResp.AdvancedSettings.XWappReadTimeout
-	if appResp.AdvancedSettings.InternalHostname != nil {
-		advSettingsMap["internal_hostname"] = *appResp.AdvancedSettings.InternalHostname
-	}
-	advSettingsMap["internal_host_port"] = appResp.AdvancedSettings.InternalHostPort
-	advSettingsMap["wildcard_internal_hostname"] = appResp.AdvancedSettings.WildcardInternalHostname
-	advSettingsMap["ip_access_allow"] = appResp.AdvancedSettings.IPAccessAllow
-	advSettingsMap["allow_cors"] = appResp.AdvancedSettings.AllowCORS
-	advSettingsMap["cors_origin_list"] = appResp.AdvancedSettings.CORSOriginList
-	advSettingsMap["cors_method_list"] = appResp.AdvancedSettings.CORSMethodList
-	advSettingsMap["cors_header_list"] = appResp.AdvancedSettings.CORSHeaderList
-	advSettingsMap["cors_support_credential"] = appResp.AdvancedSettings.CORSSupportCredential
-	advSettingsMap["websocket_enabled"] = appResp.AdvancedSettings.WebSocketEnabled
-	advSettingsMap["sticky_agent"] = appResp.AdvancedSettings.StickyAgent
-	if appResp.AdvancedSettings.AppCookieDomain != nil {
-		advSettingsMap["app_cookie_domain"] = *appResp.AdvancedSettings.AppCookieDomain
-	}
-	if appResp.AdvancedSettings.LogoutURL != nil {
-		advSettingsMap["logout_url"] = *appResp.AdvancedSettings.LogoutURL
-	}
-	advSettingsMap["sentry_redirect_401"] = appResp.AdvancedSettings.SentryRedirect401
-	advSettingsMap["acceleration"] = appResp.AdvancedSettings.Acceleration
-	advSettingsMap["anonymous_server_conn_limit"] = appResp.AdvancedSettings.AnonymousServerConnLimit
-	advSettingsMap["anonymous_server_request_limit"] = appResp.AdvancedSettings.AnonymousServerReqLimit
-	advSettingsMap["app_auth"] = appResp.AdvancedSettings.AppAuth
-	advSettingsMap["app_auth_domain"] = appResp.AdvancedSettings.AppAuthDomain
-	advSettingsMap["app_client_cert_auth"] = appResp.AdvancedSettings.AppClientCertAuth
-	advSettingsMap["app_bundle"] = appResp.AppBundle
-	advSettingsMap["app_location"] = stringPointerValue(appResp.AdvancedSettings.AppLocation)
-	advSettingsMap["app_server_read_timeout"] = appResp.AdvancedSettings.AppServerReadTimeout
-	advSettingsMap["authenticated_server_conn_limit"] = appResp.AdvancedSettings.AuthenticatedServerConnLimit
-	advSettingsMap["authenticated_server_request_limit"] = appResp.AdvancedSettings.AuthenticatedServerReqLimit
-	advSettingsMap["client_cert_auth"] = appResp.AdvancedSettings.ClientCertAuth
-	advSettingsMap["client_cert_user_param"] = appResp.AdvancedSettings.ClientCertUserParam
-	advSettingsMap["cookie_domain"] = stringPointerValue(appResp.AdvancedSettings.CookieDomain)
-	advSettingsMap["disable_user_agent_check"] = appResp.AdvancedSettings.DisableUserAgentCheck
-	advSettingsMap["domain_exception_list"] = appResp.AdvancedSettings.DomainExceptionList
-	advSettingsMap["edge_transport_manual_mode"] = appResp.AdvancedSettings.EdgeTransportManualMode
-	advSettingsMap["edge_transport_property_id"] = stringPointerValue(appResp.AdvancedSettings.EdgeTransportPropertyID)
-	advSettingsMap["enable_client_side_xhr_rewrite"] = appResp.AdvancedSettings.EnableClientSideXHRRewrite
-	advSettingsMap["external_cookie_domain"] = stringPointerValue(appResp.AdvancedSettings.ExternalCookieDomain)
-	advSettingsMap["force_ip_route"] = appResp.AdvancedSettings.ForceIPRoute
-	advSettingsMap["force_mfa"] = appResp.AdvancedSettings.ForceMFA
-	advSettingsMap["form_post_attributes"] = appResp.AdvancedSettings.FormPostAttributes
-	advSettingsMap["form_post_url"] = appResp.AdvancedSettings.FormPostURL
-	advSettingsMap["forward_ticket_granting_ticket"] = appResp.AdvancedSettings.ForwardTicketGrantingTicket
-	advSettingsMap["health_check_fall"] = appResp.AdvancedSettings.HealthCheckFall
-	advSettingsMap["health_check_http_host_header"] = stringPointerValue(appResp.AdvancedSettings.HealthCheckHTTPHostHeader)
-	advSettingsMap["health_check_http_url"] = appResp.AdvancedSettings.HealthCheckHTTPURL
-	advSettingsMap["health_check_http_version"] = appResp.AdvancedSettings.HealthCheckHTTPVersion
-	advSettingsMap["health_check_interval"] = appResp.AdvancedSettings.HealthCheckInterval
-	advSettingsMap["health_check_rise"] = appResp.AdvancedSettings.HealthCheckRise
-	advSettingsMap["health_check_timeout"] = appResp.AdvancedSettings.HealthCheckTimeout
-	advSettingsMap["health_check_type"] = client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
-	advSettingsMap["hidden_app"] = appResp.AdvancedSettings.HiddenApp
-	advSettingsMap["host_key"] = stringPointerValue(appResp.AdvancedSettings.HostKey)
-	advSettingsMap["hsts_age"] = appResp.AdvancedSettings.HSTSage
-	advSettingsMap["http_only_cookie"] = appResp.AdvancedSettings.HTTPOnlyCookie
-	advSettingsMap["https_sslv3"] = appResp.AdvancedSettings.HTTPSSSLV3
-	advSettingsMap["idle_close_time_seconds"] = appResp.AdvancedSettings.IdleCloseTimeSeconds
-	advSettingsMap["idle_conn_ceil"] = appResp.AdvancedSettings.IdleConnCeil
-	advSettingsMap["idle_conn_floor"] = appResp.AdvancedSettings.IdleConnFloor
-	advSettingsMap["idle_conn_step"] = appResp.AdvancedSettings.IdleConnStep
-	advSettingsMap["idp_idle_expiry"] = stringPointerValue(appResp.AdvancedSettings.IDPIdleExpiry)
-	advSettingsMap["idp_max_expiry"] = stringPointerValue(appResp.AdvancedSettings.IDPMaxExpiry)
-	advSettingsMap["ignore_bypass_mfa"] = appResp.AdvancedSettings.IgnoreBypassMFA
-	advSettingsMap["inject_ajax_javascript"] = appResp.AdvancedSettings.InjectAjaxJavascript
-	advSettingsMap["intercept_url"] = appResp.AdvancedSettings.InterceptURL
-	advSettingsMap["is_brotli_enabled"] = appResp.AdvancedSettings.IsBrotliEnabled
-	advSettingsMap["keepalive_connection_pool"] = appResp.AdvancedSettings.KeepaliveConnectionPool
-	advSettingsMap["keepalive_enable"] = appResp.AdvancedSettings.KeepaliveEnable
-	advSettingsMap["keepalive_timeout"] = appResp.AdvancedSettings.KeepaliveTimeout
-	advSettingsMap["load_balancing_metric"] = appResp.AdvancedSettings.LoadBalancingMetric
-	advSettingsMap["logging_enabled"] = appResp.AdvancedSettings.LoggingEnabled
-	advSettingsMap["login_timeout"] = appResp.AdvancedSettings.LoginTimeout
-	advSettingsMap["login_url"] = stringPointerValue(appResp.AdvancedSettings.LoginURL)
-	advSettingsMap["mdc_enable"] = appResp.AdvancedSettings.MDCEnable
-	advSettingsMap["mfa"] = appResp.AdvancedSettings.MFA
-	advSettingsMap["offload_onpremise_traffic"] = appResp.AdvancedSettings.OffloadOnPremiseTraffic
-	advSettingsMap["onramp"] = appResp.AdvancedSettings.Onramp
-	advSettingsMap["pass_phrase"] = stringPointerValue(appResp.AdvancedSettings.PassPhrase)
-	advSettingsMap["preauth_consent"] = appResp.AdvancedSettings.PreauthConsent
-	advSettingsMap["preauth_enforce_url"] = appResp.AdvancedSettings.PreauthEnforceURL
-	advSettingsMap["private_key"] = stringPointerValue(appResp.AdvancedSettings.PrivateKey)
-	advSettingsMap["remote_spark_audio"] = appResp.AdvancedSettings.RemoteSparkAudio
-	advSettingsMap["remote_spark_disk"] = appResp.AdvancedSettings.RemoteSparkDisk
-	advSettingsMap["remote_spark_map_clipboard"] = appResp.AdvancedSettings.RemoteSparkMapClipboard
-	advSettingsMap["remote_spark_map_disk"] = appResp.AdvancedSettings.RemoteSparkMapDisk
-	advSettingsMap["remote_spark_map_printer"] = appResp.AdvancedSettings.RemoteSparkMapPrinter
-	advSettingsMap["remote_spark_printer"] = appResp.AdvancedSettings.RemoteSparkPrinter
-	advSettingsMap["remote_spark_recording"] = appResp.AdvancedSettings.RemoteSparkRecording
-	advSettingsMap["request_body_rewrite"] = appResp.AdvancedSettings.RequestBodyRewrite
-	advSettingsMap["request_parameters"] = appResp.AdvancedSettings.RequestParameters
-	advSettingsMap["saas_enabled"] = appResp.AdvancedSettings.SaaSEnabled
-	advSettingsMap["segmentation_policy_enable"] = appResp.AdvancedSettings.SegmentationPolicyEnable
-	advSettingsMap["sentry_restore_form_post"] = appResp.AdvancedSettings.SentryRestoreFormPost
-	advSettingsMap["server_cert_validate"] = appResp.AdvancedSettings.ServerCertValidate
-	advSettingsMap["server_request_burst"] = appResp.AdvancedSettings.ServerRequestBurst
-	advSettingsMap["service_principle_name"] = stringPointerValue(appResp.AdvancedSettings.ServicePrincipalName)
-	advSettingsMap["session_sticky"] = appResp.AdvancedSettings.SessionSticky
-	advSettingsMap["session_sticky_cookie_maxage"] = appResp.AdvancedSettings.SessionStickyCookieMaxAge
-	advSettingsMap["session_sticky_server_cookie"] = stringPointerValue(appResp.AdvancedSettings.SessionStickyServerCookie)
-	advSettingsMap["single_host_content_rw"] = appResp.AdvancedSettings.SingleHostContentRW
-	advSettingsMap["single_host_cookie_domain"] = appResp.AdvancedSettings.SingleHostCookieDomain
-	advSettingsMap["single_host_enable"] = appResp.AdvancedSettings.SingleHostEnable
-	advSettingsMap["single_host_fqdn"] = appResp.AdvancedSettings.SingleHostFQDN
-	advSettingsMap["single_host_path"] = appResp.AdvancedSettings.SingleHostPath
-	advSettingsMap["spdy_enabled"] = appResp.AdvancedSettings.SPDYEnabled
-	advSettingsMap["ssh_audit_enabled"] = appResp.AdvancedSettings.SSHAuditEnabled
-	advSettingsMap["sso"] = appResp.AdvancedSettings.SSO
-	advSettingsMap["user_name"] = stringPointerValue(appResp.AdvancedSettings.UserName)
-	advSettingsMap["wapp_auth"] = appResp.AdvancedSettings.WappAuth
-	advSettingsMap["x_wapp_pool_enabled"] = appResp.AdvancedSettings.XWappPoolEnabled
-	advSettingsMap["x_wapp_pool_size"] = convertStringToInt(appResp.AdvancedSettings.XWappPoolSize)
-	advSettingsMap["x_wapp_pool_timeout"] = convertStringToInt(appResp.AdvancedSettings.XWappPoolTimeout)
-	advSettingsMap["rdp_keyboard_lang"] = appResp.AdvancedSettings.RDPKeyboardLang
-	advSettingsMap["rdp_remote_apps"] = appResp.AdvancedSettings.RDPRemoteApps
-	advSettingsMap["rdp_window_color_depth"] = appResp.AdvancedSettings.RDPWindowColorDepth
-	advSettingsMap["rdp_window_height"] = appResp.AdvancedSettings.RDPWindowHeight
-	advSettingsMap["rdp_window_width"] = appResp.AdvancedSettings.RDPWindowWidth
-
-	// Handle CORS max age
-	if appResp.AdvancedSettings.CORSMaxAge != "" {
-		if corsAge, err := strconv.Atoi(appResp.AdvancedSettings.CORSMaxAge); err == nil {
-			advSettingsMap["cors_max_age"] = corsAge
+	// tls_suite_type: int -> descriptive string
+	if appResp.AdvancedSettings.TLSSuiteType != nil {
+		switch *appResp.AdvancedSettings.TLSSuiteType {
+		case 1:
+			m["tls_suite_type"] = "default"
+		case 2:
+			m["tls_suite_type"] = "custom"
+		default:
+			m["tls_suite_type"] = ""
 		}
 	}
 
-	// Handle custom headers
+	// form_post_attributes: []string -> JSON string
+	if len(appResp.AdvancedSettings.FormPostAttributes) > 0 {
+		fpaJSON, err := json.Marshal(appResp.AdvancedSettings.FormPostAttributes)
+		if err != nil {
+			return diag.Errorf("failed to marshal form_post_attributes to JSON: %v", err)
+		}
+		m["form_post_attributes"] = string(fpaJSON)
+	}
+
+	// request_parameters: map -> JSON string
+	if len(appResp.AdvancedSettings.RequestParameters) > 0 {
+		rpJSON, err := json.Marshal(appResp.AdvancedSettings.RequestParameters)
+		if err != nil {
+			return diag.Errorf("failed to marshal request_parameters to JSON: %v", err)
+		}
+		m["request_parameters"] = string(rpJSON)
+	}
+
+	// custom_headers: []CustomHeader -> JSON string
 	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
-		advSettingsMap["custom_headers"] = appResp.AdvancedSettings.CustomHeaders
+		chJSON, err := json.Marshal(appResp.AdvancedSettings.CustomHeaders)
+		if err != nil {
+			return diag.Errorf("failed to marshal custom_headers to JSON: %v", err)
+		}
+		m["custom_headers"] = string(chJSON)
 	}
 
-	// Convert to JSON string
-	advSettingsJSON, err := json.Marshal(advSettingsMap)
-	if err != nil {
-		return diag.Errorf("failed to marshal advanced settings to JSON: %v", err)
+	// rdp_remote_apps: []RemoteApp -> JSON string
+	if len(appResp.AdvancedSettings.RDPRemoteApps) > 0 {
+		rdpJSON, err := json.Marshal(appResp.AdvancedSettings.RDPRemoteApps)
+		if err != nil {
+			return diag.Errorf("failed to marshal rdp_remote_apps to JSON: %v", err)
+		}
+		m["rdp_remote_apps"] = string(rdpJSON)
 	}
 
-	err = d.Set("advanced_settings", string(advSettingsJSON))
-	if err != nil {
+	if err := d.Set("advanced_settings", m); err != nil {
 		return diag.FromErr(err)
 	}
 

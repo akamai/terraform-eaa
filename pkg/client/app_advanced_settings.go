@@ -163,6 +163,84 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 	return advSettings, nil
 }
 
+// advancedSettingsFromBlock builds an *AdvancedSettings from a Terraform TypeList block
+// (map[string]interface{} produced by d.GetOk("advanced_settings") -> list[0]).
+// It normalises the special-typed fields (TypeList of strings, TypeMap, JSON-string complex fields)
+// and then delegates to ParseAdvancedSettingsWithDefaults for everything else.
+func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings, error) {
+	// Build a flat map[string]interface{} that ParseAdvancedSettingsWithDefaults understands.
+	// Most fields are already TypeString so they pass through unchanged.
+	flat := make(map[string]interface{}, len(block))
+	for k, v := range block {
+		flat[k] = v
+	}
+
+	// form_post_attributes: stored as JSON string in TypeMap; decode to []interface{} for reflection.
+	if fpaStr, ok := block["form_post_attributes"].(string); ok && fpaStr != "" {
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(fpaStr), &decoded); err == nil {
+			flat["form_post_attributes"] = decoded
+		} else {
+			flat["form_post_attributes"] = []interface{}{}
+		}
+	} else {
+		flat["form_post_attributes"] = []interface{}{}
+	}
+
+	// custom_headers: stored as JSON string in state; decode back to []interface{} for reflection.
+	if chStr, ok := block["custom_headers"].(string); ok && chStr != "" {
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(chStr), &decoded); err == nil {
+			flat["custom_headers"] = decoded
+		} else {
+			flat["custom_headers"] = []interface{}{}
+		}
+	} else {
+		flat["custom_headers"] = []interface{}{}
+	}
+
+	// rdp_remote_apps: stored as JSON string; decode and set on struct after ParseWithDefaults.
+	var rdpRemoteApps []RemoteApp
+	if rdpStr, ok := block["rdp_remote_apps"].(string); ok && rdpStr != "" {
+		if err := json.Unmarshal([]byte(rdpStr), &rdpRemoteApps); err != nil {
+			return nil, fmt.Errorf("invalid rdp_remote_apps JSON: %w", err)
+		}
+	}
+	// Remove from flat map so applyAdvancedSettingsWithReflection doesn't try to handle the string.
+	delete(flat, "rdp_remote_apps")
+
+	// request_parameters: stored as JSON string in TypeMap; decode to map[string]interface{} for reflection.
+	if rpStr, ok := block["request_parameters"].(string); ok && rpStr != "" {
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(rpStr), &decoded); err == nil {
+			flat["request_parameters"] = decoded
+		}
+	}
+
+	// tls_suite_type / tls_suite_name are handled at the call site (CREATE/UPDATE flows),
+	// not inside AdvancedSettings struct. Remove them so reflection doesn't try to find them.
+	delete(flat, "tls_suite_type")
+	delete(flat, "tls_suite_name")
+
+	// Marshal to JSON and reuse ParseAdvancedSettingsWithDefaults so all defaults are applied.
+	jsonBytes, err := json.Marshal(flat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal advanced settings block: %w", err)
+	}
+
+	advSettings, err := ParseAdvancedSettingsWithDefaults(string(jsonBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	// Restore rdp_remote_apps that was excluded from the flat map.
+	if len(rdpRemoteApps) > 0 {
+		advSettings.RDPRemoteApps = rdpRemoteApps
+	}
+
+	return advSettings, nil
+}
+
 // applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
 // This eliminates the need for the massive switch statement and makes the code much more maintainable
 func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {

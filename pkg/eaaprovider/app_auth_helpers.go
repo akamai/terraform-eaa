@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"fmt"
+	"slices"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -55,16 +56,23 @@ func getResourceDiffBool(d *schema.ResourceDiff, key string) bool {
 	return ok && boolValue
 }
 
-// getAppAuthFromSchema extracts app_auth from advanced_settings in the schema
+// getAppAuthFromSchema extracts app_auth from the advanced_settings TypeList block in the schema
 func getAppAuthFromSchema(getter SchemaGetter) string {
-	var appAuth string
-	if advSettingsData, ok := getter.GetOk("advanced_settings"); ok {
-		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
-			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
-			if err == nil && advSettings != nil {
-				appAuth = advSettings.AppAuth
-			}
-		}
+	advSettingsData, ok := getter.GetOk("advanced_settings")
+	if !ok {
+		return ""
+	}
+	list, ok := advSettingsData.([]interface{})
+	if !ok || len(list) == 0 {
+		return ""
+	}
+	block, ok := list[0].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	appAuth, ok := block["app_auth"].(string)
+	if !ok {
+		return ""
 	}
 	return appAuth
 }
@@ -108,10 +116,8 @@ func shouldEnableAuthForSchema(getter SchemaGetter, config AuthEnableConfig) boo
 	appAuth := getAppAuthFromSchema(getter)
 
 	// Check appAuth values
-	for _, appAuthValue := range config.AppAuthValues {
-		if appAuth == appAuthValue {
-			return true
-		}
+	if slices.Contains(config.AppAuthValues, appAuth) {
+		return true
 	}
 
 	// Check if settings exist in schema

@@ -1,7 +1,6 @@
 package eaaprovider
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -36,23 +35,18 @@ func validateAdvancedSettingsWarningDiagnostics(d *schema.ResourceData, logger h
 		}
 	}
 
-	advancedSettingsStr, ok := d.GetOk("advanced_settings")
+	advRaw, ok := d.GetOk("advanced_settings")
 	if !ok {
 		return nil
 	}
 
-	advancedSettingsJSON, ok := advancedSettingsStr.(string)
-	if !ok || advancedSettingsJSON == "" || advancedSettingsJSON == "{}" {
-		return nil
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advancedSettingsJSON), &settings); err != nil {
-		// JSON validity is handled by schema validation; ignore here to avoid duplicate blocking behavior.
+	settings, ok := advRaw.(map[string]interface{})
+	if !ok || len(settings) == 0 {
 		return nil
 	}
 
 	var diags diag.Diagnostics
+
 	diags = append(diags, client.ValidateAdvancedSettings(settings, appType, appProfile, clientAppMode, logger)...)
 	diags = append(diags, client.ValidateHealthCheckConfiguration(settings, appType, appProfile, logger)...)
 
@@ -145,37 +139,6 @@ func validateTLSSuiteRestrictions(appType, appProfile string, settings map[strin
 	}
 
 	return nil
-}
-
-// validateAdvancedSettingsJSON validates that advanced_settings is valid JSON
-func validateAdvancedSettingsJSON(i interface{}, k string) ([]string, []error) {
-	var warnings []string
-	var errs []error
-
-	// Get the advanced_settings value
-	advancedSettingsStr, ok := i.(string)
-	if !ok {
-		errs = append(errs, client.ErrAdvancedSettingsNotString)
-		return warnings, errs
-	}
-
-	// If empty, it's valid (will use defaults)
-	if advancedSettingsStr == "" || advancedSettingsStr == "{}" {
-		return warnings, errs
-	}
-
-	// Parse the JSON to validate it's valid
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
-		errs = append(errs, client.ErrAdvancedSettingsInvalidJSON)
-		return warnings, errs
-	}
-
-	// For now, we can't access app_type from ValidateFunc
-	// This is a limitation of the Terraform SDK
-	// We'll need to use a different approach
-
-	return warnings, errs
 }
 
 // validateTunnelAppAdvancedSettings validates that tunnel apps only use allowed parameter categories
