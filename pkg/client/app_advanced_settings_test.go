@@ -97,6 +97,158 @@ func TestParseAdvancedSettingsRemoteSparkSnakeCaseAliases(t *testing.T) {
 	}
 }
 
+func TestAdvancedSettingsFromBlockDecodesFormPostAttributes(t *testing.T) {
+	block := map[string]interface{}{
+		"form_post_attributes": `["attr1","attr2"]`,
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	if len(got.FormPostAttributes) != 2 || got.FormPostAttributes[0] != "attr1" || got.FormPostAttributes[1] != "attr2" {
+		t.Fatalf("FormPostAttributes = %v, want [attr1 attr2]", got.FormPostAttributes)
+	}
+}
+
+func TestAdvancedSettingsFromBlockEmptyFormPostAttributes(t *testing.T) {
+	block := map[string]interface{}{
+		"form_post_attributes": "",
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	if got.FormPostAttributes == nil {
+		t.Fatal("FormPostAttributes = nil, want empty slice")
+	}
+}
+
+func TestAdvancedSettingsFromBlockErrorOnInvalidFormPostAttributes(t *testing.T) {
+	block := map[string]interface{}{
+		"form_post_attributes": `not-json`,
+	}
+	_, err := advancedSettingsFromBlock(block)
+	if err == nil {
+		t.Fatal("expected error for invalid form_post_attributes JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid form_post_attributes JSON") {
+		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid form_post_attributes JSON")
+	}
+}
+
+func TestAdvancedSettingsFromBlockDecodesCustomHeaders(t *testing.T) {
+	block := map[string]interface{}{
+		"custom_headers": `[{"attribute_type":"static","header":"X-Foo","attribute":"bar"}]`,
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	if len(got.CustomHeaders) != 1 {
+		t.Fatalf("CustomHeaders len = %d, want 1", len(got.CustomHeaders))
+	}
+	h := got.CustomHeaders[0]
+	if h.AttributeType != "static" || h.Header != "X-Foo" || h.Attribute != "bar" {
+		t.Fatalf("CustomHeaders[0] = %+v, want {static X-Foo bar}", h)
+	}
+}
+
+func TestAdvancedSettingsFromBlockErrorOnInvalidCustomHeaders(t *testing.T) {
+	block := map[string]interface{}{
+		"custom_headers": `{bad json`,
+	}
+	_, err := advancedSettingsFromBlock(block)
+	if err == nil {
+		t.Fatal("expected error for invalid custom_headers JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid custom_headers JSON") {
+		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid custom_headers JSON")
+	}
+}
+
+func TestAdvancedSettingsFromBlockDecodesRequestParameters(t *testing.T) {
+	block := map[string]interface{}{
+		"request_parameters": `{"key":"value"}`,
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	if got.RequestParameters == nil {
+		t.Fatal("RequestParameters = nil, want non-nil map")
+	}
+	if got.RequestParameters["key"] != "value" {
+		t.Fatalf("RequestParameters[key] = %v, want value", got.RequestParameters["key"])
+	}
+}
+
+func TestAdvancedSettingsFromBlockErrorOnInvalidRequestParameters(t *testing.T) {
+	block := map[string]interface{}{
+		"request_parameters": `[not a map]`,
+	}
+	_, err := advancedSettingsFromBlock(block)
+	if err == nil {
+		t.Fatal("expected error for invalid request_parameters JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid request_parameters JSON") {
+		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid request_parameters JSON")
+	}
+}
+
+func TestAdvancedSettingsFromBlockDecodesRDPRemoteApps(t *testing.T) {
+	block := map[string]interface{}{
+		"rdp_remote_apps": `[{"remote_app":"notepad","remote_app_args":"/f","remote_app_dir":"C:\\"}]`,
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	if len(got.RDPRemoteApps) != 1 {
+		t.Fatalf("RDPRemoteApps len = %d, want 1", len(got.RDPRemoteApps))
+	}
+	app := got.RDPRemoteApps[0]
+	if app.RemoteApp != "notepad" || app.RemoteAppArgs != "/f" {
+		t.Fatalf("RDPRemoteApps[0] = %+v, want {notepad /f ...}", app)
+	}
+}
+
+func TestAdvancedSettingsFromBlockErrorOnInvalidRDPRemoteApps(t *testing.T) {
+	block := map[string]interface{}{
+		"rdp_remote_apps": `not-json`,
+	}
+	_, err := advancedSettingsFromBlock(block)
+	if err == nil {
+		t.Fatal("expected error for invalid rdp_remote_apps JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid rdp_remote_apps JSON") {
+		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid rdp_remote_apps JSON")
+	}
+}
+
+func TestAdvancedSettingsFromBlockStripesTLSKeys(t *testing.T) {
+	block := map[string]interface{}{
+		"tls_suite_type": "1",
+		"tls_suite_name": "tls-1-2",
+		"acceleration":   "true",
+	}
+	got, err := advancedSettingsFromBlock(block)
+	if err != nil {
+		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
+	}
+	// TLS keys are stripped — they must not land in ExtraFields.
+	if got.ExtraFields != nil {
+		if _, hasTLSType := got.ExtraFields["tls_suite_type"]; hasTLSType {
+			t.Fatal("tls_suite_type should not appear in ExtraFields")
+		}
+		if _, hasTLSName := got.ExtraFields["tls_suite_name"]; hasTLSName {
+			t.Fatal("tls_suite_name should not appear in ExtraFields")
+		}
+	}
+	if got.Acceleration != "true" {
+		t.Fatalf("Acceleration = %q, want true", got.Acceleration)
+	}
+}
+
 func TestParseAdvancedSettingsAppliesPointerStringFields(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
 		"external_cookie_domain": "",

@@ -596,6 +596,11 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 							continue
 						}
 					}
+				case reflect.Map:
+					rv := reflect.ValueOf(value)
+					if rv.IsValid() && rv.Type().AssignableTo(field.Type()) {
+						field.Set(rv)
+					}
 				}
 			}
 		} else if !internalOnlyKeys[jsonKey] {

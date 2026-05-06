@@ -1945,7 +1945,7 @@ func (a *AdvancedSettings) MarshalJSON() ([]byte, error) {
 	for k, v := range a.ExtraFields {
 		raw, err := json.Marshal(v)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("marshaling extra field %q: %w", k, err)
 		}
 		merged[k] = raw
 	}
@@ -2113,7 +2113,7 @@ func (a *AdvancedSettingsComplete) MarshalJSON() ([]byte, error) {
 	for k, v := range a.ExtraFields {
 		raw, err := json.Marshal(v)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("marshaling extra field %q: %w", k, err)
 		}
 		merged[k] = raw
 	}
