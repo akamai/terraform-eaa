@@ -215,14 +215,12 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 
 	// Check if app_auth matches any of the valid values in advanced_settings
 	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if list, ok := advSettingsData.([]interface{}); ok && len(list) > 0 {
-			if block, ok := list[0].(map[string]interface{}); ok {
-				if appAuthVal, ok := block["app_auth"].(string); ok && appAuthVal != "" {
-					for _, validValue := range config.AppAuthValues {
-						if appAuthVal == validValue {
-							logger.Debug("%s enabled via app_auth=%s in advanced_settings block", config.ProtocolName, appAuthVal)
-							return true
-						}
+		if settingsMap, ok := advSettingsData.(map[string]interface{}); ok {
+			if appAuthVal, ok := settingsMap["app_auth"].(string); ok && appAuthVal != "" {
+				for _, validValue := range config.AppAuthValues {
+					if appAuthVal == validValue {
+						logger.Debug("%s enabled via app_auth=%s in advanced_settings map", config.ProtocolName, appAuthVal)
+						return true
 					}
 				}
 			}

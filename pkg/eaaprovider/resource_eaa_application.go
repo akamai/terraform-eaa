@@ -775,7 +775,7 @@ func resourceEaaApplication() *schema.Resource {
 				Elem:             &schema.Schema{Type: schema.TypeString},
 				DiffSuppressFunc: suppressServerComputedAdvSettingsKey,
 				Description: "Flat map of advanced settings key/value pairs. All values are strings. " +
-					"Known keys are validated; unrecognised keys are passed to the API as-is with a warning (the API may silently ignore them). " +
+					"Entries are passed to the API as provided; unsupported keys may be ignored by the API.  " +
 					"Complex fields (form_post_attributes, request_parameters, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
 			},
 			"app_bundle": {

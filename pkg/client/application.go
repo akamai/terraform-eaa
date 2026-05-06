@@ -2091,9 +2091,33 @@ type AdvancedSettingsComplete struct {
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
 	ForceIPRoute                 string                 `json:"force_ip_route,omitempty"`
+	ExtraFields                  map[string]interface{} `json:"-"`
 	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
 	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
 	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
+}
+
+func (a *AdvancedSettingsComplete) MarshalJSON() ([]byte, error) {
+	type Alias AdvancedSettingsComplete
+	base, err := json.Marshal(Alias(*a))
+	if err != nil {
+		return nil, err
+	}
+	if len(a.ExtraFields) == 0 {
+		return base, nil
+	}
+	var merged map[string]json.RawMessage
+	if err := json.Unmarshal(base, &merged); err != nil {
+		return nil, err
+	}
+	for k, v := range a.ExtraFields {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		merged[k] = raw
+	}
+	return json.Marshal(merged)
 }
 
 type OIDCSettings struct {

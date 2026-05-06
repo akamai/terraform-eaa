@@ -163,8 +163,8 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 	return advSettings, nil
 }
 
-// advancedSettingsFromBlock builds an *AdvancedSettings from a Terraform TypeList block
-// (map[string]interface{} produced by d.GetOk("advanced_settings") -> list[0]).
+// advancedSettingsFromBlock builds an *AdvancedSettings from the Terraform TypeMap
+// value for advanced_settings (a map[string]interface{} from d.GetOk("advanced_settings")).
 // It normalises the special-typed fields (TypeList of strings, TypeMap, JSON-string complex fields)
 // and then delegates to ParseAdvancedSettingsWithDefaults for everything else.
 func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings, error) {
