@@ -16,95 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// TestValidateAdvancedSettingsWithSchema tests the validateAdvancedSettingsWithSchema function
-func TestValidateAdvancedSettingsWithSchema(t *testing.T) {
-	tests := []struct {
-		name             string
-		input            string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name:          "valid empty JSON",
-			input:         "{}",
-			expectedError: false,
-		},
-		{
-			name:          "valid empty string",
-			input:         "",
-			expectedError: false,
-		},
-		{
-			name:          "valid advanced settings",
-			input:         `{"g2o_enabled": "true", "is_ssl_verification_enabled": "false", "ignore_cname_resolution": "true"}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-		{
-			name:          "valid with numeric values",
-			input:         `{"x_wapp_pool_size": 10, "x_wapp_pool_timeout": 300, "x_wapp_read_timeout": 30}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-		{
-			name:          "valid with enum values",
-			input:         `{"acceleration": "true", "allow_cors": "false", "client_cert_auth": "true"}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-		{
-			name:          "valid with pattern values",
-			input:         `{"anonymous_server_conn_limit": "100", "health_check_interval": "10", "cors_max_age": "3600"}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-		{
-			name:             "invalid JSON format",
-			input:            `{"g2o_enabled": "true", "is_ssl_verification_enabled": "false"`,
-			expectedError:    true,
-			expectedErrorMsg: "invalid JSON format",
-		},
-		{
-			name:             "invalid enum value",
-			input:            `{"g2o_enabled": "invalid"}`,
-			expectedError:    true,
-			expectedErrorMsg: "setting 'g2o_enabled' is not allowed for app_type=''. Allowed app types: [enterprise]",
-		},
-		{
-			name:             "invalid pattern value",
-			input:            `{"anonymous_server_conn_limit": "invalid"}`,
-			expectedError:    true,
-			expectedErrorMsg: "unknown setting 'anonymous_server_conn_limit' in advanced_settings",
-		},
-		{
-			name:             "invalid numeric range",
-			input:            `{"x_wapp_pool_size": 100}`,
-			expectedError:    true,
-			expectedErrorMsg: "setting 'x_wapp_pool_size' is not allowed for app_type=''. Allowed app types: [tunnel]",
-		},
-		{
-			name:             "invalid type",
-			input:            `{"x_wapp_pool_size": "invalid"}`,
-			expectedError:    true,
-			expectedErrorMsg: "setting 'x_wapp_pool_size' is not allowed for app_type=''. Allowed app types: [tunnel]",
-		},
-		{
-			name:          "valid nullable field",
-			input:         `{"app_auth_domain": null}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-		{
-			name:          "missing required field",
-			input:         `{"g2o_enabled": "true"}`,
-			expectedError: true, // Schema validation now enforces app types
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Note: ValidateAdvancedSettingsWithSchema was removed as it was redundant
-			// This test case is no longer applicable since we consolidated validation logic
-			t.Skip("Test case skipped - ValidateAdvancedSettingsWithSchema was removed")
-		})
-	}
-}
-
 // TestHelperFunctions tests the helper functions
 func TestHelperFunctions(t *testing.T) {
 	t.Run("convertStringToInt", func(t *testing.T) {
@@ -144,15 +55,23 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("mapAdvancedSettingsFromResponse preserves empty strings", func(t *testing.T) {
+	t.Run("mapAdvancedSettingsFromResponse only writes back keys present in state", func(t *testing.T) {
 		resource := resourceEaaApplication()
-		d := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{})
+		// Pre-populate state with a subset of keys to simulate a user who only set these.
+		d := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{
+			"advanced_settings": map[string]interface{}{
+				"user_name":              "",
+				"service_principle_name": "",
+				"websocket_enabled":      "true",
+			},
+		})
 
-		empty := ""
 		appResp := &client.ApplicationResponse{}
-		appResp.AdvancedSettings.UserName = &empty
-		appResp.AdvancedSettings.ServicePrincipalName = &empty
-		appResp.AdvancedSettings.LoginURL = nil
+		appResp.AdvancedSettings.WebSocketEnabled = "true"
+		// user_name and service_principle_name come back empty from API.
+		// Many other fields come back with default values.
+		appResp.AdvancedSettings.Acceleration = "true"
+		appResp.AdvancedSettings.AllowCORS = "false"
 
 		if diags := mapAdvancedSettingsFromResponse(d, appResp); diags.HasError() {
 			t.Fatalf("mapAdvancedSettingsFromResponse returned errors: %v", diags)
@@ -164,225 +83,25 @@ func TestHelperFunctions(t *testing.T) {
 			t.Fatalf("advanced_settings type = %T, want map[string]interface{}", advancedSettingsRaw)
 		}
 
+		// Keys in prior state are refreshed.
+		if got := settings["websocket_enabled"]; got != "true" {
+			t.Errorf("websocket_enabled = %#v, want %q", got, "true")
+		}
 		if got, ok := settings["user_name"].(string); !ok || got != "" {
-			t.Fatalf("user_name = %#v, want empty string", settings["user_name"])
+			t.Errorf("user_name = %#v, want empty string", settings["user_name"])
 		}
 		if got, ok := settings["service_principle_name"].(string); !ok || got != "" {
-			t.Fatalf("service_principle_name = %#v, want empty string", settings["service_principle_name"])
+			t.Errorf("service_principle_name = %#v, want empty string", settings["service_principle_name"])
 		}
-		if got, ok := settings["login_url"].(string); ok && got != "" {
-			t.Fatalf("login_url = %#v, want empty string", got)
+
+		// Keys NOT in prior state must not be injected even when the API returns them.
+		if _, present := settings["acceleration"]; present {
+			t.Errorf("acceleration should not be in state when not in prior config/state")
+		}
+		if _, present := settings["allow_cors"]; present {
+			t.Errorf("allow_cors should not be in state when not in prior config/state")
 		}
 	})
-}
-
-// TestValidateHealthCheckConfiguration tests the validateHealthCheckConfiguration function
-func TestValidateHealthCheckConfiguration(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
-	tests := []struct {
-		name       string
-		settings   map[string]interface{}
-		appType    string
-		appProfile string
-		expectWarn bool
-	}{
-		{
-			name:       "tunnel app - valid TCP health check",
-			settings:   map[string]interface{}{"health_check_type": "TCP"},
-			appType:    "tunnel",
-			appProfile: "tcp",
-			expectWarn: false, // TCP health check is now allowed for tunnel apps
-		},
-		{
-			name:       "enterprise app - valid TCP health check",
-			settings:   map[string]interface{}{"health_check_type": "TCP"},
-			appType:    "enterprise",
-			appProfile: "tcp",
-			expectWarn: false, // TCP health check is now allowed for enterprise apps
-		},
-		{
-			name:       "enterprise app - valid HTTP health check",
-			settings:   map[string]interface{}{"health_check_type": "HTTP", "health_check_http_url": "/health", "health_check_http_version": "1.1", "health_check_http_host_header": "example.com"},
-			appType:    "enterprise",
-			appProfile: "http",
-			expectWarn: false,
-		},
-		{
-			name:       "enterprise app - invalid health check type",
-			settings:   map[string]interface{}{"health_check_type": "INVALID"},
-			appType:    "enterprise",
-			appProfile: "tcp",
-			expectWarn: true,
-		},
-		{
-			name:       "enterprise app - missing health check type",
-			settings:   map[string]interface{}{},
-			appType:    "enterprise",
-			appProfile: "tcp",
-			expectWarn: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			diags := client.ValidateHealthCheckConfiguration(tt.settings, tt.appType, tt.appProfile, logger)
-
-			if tt.expectWarn && len(diags) == 0 {
-				t.Errorf("Expected warning but got none")
-			}
-			if !tt.expectWarn && len(diags) != 0 {
-				t.Errorf("Unexpected warnings: %v", diags)
-			}
-		})
-	}
-}
-
-// TestValidateTunnelClientParameters tests the validateTunnelClientParameters function
-func TestValidateTunnelClientParameters(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
-	tests := []struct {
-		name          string
-		settings      map[string]interface{}
-		appType       string
-		clientAppMode string
-		expectWarn    bool
-	}{
-		{
-			name:          "tunnel app with valid tunnel client parameters",
-			settings:      map[string]interface{}{"acceleration": "true", "force_ip_route": "false"},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    false,
-		},
-		{
-			name:          "tunnel app with domain_exception_list and wildcard enabled",
-			settings:      map[string]interface{}{"domain_exception_list": "test.com,example.com", "wildcard_internal_hostname": "true"},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    false,
-		},
-		{
-			name:          "tunnel app with domain_exception_list without wildcard",
-			settings:      map[string]interface{}{"domain_exception_list": "test.com,example.com"},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    true,
-		},
-		{
-			name:          "enterprise app with tunnel client parameters - should fail",
-			settings:      map[string]interface{}{"acceleration": "true"},
-			appType:       "enterprise",
-			clientAppMode: "tunnel",
-			expectWarn:    true,
-		},
-		{
-			name:          "tunnel app with invalid client app mode",
-			settings:      map[string]interface{}{"acceleration": "true"},
-			appType:       "tunnel",
-			clientAppMode: "enterprise",
-			expectWarn:    false, // Current validation logic only checks appType, not clientAppMode consistency
-		},
-		{
-			name:          "tunnel app with invalid x_wapp_pool_size",
-			settings:      map[string]interface{}{"x_wapp_pool_size": "100"},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    true,
-		},
-		{
-			name:          "tunnel app with valid x_wapp_pool_size",
-			settings:      map[string]interface{}{"x_wapp_pool_size": 25},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    false,
-		},
-		{
-			name:          "tunnel app with invalid x_wapp_pool_timeout",
-			settings:      map[string]interface{}{"x_wapp_pool_timeout": "10"},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    true,
-		},
-		{
-			name:          "tunnel app with valid x_wapp_pool_timeout",
-			settings:      map[string]interface{}{"x_wapp_pool_timeout": 300},
-			appType:       "tunnel",
-			clientAppMode: "tunnel",
-			expectWarn:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Use the full validation pipeline to test all aspects
-			// Tunnel client parameters require tcp profile, not http
-			appProfile := "tcp"
-			if tt.name == "enterprise app with tunnel client parameters - should fail" {
-				appProfile = "http" // Enterprise apps use http profile
-			}
-			diags := client.ValidateAdvancedSettings(tt.settings, tt.appType, appProfile, tt.clientAppMode, logger)
-
-			if tt.expectWarn && len(diags) == 0 {
-				t.Errorf("Expected warning but got none")
-			}
-			if !tt.expectWarn && len(diags) != 0 {
-				t.Errorf("Unexpected warnings: %v", diags)
-			}
-		})
-	}
-}
-
-func TestValidateAdvancedSettingsAdditionalCompatibility(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
-	tests := []struct {
-		name       string
-		settings   map[string]interface{}
-		appType    string
-		appProfile string
-	}{
-		{
-			name:       "http app accepts external cookie and keepalive settings",
-			settings:   map[string]interface{}{"external_cookie_domain": "external.example.com", "keepalive_enable": "true", "keepalive_timeout": "300"},
-			appType:    "enterprise",
-			appProfile: "http",
-		},
-		{
-			name:       "http app accepts request parameters map",
-			settings:   map[string]interface{}{"request_parameters": map[string]interface{}{"key": "value"}, "request_body_rewrite": "false"},
-			appType:    "enterprise",
-			appProfile: "http",
-		},
-		{
-			name:       "http app accepts single host settings",
-			settings:   map[string]interface{}{"single_host_enable": "true", "single_host_fqdn": "single.example.com", "single_host_path": "/single", "single_host_content_rw": "false"},
-			appType:    "enterprise",
-			appProfile: "http",
-		},
-		{
-			name:       "rdp app accepts rdp remote apps",
-			settings:   map[string]interface{}{"rdp_remote_apps": []interface{}{map[string]interface{}{"remote_app": "calc.exe"}}, "proxy_disable_clipboard": "false"},
-			appType:    "enterprise",
-			appProfile: "rdp",
-		},
-		{
-			name:       "http app accepts additional auth and misc settings",
-			settings:   map[string]interface{}{"client_cert_auth": "false", "force_mfa": "off", "mfa": "inherit", "segmentation_policy_enable": "false", "sso": "true", "user_name": "username"},
-			appType:    "enterprise",
-			appProfile: "http",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			diags := client.ValidateAdvancedSettings(tt.settings, tt.appType, tt.appProfile, "tcp", logger)
-			if len(diags) != 0 {
-				t.Fatalf("unexpected warnings: %v", diags)
-			}
-		})
-	}
 }
 
 // TestValidateAppAuthForTypeAndProfile tests the validateAppAuthForTypeAndProfile function
@@ -553,59 +272,6 @@ func TestValidateWappAuthValue(t *testing.T) {
 	}
 }
 
-// TestValidateTLSSuiteRestrictions tests the validateTLSSuiteRestrictions function
-func TestValidateTLSSuiteRestrictions(t *testing.T) {
-	tests := []struct {
-		settings    map[string]interface{}
-		name        string
-		appType     string
-		appProfile  string
-		expectError bool
-	}{
-		{
-			name:        "tunnel app with valid TLS suite",
-			appType:     "tunnel",
-			appProfile:  "tcp",
-			settings:    map[string]interface{}{"tls_suite_name": "TLS-Suite-v3"},
-			expectError: true, // TLS Suite configuration is not available for tunnel apps
-		},
-		{
-			name:        "enterprise app with valid TLS suite",
-			appType:     "enterprise",
-			appProfile:  "http",
-			settings:    map[string]interface{}{"tls_suite_name": "TLS-Suite-v3"},
-			expectError: false,
-		},
-		{
-			name:        "tunnel app with invalid TLS suite",
-			appType:     "tunnel",
-			appProfile:  "tcp",
-			settings:    map[string]interface{}{"tls_suite_name": "INVALID-SUITE"},
-			expectError: true,
-		},
-		{
-			name:        "no TLS suite specified",
-			appType:     "tunnel",
-			appProfile:  "tcp",
-			settings:    map[string]interface{}{},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateTLSSuiteRestrictions(tt.appType, tt.appProfile, tt.settings)
-
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-		})
-	}
-}
-
 // TestValidateAuthenticationMethodsForAppType tests the validateAuthenticationMethodsForAppType function
 func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 	tests := []struct {
@@ -690,113 +356,6 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 			})
 
 			err := validateAuthenticationMethodsForAppType(resourceData)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				} else if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
-					t.Errorf("Expected error message containing '%s', got: %s", tt.errorMsg, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
-			}
-		})
-	}
-}
-
-// TestValidateTunnelAppAdvancedSettings tests the validateTunnelAppAdvancedSettings function
-func TestValidateTunnelAppAdvancedSettings(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
-	tests := []struct {
-		settings    map[string]interface{}
-		name        string
-		errorMsg    string
-		expectError bool
-	}{
-		{
-			name: "tunnel app with only allowed parameters - should pass",
-			settings: map[string]interface{}{
-				"health_check_type":           "TCP",
-				"websocket_enabled":           true,
-				"is_ssl_verification_enabled": "false",
-				"load_balancing_metric":       "round_robin",
-				"session_sticky":              true,
-				"acceleration":                true,
-				"x_wapp_read_timeout":         "300",
-				"idle_conn_floor":             "10",
-			},
-			expectError: false,
-		},
-		{
-			name: "tunnel app with authentication parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type": "TCP",
-				"login_url":         "https://example.com/login",  //  Authentication
-				"logout_url":        "https://example.com/logout", //  Authentication
-				"wapp_auth":         "basic",                      //  Authentication
-			},
-			expectError: true,
-			errorMsg:    "authentication parameters",
-		},
-		{
-			name: "tunnel app with CORS parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type": "TCP",
-				"allow_cors":        true,                  //  CORS
-				"cors_origin_list":  "https://example.com", //  CORS
-			},
-			expectError: true,
-			errorMsg:    "CORS parameters",
-		},
-		{
-			name: "tunnel app with TLS Suite parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type": "TCP",
-				"tls_suite_name":    "TLS-Suite-v3", //  TLS Suite
-			},
-			expectError: true,
-			errorMsg:    "TLS Suite parameters",
-		},
-		{
-			name: "tunnel app with miscellaneous parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type":         "TCP",
-				"custom_headers":            []string{}, //  Miscellaneous
-				"hidden_app":                false,      //  Miscellaneous
-				"offload_onpremise_traffic": true,       //  Miscellaneous
-			},
-			expectError: true,
-			errorMsg:    "miscellaneous parameters",
-		},
-		{
-			name: "tunnel app with RDP parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type":         "TCP",
-				"rdp_audio_redirection":     true, //  RDP configuration
-				"rdp_clipboard_redirection": true, //  RDP configuration
-			},
-			expectError: true,
-			errorMsg:    "RDP configuration parameters",
-		},
-		{
-			name: "tunnel app with mixed allowed and blocked parameters - should fail",
-			settings: map[string]interface{}{
-				"health_check_type": "TCP",                 //  Allowed
-				"websocket_enabled": true,                  //  Allowed
-				"login_url":         "https://example.com", //  Blocked
-				"allow_cors":        true,                  //  Blocked
-			},
-			expectError: true,
-			errorMsg:    "authentication parameters",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateTunnelAppAdvancedSettings(tt.settings, logger)
 
 			if tt.expectError {
 				if err == nil {

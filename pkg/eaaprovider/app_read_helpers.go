@@ -155,10 +155,34 @@ func derefStr(p *string) string {
 	return *p
 }
 
-// mapAdvancedSettingsFromResponse maps advanced settings from API response to schema.
-// advanced_settings is a TypeMap so all values must be strings.
+// serverComputedAdvancedSettingsKeys are keys the API auto-populates. They are used
+// only by the DiffSuppressFunc to prevent perpetual diffs when present in state but
+// absent from config (e.g. after an import or refresh-only).
+var serverComputedAdvancedSettingsKeys = map[string]bool{
+	"g2o_key":                    true,
+	"g2o_nonce":                  true,
+	"edge_cookie_key":            true,
+	"sla_object_url":             true,
+	"edge_transport_property_id": true,
+}
+
+// mapAdvancedSettingsFromResponse writes advanced_settings back into Terraform state.
+// All keys behave the same: on import/refresh-only (no prior state) every non-empty
+// API value is surfaced; on normal reads only keys already tracked in state are
+// refreshed. The DiffSuppressFunc handles suppressing diffs for server-computed keys
+// that the user never added to their config.
 func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.ApplicationResponse) diag.Diagnostics {
-	m := map[string]string{
+	// Determine which keys the user/state already cares about.
+	existingKeys := map[string]bool{}
+	if raw, ok := d.GetOk("advanced_settings"); ok {
+		if m, ok := raw.(map[string]interface{}); ok {
+			for k := range m {
+				existingKeys[k] = true
+			}
+		}
+	}
+
+	full := map[string]string{
 		"acceleration":                       appResp.AdvancedSettings.Acceleration,
 		"allow_cors":                         appResp.AdvancedSettings.AllowCORS,
 		"anonymous_server_conn_limit":        appResp.AdvancedSettings.AnonymousServerConnLimit,
@@ -297,11 +321,11 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	if appResp.AdvancedSettings.TLSSuiteType != nil {
 		switch *appResp.AdvancedSettings.TLSSuiteType {
 		case 1:
-			m["tls_suite_type"] = "default"
+			full["tls_suite_type"] = "default"
 		case 2:
-			m["tls_suite_type"] = "custom"
+			full["tls_suite_type"] = "custom"
 		default:
-			m["tls_suite_type"] = ""
+			full["tls_suite_type"] = ""
 		}
 	}
 
@@ -311,7 +335,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		if err != nil {
 			return diag.Errorf("failed to marshal form_post_attributes to JSON: %v", err)
 		}
-		m["form_post_attributes"] = string(fpaJSON)
+		full["form_post_attributes"] = string(fpaJSON)
 	}
 
 	// request_parameters: map -> JSON string
@@ -320,7 +344,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		if err != nil {
 			return diag.Errorf("failed to marshal request_parameters to JSON: %v", err)
 		}
-		m["request_parameters"] = string(rpJSON)
+		full["request_parameters"] = string(rpJSON)
 	}
 
 	// custom_headers: []CustomHeader -> JSON string
@@ -329,7 +353,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		if err != nil {
 			return diag.Errorf("failed to marshal custom_headers to JSON: %v", err)
 		}
-		m["custom_headers"] = string(chJSON)
+		full["custom_headers"] = string(chJSON)
 	}
 
 	// rdp_remote_apps: []RemoteApp -> JSON string
@@ -338,10 +362,18 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		if err != nil {
 			return diag.Errorf("failed to marshal rdp_remote_apps to JSON: %v", err)
 		}
-		m["rdp_remote_apps"] = string(rdpJSON)
+		full["rdp_remote_apps"] = string(rdpJSON)
 	}
 
-	if err := d.Set("advanced_settings", m); err != nil {
+	noExisting := len(existingKeys) == 0
+	result := make(map[string]string, len(existingKeys))
+	for k, v := range full {
+		if noExisting && v != "" || !noExisting && existingKeys[k] {
+			result[k] = v
+		}
+	}
+
+	if err := d.Set("advanced_settings", result); err != nil {
 		return diag.FromErr(err)
 	}
 

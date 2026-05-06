@@ -1045,12 +1045,13 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 			if acValue != "" {
 				uuid, err := GetAppCategoryUUID(ec, acValue)
-				if err == nil {
-					category := AppCategory{}
-					category.Name = acValue
-					category.UUID_URL = uuid
-					appUpdateReq.AppCategory = category
+				if err != nil {
+					return fmt.Errorf("app_category lookup failed for %q: %w", acValue, err)
 				}
+				category := AppCategory{}
+				category.Name = acValue
+				category.UUID_URL = uuid
+				appUpdateReq.AppCategory = category
 			}
 		}
 	}
@@ -1811,6 +1812,7 @@ type AdvancedSettings struct {
 	ServicePrincipalName         *string                `json:"service_principle_name,omitempty"`
 	AppCookieDomain              *string                `json:"app_cookie_domain,omitempty"`
 	LogoutURL                    *string                `json:"logout_url,omitempty"`
+	ExtraFields                  map[string]interface{} `json:"-"`
 	HSTSage                      string                 `json:"hsts_age,omitempty"`
 	IsBrotliEnabled              string                 `json:"is_brotli_enabled,omitempty"`
 	WappAuth                     string                 `json:"wapp_auth,omitempty"`
@@ -1924,6 +1926,30 @@ type AdvancedSettings struct {
 	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
 	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
 	CustomHeaders                []CustomHeader         `json:"custom_headers,omitempty"`
+}
+
+// MarshalJSON merges typed struct fields with any unrecognised passthrough keys in ExtraFields.
+func (a *AdvancedSettings) MarshalJSON() ([]byte, error) {
+	type Alias AdvancedSettings
+	base, err := json.Marshal(Alias(*a))
+	if err != nil {
+		return nil, err
+	}
+	if len(a.ExtraFields) == 0 {
+		return base, nil
+	}
+	var merged map[string]json.RawMessage
+	if err := json.Unmarshal(base, &merged); err != nil {
+		return nil, err
+	}
+	for k, v := range a.ExtraFields {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		merged[k] = raw
+	}
+	return json.Marshal(merged)
 }
 
 type AdvancedSettingsComplete struct {

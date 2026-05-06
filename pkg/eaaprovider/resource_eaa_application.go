@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -16,6 +17,16 @@ var (
 	ErrGetApp      = errors.New("app get failed")
 	ErrInvalidData = errors.New("invalid data in schema")
 )
+
+// suppressServerComputedAdvSettingsKey suppresses plan diffs that would remove
+// API-auto-populated keys (e.g. edge_cookie_key, sla_object_url) that the user
+// never configured. Terraform sees them in state (written on import / first apply)
+// but not in config, and would otherwise plan to null them every run.
+func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.ResourceData) bool {
+	parts := strings.SplitN(k, ".", 2)
+	return len(parts) == 2 && parts[1] != "%" &&
+		serverComputedAdvancedSettingsKeys[parts[1]] && newStr == ""
+}
 
 func getAppError(resp *http.Response) error {
 	desc := client.FormatErrorDescription(resp)
@@ -93,6 +104,7 @@ func resourceEaaApplication() *schema.Resource {
 			"domain": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"domain_suffix": {
 				Type:     schema.TypeString,
@@ -167,6 +179,7 @@ func resourceEaaApplication() *schema.Resource {
 			"popregion": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 
 			"auth_enabled": {
@@ -756,12 +769,13 @@ func resourceEaaApplication() *schema.Resource {
 				Optional: true,
 			},
 			"advanced_settings": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Computed: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
+				Type:             schema.TypeMap,
+				Optional:         true,
+				Computed:         true,
+				Elem:             &schema.Schema{Type: schema.TypeString},
+				DiffSuppressFunc: suppressServerComputedAdvSettingsKey,
 				Description: "Flat map of advanced settings key/value pairs. All values are strings. " +
-					"Known keys are validated; unrecognised keys are passed to the API with a warning. " +
+					"Known keys are validated; unrecognised keys are passed to the API as-is with a warning (the API may silently ignore them). " +
 					"Complex fields (form_post_attributes, request_parameters, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
 			},
 			"app_bundle": {
@@ -907,63 +921,7 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 		err = validateAppBundleRestrictions(d, logger)
 	}
 
-	// Keep advanced_settings validation limited to provider-owned conflicts.
-	if err == nil {
-		err = validateAdvancedSettingsAtPlanTime(d, m)
-	}
-
 	return err
-}
-
-// validateAdvancedSettingsAtPlanTime validates advanced settings during terraform plan
-func validateAdvancedSettingsAtPlanTime(diff *schema.ResourceDiff, m interface{}) error {
-	// Get client logger from meta
-	eaaclient, err := Client(m)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
-	}
-	logger := eaaclient.Logger
-
-	// Get app_type and app_profile from the diff
-	appType, ok := diff.Get("app_type").(string)
-	if !ok {
-		return client.ErrAppTypeRequired
-	}
-
-	appProfile, ok := diff.Get("app_profile").(string)
-	if !ok {
-		return client.ErrAppProfileRequired
-	}
-
-	// Get advanced_settings from the diff (TypeMap)
-	advRaw := diff.Get("advanced_settings")
-	settings, ok := advRaw.(map[string]interface{})
-	if !ok || len(settings) == 0 {
-		return nil
-	}
-
-	// Restrict plan-time validation to provider-owned checks only.
-	logger.Debug("Running provider-owned validation for advanced settings")
-
-	// Validate app_auth conflicts with resource-level authentication settings.
-	logger.Debug("Running app_auth conflict validation")
-	if err := validateAppAuthConflictsWithResourceLevelAuth(settings, diff, logger); err != nil {
-		logger.Error("App auth conflict validation failed: %v", err)
-		return err
-	}
-	logger.Debug("App auth conflict validation passed")
-
-	// Validate TLS Suite configuration restrictions because the provider rewrites these fields.
-	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
-		return client.ErrTLSSuiteRestrictionsValidationFailed
-	}
-
-	// Validate TLS Suite required dependencies because the provider rewrites these fields.
-	if err := validateTLSSuiteRequiredDependencies(settings, logger); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // resourceEaaApplicationCreateTwoPhase implements the two-phase application creation approach
@@ -975,7 +933,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		return diag.FromErr(err)
 	}
 	logger := eaaclient.Logger
-	warningDiags := validateAdvancedSettingsWarningDiagnostics(d, logger)
+	var warningDiags diag.Diagnostics
 
 	logger.Debug("Starting two-phase application creation")
 
@@ -1131,7 +1089,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	warningDiags := validateAdvancedSettingsWarningDiagnostics(d, eaaclient.Logger)
+	var warningDiags diag.Diagnostics
 
 	// Advanced settings validation is now handled at plan time via CustomizeDiff
 

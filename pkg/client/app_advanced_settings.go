@@ -418,6 +418,13 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 	// Use reflection to set fields dynamically - handle both string and *string types
 	val := reflect.ValueOf(advSettings).Elem()
 
+	// Keys handled via the pre-loop special logic above; not real API fields.
+	internalOnlyKeys := map[string]bool{
+		"remote_app":      true,
+		"remote_app_args": true,
+		"remote_app_dir":  true,
+	}
+
 	for jsonKey, value := range userSettings {
 		if fieldName, exists := fieldMapping[jsonKey]; exists {
 			field := val.FieldByName(fieldName)
@@ -591,6 +598,11 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 					}
 				}
 			}
+		} else if !internalOnlyKeys[jsonKey] {
+			if advSettings.ExtraFields == nil {
+				advSettings.ExtraFields = make(map[string]interface{})
+			}
+			advSettings.ExtraFields[jsonKey] = value
 		}
 	}
 }
