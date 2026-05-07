@@ -30,14 +30,14 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 	var ssCertResp CertificateResponse
 	ssCertHTTPResp, err := ec.SendAPIRequest(apiURL, "POST", sscert, &ssCertResp, false)
 	if err != nil {
-		ec.Logger.Error("self certificate generation request failed. err: ", err)
+		ec.Logger.Error("self certificate generation request failed", "error", err)
 		return nil, err
 	}
 	if ssCertHTTPResp.StatusCode < http.StatusOK || ssCertHTTPResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(ssCertHTTPResp)
 		ssCertErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
-		ec.Logger.Error("self signed certificate generation failed. ssCertHTTPResp.StatusCode: desc: ", ssCertHTTPResp.StatusCode, desc)
+		ec.Logger.Error("self signed certificate generation failed", "status", ssCertHTTPResp.StatusCode, "description", desc)
 		return nil, ssCertErrMsg
 	}
 	return &ssCertResp, nil

@@ -199,9 +199,12 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 
 	// rdp_remote_apps: stored as JSON string; decode and set on struct after ParseWithDefaults.
 	var rdpRemoteApps []RemoteApp
-	if rdpStr, ok := block["rdp_remote_apps"].(string); ok && rdpStr != "" {
-		if err := json.Unmarshal([]byte(rdpStr), &rdpRemoteApps); err != nil {
-			return nil, fmt.Errorf("invalid rdp_remote_apps JSON: %w", err)
+	if rdpStr, ok := block["rdp_remote_apps"].(string); ok {
+		rdpRemoteApps = []RemoteApp{}
+		if rdpStr != "" {
+			if err := json.Unmarshal([]byte(rdpStr), &rdpRemoteApps); err != nil {
+				return nil, fmt.Errorf("invalid rdp_remote_apps JSON: %w", err)
+			}
 		}
 	}
 	// Remove from flat map so applyAdvancedSettingsWithReflection doesn't try to handle the string.

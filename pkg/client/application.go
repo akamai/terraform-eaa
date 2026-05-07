@@ -83,8 +83,8 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.AppType = value
-		logger.Debug("appType", appType)
-		logger.Debug("mcar.AppType", mcar.AppType)
+		logger.Debug("appType", "appType", appType)
+		logger.Debug("mcar.AppType", "mcar.AppType", mcar.AppType)
 	} else {
 		logger.Debug("appType is not present, defaulting to enterprise")
 		mcar.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
@@ -104,8 +104,8 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.AppProfile = value
-		logger.Debug("appProfile", appProfile)
-		logger.Debug("mcar.AppProfile", mcar.AppProfile)
+		logger.Debug("appProfile", "appProfile", appProfile)
+		logger.Debug("mcar.AppProfile", "mcar.AppProfile", mcar.AppProfile)
 	} else {
 		logger.Debug("appProfile is not present, defaulting to http")
 		mcar.AppProfile = int(APP_PROFILE_HTTP)
@@ -125,8 +125,8 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 			return ErrInvalidValue
 		}
 		mcar.ClientAppMode = value
-		logger.Debug("appMode", clientAppMode)
-		logger.Debug("mcar.ClientAppMode", mcar.ClientAppMode)
+		logger.Debug("appMode", "appMode", clientAppMode)
+		logger.Debug("mcar.ClientAppMode", "mcar.ClientAppMode", mcar.ClientAppMode)
 	} else {
 		logger.Debug("appMode is not present, defaulting to tcp")
 		mcar.ClientAppMode = int(CLIENT_APP_MODE_TCP)
@@ -168,8 +168,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppType = value
-		logger.Info("appType", appType)
-		logger.Info("car.AppType", car.AppType)
+		logger.Info("appType", "appType", appType)
+		logger.Info("car.AppType", "car.AppType", car.AppType)
 	} else {
 		logger.Debug("appType is not present, defaulting to enterprise")
 		car.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
@@ -188,8 +188,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppProfile = value
-		logger.Info("appProfile", appProfile)
-		logger.Info("car.AppProfile", car.AppProfile)
+		logger.Info("appProfile", "appProfile", appProfile)
+		logger.Info("car.AppProfile", "car.AppProfile", car.AppProfile)
 	} else {
 		logger.Debug("appProfile is not present, defaulting to http")
 		car.AppProfile = int(APP_PROFILE_HTTP)
@@ -208,8 +208,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.ClientAppMode = value
-		logger.Info("appMode", clientAppMode)
-		logger.Info("car.ClientAppMode", car.ClientAppMode)
+		logger.Info("appMode", "appMode", clientAppMode)
+		logger.Info("car.ClientAppMode", "car.ClientAppMode", car.ClientAppMode)
 	} else {
 		logger.Debug("appMode is not present, defaulting to tcp")
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
@@ -219,17 +219,17 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	var validatedAppBundleUUID string
 	if appBundle, ok := d.GetOk("app_bundle"); ok {
 		if appBundleStr, ok := appBundle.(string); ok && appBundleStr != "" {
-			logger.Debug("CREATE FLOW: Found app_bundle:", appBundleStr)
+			logger.Debug("CREATE FLOW: found app_bundle", "app_bundle", appBundleStr)
 
 			// Validate app bundle name and get UUID
 			appBundleUUID, err := ec.GetAppBundleByName(appBundleStr)
 			if err != nil {
-				logger.Error("CREATE FLOW: Failed to validate app_bundle name '%s': %v", appBundleStr, err)
+				logger.Error("CREATE FLOW: failed to validate app_bundle name", "app_bundle", appBundleStr, "error", err)
 				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
 			}
 
 			validatedAppBundleUUID = appBundleUUID
-			logger.Debug("CREATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+			logger.Debug("CREATE FLOW: app_bundle validated", "app_bundle", appBundleStr, "uuid", appBundleUUID)
 		}
 	}
 
@@ -246,7 +246,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		userSettings = map[string]interface{}{}
 	}
 
-	logger.Debug("CREATE FLOW: Using advanced_settings block with keys:", len(userSettings))
+	logger.Debug("CREATE FLOW: using advanced_settings block", "key_count", len(userSettings))
 
 	// ALWAYS parse and apply defaults
 	advSettings, err := advancedSettingsFromBlock(userSettings)
@@ -257,7 +257,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	// Extract TLS Suite fields from the structured block
 	logger.Debug("CREATE FLOW: TLS Suite extraction from block")
 	if tlsSuiteTypeStr, ok := userSettings["tls_suite_type"].(string); ok && tlsSuiteTypeStr != "" {
-		logger.Debug("CREATE FLOW: TLS Suite extraction - found tls_suite_type:", tlsSuiteTypeStr)
+		logger.Debug("CREATE FLOW: found tls_suite_type", "value", tlsSuiteTypeStr)
 		var tlsSuiteTypeInt int
 		switch tlsSuiteTypeStr {
 		case "default":
@@ -265,17 +265,17 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		case "custom":
 			tlsSuiteTypeInt = 2
 		default:
-			logger.Error("CREATE FLOW: Invalid tls_suite_type string value:", tlsSuiteTypeStr)
+			logger.Error("CREATE FLOW: invalid tls_suite_type", "value", tlsSuiteTypeStr)
 			return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
 		}
 		car.TLSSuiteType = &tlsSuiteTypeInt
-		logger.Debug("CREATE FLOW: Set TLSSuiteType:", tlsSuiteTypeInt)
+		logger.Debug("CREATE FLOW: TLSSuiteType set", "value", tlsSuiteTypeInt)
 	} else {
 		logger.Debug("CREATE FLOW: tls_suite_type not set in block")
 	}
 
 	if tlsSuiteNameStr, ok := userSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
-		logger.Debug("CREATE FLOW: Set tls_suite_name:", tlsSuiteNameStr)
+		logger.Debug("CREATE FLOW: tls_suite_name set", "value", tlsSuiteNameStr)
 		car.TLSSuiteName = &tlsSuiteNameStr
 	} else {
 		logger.Debug("CREATE FLOW: tls_suite_name not set in block")
@@ -283,7 +283,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 
 	// Set authentication flags based on Terraform boolean flags for CREATE flow
 	// Preserve user-provided app_auth value from advanced_settings
-	logger.Debug("CREATE FLOW: Using app_auth from advanced_settings:", advSettings.AppAuth)
+	logger.Debug("CREATE FLOW: using app_auth from advanced_settings", "app_auth", advSettings.AppAuth)
 
 	// Set authentication flags based on Terraform boolean flags
 	// Reset all auth types to false first
@@ -314,12 +314,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Convert nested blocks to SAMLConfig
 				samlBlock, err := firstMapBlock(samlSettingsList, "saml_settings")
 				if err != nil {
-					logger.Error("Failed to read nested SAML block:", err)
+					logger.Error("failed to read nested SAML block", "error", err)
 					return err
 				}
 				samlConfig, err := convertNestedBlocksToSAMLConfig(samlBlock)
 				if err != nil {
-					logger.Error("Failed to convert nested blocks to SAML config:", err)
+					logger.Error("failed to convert nested SAML blocks", "error", err)
 					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
 				car.SAMLSettings = []SAMLConfig{samlConfig}
@@ -343,12 +343,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Convert nested blocks to OIDCConfig
 				oidcBlock, err := firstMapBlock(oidcSettingsList, "oidc_settings")
 				if err != nil {
-					logger.Error("CREATE FLOW: Failed to read nested OIDC block:", err)
+					logger.Error("CREATE FLOW: failed to read nested OIDC block", "error", err)
 					return err
 				}
 				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 				if err != nil {
-					logger.Error("CREATE FLOW: Failed to convert nested blocks to OIDC config:", err)
+					logger.Error("CREATE FLOW: failed to convert nested OIDC blocks", "error", err)
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
 				car.OIDCSettings = oidcConfig
@@ -381,7 +381,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Get the first (and only) wsfed_settings block
 				wsfedBlock, err := firstMapBlock(wsfedSettingsList, "wsfed_settings")
 				if err != nil {
-					logger.Error("CREATE FLOW: Failed to read nested WSFED block:", err)
+					logger.Error("CREATE FLOW: failed to read nested WSFED block", "error", err)
 					return err
 				}
 
@@ -392,7 +392,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
 					spBlock, err := firstMapBlock(spBlocks, "wsfed_settings.sp")
 					if err != nil {
-						logger.Error("CREATE FLOW: Failed to read nested WSFED SP block:", err)
+						logger.Error("CREATE FLOW: failed to read nested WSFED SP block", "error", err)
 						return err
 					}
 
@@ -420,7 +420,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
 					idpBlock, err := firstMapBlock(idpBlocks, "wsfed_settings.idp")
 					if err != nil {
-						logger.Error("CREATE FLOW: Failed to read nested WSFED IDP block:", err)
+						logger.Error("CREATE FLOW: failed to read nested WSFED IDP block", "error", err)
 						return err
 					}
 
@@ -445,7 +445,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
 					subjectBlock, err := firstMapBlock(subjectBlocks, "wsfed_settings.subject")
 					if err != nil {
-						logger.Error("CREATE FLOW: Failed to read nested WSFED subject block:", err)
+						logger.Error("CREATE FLOW: failed to read nested WSFED subject block", "error", err)
 						return err
 					}
 
@@ -514,7 +514,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	// Handle app_bundle field from top-level resource - use validated UUID
 	if validatedAppBundleUUID != "" {
 		car.AppBundle = validatedAppBundleUUID
-		logger.Debug("CREATE FLOW: Set app_bundle UUID on CreateAppRequest struct:", validatedAppBundleUUID)
+		logger.Debug("CREATE FLOW: app_bundle UUID set", "uuid", validatedAppBundleUUID)
 	}
 
 	car.AdvancedSettings = *advSettings
@@ -540,7 +540,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 	createAppResp, err := ec.SendAPIRequest(apiURL, "POST", mcar, &appResp, false)
 
 	if err != nil {
-		ec.Logger.Error("create minimal Application failed. err", err)
+		ec.Logger.Error("create minimal Application failed", "error", err)
 		return nil, err
 	}
 
@@ -548,7 +548,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 		desc := FormatErrorDescription(createAppResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrAppCreate, desc)
 
-		ec.Logger.Error("create minimal Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
+		ec.Logger.Error("create minimal Application failed", "status", createAppResp.StatusCode, "description", desc)
 		return nil, createErrMsg
 	}
 	ec.Logger.Debug("create minimal Application succeeded.", "name", mcar.Name)
@@ -572,7 +572,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	createAppResp, err := ec.SendAPIRequest(apiURL, "POST", car, &appResp, false)
 
 	if err != nil {
-		ec.Logger.Error("create Application failed. err", err)
+		ec.Logger.Error("create Application failed", "error", err)
 		return nil, err
 	}
 
@@ -580,7 +580,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 		desc := FormatErrorDescription(createAppResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrAppCreate, desc)
 
-		ec.Logger.Error("create Application failed. StatusCode %d %s", createAppResp.StatusCode, desc)
+		ec.Logger.Error("create Application failed", "status", createAppResp.StatusCode, "description", desc)
 		return nil, createErrMsg
 	}
 	ec.Logger.Debug("create Application succeeded.", "name", car.Name)
@@ -608,7 +608,7 @@ func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, 
 		}
 		err := agents.AssignAgents(ctx, ec)
 		if err != nil {
-			logger.Error("configure agents failed. err", err)
+			logger.Error("configure agents failed", "error", err)
 			return err
 		}
 		logger.Debug("configure agents succeeded.")
@@ -655,10 +655,10 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 				if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
 					idpData, err := GetIdpWithName(ctx, ec, appIDPName)
 					if err != nil || idpData == nil {
-						logger.Error("get idp with name error, err ", err)
+						logger.Error("get idp by name failed", "error", err)
 						return err
 					}
-					logger.Debug("appID: ", appID, "app_idp_name: ", appIDPName, "idpData.UUIDURL: ", idpData.UUIDURL)
+					logger.Debug("IDP assignment context", "appID", appID, "app_idp_name", appIDPName, "idp_uuid_url", idpData.UUIDURL)
 
 					logger.Debug("Assigning IDP to application")
 
@@ -668,17 +668,17 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 					}
 					err = appIdp.AssignIDP(ec)
 					if err != nil {
-						logger.Error("IDP assign error: ", err)
+						logger.Error("IDP assign failed", "error", err)
 						return fmt.Errorf("assigning IDP to the app failed: %v", err)
 					}
-					logger.Debug("IDP assigned successfully, appID = ", appID, "idp = ", appIDPName)
+					logger.Debug("IDP assigned successfully", "appID", appID, "idp", appIDPName)
 
 					// check if app_directories are present
 					if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
 						logger.Debug("Starting directory assignment...")
 						err := idpData.AssignIdpDirectories(ctx, appDirs, appID, ec)
 						if err != nil {
-							logger.Error("directory assignment error: ", err)
+							logger.Error("directory assignment failed", "error", err)
 							return fmt.Errorf("assigning directories to the app failed: %v", err)
 						}
 						logger.Debug("Directory assignment succeeded.")
@@ -702,12 +702,12 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		logger.Error("failed to get app for advanced settings configuration: ", err)
+		logger.Error("failed to get app for advanced settings configuration", "error", err)
 		return err
 	}
 	if getResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(getResp)
-		logger.Error("failed to get app for advanced settings configuration. StatusCode %d %s", getResp.StatusCode, desc)
+		logger.Error("failed to get app for advanced settings configuration", "status", getResp.StatusCode, "description", desc)
 		return fmt.Errorf("failed to get app: %s", desc)
 	}
 
@@ -719,7 +719,7 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	// Update the request with advanced settings from schema
 	err = updateRequest.UpdateAppRequestFromSchema(ctx, d, ec)
 	if err != nil {
-		logger.Error("failed to prepare advanced settings update request: ", err)
+		logger.Error("failed to prepare advanced settings update request", "error", err)
 		return err
 	}
 
@@ -741,7 +741,7 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	// Apply the update
 	err = updateRequest.UpdateApplication(ctx, ec)
 	if err != nil {
-		logger.Error("failed to apply advanced settings: ", err)
+		logger.Error("failed to apply advanced settings", "error", err)
 		return err
 	}
 
@@ -758,12 +758,12 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		logger.Error("failed to get app for deployment: ", err)
+		logger.Error("failed to get app for deployment", "error", err)
 		return err
 	}
 	if getResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(getResp)
-		logger.Error("failed to get app for deployment. StatusCode %d %s", getResp.StatusCode, desc)
+		logger.Error("failed to get app for deployment", "status", getResp.StatusCode, "description", desc)
 		return fmt.Errorf("failed to get app: %s", desc)
 	}
 
@@ -774,7 +774,7 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 	// Deploy the application
 	err = app.DeployApplication(ec)
 	if err != nil {
-		logger.Error("deploy application failed: ", err)
+		logger.Error("deploy application failed", "error", err)
 		return err
 	}
 
@@ -895,14 +895,14 @@ func (app *Application) UpdateG2O(ec *EaaClient) (*G2OResponse, error) {
 	var g2oResp G2OResponse
 	g2ohttpResp, err := ec.SendAPIRequest(apiURL, "POST", nil, &g2oResp, false)
 	if err != nil {
-		ec.Logger.Error("g2o request failed. err: ", err)
+		ec.Logger.Error("g2o request failed", "error", err)
 		return nil, err
 	}
 	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(g2ohttpResp)
 		g2oErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
-		ec.Logger.Error("g2o request failed. g2ohttpResp.StatusCode: desc: ", g2ohttpResp.StatusCode, desc)
+		ec.Logger.Error("g2o request failed", "status", g2ohttpResp.StatusCode, "description", desc)
 		return nil, g2oErrMsg
 	}
 	return &g2oResp, nil
@@ -915,14 +915,14 @@ func (app *Application) UpdateEdgeAuthentication(ec *EaaClient) (*EdgeAuthRespon
 	var edgeAuthResp EdgeAuthResponse
 	edgeAuthhttpResp, err := ec.SendAPIRequest(apiURL, "POST", nil, &edgeAuthResp, false)
 	if err != nil {
-		ec.Logger.Error("edge auth request failed. err: ", err)
+		ec.Logger.Error("edge auth request failed", "error", err)
 		return nil, err
 	}
 	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(edgeAuthhttpResp)
 		edgeuthErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
-		ec.Logger.Error("edge authentication cookie request failed. edgeAuthhttpResp.StatusCode: desc: ", edgeAuthhttpResp.StatusCode, desc)
+		ec.Logger.Error("edge authentication cookie request failed", "status", edgeAuthhttpResp.StatusCode, "description", desc)
 		return nil, edgeuthErrMsg
 	}
 	return &edgeAuthResp, nil
@@ -1008,12 +1008,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			// Validate app bundle name and get UUID
 			appBundleUUID, err := ec.GetAppBundleByName(appBundleStr)
 			if err != nil {
-				ec.Logger.Error("UPDATE FLOW: Failed to validate app_bundle name '%s': %v", appBundleStr, err)
+				ec.Logger.Error("UPDATE FLOW: failed to validate app_bundle name", "app_bundle", appBundleStr, "error", err)
 				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
 			}
 
 			validatedAppBundleUUID = appBundleUUID
-			ec.Logger.Debug("UPDATE FLOW: App bundle '%s' validated, UUID: %s", appBundleStr, appBundleUUID)
+			ec.Logger.Debug("UPDATE FLOW: app_bundle validated", "app_bundle", appBundleStr, "uuid", appBundleUUID)
 		}
 	}
 
@@ -1072,7 +1072,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 
 		// Preserve user-provided app_auth value from advanced_settings
-		ec.Logger.Debug("UPDATE FLOW: Using app_auth from advanced_settings block:", advSettings.AppAuth)
+		ec.Logger.Debug("UPDATE FLOW: using app_auth from advanced_settings", "app_auth", advSettings.AppAuth)
 
 		// Extract TLS Suite fields from the structured block
 		ec.Logger.Debug("UPDATE FLOW: TLS Suite extraction from block")
@@ -1084,18 +1084,18 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			case "custom":
 				tlsSuiteTypeInt = 2
 			default:
-				ec.Logger.Error("UPDATE FLOW: Invalid tls_suite_type value:", tlsSuiteTypeStr)
+				ec.Logger.Error("UPDATE FLOW: invalid tls_suite_type", "value", tlsSuiteTypeStr)
 				return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
 			}
 			appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
-			ec.Logger.Debug("UPDATE FLOW: Set TLSSuiteType:", tlsSuiteTypeInt)
+			ec.Logger.Debug("UPDATE FLOW: TLSSuiteType set", "value", tlsSuiteTypeInt)
 		} else {
 			ec.Logger.Debug("UPDATE FLOW: tls_suite_type not set in block")
 		}
 
 		if tlsSuiteNameStr, ok := updateUserSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
 			appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
-			ec.Logger.Debug("UPDATE FLOW: Set tls_suite_name:", tlsSuiteNameStr)
+			ec.Logger.Debug("UPDATE FLOW: tls_suite_name set", "value", tlsSuiteNameStr)
 		} else {
 			ec.Logger.Debug("UPDATE FLOW: tls_suite_name not set in block")
 		}
@@ -1107,7 +1107,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if advSettings.G2OEnabled == STR_TRUE {
 			g2oResp, err := appUpdateReq.UpdateG2O(ec)
 			if err != nil {
-				ec.Logger.Error("g2o request failed. err: ", err)
+				ec.Logger.Error("g2o request failed", "error", err)
 				return err
 			}
 			advSettings.G2OKey = &g2oResp.G2OKey
@@ -1117,7 +1117,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
 			edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ec)
 			if err != nil {
-				ec.Logger.Error("edge auth cookie request failed. err: ", err)
+				ec.Logger.Error("edge auth cookie request failed", "error", err)
 				return err
 			}
 			advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
@@ -1520,7 +1520,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 			if appDomain == AppDomainCustom {
 				if err := processCustomDomain(ec, appUpdateReq, d, ctx); err != nil {
-					ec.Logger.Error("Custom domain processing failed: ", err)
+					ec.Logger.Error("custom domain processing failed", "error", err)
 					return err
 				}
 			}
@@ -1548,7 +1548,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 	// Convert certificate type to CertType
 	appCert := CertType(certType)
-	ec.Logger.Debug("Certificate type: ", appCert)
+	ec.Logger.Debug("certificate type", "cert_type", appCert)
 
 	if appCert == CertSelfSigned && (appUpdateReq.Host == nil || *appUpdateReq.Host == "") {
 		ec.Logger.Warn("Skipping custom domain certificate processing because host is empty")
@@ -1566,7 +1566,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 		if certObj != nil {
 			// Use existing self-signed certificate
 			appUpdateReq.Cert = &certObj.UUIDURL
-			ec.Logger.Debug("Using existing self-signed certificate: ", appUpdateReq.Cert)
+			ec.Logger.Debug("using existing self-signed certificate", "cert", appUpdateReq.Cert)
 			return nil
 		}
 
@@ -1582,7 +1582,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 		// Update application request with the generated certificate
 		appUpdateReq.Cert = &certResp.UUIDURL
-		ec.Logger.Debug("Generated self-signed certificate: ", appUpdateReq.Cert)
+		ec.Logger.Debug("generated self-signed certificate", "cert", appUpdateReq.Cert)
 		return nil
 	}
 	if appCert == CertUploaded {
@@ -1603,7 +1603,7 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 		// Use existing self-signed certificate
 		appUpdateReq.Cert = &certObj.UUIDURL
-		ec.Logger.Debug("using uploaded cert : ", appUpdateReq.Cert)
+		ec.Logger.Debug("using uploaded cert", "cert", appUpdateReq.Cert)
 	}
 
 	return nil
@@ -1611,21 +1611,21 @@ func processCustomDomain(ec *EaaClient, appUpdateReq *ApplicationUpdateRequest, 
 
 func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Context, ec *EaaClient) error {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appUpdateReq.UUIDURL)
-	ec.Logger.Debug("API URL: ", apiURL)
+	ec.Logger.Debug("API URL", "url", apiURL)
 
 	// Debug: Log the final app bundle before sending to API
-	ec.Logger.Debug("FINAL PAYLOAD: AppBundle = '%s'", appUpdateReq.AppBundle)
+	ec.Logger.Debug("FINAL PAYLOAD", "app_bundle", appUpdateReq.AppBundle)
 
 	// Debug: Log the complete request payload
 	if payloadJSON, err := json.MarshalIndent(appUpdateReq, "", "  "); err == nil {
-		ec.Logger.Debug("COMPLETE REQUEST PAYLOAD:\n%s", string(payloadJSON))
+		ec.Logger.Debug("complete request payload", "payload", string(payloadJSON))
 	} else {
 		ec.Logger.Warn("failed to marshal application update payload for logging", "error", err)
 	}
 
 	appUpdResp, err := ec.SendAPIRequest(apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
-		ec.Logger.Error("update application failed. err: ", err)
+		ec.Logger.Error("update application failed", "error", err)
 		return err
 	}
 
@@ -1633,7 +1633,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 		desc := FormatErrorDescription(appUpdResp)
 		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
 
-		ec.Logger.Error("update application failed. appUpdResp.StatusCode: desc ", appUpdResp.StatusCode, desc)
+		ec.Logger.Error("update application failed", "status", appUpdResp.StatusCode, "description", desc)
 		return updErrMsg
 	}
 

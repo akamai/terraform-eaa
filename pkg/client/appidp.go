@@ -19,17 +19,17 @@ func (ai *AppIdp) AssignIDP(ec *EaaClient) error {
 		return errMsg
 	}
 	apiURL := fmt.Sprintf("%s://%s/%s/appidp", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	appIdpResp, err := ec.SendAPIRequest(apiURL, "POST", ai, nil, false)
 	if err != nil {
-		ec.Logger.Error("assign IDP to Application failed. err", err)
+		ec.Logger.Error("assign IDP to Application failed", "error", err)
 		return err
 	}
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
-		ec.Logger.Error("assigning IDP to Application failed. appIdpResp.StatusCode", appIdpResp.StatusCode)
+		ec.Logger.Error("assigning IDP to Application failed", "status", appIdpResp.StatusCode)
 		return appIdpErrMsg
 	}
 	return nil
@@ -50,18 +50,18 @@ func (ai *AppIdp) UnAssignIDP(ec *EaaClient) error {
 	var unassignIdp UnAssignIDPRequest
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appidp?method=DELETE", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 	unassignIdp.IDP = append(unassignIdp.IDP, ai.IDP)
 
 	appIdpResp, err := ec.SendAPIRequest(apiURL, "POST", unassignIdp, nil, false)
 	if err != nil {
-		ec.Logger.Error("unassign IDP to Application failed. err", err)
+		ec.Logger.Error("unassign IDP from Application failed", "error", err)
 		return err
 	}
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
 		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
-		ec.Logger.Error("unassigning IDP to Application failed. appIdpResp.StatusCode", appIdpResp.StatusCode)
+		ec.Logger.Error("unassigning IDP from Application failed", "status", appIdpResp.StatusCode)
 		return appIdpErrMsg
 	}
 	return nil

@@ -12,14 +12,14 @@ import (
 func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType string, logger hclog.Logger) error {
 	// Check if custom headers are present
 	if customHeaders, exists := settings["custom_headers"]; exists {
-		logger.Debug("Custom headers found, validating with app_type: %s", appType)
+		logger.Debug("validating custom headers", "app_type", appType)
 
 		// STEP 1: Validate app type restrictions based on Table 4: Application Types and Custom HTTP Headers Support
 		if appType != "" {
 			switch appType {
 			case string(ClientAppTypeEnterprise):
 				// Custom headers are available for Enterprise apps (Advanced Settings)
-				logger.Debug("Custom headers allowed for %s app (Advanced Settings)", appType)
+				logger.Debug("custom headers allowed for app type", "app_type", appType)
 				logger.Debug("Continuing with structure validation for enterprise app")
 			case string(ClientAppTypeSaaS), string(ClientAppTypeBookmark):
 				// Custom headers are disabled for SaaS and Bookmark apps
@@ -45,7 +45,7 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 		// STEP 2: Sanitize and validate custom headers structure
 		logger.Debug("About to validate custom headers structure")
 		if headersList, ok := customHeaders.([]interface{}); ok {
-			logger.Debug("Custom headers is an array with %d items", len(headersList))
+			logger.Debug("custom headers array", "count", len(headersList))
 			// Filter out empty headers (Table 8: Empty Headers validation)
 			sanitizedHeaders := []interface{}{}
 			for _, header := range headersList {
@@ -72,11 +72,11 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 				if !isEmpty {
 					sanitizedHeaders = append(sanitizedHeaders, header)
 				} else {
-					logger.Debug("Sanitized empty custom header: %v", headerMap)
+					logger.Debug("sanitized empty custom header", "header", headerMap)
 				}
 			}
 
-			logger.Debug("Sanitized custom headers: %d original -> %d after sanitization", len(headersList), len(sanitizedHeaders))
+			logger.Debug("sanitized custom headers", "original_count", len(headersList), "sanitized_count", len(sanitizedHeaders))
 
 			// Validate each non-empty custom header
 			for i, header := range sanitizedHeaders {
@@ -98,7 +98,7 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 
 // validateCustomHeader validates a single custom header object based on Table 2-11 specifications
 func validateCustomHeader(header map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("Validating custom header %d: %v", index, header)
+	logger.Debug("validating custom header", "index", index, "header", header)
 
 	// STEP 1: Sanitize empty headers (Table 8: Empty Headers validation)
 	// Remove headers with empty header and attribute_type
@@ -110,7 +110,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 		attributeTypeStr, attributeTypeOk := attributeTypeValue.(string)
 
 		if headerOk && attributeTypeOk && headerStr == "" && attributeTypeStr == "" {
-			logger.Debug("Skipping empty header %d (both header and attribute_type are empty)", index)
+			logger.Debug("skipping empty header", "index", index)
 			return nil // Skip validation for empty headers
 		}
 	}
@@ -171,10 +171,10 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 				return ErrCustomHeaderAttributeEmpty
 			}
 
-			logger.Debug("Custom header %d: validated %s attribute_type with attribute='%s'", index, attributeTypeStr, attributeStr)
+			logger.Debug("custom header validated", "index", index, "attribute_type", attributeTypeStr, "attribute", attributeStr)
 		} else if attributeTypeStr == string(CustomHeaderAttributeTypeUser) || attributeTypeStr == string(CustomHeaderAttributeTypeGroup) || attributeTypeStr == string(CustomHeaderAttributeTypeClientIP) {
 			// For user, group, clientip - attribute is not required (dropdown selection)
-			logger.Debug("Custom header %d: validated %s attribute_type (no attribute input required)", index, attributeTypeStr)
+			logger.Debug("custom header validated", "index", index, "attribute_type", attributeTypeStr)
 		}
 	} else {
 		// If attribute_type is not provided, attribute should also not be provided
@@ -190,7 +190,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 		}
 	}
 
-	logger.Debug("Custom header %d validation passed", index)
+	logger.Debug("custom header validation passed", "index", index)
 	return nil
 }
 
@@ -208,7 +208,7 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 	// Check direct flag
 	if flag, ok := d.GetOk(config.FlagKey); ok {
 		if flagBool, ok := flag.(bool); ok && flagBool {
-			logger.Debug("%s enabled via direct %s=true flag", config.ProtocolName, config.FlagKey)
+			logger.Debug("auth protocol enabled via direct flag", "protocol", config.ProtocolName, "flag", config.FlagKey)
 			return true
 		}
 	}
@@ -219,7 +219,7 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 			if appAuthVal, ok := settingsMap["app_auth"].(string); ok && appAuthVal != "" {
 				for _, validValue := range config.AppAuthValues {
 					if appAuthVal == validValue {
-						logger.Debug("%s enabled via app_auth=%s in advanced_settings map", config.ProtocolName, appAuthVal)
+						logger.Debug("auth protocol enabled via app_auth", "protocol", config.ProtocolName, "app_auth", appAuthVal)
 						return true
 					}
 				}
@@ -235,20 +235,20 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
 	settings, ok := d.GetOk(settingsKey)
 	if !ok {
-		logger.Debug("No %s found", settingsKey)
+		logger.Debug("settings not found", "settings_key", settingsKey)
 		return nil, false
 	}
 
 	settingsList, ok := settings.([]interface{})
 	if !ok || len(settingsList) == 0 {
-		logger.Debug("%s is empty or not a list", settingsKey)
+		logger.Debug("settings empty or not a list", "settings_key", settingsKey)
 		return nil, false
 	}
 
 	// Defensively check type of first element
 	firstBlock, ok := settingsList[0].(map[string]interface{})
 	if !ok {
-		logger.Debug("%s[0] is not a map[string]interface{}", settingsKey)
+		logger.Debug("settings first element is not a map", "settings_key", settingsKey)
 		return nil, false
 	}
 
@@ -263,7 +263,7 @@ func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName str
 			logger.Debug("self_signed = false, checking sign_cert")
 			// When self_signed = false, sign_cert is mandatory
 			if signCert, hasSignCert := idpBlock["sign_cert"]; !hasSignCert || signCert == "" {
-				logger.Debug("sign_cert missing or empty: hasSignCert=%v, signCert='%v'", hasSignCert, signCert)
+				logger.Debug("sign_cert missing or empty", "has_sign_cert", hasSignCert, "sign_cert", signCert)
 				return signCertError
 			}
 		}
@@ -349,11 +349,11 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 				if name, hasName := attrmapMap["name"]; hasName {
 					if nameStr, ok := name.(string); ok && nameStr != "" {
 						if attributeNames[nameStr] {
-							logger.Error("Duplicate attribute name '%s' found in attrmap at index %d", nameStr, i)
+							logger.Error("duplicate attribute name in attrmap", "name", nameStr, "index", i)
 							return fmt.Errorf("duplicate attribute name '%s' found in attrmap. Each attribute name must be unique", nameStr)
 						}
 						attributeNames[nameStr] = true
-						logger.Debug("Attribute name '%s' is unique", nameStr)
+						logger.Debug("attribute name is unique", "name", nameStr)
 					}
 				}
 			}
@@ -420,7 +420,7 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 // validateOIDCClientNested validates an OIDC client configuration in nested blocks
 func validateOIDCClientNested(clientConfig map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("Validating OIDC client %d: %v", index, clientConfig)
+	logger.Debug("validating OIDC client", "index", index, "config", clientConfig)
 
 	// Validate that response_type is an array if present
 	if responseTypes, exists := clientConfig["response_type"]; exists {
@@ -472,7 +472,7 @@ func validateOIDCClientNested(clientConfig map[string]interface{}, index int, lo
 
 // validateOIDCClaimNested validates an OIDC claim configuration in nested blocks
 func validateOIDCClaimNested(claim map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("Validating OIDC claim %d: %v", index, claim)
+	logger.Debug("validating OIDC claim", "index", index, "claim", claim)
 
 	// Only validate that it's a non-empty object
 	if len(claim) == 0 {

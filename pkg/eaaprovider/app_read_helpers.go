@@ -322,16 +322,16 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"x_wapp_read_timeout":                appResp.AdvancedSettings.XWappReadTimeout,
 	}
 
-	// tls_suite_type: int -> descriptive string
-	if appResp.AdvancedSettings.TLSSuiteType != nil {
-		switch *appResp.AdvancedSettings.TLSSuiteType {
-		case 1:
-			full["tls_suite_type"] = "default"
-		case 2:
-			full["tls_suite_type"] = "custom"
-		default:
-			full["tls_suite_type"] = ""
-		}
+	// tls_suite_type: int -> descriptive string; always set so nil clears state.
+	switch {
+	case appResp.AdvancedSettings.TLSSuiteType == nil:
+		full["tls_suite_type"] = ""
+	case *appResp.AdvancedSettings.TLSSuiteType == 1:
+		full["tls_suite_type"] = "default"
+	case *appResp.AdvancedSettings.TLSSuiteType == 2:
+		full["tls_suite_type"] = "custom"
+	default:
+		full["tls_suite_type"] = ""
 	}
 
 	// form_post_attributes: []string -> JSON string; always set so clearing is reflected in state.
@@ -345,7 +345,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["form_post_attributes"] = "[]"
 	}
 
-	// request_parameters: map -> JSON string; always set so clearing is reflected in state.
+	// request_parameters: map -> JSON string; only set when non-empty (nil means absent).
 	if len(appResp.AdvancedSettings.RequestParameters) > 0 {
 		rpJSON, err := json.Marshal(appResp.AdvancedSettings.RequestParameters)
 		if err != nil {

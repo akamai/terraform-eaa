@@ -116,7 +116,7 @@ func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serv
 	createRuleResp, err := ec.SendAPIRequest(apiURL, "POST", arReq, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("create rule failed. err", err)
+		ec.Logger.Error("create rule failed", "error", err)
 		return err
 	}
 
@@ -124,7 +124,7 @@ func (rule AccessRule) CreateAccessRule(ctx context.Context, ec *EaaClient, serv
 		desc := FormatErrorDescription(createRuleResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrRuleCreate, desc)
 
-		ec.Logger.Error("create Access Rule failed. StatusCode %d %s", createRuleResp.StatusCode, desc)
+		ec.Logger.Error("create Access Rule failed", "status", createRuleResp.StatusCode, "description", desc)
 		return createErrMsg
 	}
 	ec.Logger.Info("create Access Rule succeeded.", "name", arReq.Name)
@@ -171,7 +171,7 @@ func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serv
 	createRuleResp, err := ec.SendAPIRequest(apiURL, "PUT", arReq, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("modify rule failed. err", err)
+		ec.Logger.Error("modify rule failed", "error", err)
 		return err
 	}
 
@@ -179,7 +179,7 @@ func (rule AccessRule) ModifyAccessRule(ctx context.Context, ec *EaaClient, serv
 		desc := FormatErrorDescription(createRuleResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrRuleModify, desc)
 
-		ec.Logger.Error("modify Access Rule failed. StatusCode %d %s", createRuleResp.StatusCode, desc)
+		ec.Logger.Error("modify Access Rule failed", "status", createRuleResp.StatusCode, "description", desc)
 		return createErrMsg
 	}
 	ec.Logger.Info("modify Access Rule succeeded.", "name", arReq.Name)
@@ -239,12 +239,12 @@ func (appService AppService) CreateAppServiceStruct(ec *EaaClient) ([]interface{
 
 	response, err := GetAccessControlRules(ec, appService.UUIDURL)
 	if err != nil {
-		ec.Logger.Error("get access control rules failed. err", err)
+		ec.Logger.Error("get access control rules failed", "error", err)
 		return nil, err
 	}
 
 	if len(response.ACLRules) == 0 {
-		ec.Logger.Error("no ACL rules found in response. err", err)
+		ec.Logger.Error("no ACL rules found in response", "error", err)
 		return nil, nil
 	}
 

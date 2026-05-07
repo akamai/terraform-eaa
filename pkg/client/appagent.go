@@ -51,7 +51,7 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 			UUIDURL: uuid,
 		}
 		agents.Agents = append(agents.Agents, agent)
-		ec.Logger.Info(uuid)
+		ec.Logger.Info("agent uuid", "uuid", uuid)
 	}
 
 	if len(agents.Agents) == 0 {
@@ -60,16 +60,16 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
 	if err != nil {
-		ec.Logger.Error("assign agents failed StatusCode: ", agentsResp.StatusCode)
+		ec.Logger.Error("assign agents failed", "status", agentsResp.StatusCode)
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsAssign, desc)
-		ec.Logger.Error("assign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)
+		ec.Logger.Error("assign agents failed", "status", agentsResp.StatusCode, "description", desc)
 		return assignErrMsg
 	}
 	return nil
@@ -114,7 +114,7 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 	}
 	for _, uuid := range agentUUIDs {
 		agents.Agents = append(agents.Agents, uuid)
-		ec.Logger.Info(uuid)
+		ec.Logger.Info("agent uuid", "uuid", uuid)
 	}
 	if len(agents.Agents) == 0 {
 		ec.Logger.Error("no connectors to unassign")
@@ -122,16 +122,16 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents?method=delete", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
 	if err != nil {
-		ec.Logger.Error("unassign agents failed StatusCode: ", agentsResp.StatusCode)
+		ec.Logger.Error("unassign agents failed", "status", agentsResp.StatusCode)
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
 		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsUnAssign, desc)
-		ec.Logger.Error("unassign agents failed StatusCode: desc: ", agentsResp.StatusCode, desc)
+		ec.Logger.Error("unassign agents failed", "status", agentsResp.StatusCode, "description", desc)
 		return assignErrMsg
 	}
 	return nil

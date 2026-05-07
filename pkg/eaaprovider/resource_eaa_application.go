@@ -948,18 +948,18 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	minimalRequest := client.MinimalCreateAppRequest{}
 	err = minimalRequest.CreateMinimalAppRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal app request failed. err ", err)
+		logger.Error("Phase 1 failed: create minimal app request failed", "error", err)
 		return append(warningDiags, diag.FromErr(err)...)
 	}
 
 	appResp, err := minimalRequest.CreateMinimalApplication(ctx, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal application failed. err ", err)
+		logger.Error("Phase 1 failed: create minimal application failed", "error", err)
 		return append(warningDiags, diag.FromErr(err)...)
 	}
 
 	appUUIDURL = appResp.UUIDURL
-	logger.Debug("Phase 1 succeeded: Application created with ID:", appUUIDURL)
+	logger.Debug("Phase 1 succeeded: application created", "app_id", appUUIDURL)
 
 	// Set the resource ID early so cleanup can work if later steps fail
 	d.SetId(appUUIDURL)
@@ -992,7 +992,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// Execute Phase 2 steps with error handling
 	for i, step := range phase2Steps {
 		if err := step(); err != nil {
-			logger.Error("Phase 2 failed at step %d: %v", i+1, err)
+			logger.Error("Phase 2 failed", "step", i+1, "error", err)
 
 			// Clean up the created application
 			logger.Warn("Cleaning up created application due to Phase 2 failure...")
@@ -1010,7 +1010,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 			d.SetId("")
 			return append(warningDiags, diag.FromErr(err)...)
 		}
-		logger.Debug("Phase 2 step %d completed successfully", i+1)
+		logger.Debug("Phase 2 step completed", "step", i+1)
 	}
 
 	logger.Debug("Two-phase application creation completed successfully")

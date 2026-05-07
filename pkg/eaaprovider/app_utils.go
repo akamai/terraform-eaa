@@ -28,7 +28,7 @@ func stringPointerValue(value *string) interface{} {
 // cleanupOrphanedApp cleans up orphaned apps that may exist in EAA
 func cleanupOrphanedApp(eaaclient *client.EaaClient, appID string) bool {
 	logger := eaaclient.Logger
-	logger.Debug("Starting cleanup for orphaned app:", appID)
+	logger.Debug("starting cleanup for orphaned app", "app_id", appID)
 
 	// Check if app exists in EAA
 	var appResp client.ApplicationDataModel
@@ -45,7 +45,7 @@ func cleanupOrphanedApp(eaaclient *client.EaaClient, appID string) bool {
 	// Delete the app directly
 	deleteErr := appResp.DeleteApplication(eaaclient)
 	if deleteErr != nil {
-		logger.Error("Failed to delete app during cleanup:", deleteErr)
+		logger.Error("failed to delete app during cleanup", "error", deleteErr)
 		return false
 	}
 
