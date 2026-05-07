@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"encoding/json"
+	"maps"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -172,12 +173,16 @@ var serverComputedAdvancedSettingsKeys = map[string]bool{
 // refreshed. The DiffSuppressFunc handles suppressing diffs for server-computed keys
 // that the user never added to their config.
 func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.ApplicationResponse) diag.Diagnostics {
-	// Determine which keys the user/state already cares about.
+	// Capture existing state values and key set.
+	existingState := map[string]string{}
 	existingKeys := map[string]bool{}
 	if raw, ok := d.GetOk("advanced_settings"); ok {
 		if m, ok := raw.(map[string]interface{}); ok {
-			for k := range m {
+			for k, v := range m {
 				existingKeys[k] = true
+				if s, ok := v.(string); ok {
+					existingState[k] = s
+				}
 			}
 		}
 	}
@@ -365,11 +370,22 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["rdp_remote_apps"] = string(rdpJSON)
 	}
 
-	noExisting := len(existingKeys) == 0
-	result := make(map[string]string, len(existingKeys))
-	for k, v := range full {
-		if noExisting && v != "" || !noExisting && existingKeys[k] {
-			result[k] = v
+	result := make(map[string]string)
+	if len(existingKeys) == 0 {
+		// Import / refresh-only: surface all non-empty API values.
+		for k, v := range full {
+			if v != "" {
+				result[k] = v
+			}
+		}
+	} else {
+		// Normal read: preserve all existing state (including unknown/passthrough
+		// keys), then overwrite only the keys we know how to map from the API.
+		maps.Copy(result, existingState)
+		for k, v := range full {
+			if existingKeys[k] {
+				result[k] = v
+			}
 		}
 	}
 

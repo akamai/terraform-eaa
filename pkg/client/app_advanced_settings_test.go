@@ -225,7 +225,7 @@ func TestAdvancedSettingsFromBlockErrorOnInvalidRDPRemoteApps(t *testing.T) {
 	}
 }
 
-func TestAdvancedSettingsFromBlockStripesTLSKeys(t *testing.T) {
+func TestAdvancedSettingsFromBlockStripsTLSKeys(t *testing.T) {
 	block := map[string]interface{}{
 		"tls_suite_type": "1",
 		"tls_suite_name": "tls-1-2",
