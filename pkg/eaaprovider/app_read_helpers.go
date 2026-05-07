@@ -334,14 +334,16 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["tls_suite_type"] = ""
 	}
 
-	// form_post_attributes: []string -> JSON string; always set so clearing is reflected in state.
+	// form_post_attributes: []string -> JSON string.
+	// Write "[]" only when the key is already tracked in state, so clearing is reflected.
+	// On import (no prior state) omit the key entirely to avoid noisy diffs.
 	if len(appResp.AdvancedSettings.FormPostAttributes) > 0 {
 		fpaJSON, err := json.Marshal(appResp.AdvancedSettings.FormPostAttributes)
 		if err != nil {
 			return diag.Errorf("failed to marshal form_post_attributes to JSON: %v", err)
 		}
 		full["form_post_attributes"] = string(fpaJSON)
-	} else {
+	} else if existingKeys["form_post_attributes"] {
 		full["form_post_attributes"] = "[]"
 	}
 
@@ -354,25 +356,27 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["request_parameters"] = string(rpJSON)
 	}
 
-	// custom_headers: []CustomHeader -> JSON string; always set so clearing is reflected in state.
+	// custom_headers: []CustomHeader -> JSON string.
+	// Write "[]" only when already tracked in state; omit on import.
 	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
 		chJSON, err := json.Marshal(appResp.AdvancedSettings.CustomHeaders)
 		if err != nil {
 			return diag.Errorf("failed to marshal custom_headers to JSON: %v", err)
 		}
 		full["custom_headers"] = string(chJSON)
-	} else {
+	} else if existingKeys["custom_headers"] {
 		full["custom_headers"] = "[]"
 	}
 
-	// rdp_remote_apps: []RemoteApp -> JSON string; always set so clearing is reflected in state.
+	// rdp_remote_apps: []RemoteApp -> JSON string.
+	// Write "[]" only when already tracked in state; omit on import.
 	if len(appResp.AdvancedSettings.RDPRemoteApps) > 0 {
 		rdpJSON, err := json.Marshal(appResp.AdvancedSettings.RDPRemoteApps)
 		if err != nil {
 			return diag.Errorf("failed to marshal rdp_remote_apps to JSON: %v", err)
 		}
 		full["rdp_remote_apps"] = string(rdpJSON)
-	} else {
+	} else if existingKeys["rdp_remote_apps"] {
 		full["rdp_remote_apps"] = "[]"
 	}
 
