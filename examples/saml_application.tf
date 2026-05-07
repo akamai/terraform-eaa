@@ -170,7 +170,7 @@ resource "eaa_application" "saas_saml_example" {
     idp {
       entity_id = "https://idp.example.com/metadata"
       sign_algo = "SHA256" # Response signing algorithm (SHA256)
-      #sign_key    = <SIGNING_CERTIFICATE>"  # Request signing certificate
+      #sign_key    = "<SIGNING_CERTIFICATE>"  # Request signing certificate
     }
 
     # Subject Configuration

@@ -233,7 +233,7 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	}
 
 	// Restore rdp_remote_apps that was excluded from the flat map.
-	if len(rdpRemoteApps) > 0 {
+	if _, ok := block["rdp_remote_apps"]; ok {
 		advSettings.RDPRemoteApps = rdpRemoteApps
 	}
 

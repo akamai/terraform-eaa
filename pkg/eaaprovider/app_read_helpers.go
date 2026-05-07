@@ -334,16 +334,18 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		}
 	}
 
-	// form_post_attributes: []string -> JSON string
+	// form_post_attributes: []string -> JSON string; always set so clearing is reflected in state.
 	if len(appResp.AdvancedSettings.FormPostAttributes) > 0 {
 		fpaJSON, err := json.Marshal(appResp.AdvancedSettings.FormPostAttributes)
 		if err != nil {
 			return diag.Errorf("failed to marshal form_post_attributes to JSON: %v", err)
 		}
 		full["form_post_attributes"] = string(fpaJSON)
+	} else {
+		full["form_post_attributes"] = "[]"
 	}
 
-	// request_parameters: map -> JSON string
+	// request_parameters: map -> JSON string; always set so clearing is reflected in state.
 	if len(appResp.AdvancedSettings.RequestParameters) > 0 {
 		rpJSON, err := json.Marshal(appResp.AdvancedSettings.RequestParameters)
 		if err != nil {
@@ -352,22 +354,26 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["request_parameters"] = string(rpJSON)
 	}
 
-	// custom_headers: []CustomHeader -> JSON string
+	// custom_headers: []CustomHeader -> JSON string; always set so clearing is reflected in state.
 	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
 		chJSON, err := json.Marshal(appResp.AdvancedSettings.CustomHeaders)
 		if err != nil {
 			return diag.Errorf("failed to marshal custom_headers to JSON: %v", err)
 		}
 		full["custom_headers"] = string(chJSON)
+	} else {
+		full["custom_headers"] = "[]"
 	}
 
-	// rdp_remote_apps: []RemoteApp -> JSON string
+	// rdp_remote_apps: []RemoteApp -> JSON string; always set so clearing is reflected in state.
 	if len(appResp.AdvancedSettings.RDPRemoteApps) > 0 {
 		rdpJSON, err := json.Marshal(appResp.AdvancedSettings.RDPRemoteApps)
 		if err != nil {
 			return diag.Errorf("failed to marshal rdp_remote_apps to JSON: %v", err)
 		}
 		full["rdp_remote_apps"] = string(rdpJSON)
+	} else {
+		full["rdp_remote_apps"] = "[]"
 	}
 
 	result := make(map[string]string)
