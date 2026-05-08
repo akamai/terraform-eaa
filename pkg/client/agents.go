@@ -276,12 +276,16 @@ func GetAgentUUIDs(ec *EaaClient, agentNames []string) ([]string, error) {
 
 	agentUUIDs := make([]string, 0)
 	for _, agentName := range agentNames {
+		found := false
 		for i := range agents {
-			agentData := &agents[i]
-			if agentName == agentData.Name {
-				agentUUIDs = append(agentUUIDs, agentData.UUIDURL)
+			if agentName == agents[i].Name {
+				agentUUIDs = append(agentUUIDs, agents[i].UUIDURL)
+				found = true
 				break
 			}
+		}
+		if !found {
+			return nil, fmt.Errorf("agent not found: %s", agentName)
 		}
 	}
 

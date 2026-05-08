@@ -114,7 +114,7 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 		}
 	}
 
-	return nil, errors.New("IDP with name not found")
+	return nil, fmt.Errorf("IDP with name '%s' not found", idpName)
 }
 
 func (idpData *IDPData) GetIdpDirectory(ctx context.Context, ec *EaaClient, dirName string) (*DirectoryData, error) {
@@ -126,7 +126,7 @@ func (idpData *IDPData) GetIdpDirectory(ctx context.Context, ec *EaaClient, dirN
 		}
 	}
 
-	return nil, errors.New("IDP with name not found")
+	return nil, fmt.Errorf("IDP Directory with name '%s' not found", dirName)
 }
 
 func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {

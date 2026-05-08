@@ -749,6 +749,50 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	return nil
 }
 
+// ConfigureService configures the access service and ACL rules for a newly created application.
+// On create there are no pre-existing rules, so it simply enables the service and creates all rules.
+func ConfigureService(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
+	logger := ec.Logger
+
+	servicesRaw, ok := d.GetOk("service")
+	if !ok {
+		return nil
+	}
+	services, ok := servicesRaw.([]interface{})
+	if !ok || len(services) == 0 {
+		return nil
+	}
+
+	appSrv, err := GetACLService(ec, appID)
+	if err != nil {
+		logger.Error("configure service: get ACL service failed", "error", err)
+		return err
+	}
+
+	aclSrv, err := ExtractACLService(ctx, d, ec)
+	if err != nil {
+		logger.Error("configure service: extract ACL service failed", "error", err)
+		return err
+	}
+
+	if appSrv.Status != aclSrv.Status {
+		appSrv.Status = aclSrv.Status
+		if err := appSrv.EnableService(ec); err != nil {
+			logger.Error("configure service: enable service failed", "error", err)
+			return err
+		}
+	}
+
+	for _, rule := range aclSrv.ACLRules {
+		if err := rule.CreateAccessRule(ctx, ec, appSrv.UUIDURL); err != nil {
+			return err
+		}
+	}
+
+	logger.Debug("configure service succeeded.")
+	return nil
+}
+
 // DeployExistingApplication deploys an existing application
 func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient) error {
 	logger := ec.Logger

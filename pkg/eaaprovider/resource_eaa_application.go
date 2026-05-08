@@ -2,9 +2,11 @@ package eaaprovider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -18,14 +20,48 @@ var (
 	ErrInvalidData = errors.New("invalid data in schema")
 )
 
-// suppressServerComputedAdvSettingsKey suppresses plan diffs that would remove
-// API-auto-populated keys (e.g. edge_cookie_key, sla_object_url) that the user
-// never configured. Terraform sees them in state (written on import / first apply)
-// but not in config, and would otherwise plan to null them every run.
+// jsonStringAdvancedSettingsKeys are advanced_settings fields stored as JSON-encoded strings.
+// Their values are compared semantically (ignoring key order and whitespace) to avoid
+// perpetual diffs caused by jsonencode (alphabetical keys) vs json.Marshal (struct order).
+var jsonStringAdvancedSettingsKeys = map[string]bool{
+	"custom_headers":       true,
+	"form_post_attributes": true,
+	"request_parameters":   true,
+	"rdp_remote_apps":      true,
+}
+
+// suppressServerComputedAdvSettingsKey suppresses plan diffs for:
+//  1. API-auto-populated keys (e.g. edge_cookie_key) the user never configured.
+//  2. JSON-string fields where only key-order or whitespace differs.
 func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.ResourceData) bool {
 	parts := strings.SplitN(k, ".", 2)
-	return len(parts) == 2 && parts[1] != "%" &&
-		serverComputedAdvancedSettingsKeys[parts[1]] && newStr == ""
+	if len(parts) != 2 || parts[1] == "%" {
+		return false
+	}
+	key := parts[1]
+	if serverComputedAdvancedSettingsKeys[key] && newStr == "" {
+		return true
+	}
+	if jsonStringAdvancedSettingsKeys[key] {
+		return jsonSemanticEqual(old, newStr)
+	}
+	return false
+}
+
+// jsonSemanticEqual returns true when a and b represent the same JSON value,
+// ignoring key ordering and insignificant whitespace.
+func jsonSemanticEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	var ja, jb interface{}
+	if err := json.Unmarshal([]byte(a), &ja); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(b), &jb); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(ja, jb)
 }
 
 func getAppError(resp *http.Response) error {
@@ -978,6 +1014,10 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		func() error {
 			logger.Debug("Phase 2: Configuring authentication...")
 			return client.ConfigureAuthentication(ctx, appUUIDURL, d, eaaclient)
+		},
+		func() error {
+			logger.Debug("Phase 2: Configuring access service...")
+			return client.ConfigureService(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
 			logger.Debug("Phase 2: Configuring advanced settings...")

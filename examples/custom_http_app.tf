@@ -52,7 +52,7 @@ resource "eaa_application" "jira-app" {
     app_auth_domain                = "example.com"
     app_client_cert_auth           = "false"
     app_server_read_timeout        = "60"
-    cookie_domain                  = "example.com"
+    cookie_domain                  = ""
     disable_user_agent_check       = "false"
     form_post_url                  = "https://example.com/post"
     forward_ticket_granting_ticket = "false"
