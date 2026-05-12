@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -35,7 +35,7 @@ resource "eaa_application" "sql-lab-dc1-app" {
 
   agents = ["EAA_DC1_US1_TCP_01"]
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     is_ssl_verification_enabled = "false"
     ip_access_allow             = "false"
     x_wapp_read_timeout         = "300"
@@ -43,8 +43,7 @@ resource "eaa_application" "sql-lab-dc1-app" {
     internal_hostname           = "myhost999.com"
     health_check_type           = "TCP"
     websocket_enabled           = "true"
-
-  })
+  }
 
   auth_enabled = "true"
 

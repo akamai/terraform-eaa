@@ -41,7 +41,7 @@ func SetAdvancedSettings(d *schema.ResourceData, settings *AdvancedSettings) err
 
 		// Include ALL fields, even if they have empty values
 		// This ensures the complete configuration is visible in Terraform state
-		if field.Kind() == reflect.Ptr {
+		if field.Kind() == reflect.Pointer {
 			if field.IsNil() {
 				// Include null pointers as null in the map
 				advancedSettingsMap[tagName] = nil
@@ -109,12 +109,12 @@ func UpdateAdvancedSettings(complete *AdvancedSettingsComplete, delta *AdvancedS
 		switch completeField.Kind() {
 		case reflect.String:
 			// Handle string fields - convert pointer to string if needed
-			if deltaField.Kind() == reflect.Ptr && !deltaField.IsNil() {
+			if deltaField.Kind() == reflect.Pointer && !deltaField.IsNil() {
 				completeField.SetString(deltaField.Elem().String())
 			} else if deltaField.Kind() == reflect.String {
 				completeField.SetString(deltaField.String())
 			}
-		case reflect.Ptr:
+		case reflect.Pointer:
 			// Handle pointer fields - create pointer to the value
 			if deltaField.Kind() == reflect.String {
 				// Create a pointer to the string value

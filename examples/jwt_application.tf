@@ -5,7 +5,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -50,7 +50,7 @@ resource "eaa_application" "jwt_custom" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     wapp_auth         = "jwt"
     jwt_issuers       = "https://auth.example.com"
     jwt_audience      = "my-app"
@@ -58,5 +58,5 @@ resource "eaa_application" "jwt_custom" {
     jwt_return_option = "401"
     jwt_username      = "sub"
     jwt_return_url    = "https://jwt-custom.example.com/return"
-  })
+  }
 }

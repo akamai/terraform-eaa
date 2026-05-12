@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -37,13 +37,13 @@ resource "eaa_application" "jira-app" {
     origin_host     = "jira-app.example.com"
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth                       = "basic"
     allow_cors                     = "true"
     cors_method_list               = "method1,method2"
     cors_origin_list               = "origin1,origin2,orign3"
     cors_header_list               = "header1,header2,header3"
-    cors_max_age                   = 90000
+    cors_max_age                   = "90000"
     cors_support_credential        = "off"
     sticky_agent                   = "false"
     websocket_enabled              = "false"
@@ -52,7 +52,7 @@ resource "eaa_application" "jira-app" {
     app_auth_domain                = "example.com"
     app_client_cert_auth           = "false"
     app_server_read_timeout        = "60"
-    cookie_domain                  = "example.com"
+    cookie_domain                  = ""
     disable_user_agent_check       = "false"
     form_post_url                  = "https://example.com/post"
     forward_ticket_granting_ticket = "false"
@@ -85,21 +85,20 @@ resource "eaa_application" "jira-app" {
     session_sticky_cookie_maxage   = "3600"
     session_sticky_server_cookie   = "session_cookie"
     wapp_auth                      = "form"
-    custom_headers = [
+    # custom_headers is a JSON-encoded string for complex nested structures
+    custom_headers = jsonencode([
       {
         attribute_type = "custom"
         header         = "myheader"
         attribute      = "value"
-
       },
       {
         attribute_type = "user"
         header         = "myuser"
         attribute      = ""
-
       }
-    ]
-  })
+    ])
+  }
 
   auth_enabled = "true"
 

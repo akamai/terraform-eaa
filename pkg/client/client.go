@@ -53,7 +53,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 
 	}
 
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 	r, err := http.NewRequest(method, apiURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

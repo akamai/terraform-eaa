@@ -49,7 +49,7 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 	ec.Logger.Info("getIDPs call")
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, IDP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	idpResponse := IDPResponse{}
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &idpResponse, false)
@@ -84,9 +84,9 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 }
 
 func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPData, error) {
-	ec.Logger.Info("GetIdpWithName ", idpName)
+	ec.Logger.Info("GetIdpWithName", "idp_name", idpName)
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, IDP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	idpResponse := IDPResponse{}
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &idpResponse, false)
@@ -114,25 +114,25 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 		}
 	}
 
-	return nil, errors.New("IDP with name not found")
+	return nil, fmt.Errorf("IDP with name '%s' not found", idpName)
 }
 
 func (idpData *IDPData) GetIdpDirectory(ctx context.Context, ec *EaaClient, dirName string) (*DirectoryData, error) {
 
 	for _, directory := range idpData.Directories {
 		if dirName == directory.Name {
-			ec.Logger.Info(directory.Name)
+			ec.Logger.Info("directory found", "name", directory.Name)
 			return &directory, nil
 		}
 	}
 
-	return nil, errors.New("IDP with name not found")
+	return nil, fmt.Errorf("IDP Directory with name '%s' not found", dirName)
 }
 
 func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories", URL_SCHEME, ec.Host, IDP_URL, idpUUID)
-	ec.Logger.Info("getIDPDirectories for idpUUID ", idpUUID)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("getIDPDirectories", "idp_uuid", idpUUID)
+	ec.Logger.Info("api URL", "url", apiURL)
 	directoryResponse := DirectoryResponse{}
 
 	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &directoryResponse, false)

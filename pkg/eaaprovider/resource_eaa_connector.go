@@ -127,13 +127,13 @@ func resourceEaaConnectorCreate(ctx context.Context, d *schema.ResourceData, m i
 	createRequest := client.CreateConnectorRequest{}
 	err = createRequest.CreateConnectorRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		logger.Error("create connector failed. err ", err)
+		logger.Error("create connector failed", "error", err)
 		return diag.FromErr(err)
 	}
 
 	connResp, err := createRequest.CreateConnector(ctx, eaaclient)
 	if err != nil {
-		logger.Error("create connector failed. err ", err)
+		logger.Error("create connector failed", "error", err)
 		return diag.FromErr(err)
 	}
 
@@ -236,7 +236,7 @@ func resourceEaaConnectorUpdate(ctx context.Context, d *schema.ResourceData, m i
 			return diag.FromErr(err)
 		}
 		if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-			logger.Error("approve connector failed. err ", err)
+			logger.Error("approve connector failed", "error", err)
 		}
 	}
 

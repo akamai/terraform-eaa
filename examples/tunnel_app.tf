@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -40,14 +40,13 @@ resource "eaa_application" "sap-prod-dc1-app" {
     host       = "192.168.2.2"
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     is_ssl_verification_enabled = "false"
     ip_access_allow             = "false"
     x_wapp_read_timeout         = "300"
     health_check_type           = "TCP"
     websocket_enabled           = "true"
-
-  })
+  }
 
   auth_enabled = "true"
 

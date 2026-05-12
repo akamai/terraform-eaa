@@ -179,7 +179,7 @@ func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceDat
 	createRequest := CreateConnectorRequest{}
 	err := createRequest.CreateConnectorRequestFromSchema(ctx, d, ec)
 	if err != nil {
-		ec.Logger.Error("create connector failed. err ", err)
+		ec.Logger.Error("create connector failed", "error", err)
 		return nil, err
 	}
 	cur.Name = createRequest.Name
@@ -199,7 +199,7 @@ func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceDat
 		desc := FormatErrorDescription(updateConnResp)
 		updateErrMsg := fmt.Errorf("%w: %s", ErrConnUpdate, desc)
 
-		ec.Logger.Error("update Connector failed. StatusCode %d %s", updateConnResp.StatusCode, desc)
+		ec.Logger.Error("update Connector failed", "status", updateConnResp.StatusCode, "description", desc)
 		return nil, updateErrMsg
 	}
 
@@ -221,7 +221,7 @@ func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaC
 		desc := FormatErrorDescription(createConnResp)
 		createErrMsg := fmt.Errorf("%w: %s", ErrConnCreate, desc)
 
-		ec.Logger.Error("create Connector failed. StatusCode %d %s", createConnResp.StatusCode, desc)
+		ec.Logger.Error("create Connector failed", "status", createConnResp.StatusCode, "description", desc)
 		return nil, createErrMsg
 	}
 
@@ -276,12 +276,16 @@ func GetAgentUUIDs(ec *EaaClient, agentNames []string) ([]string, error) {
 
 	agentUUIDs := make([]string, 0)
 	for _, agentName := range agentNames {
+		found := false
 		for i := range agents {
-			agentData := &agents[i]
-			if agentName == agentData.Name {
-				agentUUIDs = append(agentUUIDs, agentData.UUIDURL)
+			if agentName == agents[i].Name {
+				agentUUIDs = append(agentUUIDs, agents[i].UUIDURL)
+				found = true
 				break
 			}
+		}
+		if !found {
+			return nil, fmt.Errorf("agent not found: %s", agentName)
 		}
 	}
 

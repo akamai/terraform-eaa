@@ -54,7 +54,7 @@ func validateAppBundleRestrictions(d *schema.ResourceDiff, logger hclog.Logger) 
 		return nil
 	}
 
-	logger.Debug("app_bundle found: %s, validating restrictions", appBundleStr)
+	logger.Debug("validating app_bundle restrictions", "app_bundle", appBundleStr)
 
 	// Get app_type
 	appType, ok := d.GetOk("app_type")
@@ -82,11 +82,11 @@ func validateAppBundleRestrictions(d *schema.ResourceDiff, logger hclog.Logger) 
 		return nil
 	}
 
-	logger.Debug("Validating app_bundle for app_type=%s, app_profile=%s", appTypeStr, appProfileStr)
+	logger.Debug("validating app_bundle", "app_type", appTypeStr, "app_profile", appProfileStr)
 
 	// Check app type restrictions - only enterprise apps support app bundles
 	if appTypeStr != string(client.ClientAppTypeEnterprise) {
-		logger.Error("app_bundle is not supported for app_type '%s'. Only enterprise apps support app bundles", appTypeStr)
+		logger.Error("app_bundle not supported for app_type", "app_type", appTypeStr)
 		return fmt.Errorf("app_bundle is not supported for app_type '%s'. Only enterprise apps support app bundles", appTypeStr)
 	}
 
@@ -108,10 +108,10 @@ func validateAppBundleRestrictions(d *schema.ResourceDiff, logger hclog.Logger) 
 	}
 
 	if !isValidProfile {
-		logger.Error("app_bundle is not supported for app_profile '%s'. Supported profiles: %v", appProfileStr, validProfiles)
+		logger.Error("app_bundle not supported for app_profile", "app_profile", appProfileStr, "valid_profiles", validProfiles)
 		return fmt.Errorf("app_bundle is not supported for app_profile '%s'. Supported profiles: %v", appProfileStr, validProfiles)
 	}
 
-	logger.Debug("app_bundle validation passed for app_type=%s, app_profile=%s", appTypeStr, appProfileStr)
+	logger.Debug("app_bundle validation passed", "app_type", appTypeStr, "app_profile", appProfileStr)
 	return nil
 }

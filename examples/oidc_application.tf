@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -52,11 +52,10 @@ resource "eaa_application" "oidc_basic" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "OpenID Connect 1.0"
-
     # No oidc_settings needed - defaults will be applied
-  })
+  }
 
   # No app_authentication block needed for first-time creation
   # API will automatically assign default IDP and create default OIDC settings

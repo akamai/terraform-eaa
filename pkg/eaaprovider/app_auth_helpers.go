@@ -2,10 +2,10 @@ package eaaprovider
 
 import (
 	"fmt"
+	"slices"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -55,16 +55,19 @@ func getResourceDiffBool(d *schema.ResourceDiff, key string) bool {
 	return ok && boolValue
 }
 
-// getAppAuthFromSchema extracts app_auth from advanced_settings in the schema
+// getAppAuthFromSchema extracts app_auth from the advanced_settings TypeMap block in the schema
 func getAppAuthFromSchema(getter SchemaGetter) string {
-	var appAuth string
-	if advSettingsData, ok := getter.GetOk("advanced_settings"); ok {
-		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
-			advSettings, err := client.ParseAdvancedSettingsWithDefaults(advSettingsJSON)
-			if err == nil && advSettings != nil {
-				appAuth = advSettings.AppAuth
-			}
-		}
+	advSettingsData, ok := getter.GetOk("advanced_settings")
+	if !ok {
+		return ""
+	}
+	settings, ok := advSettingsData.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	appAuth, ok := settings["app_auth"].(string)
+	if !ok {
+		return ""
 	}
 	return appAuth
 }
@@ -108,10 +111,8 @@ func shouldEnableAuthForSchema(getter SchemaGetter, config AuthEnableConfig) boo
 	appAuth := getAppAuthFromSchema(getter)
 
 	// Check appAuth values
-	for _, appAuthValue := range config.AppAuthValues {
-		if appAuth == appAuthValue {
-			return true
-		}
+	if slices.Contains(config.AppAuthValues, appAuth) {
+		return true
 	}
 
 	// Check if settings exist in schema
@@ -224,37 +225,6 @@ func validateAuthenticationMethodsForAppTypeWithDiff(d *schema.ResourceDiff) err
 		}
 	}
 
-	return nil
-}
-
-// validateAppAuthConflictsWithResourceLevelAuth validates app_auth conflicts with resource-level auth settings
-func validateAppAuthConflictsWithResourceLevelAuth(settings map[string]interface{}, diff *schema.ResourceDiff, logger hclog.Logger) error {
-	// Check if app_auth is present in advanced_settings
-	appAuth, exists := settings["app_auth"]
-	if !exists {
-		logger.Debug("No app_auth field found, skipping conflict validation")
-		return nil
-	}
-
-	appAuthStr, ok := appAuth.(string)
-	if !ok {
-		logger.Debug("app_auth is not a string, skipping conflict validation")
-		return nil
-	}
-
-	logger.Debug("Validating app_auth conflicts for value: %s", appAuthStr)
-
-	// Additional validation: specific conflicts with SAML
-	if getResourceDiffBool(diff, "saml") {
-		// When SAML is enabled, app_auth cannot be kerberos, NTLMv1, or NTLMv2
-		for _, conflictingValue := range client.SAMLConflictingAppAuthValues {
-			if appAuthStr == conflictingValue {
-				return fmt.Errorf("when saml is enabled (saml=true), app_auth cannot be '%s' in advanced_settings. Use '%s' instead", conflictingValue, string(client.AppAuthNone))
-			}
-		}
-	}
-
-	logger.Debug("App auth conflict validation passed")
 	return nil
 }
 

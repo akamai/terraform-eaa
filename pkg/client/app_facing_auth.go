@@ -101,8 +101,8 @@ func shouldEnableAuthForCreate(d *schema.ResourceData, appAuth string, config Au
 // Returns the app_auth value or empty string if not found
 func getAppAuthFromAdvancedSettings(d *schema.ResourceData) string {
 	if advSettingsData, ok := d.GetOk("advanced_settings"); ok {
-		if advSettingsJSON, ok := advSettingsData.(string); ok && advSettingsJSON != "" {
-			advSettings, err := ParseAdvancedSettingsWithDefaults(advSettingsJSON)
+		if advSettingsMap, ok := advSettingsData.(map[string]interface{}); ok {
+			advSettings, err := advancedSettingsFromBlock(advSettingsMap)
 			if err == nil && advSettings != nil {
 				return advSettings.AppAuth
 			}

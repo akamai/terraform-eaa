@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
@@ -17,6 +19,50 @@ var (
 	ErrGetApp      = errors.New("app get failed")
 	ErrInvalidData = errors.New("invalid data in schema")
 )
+
+// jsonStringAdvancedSettingsKeys are advanced_settings fields stored as JSON-encoded strings.
+// Their values are compared semantically (ignoring key order and whitespace) to avoid
+// perpetual diffs caused by jsonencode (alphabetical keys) vs json.Marshal (struct order).
+var jsonStringAdvancedSettingsKeys = map[string]bool{
+	"custom_headers":       true,
+	"form_post_attributes": true,
+	"request_parameters":   true,
+	"rdp_remote_apps":      true,
+}
+
+// suppressServerComputedAdvSettingsKey suppresses plan diffs for:
+//  1. API-auto-populated keys (e.g. edge_cookie_key) the user never configured.
+//  2. JSON-string fields where only key-order or whitespace differs.
+func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.ResourceData) bool {
+	parts := strings.SplitN(k, ".", 2)
+	if len(parts) != 2 || parts[1] == "%" {
+		return false
+	}
+	key := parts[1]
+	if serverComputedAdvancedSettingsKeys[key] && newStr == "" {
+		return true
+	}
+	if jsonStringAdvancedSettingsKeys[key] {
+		return jsonSemanticEqual(old, newStr)
+	}
+	return false
+}
+
+// jsonSemanticEqual returns true when a and b represent the same JSON value,
+// ignoring key ordering and insignificant whitespace.
+func jsonSemanticEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	var ja, jb interface{}
+	if err := json.Unmarshal([]byte(a), &ja); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(b), &jb); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(ja, jb)
+}
 
 func getAppError(resp *http.Response) error {
 	desc := client.FormatErrorDescription(resp)
@@ -94,6 +140,7 @@ func resourceEaaApplication() *schema.Resource {
 			"domain": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"domain_suffix": {
 				Type:     schema.TypeString,
@@ -168,6 +215,7 @@ func resourceEaaApplication() *schema.Resource {
 			"popregion": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 
 			"auth_enabled": {
@@ -757,11 +805,14 @@ func resourceEaaApplication() *schema.Resource {
 				Optional: true,
 			},
 			"advanced_settings": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Description:  "Advanced settings in JSON format. Use jsonencode() to convert HCL map to JSON.",
-				Default:      "{}",
-				ValidateFunc: validateAdvancedSettingsJSON,
+				Type:             schema.TypeMap,
+				Optional:         true,
+				Computed:         true,
+				Elem:             &schema.Schema{Type: schema.TypeString},
+				DiffSuppressFunc: suppressServerComputedAdvSettingsKey,
+				Description: "Flat map of advanced settings key/value pairs. All values are strings. " +
+					"Entries are passed to the API as provided; unsupported keys may be ignored by the API.  " +
+					"Complex fields (form_post_attributes, request_parameters, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
 			},
 			"app_bundle": {
 				Type:         schema.TypeString,
@@ -906,69 +957,7 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 		err = validateAppBundleRestrictions(d, logger)
 	}
 
-	// Keep advanced_settings validation limited to provider-owned conflicts.
-	if err == nil {
-		err = validateAdvancedSettingsAtPlanTime(d, m)
-	}
-
 	return err
-}
-
-// validateAdvancedSettingsAtPlanTime validates advanced settings during terraform plan
-func validateAdvancedSettingsAtPlanTime(diff *schema.ResourceDiff, m interface{}) error {
-	// Get client logger from meta
-	eaaclient, err := Client(m)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
-	}
-	logger := eaaclient.Logger
-
-	// Get app_type and app_profile from the diff
-	appType, ok := diff.Get("app_type").(string)
-	if !ok {
-		return client.ErrAppTypeRequired
-	}
-
-	appProfile, ok := diff.Get("app_profile").(string)
-	if !ok {
-		return client.ErrAppProfileRequired
-	}
-
-	// Get advanced_settings from the diff
-	advancedSettingsStr, ok := diff.Get("advanced_settings").(string)
-	if !ok || advancedSettingsStr == "" || advancedSettingsStr == "{}" {
-		// No advanced settings to validate
-		return nil
-	}
-
-	// Parse the JSON
-	var settings map[string]interface{}
-	if err := json.Unmarshal([]byte(advancedSettingsStr), &settings); err != nil {
-		return client.ErrAdvancedSettingsInvalidJSONFormat
-	}
-
-	// Restrict plan-time validation to provider-owned checks only.
-	logger.Debug("Running provider-owned validation for advanced settings")
-
-	// Validate app_auth conflicts with resource-level authentication settings.
-	logger.Debug("Running app_auth conflict validation")
-	if err := validateAppAuthConflictsWithResourceLevelAuth(settings, diff, logger); err != nil {
-		logger.Error("App auth conflict validation failed: %v", err)
-		return err
-	}
-	logger.Debug("App auth conflict validation passed")
-
-	// Validate TLS Suite configuration restrictions because the provider rewrites these fields.
-	if err := validateTLSSuiteRestrictions(appType, appProfile, settings); err != nil {
-		return client.ErrTLSSuiteRestrictionsValidationFailed
-	}
-
-	// Validate TLS Suite required dependencies because the provider rewrites these fields.
-	if err := validateTLSSuiteRequiredDependencies(settings, logger); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // resourceEaaApplicationCreateTwoPhase implements the two-phase application creation approach
@@ -980,7 +969,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		return diag.FromErr(err)
 	}
 	logger := eaaclient.Logger
-	warningDiags := validateAdvancedSettingsWarningDiagnostics(d, logger)
+	var warningDiags diag.Diagnostics
 
 	logger.Debug("Starting two-phase application creation")
 
@@ -995,18 +984,18 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	minimalRequest := client.MinimalCreateAppRequest{}
 	err = minimalRequest.CreateMinimalAppRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal app request failed. err ", err)
+		logger.Error("Phase 1 failed: create minimal app request failed", "error", err)
 		return append(warningDiags, diag.FromErr(err)...)
 	}
 
 	appResp, err := minimalRequest.CreateMinimalApplication(ctx, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal application failed. err ", err)
+		logger.Error("Phase 1 failed: create minimal application failed", "error", err)
 		return append(warningDiags, diag.FromErr(err)...)
 	}
 
 	appUUIDURL = appResp.UUIDURL
-	logger.Debug("Phase 1 succeeded: Application created with ID:", appUUIDURL)
+	logger.Debug("Phase 1 succeeded: application created", "app_id", appUUIDURL)
 
 	// Set the resource ID early so cleanup can work if later steps fail
 	d.SetId(appUUIDURL)
@@ -1027,6 +1016,10 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 			return client.ConfigureAuthentication(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
+			logger.Debug("Phase 2: Configuring access service...")
+			return client.ConfigureService(ctx, appUUIDURL, d, eaaclient)
+		},
+		func() error {
 			logger.Debug("Phase 2: Configuring advanced settings...")
 			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient)
 		},
@@ -1039,7 +1032,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// Execute Phase 2 steps with error handling
 	for i, step := range phase2Steps {
 		if err := step(); err != nil {
-			logger.Error("Phase 2 failed at step %d: %v", i+1, err)
+			logger.Error("Phase 2 failed", "step", i+1, "error", err)
 
 			// Clean up the created application
 			logger.Warn("Cleaning up created application due to Phase 2 failure...")
@@ -1057,7 +1050,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 			d.SetId("")
 			return append(warningDiags, diag.FromErr(err)...)
 		}
-		logger.Debug("Phase 2 step %d completed successfully", i+1)
+		logger.Debug("Phase 2 step completed", "step", i+1)
 	}
 
 	logger.Debug("Two-phase application creation completed successfully")
@@ -1136,7 +1129,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	warningDiags := validateAdvancedSettingsWarningDiagnostics(d, eaaclient.Logger)
+	var warningDiags diag.Diagnostics
 
 	// Advanced settings validation is now handled at plan time via CustomizeDiff
 

@@ -57,18 +57,18 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appdirectories", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	appDirResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign directories to application failed. err", err)
+		ec.Logger.Error("assign directories to application failed", "error", err)
 		return err
 	}
 	if appDirResp.StatusCode < http.StatusOK || appDirResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appDirResp)
 		assignDirErrMsg := fmt.Errorf("%w: %s", ErrAssignDirectoryFailure, desc)
-		ec.Logger.Error("assign directories to application failed. appDirResp.StatusCode", appDirResp.StatusCode)
+		ec.Logger.Error("assign directories to application failed", "status", appDirResp.StatusCode)
 		return assignDirErrMsg
 	}
 	return nil
@@ -79,7 +79,7 @@ func (dirData *DirectoryData) GetIdpDirectoryGroup(ctx context.Context, ec *EaaC
 	ec.Logger.Info("get IDP Group ")
 	for _, group := range dirData.Groups {
 		if groupName == group.Name {
-			ec.Logger.Info(group.Name)
+			ec.Logger.Info("group found", "name", group.Name)
 			return &group, nil
 		}
 	}
@@ -132,18 +132,18 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appgroups", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	appGroupResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign groups to application failed. err", err)
+		ec.Logger.Error("assign groups to application failed", "error", err)
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appGroupResp)
 		assignGrpErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
-		ec.Logger.Error("assign groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)
+		ec.Logger.Error("assign groups to application failed", "status", appGroupResp.StatusCode)
 		return assignGrpErrMsg
 	}
 	return nil
@@ -175,18 +175,18 @@ func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appgroups", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info(apiURL)
+	ec.Logger.Info("api URL", "url", apiURL)
 
 	appGroupResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign directory groups to application failed. err", err)
+		ec.Logger.Error("assign directory groups to application failed", "error", err)
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appGroupResp)
 		appGroupErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
-		ec.Logger.Error("assign directory groups to application failed. appGroupResp.StatusCode: ", appGroupResp.StatusCode)
+		ec.Logger.Error("assign directory groups to application failed", "status", appGroupResp.StatusCode)
 		return appGroupErrMsg
 	}
 	return nil

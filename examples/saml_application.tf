@@ -4,7 +4,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -49,10 +49,9 @@ resource "eaa_application" "saml_basic" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "SAML2.0"
-
-  })
+  }
   saml_settings {
 
     # Identity Provider (IDP) Configuration
@@ -100,9 +99,9 @@ resource "eaa_application" "saml_custom_example_1" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "SAML2.0"
-  })
+  }
 
   # SAML settings using schema approach (nested blocks)
   saml_settings {
@@ -121,8 +120,8 @@ resource "eaa_application" "saml_custom_example_1" {
     idp {
       entity_id   = "https://idp.example.com/metadata"
       sign_algo   = "SHA256"
-      sign_cert   = "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
-      sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"
+      sign_cert   = "<YOUR_SIGNING_CERTIFICATE>"
+      sign_key    = "<YOUR_PRIVATE_KEY>"
       self_signed = true # Set to true if using self-signed certificates
     }
 
@@ -171,7 +170,7 @@ resource "eaa_application" "saas_saml_example" {
     idp {
       entity_id = "https://idp.example.com/metadata"
       sign_algo = "SHA256" # Response signing algorithm (SHA256)
-      #sign_key    = "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"  # Request signing certificate
+      #sign_key    = "<SIGNING_CERTIFICATE>"  # Request signing certificate
     }
 
     # Subject Configuration

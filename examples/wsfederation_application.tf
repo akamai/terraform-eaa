@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -26,9 +26,9 @@ resource "eaa_application" "wsfed_basic" {
   domain          = "wapp"
   client_app_mode = "tcp"
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "WS-Federation"
-  })
+  }
   servers {
     orig_tls        = true
     origin_protocol = "https"
@@ -74,9 +74,9 @@ resource "eaa_application" "wsfed_custom" {
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "WS-Federation"
-  })
+  }
 
   servers {
     orig_tls        = true

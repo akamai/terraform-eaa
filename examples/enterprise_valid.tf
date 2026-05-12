@@ -2,7 +2,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "1.0.0"
+      version = "2.0.0"
     }
   }
 }
@@ -37,7 +37,7 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
   popregion = "us-east-1"
   agents    = ["EAA_DC1_US1_Access_01"]
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     # Authentication
     app_auth = "none"
 
@@ -54,23 +54,20 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     # Server Load Balancing (Enterprise supported)
     load_balancing_metric = "round-robin"
     session_sticky        = "true"
-    cookie_age            = 3600
 
-    # Custom Headers (Enterprise supported)
-    custom_headers = [
+    # Custom Headers (Enterprise supported) - JSON-encoded string
+    custom_headers = jsonencode([
       {
         attribute_type = "custom"
         header         = "myheader"
         attribute      = "value"
-
       },
       {
         attribute_type = "user"
         header         = "myuser"
         attribute      = ""
-
       }
-    ]
+    ])
 
     # Enterprise Connectivity Parameters (Enterprise supported)
     idle_conn_floor         = "10"
@@ -81,7 +78,6 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     hsts_age                = "31536000"
 
     # Miscellaneous Parameters (Enterprise supported)
-    proxy_buffer_size_kb      = "64"
     allow_cors                = "true"
     cors_origin_list          = "https://app.example.com"
     cors_header_list          = "Content-Type,Authorization"
@@ -94,7 +90,7 @@ resource "eaa_application" "enterprise_valid_comprehensive" {
     saas_enabled              = "false"
     sticky_agent              = "true"
     offload_onpremise_traffic = "true"
-  })
+  }
 }
 
 
@@ -135,7 +131,7 @@ resource "eaa_application" "enterprise_valid_rdp" {
     }
   }
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     app_auth = "none"
 
     # Health Check Configuration (TCP for RDP)
@@ -147,11 +143,17 @@ resource "eaa_application" "enterprise_valid_rdp" {
 
     # RDP Configuration (Enterprise RDP supported)
     rdp_initial_program    = "notepad.exe"
-    remote_app             = "Calculator"
-    remote_app_args        = "/s"
-    remote_app_dir         = "C:\\Windows\\System32"
     rdp_tls1               = "true"
     remote_spark_recording = "true"
+
+    # RDP remote apps - JSON-encoded string
+    rdp_remote_apps = jsonencode([
+      {
+        remote_app      = "Calculator"
+        remote_app_args = "/s"
+        remote_app_dir  = "C:\\Windows\\System32"
+      }
+    ])
 
     # Enterprise Connectivity Parameters
     idle_conn_floor         = "10"
@@ -160,12 +162,11 @@ resource "eaa_application" "enterprise_valid_rdp" {
     idle_close_time_seconds = "300"
 
     # Miscellaneous Parameters
-    proxy_buffer_size_kb = "64"
-    logging_enabled      = "true"
-    hidden_app           = "false"
-    saas_enabled         = "false"
-    sticky_agent         = "true"
-  })
+    logging_enabled = "true"
+    hidden_app      = "false"
+    saas_enabled    = "false"
+    sticky_agent    = "true"
+  }
 }
 
 # Valid Enterprise Application - Kerberos Authentication
@@ -188,15 +189,14 @@ resource "eaa_application" "enterprise_valid_kerberos" {
   popregion = "us-east-1"
   agents    = ["EAA_DC1_US1_Access_01"]
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     # Kerberos Authentication
     app_auth                       = "kerberos"
     app_auth_domain                = "EXAMPLE.COM"
     app_client_cert_auth           = "false"
     forward_ticket_granting_ticket = "true"
     keytab                         = "example.keytab"
-    service_principal_name         = "HTTP/valid-kerberos.example.com@EXAMPLE.COM"
-    kerberos_negotiate_once        = "on"
+    service_principle_name         = "HTTP/valid-kerberos.example.com@EXAMPLE.COM"
 
     # Health Check Configuration
     health_check_type             = "HTTP"
@@ -211,7 +211,6 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     # Server Load Balancing
     load_balancing_metric = "round-robin"
     session_sticky        = "true"
-    cookie_age            = 3600
 
     # Enterprise Connectivity Parameters
     idle_conn_floor         = "10"
@@ -220,12 +219,11 @@ resource "eaa_application" "enterprise_valid_kerberos" {
     idle_close_time_seconds = "300"
 
     # Miscellaneous Parameters
-    proxy_buffer_size_kb = "64"
-    logging_enabled      = "true"
-    hidden_app           = "false"
-    saas_enabled         = "false"
-    sticky_agent         = "true"
-  })
+    logging_enabled = "true"
+    hidden_app      = "false"
+    saas_enabled    = "false"
+    sticky_agent    = "true"
+  }
 }
 
 # Valid Enterprise Application - SAML Authentication (Correct)
@@ -248,7 +246,7 @@ resource "eaa_application" "enterprise_valid_saml" {
   popregion = "us-east-1"
   agents    = ["EAA_DC1_US1_Access_01"]
 
-  advanced_settings = jsonencode({
+  advanced_settings = {
     # When SAML is enabled via nested blocks, app_auth should be "none"
     app_auth = "SAML2.0"
 
@@ -265,7 +263,6 @@ resource "eaa_application" "enterprise_valid_saml" {
     # Server Load Balancing
     load_balancing_metric = "round-robin"
     session_sticky        = "true"
-    cookie_age            = 3600
 
     # Enterprise Connectivity Parameters
     idle_conn_floor         = "10"
@@ -274,12 +271,11 @@ resource "eaa_application" "enterprise_valid_saml" {
     idle_close_time_seconds = "300"
 
     # Miscellaneous Parameters
-    proxy_buffer_size_kb = "64"
-    logging_enabled      = "true"
-    hidden_app           = "false"
-    saas_enabled         = "false"
-    sticky_agent         = "true"
-  })
+    logging_enabled = "true"
+    hidden_app      = "false"
+    saas_enabled    = "false"
+    sticky_agent    = "true"
+  }
 
   # SAML settings as nested block (not inside advanced_settings)
   saml_settings {
