@@ -140,7 +140,7 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	}
 
 	if appIDPMembership == nil {
-		return []interface{}{appAuth}, nil
+		return []interface{}{}, nil
 	}
 
 	appAuth["app_idp"] = appIDPMembership.IDP.Name

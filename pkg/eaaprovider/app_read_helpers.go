@@ -415,14 +415,16 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 		}
 	}
 
+	appAuthData := []interface{}{}
 	if appResp.AuthEnabled == "true" {
-		appAuthData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
+		authData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
 		if authErr == nil {
-			err = d.Set("app_authentication", appAuthData)
-			if err != nil {
-				return diag.FromErr(err)
-			}
+			appAuthData = authData
 		}
+	}
+	err = d.Set("app_authentication", appAuthData)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	if appResp.Cert != nil {
