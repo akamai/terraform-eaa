@@ -347,13 +347,9 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["form_post_attributes"] = "[]"
 	}
 
-	// request_parameters: map -> JSON string; only set when non-empty (nil means absent).
-	if len(appResp.AdvancedSettings.RequestParameters) > 0 {
-		rpJSON, err := json.Marshal(appResp.AdvancedSettings.RequestParameters)
-		if err != nil {
-			return diag.Errorf("failed to marshal request_parameters to JSON: %v", err)
-		}
-		full["request_parameters"] = string(rpJSON)
+	// request_parameters: *string from API; set as-is when non-empty (nil means absent).
+	if appResp.AdvancedSettings.RequestParameters != nil && *appResp.AdvancedSettings.RequestParameters != "" {
+		full["request_parameters"] = *appResp.AdvancedSettings.RequestParameters
 	}
 
 	// custom_headers: []CustomHeader -> JSON string.

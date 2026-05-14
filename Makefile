@@ -85,7 +85,7 @@ build: $(SRC)
 buildtool: $(SRC)
 	$(call section_banner,BUILD TOOL)
 	@echo build import tool binary
-	$(GO) build -v -o $(BINDIR)/$(BINNAME_TOOL) ./tools
+	$(GO) build -v -ldflags "-X main.version=$(VERSION_STR)" -o $(BINDIR)/$(BINNAME_TOOL) ./tools
 
 fmt:
 	$(call section_banner,FORMAT)
