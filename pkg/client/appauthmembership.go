@@ -140,7 +140,9 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	}
 
 	if appIDPMembership == nil {
-		return []interface{}{}, nil
+		appAuth["app_idp"] = ""
+		appAuth["app_directories"] = []map[string]interface{}{}
+		return []interface{}{appAuth}, nil
 	}
 
 	appAuth["app_idp"] = appIDPMembership.IDP.Name
@@ -188,7 +190,6 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 			directoriesData = append(directoriesData, dir)
 		}
 	}
-	// add "app_directories" key if the list is not empty
 	if len(directoriesData) > 0 {
 		sort.Slice(directoriesData, func(i, j int) bool {
 			nameI, okI := directoriesData[i]["name"].(string)
@@ -204,8 +205,8 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 				return nameI < nameJ
 			}
 		})
-		appAuth["app_directories"] = directoriesData
 	}
+	appAuth["app_directories"] = directoriesData
 	return []interface{}{appAuth}, nil
 
 }
