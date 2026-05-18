@@ -26,7 +26,6 @@ var (
 var jsonStringAdvancedSettingsKeys = map[string]bool{
 	"custom_headers":       true,
 	"form_post_attributes": true,
-	"request_parameters":   true,
 	"rdp_remote_apps":      true,
 }
 
@@ -812,7 +811,7 @@ func resourceEaaApplication() *schema.Resource {
 				DiffSuppressFunc: suppressServerComputedAdvSettingsKey,
 				Description: "Flat map of advanced settings key/value pairs. All values are strings. " +
 					"Entries are passed to the API as provided; unsupported keys may be ignored by the API.  " +
-					"Complex fields (form_post_attributes, request_parameters, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
+					"Complex fields (form_post_attributes, custom_headers, rdp_remote_apps) must be JSON-encoded strings.",
 			},
 			"app_bundle": {
 				Type:         schema.TypeString,
