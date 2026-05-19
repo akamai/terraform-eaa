@@ -637,11 +637,6 @@ func TestValidatePackageTypeEdgeCases(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name:          "valid_aws_classic",
-			value:         "aws_classic",
-			expectedError: false,
-		},
-		{
 			name:          "valid_softlayer",
 			value:         "softlayer",
 			expectedError: false,

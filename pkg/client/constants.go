@@ -621,7 +621,6 @@ const (
 	ConnPackageTypeKVM        ConnPackageType = "kvm"
 	ConnPackageTypeHyperv     ConnPackageType = "hyperv"
 	ConnPackageTypeDocker     ConnPackageType = "docker"
-	ConnPackageTypeAWSClassic ConnPackageType = "aws_classic"
 	ConnPackageTypeAzure      ConnPackageType = "azure"
 	ConnPackageTypeGoogle     ConnPackageType = "google"
 	ConnPackageTypeSoftLayer  ConnPackageType = "softlayer"
@@ -642,8 +641,6 @@ func (cat ConnPackageType) ToInt() (int, error) {
 		return int(AGENT_PACKAGE_HYPERV), nil
 	case ConnPackageTypeDocker:
 		return int(AGENT_PACKAGE_DOCKER), nil
-	case ConnPackageTypeAWSClassic:
-		return int(AGENT_PACKAGE_AWS_CLASSIC), nil
 	case ConnPackageTypeAzure:
 		return int(AGENT_PACKAGE_AZURE), nil
 	case ConnPackageTypeGoogle:
@@ -666,7 +663,6 @@ const (
 	AGENT_PACKAGE_KVM
 	AGENT_PACKAGE_HYPERV
 	AGENT_PACKAGE_DOCKER
-	AGENT_PACKAGE_AWS_CLASSIC
 	AGENT_PACKAGE_AZURE
 	AGENT_PACKAGE_GOOGLE
 	AGENT_PACKAGE_SOFTLAYER
@@ -687,8 +683,6 @@ func (cat ConnPackageTypeInt) String() (string, error) {
 		return string(ConnPackageTypeHyperv), nil
 	case AGENT_PACKAGE_DOCKER:
 		return string(ConnPackageTypeDocker), nil
-	case AGENT_PACKAGE_AWS_CLASSIC:
-		return string(ConnPackageTypeAWSClassic), nil
 	case AGENT_PACKAGE_AZURE:
 		return string(ConnPackageTypeAzure), nil
 	case AGENT_PACKAGE_GOOGLE:

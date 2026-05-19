@@ -33,7 +33,6 @@ func validatePackageType(val interface{}, key string) (warns []string, errs []er
 		string(client.ConnPackageTypeKVM),
 		string(client.ConnPackageTypeHyperv),
 		string(client.ConnPackageTypeDocker),
-		string(client.ConnPackageTypeAWSClassic),
 		string(client.ConnPackageTypeAzure),
 		string(client.ConnPackageTypeGoogle),
 		string(client.ConnPackageTypeSoftLayer),
@@ -120,7 +119,7 @@ func resourceEaaConnectorPool() *schema.Resource {
 			"package_type": {
 				Type:         schema.TypeString,
 				Required:     true,
-				Description:  "Package type for the connector pool. Valid values: vmware, vbox, aws, kvm, hyperv, docker, aws_classic, azure, google, softlayer, fujitsu_k5",
+				Description:  "Package type for the connector pool. Valid values: vmware, vbox, aws, kvm, hyperv, docker, azure, google, softlayer, fujitsu_k5",
 				ValidateFunc: validatePackageType,
 			},
 			"description": {
