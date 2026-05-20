@@ -104,13 +104,29 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 	}
 
 	attrs["uuid_url"] = appResp.UUIDURL
-	attrs["app_bundle"] = appResp.AppBundle
+
+	var diags diag.Diagnostics
+	if appResp.AppBundle != "" {
+		bundleName, err := eaaclient.GetAppBundleNameByUUID(appResp.AppBundle)
+		if err != nil {
+			attrs["app_bundle"] = ""
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Could not resolve app_bundle UUID to name",
+				Detail:   "Failed to look up the app_bundle name for UUID " + appResp.AppBundle + ": " + err.Error() + ". app_bundle has been set to empty to avoid a perpetual diff. Check that the bundle exists and is accessible.",
+			})
+		} else {
+			attrs["app_bundle"] = bundleName
+		}
+	} else {
+		attrs["app_bundle"] = ""
+	}
 
 	if err := client.SetAttrs(d, attrs); err != nil {
 		return diag.FromErr(err)
 	}
 
-	return nil
+	return diags
 }
 
 // mapServersAndTunnelHostsFromResponse maps servers and tunnel internal hosts from API response to schema

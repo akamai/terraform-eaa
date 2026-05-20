@@ -24,10 +24,9 @@ resource "eaa_connector_pool" "example" {
     "sample_connector"
   ]
 
-  # Apps assigned to this connector pool (commented out as no apps are available)
+  # Apps assigned to this connector pool
   apps = [
     "jira",
-    #    "JIRA Application"
   ]
 
   # Registration tokens for the pool
@@ -35,13 +34,13 @@ resource "eaa_connector_pool" "example" {
   registration_tokens {
     name                  = "token-1"
     max_use               = 5
-    expires_in_days       = 1
+    expires_at            = "2030-01-01T00:00:01Z"
     generate_embedded_img = false
   }
   registration_tokens {
     name                  = "token-3"
     max_use               = 5
-    expires_in_days       = 2
+    expires_at            = "2030-02-01T00:00:01Z"
     generate_embedded_img = false
   }
 }

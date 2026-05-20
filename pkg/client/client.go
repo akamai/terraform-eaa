@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v6/pkg/edgegrid"
 	"github.com/hashicorp/go-hclog"
@@ -29,8 +30,33 @@ type ErrorResponse struct {
 	ProblemID string `json:"problemId"`
 }
 
-// SendAPIRequest signs and executes the request using the client edgegrid config.
-func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, global bool) (*http.Response, error) {
+// GetRequestOptions allows callers to customize GET query parameters in SendAPIRequest.
+// When fields are nil, SendAPIRequest applies defaults: Expand=true, Limit=0.
+type GetRequestOptions struct {
+	Expand *bool
+	Limit  *int
+}
+
+// SendAPIRequest signs and executes the request using the client edgegrid
+// config. Optional opts customize GET query handling (expand/limit); defaults
+// are Expand=true and Limit=0 when opts are not provided.
+func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, global bool, opts ...GetRequestOptions) (*http.Response, error) {
+	if len(opts) > 1 {
+		return nil, fmt.Errorf("%w: expected at most one GetRequestOptions, got %d", ErrInvalidArgument, len(opts))
+	}
+
+	defaultExpand := true
+	defaultLimit := 0
+	options := GetRequestOptions{Expand: &defaultExpand, Limit: &defaultLimit}
+	if len(opts) > 0 {
+		if opts[0].Expand != nil {
+			options.Expand = opts[0].Expand
+		}
+		if opts[0].Limit != nil {
+			options.Limit = opts[0].Limit
+		}
+	}
+
 	if !global {
 		parsedURL, err := url.Parse(apiURL)
 		if err != nil {
@@ -44,8 +70,8 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 			queryParams.Set("accountSwitchKey", ec.AccountSwitchKey)
 		}
 		if method == http.MethodGet {
-			queryParams.Set("expand", "true")
-			queryParams.Set("limit", "0")
+			queryParams.Set("expand", strconv.FormatBool(*options.Expand))
+			queryParams.Set("limit", strconv.Itoa(*options.Limit))
 		}
 		parsedURL.RawQuery = queryParams.Encode()
 

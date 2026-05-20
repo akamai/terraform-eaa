@@ -366,22 +366,6 @@ func TestSetConnectorPoolBasicAttributes(t *testing.T) {
 	}
 }
 
-func TestResourceEaaConnectorPoolV0(t *testing.T) {
-	resource := resourceEaaConnectorPoolV0()
-
-	// Test that the resource has the expected schema fields
-	expectedFields := []string{
-		"name", "package_type", "description", "infra_type", "operating_mode",
-		"uuid_url", "connectors", "registration_tokens",
-	}
-
-	for _, field := range expectedFields {
-		if _, exists := resource.Schema[field]; !exists {
-			t.Errorf("Expected schema field '%s' not found", field)
-		}
-	}
-}
-
 func TestResourceEaaConnectorPoolCreate(t *testing.T) {
 	tests := []struct {
 		resourceData     map[string]interface{}
@@ -409,9 +393,9 @@ func TestResourceEaaConnectorPoolCreate(t *testing.T) {
 				"connectors":     []string{"connector1", "connector2"},
 				"registration_tokens": []map[string]interface{}{
 					{
-						"name":            "token1",
-						"max_use":         5,
-						"expires_in_days": 30,
+						"name":       "token1",
+						"max_use":    5,
+						"expires_at": "2030-01-01T00:00:00Z",
 					},
 				},
 			},
@@ -965,6 +949,18 @@ func TestResourceEaaConnectorPoolSchemaComprehensive(t *testing.T) {
 	} else {
 		t.Error("Expected 'registration_tokens' field to exist in schema")
 	}
+
+	// Test cidrs field
+	if cidrsSchema, exists := resource.Schema["cidrs"]; exists {
+		if cidrsSchema.Required {
+			t.Error("Expected 'cidrs' field to be optional/computed")
+		}
+		if cidrsSchema.Type != schema.TypeList {
+			t.Error("Expected 'cidrs' field to be of type List")
+		}
+	} else {
+		t.Error("Expected 'cidrs' field to exist in schema")
+	}
 }
 
 func TestRegistrationTokenValidation(t *testing.T) {
@@ -990,18 +986,18 @@ func TestRegistrationTokenValidation(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name:          "valid_expires_in_days",
-			value:         30,
+			name:          "valid_expires_at",
+			value:         "2030-01-01T00:00:00Z",
 			expectedError: false,
 		},
 		{
-			name:          "expires_in_days_too_low",
-			value:         0,
+			name:          "expires_at_invalid_format",
+			value:         "2030-01-01 00:00:00",
 			expectedError: true,
 		},
 		{
-			name:          "expires_in_days_too_high",
-			value:         366,
+			name:          "expires_at_empty",
+			value:         "",
 			expectedError: true,
 		},
 	}
@@ -1030,14 +1026,9 @@ func TestRegistrationTokenValidation(t *testing.T) {
 				}
 			}
 
-			// Test expires_in_days validation
-			if tt.name == "valid_expires_in_days" || tt.name == "expires_in_days_too_low" || tt.name == "expires_in_days_too_high" {
-				// Convert int to string for validation
-				valueStr := ""
-				if intVal, ok := tt.value.(int); ok {
-					valueStr = fmt.Sprintf("%d", intVal)
-				}
-				warns, errs := client.ValidateStringInSlice(valueStr, "expires_in_days", []string{"1", "2", "3", "4", "5", "7", "14", "30", "60", "90", "180", "365"})
+			// Test expires_at validation
+			if tt.name == "valid_expires_at" || tt.name == "expires_at_invalid_format" || tt.name == "expires_at_empty" {
+				warns, errs := validateRFC3339Timestamp(tt.value, "expires_at")
 				if tt.expectedError {
 					if len(errs) == 0 {
 						t.Errorf("Expected error but got none for test case: %s", tt.name)
@@ -1050,6 +1041,55 @@ func TestRegistrationTokenValidation(t *testing.T) {
 				if len(warns) > 0 {
 					t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
 				}
+			}
+		})
+	}
+}
+
+func TestSuppressRFC3339Diff(t *testing.T) {
+	tests := []struct {
+		name     string
+		oldValue string
+		newValue string
+		want     bool
+	}{
+		{
+			name:     "same_instant_different_timezone",
+			oldValue: "2026-05-20T10:00:00Z",
+			newValue: "2026-05-20T12:00:00+02:00",
+			want:     true,
+		},
+		{
+			name:     "different_times",
+			oldValue: "2026-05-20T10:00:01Z",
+			newValue: "2026-05-20T10:00:02Z",
+			want:     false,
+		},
+		{
+			name:     "zero_seconds_suppressed",
+			oldValue: "2026-05-20T10:00:01Z", // stored in state after API bump
+			newValue: "2026-05-20T10:00:00Z", // what user wrote in config
+			want:     true,
+		},
+		{
+			name:     "malformed_input",
+			oldValue: "not-a-time",
+			newValue: "2026-05-20T10:00:00Z",
+			want:     false,
+		},
+		{
+			name:     "fractional_seconds_equal",
+			oldValue: "2026-05-20T10:00:00.123Z",
+			newValue: "2026-05-20T10:00:00.123+00:00",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := suppressRFC3339Diff("expires_at", tt.oldValue, tt.newValue, nil)
+			if got != tt.want {
+				t.Fatalf("suppressRFC3339Diff() = %v, want %v (old=%q, new=%q)", got, tt.want, tt.oldValue, tt.newValue)
 			}
 		})
 	}
@@ -1069,31 +1109,12 @@ func TestResourceEaaConnectorPoolImporter(t *testing.T) {
 	}
 }
 
-func TestResourceEaaConnectorPoolStateUpgraders(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that the resource has state upgraders configured
-	if resource.StateUpgraders == nil {
-		t.Error("Expected resource to have state upgraders configured")
-	}
-
-	// Test that there is at least one state upgrader
-	if len(resource.StateUpgraders) == 0 {
-		t.Error("Expected resource to have at least one state upgrader")
-	}
-
-	// Test that the first upgrader has the correct version
-	if resource.StateUpgraders[0].Version != 0 {
-		t.Error("Expected first state upgrader to have version 0")
-	}
-}
-
 func TestResourceEaaConnectorPoolSchemaVersion(t *testing.T) {
 	resource := resourceEaaConnectorPool()
 
 	// Test that the resource has the correct schema version
-	if resource.SchemaVersion != 1 {
-		t.Error("Expected resource schema version to be 1")
+	if resource.SchemaVersion != 0 {
+		t.Error("Expected resource schema version to be 0")
 	}
 }
 
