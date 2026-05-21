@@ -1840,7 +1840,7 @@ type AdvancedSettings struct {
 	SLAObjectURL                 *string                `json:"sla_object_url,omitempty"`
 	UserName                     *string                `json:"user_name"`
 	SessionStickyServerCookie    *string                `json:"session_sticky_server_cookie"`
-	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	RequestParameters            *string                `json:"request_parameters"`
 	PrivateKey                   *string                `json:"private_key"`
 	PassPhrase                   *string                `json:"pass_phrase"`
 	LoginURL                     *string                `json:"login_url"`
@@ -2001,7 +2001,7 @@ type AdvancedSettingsComplete struct {
 	LogoutURL                    *string                `json:"logout_url,omitempty"`
 	InternalHostname             *string                `json:"internal_hostname,omitempty"`
 	CookieDomain                 *string                `json:"cookie_domain"`
-	RequestParameters            map[string]interface{} `json:"request_parameters"`
+	RequestParameters            *string                `json:"request_parameters"`
 	IDPIdleExpiry                *string                `json:"idp_idle_expiry,omitempty"`
 	IDPMaxExpiry                 *string                `json:"idp_max_expiry,omitempty"`
 	AppLocation                  *string                `json:"app_location"`

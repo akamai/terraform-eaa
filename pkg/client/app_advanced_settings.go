@@ -210,15 +210,6 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	// Remove from flat map so applyAdvancedSettingsWithReflection doesn't try to handle the string.
 	delete(flat, "rdp_remote_apps")
 
-	// request_parameters: stored as JSON string in TypeMap; decode to map[string]interface{} for reflection.
-	if rpStr, ok := block["request_parameters"].(string); ok && rpStr != "" {
-		var decoded map[string]interface{}
-		if err := json.Unmarshal([]byte(rpStr), &decoded); err != nil {
-			return nil, fmt.Errorf("invalid request_parameters JSON: %w", err)
-		}
-		flat["request_parameters"] = decoded
-	}
-
 	// tls_suite_type / tls_suite_name are handled at the call site (CREATE/UPDATE flows),
 	// not inside AdvancedSettings struct. Remove them so reflection doesn't try to find them.
 	delete(flat, "tls_suite_type")

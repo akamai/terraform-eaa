@@ -15,6 +15,8 @@ import (
 	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v6/pkg/edgegrid"
 )
 
+var version = "dev" // overridden at build time via -ldflags
+
 const (
 	generateInfo = "The config file `import_existing_apps.tf` with import blocks is generated.\n" +
 		"1. To generate the configuration, run the following command:\n" +
@@ -178,21 +180,21 @@ func FormatErrorDescription(errResp *http.Response) string {
 
 func writeProviderBlock(file *os.File, cid, ask, edgercPath string) error {
 	terraformBlock := fmt.Sprintf(`terraform {
-		required_providers {
-		  eaa = {
-			source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-			version = "1.0.0"
-		  }
-		}
-	  }
+  required_providers {
+    eaa = {
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      version = "%s"
+    }
+  }
+}
 
-	  provider "eaa" {
-		contractid       = "%s"
-		accountswitchkey = "%s"
-		edgerc           = "%s"
-	  }
+provider "eaa" {
+  contractid       = "%s"
+  accountswitchkey = "%s"
+  edgerc           = "%s"
+}
 
-	  `, cid, ask, edgercPath)
+`, version, cid, ask, edgercPath)
 
 	// Write the Terraform configuration block to the file
 	_, err := file.WriteString(terraformBlock)

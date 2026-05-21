@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -347,13 +348,12 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		full["form_post_attributes"] = "[]"
 	}
 
-	// request_parameters: map -> JSON string; only set when non-empty (nil means absent).
-	if len(appResp.AdvancedSettings.RequestParameters) > 0 {
-		rpJSON, err := json.Marshal(appResp.AdvancedSettings.RequestParameters)
-		if err != nil {
-			return diag.Errorf("failed to marshal request_parameters to JSON: %v", err)
-		}
-		full["request_parameters"] = string(rpJSON)
+	// request_parameters: *string from API; set as-is when non-empty (nil means absent).
+	// Write "" only when already tracked in state; omit on import.
+	if appResp.AdvancedSettings.RequestParameters != nil && *appResp.AdvancedSettings.RequestParameters != "" {
+		full["request_parameters"] = *appResp.AdvancedSettings.RequestParameters
+	} else if existingKeys["request_parameters"] {
+		full["request_parameters"] = ""
 	}
 
 	// custom_headers: []CustomHeader -> JSON string.
@@ -421,11 +421,21 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 
 	if appResp.AuthEnabled == "true" {
 		appAuthData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
-		if authErr == nil {
+		if authErr != nil {
+			eaaclient.Logger.Error(fmt.Sprintf("failed to read app_authentication: %s", authErr.Error()))
+		} else {
 			err = d.Set("app_authentication", appAuthData)
 			if err != nil {
 				return diag.FromErr(err)
 			}
+		}
+	} else {
+		err = d.Set("app_authentication", []map[string]interface{}{{
+			"app_idp":         "",
+			"app_directories": []map[string]interface{}{},
+		}})
+		if err != nil {
+			return diag.FromErr(err)
 		}
 	}
 
