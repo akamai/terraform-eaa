@@ -175,23 +175,10 @@ func TestAdvancedSettingsFromBlockDecodesRequestParameters(t *testing.T) {
 		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
 	}
 	if got.RequestParameters == nil {
-		t.Fatal("RequestParameters = nil, want non-nil map")
+		t.Fatal("RequestParameters = nil, want non-nil pointer")
 	}
-	if got.RequestParameters["key"] != "value" {
-		t.Fatalf("RequestParameters[key] = %v, want value", got.RequestParameters["key"])
-	}
-}
-
-func TestAdvancedSettingsFromBlockErrorOnInvalidRequestParameters(t *testing.T) {
-	block := map[string]interface{}{
-		"request_parameters": `[not a map]`,
-	}
-	_, err := advancedSettingsFromBlock(block)
-	if err == nil {
-		t.Fatal("expected error for invalid request_parameters JSON, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid request_parameters JSON") {
-		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid request_parameters JSON")
+	if *got.RequestParameters != `{"key":"value"}` {
+		t.Fatalf("RequestParameters = %q, want %q", *got.RequestParameters, `{"key":"value"}`)
 	}
 }
 

@@ -347,7 +347,7 @@ func dataSourceEaaConnectorPools() *schema.Resource {
 						"package_type": {
 							Type:        schema.TypeString,
 							Computed:    true,
-							Description: "Package type for the connector pool (vmware, vbox, aws, kvm, hyperv, docker, aws_classic, azure, google, softlayer, fujitsu_k5)",
+							Description: "Package type for the connector pool (vmware, vbox, aws, kvm, hyperv, docker, azure, google, softlayer, fujitsu_k5)",
 						},
 						"infra_type": {
 							Type:        schema.TypeString,

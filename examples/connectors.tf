@@ -18,7 +18,7 @@ resource "eaa_connector" "sample_connector" {
   name                    = "sample_connector"
   description             = "created using terraform"
   debug_channel_permitted = true
-  package                 = "aws_classic"
+  package                 = "aws"
   advanced_settings {
     network_info = ["0.0.0.0"]
   }

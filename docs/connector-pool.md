@@ -21,7 +21,6 @@ This resource supports the following arguments:
   * `kvm` - KVM package type
   * `hyperv` - Hyper-V package type
   * `docker` - Docker package type
-  * `aws_classic` - AWS Classic package type
   * `azure` - Azure package type
   * `google` - Google Cloud package type
   * `softlayer` - SoftLayer package type

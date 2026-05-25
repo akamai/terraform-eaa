@@ -13,7 +13,7 @@ See [examples/connectors.tf](../examples/connectors.tf) for a complete working e
 - `name` (Required): Connector name.
 - `description` (Optional): Free-text description.
 - `debug_channel_permitted` (Optional): Enable debug channel for support.
-- `package` (Required): Installer package flavor, e.g. `aws_classic`, `vmware`, etc.
+- `package` (Required): Installer package flavor, e.g. `aws`, `vmware`, etc.
 - `advanced_settings.network_info` (Optional): List of CIDRs/IPs used during install/registration.
 
 

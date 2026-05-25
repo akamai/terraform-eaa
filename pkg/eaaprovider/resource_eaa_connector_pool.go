@@ -140,7 +140,7 @@ func resourceEaaConnectorPool() *schema.Resource {
 			"package_type": {
 				Type:         schema.TypeString,
 				Required:     true,
-				Description:  "Package type for the connector pool. Valid values: vmware, vbox, aws, kvm, hyperv, docker, aws_classic, azure, google, softlayer, fujitsu_k5",
+				Description:  "Package type for the connector pool. Valid values: vmware, vbox, aws, kvm, hyperv, docker, azure, google, softlayer, fujitsu_k5. Note: aws_classic is no longer supported for new resources; use aws instead.",
 				ValidateFunc: validatePackageType,
 			},
 			"description": {
@@ -291,6 +291,12 @@ func resourceEaaConnectorPool() *schema.Resource {
 
 // resourceEaaConnectorPoolCreate function is responsible for creating a new EAA Connector Pool.
 func resourceEaaConnectorPoolCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	if v, ok := d.GetOk("package_type"); ok {
+		if pkgType, isStr := v.(string); isStr && pkgType == string(client.ConnPackageTypeAWSClassic) {
+			return diag.Errorf("\"aws_classic\" is no longer supported for new connector pools, please use \"aws\" instead")
+		}
+	}
+
 	e := hasDuplicateTokenNames(d)
 	if e != nil {
 		return diag.FromErr(e)
@@ -442,6 +448,14 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 
 // resourceEaaConnectorPoolUpdate updates an existing EAA connector pool.
 func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	if d.HasChange("package_type") {
+		if v, ok := d.GetOk("package_type"); ok {
+			if pkgType, isStr := v.(string); isStr && pkgType == string(client.ConnPackageTypeAWSClassic) {
+				return diag.Errorf("\"aws_classic\" is no longer supported, please use \"aws\" instead")
+			}
+		}
+	}
+
 	e := hasDuplicateTokenNames(d)
 	if e != nil {
 		return diag.FromErr(e)

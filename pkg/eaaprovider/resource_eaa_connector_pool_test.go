@@ -37,6 +37,11 @@ func TestValidatePackageType(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name:          "valid_aws_classic",
+			value:         "aws_classic",
+			expectedError: false,
+		},
+		{
 			name:          "valid_docker",
 			value:         "docker",
 			expectedError: false,
@@ -54,6 +59,11 @@ func TestValidatePackageType(t *testing.T) {
 		{
 			name:          "invalid_type",
 			value:         "invalid",
+			expectedError: true,
+		},
+		{
+			name:          "invalid_aws_classic_casing",
+			value:         "AWS_Classic",
 			expectedError: true,
 		},
 		{
@@ -77,7 +87,6 @@ func TestValidatePackageType(t *testing.T) {
 				}
 			}
 
-			// Warnings should be empty for this validator
 			if len(warns) > 0 {
 				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
 			}
@@ -621,6 +630,11 @@ func TestValidatePackageTypeEdgeCases(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name:          "valid_aws",
+			value:         "aws",
+			expectedError: false,
+		},
+		{
 			name:          "valid_aws_classic",
 			value:         "aws_classic",
 			expectedError: false,
@@ -656,7 +670,6 @@ func TestValidatePackageTypeEdgeCases(t *testing.T) {
 				}
 			}
 
-			// Warnings should be empty for this validator
 			if len(warns) > 0 {
 				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
 			}
