@@ -375,13 +375,15 @@ func GetConnectorsInPool(client *EaaClient, poolUUID string) ([]string, error) {
 	// Parse the connectors from the JSON response
 	var connectors []string
 	if connectorPool.Connectors != nil {
-		// Parse the connectors JSON to extract UUIDs
 		var connectorData []map[string]interface{}
-		if err := json.Unmarshal(connectorPool.Connectors, &connectorData); err == nil {
-			for _, connector := range connectorData {
-				if uuid, ok := connector["uuid_url"].(string); ok {
-					connectors = append(connectors, uuid)
-				}
+		if err := json.Unmarshal(connectorPool.Connectors, &connectorData); err != nil {
+			return nil, fmt.Errorf("failed to parse connectors JSON for pool %s: %w", poolUUID, err)
+		}
+		for _, connector := range connectorData {
+			if uuid, ok := connector["uuid_url"].(string); ok {
+				connectors = append(connectors, uuid)
+			} else {
+				client.Logger.Warn("Connector entry missing uuid_url field", "connector", connector)
 			}
 		}
 	}
@@ -754,7 +756,7 @@ func AssignConnectorPoolToApps(ec *EaaClient, poolUUID string, appNames []string
 		return fmt.Errorf("no valid apps found to assign")
 	}
 
-	var lastErr error
+	var errs []error
 	for _, appUUID := range appUUIDs {
 		request := &AppConnectorPoolAssignmentRequest{
 			Add: AppConnectorPoolAssignment{
@@ -766,10 +768,13 @@ func AssignConnectorPoolToApps(ec *EaaClient, poolUUID string, appNames []string
 		err := AssignConnectorPoolsToApp(ec, appUUID, request)
 		if err != nil {
 			ec.Logger.Error("Failed to assign pool to app", "app_uuid", appUUID, "error", err)
-			lastErr = err
+			errs = append(errs, fmt.Errorf("app %s: %w", appUUID, err))
 		}
 	}
-	return lastErr
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to assign pool to %d app(s): %w", len(errs), errors.Join(errs...))
+	}
+	return nil
 }
 
 // UnassignConnectorPoolFromApps removes a connector pool from multiple apps
@@ -782,16 +787,15 @@ func UnassignConnectorPoolFromApps(ec *EaaClient, poolUUID string, appNames []st
 
 	if len(appUUIDs) == 0 {
 		ec.Logger.Error("no apps to unassign")
-		return nil
+		return fmt.Errorf("no valid apps found to unassign")
 	}
 
 	ec.Logger.Info("Unassigning connector pool from apps", "count", len(appUUIDs), "apps", appNames)
 
-	// Process each app individually to ensure all are unassigned
+	var errs []error
 	for i, appUUID := range appUUIDs {
 		ec.Logger.Info("Unassigning app", "index", i+1, "total", len(appUUIDs), "app_uuid", appUUID)
 
-		// Create unassignment request for this specific app
 		request := &AppConnectorPoolAssignmentRequest{
 			Add: AppConnectorPoolAssignment{
 				Active:  []string{},
@@ -803,10 +807,14 @@ func UnassignConnectorPoolFromApps(ec *EaaClient, poolUUID string, appNames []st
 		err := AssignConnectorPoolsToApp(ec, appUUID, request)
 		if err != nil {
 			ec.Logger.Error("Failed to unassign app", "app_uuid", appUUID, "error", err)
-			return fmt.Errorf("failed to unassign app %s: %w", appUUID, err)
+			errs = append(errs, fmt.Errorf("app %s: %w", appUUID, err))
+			continue
 		}
 
 		ec.Logger.Info("Successfully unassigned app", "index", i+1, "total", len(appUUIDs), "app_uuid", appUUID)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to unassign pool from %d app(s): %w", len(errs), errors.Join(errs...))
 	}
 
 	ec.Logger.Info("Successfully unassigned connector pool from all apps", "count", len(appUUIDs))
@@ -976,69 +984,6 @@ func GetConnectorPools(ctx context.Context, ec *EaaClient) ([]ConnectorPool, err
 		time.Sleep(100 * time.Millisecond)
 	}
 	return allPools, nil
-}
-
-// CallConnectorPoolGetAPI calls the connector pool GET API using mgmt-pop endpoint and returns the response as structured object
-func CallConnectorPoolGetAPI(eaaclient *EaaClient, uuidURL string) (map[string]interface{}, error) {
-	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, eaaclient.Host, CONNECTOR_POOLS_MGMT_URL, uuidURL)
-
-	eaaclient.Logger.Info("Calling GET API", "url", apiURL)
-
-	// Parse JSON response into a map to preserve exact structure
-	var responseMap map[string]interface{}
-	resp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &responseMap, false)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			eaaclient.Logger.Warn("Failed to close connector pool GET response body", "error", closeErr)
-		}
-	}()
-
-	eaaclient.Logger.Info("GET API response status", "status_code", resp.StatusCode)
-	eaaclient.Logger.Info("GET API response body", "body", responseMap)
-
-	return responseMap, nil
-}
-
-// GetAppsForPool retrieves apps associated with a connector pool
-func GetAppsForPool(eaaclient *EaaClient, poolUUID string) []interface{} {
-	if poolUUID == "" {
-		return []interface{}{}
-	}
-
-	// Get app UUIDs assigned to this pool
-	appUUIDs, err := GetAppsAssignedToPool(eaaclient, poolUUID)
-	if err != nil {
-		eaaclient.Logger.Warn("Failed to get apps for pool", "pool_uuid", poolUUID, "error", err)
-		return []interface{}{}
-	}
-
-	// Get all apps to lookup names
-	allApps, err := GetApps(eaaclient)
-	if err != nil {
-		eaaclient.Logger.Warn("Failed to get all apps for name lookup", "error", err)
-		// Continue without names if we can't get the full list
-	}
-
-	// Create a map for quick lookup
-	uuidToNameMap := make(map[string]string)
-	for _, app := range allApps {
-		uuidToNameMap[app.UUIDURL] = app.Name
-	}
-
-	var appsList []interface{}
-	for _, appUUID := range appUUIDs {
-		appName := uuidToNameMap[appUUID] // Will be empty string if not found
-		appData := map[string]interface{}{
-			"name":     appName,
-			"uuid_url": appUUID,
-		}
-		appsList = append(appsList, appData)
-	}
-
-	return appsList
 }
 
 // SetConnectorPoolBasicAttributes sets the basic attributes of a connector pool in the schema

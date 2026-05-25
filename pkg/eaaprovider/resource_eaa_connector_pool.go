@@ -723,25 +723,22 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 
 	// STEP 1: Disassociate APPS first (must be done before connectors)
 	logger.Info("Step 1: Disassociating apps from pool before deletion")
-	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, id) // Fixed: Use names, not UUIDs
+	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, id)
 	switch {
 	case err != nil:
-		logger.Error(fmt.Sprintf("Failed to get current apps assigned to pool: %v", err))
-		// Continue with deletion even if we can't get current apps
+		logger.Error("Failed to get current apps assigned to pool", "error", err)
+		return diag.Errorf("cannot destroy connector pool: failed to get assigned apps: %v", err)
 	case len(currentApps) == 0:
 		logger.Info("No apps currently assigned to pool")
 	default:
-		logger.Info(fmt.Sprintf("Disassociating apps from pool: %v", currentApps))
+		logger.Info("Disassociating apps from pool", "apps", currentApps)
 
-		// Disassociate all current apps from the pool
 		err = client.UnassignConnectorPoolFromApps(eaaclient, id, currentApps)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to disassociate apps from pool: %v", err))
-			// Continue with deletion even if disassociation fails
-			// The API might handle this automatically
-		} else {
-			logger.Info("Successfully disassociated apps from pool")
+			logger.Error("Failed to disassociate apps from pool", "error", err)
+			return diag.Errorf("cannot destroy connector pool: failed to disassociate apps: %v", err)
 		}
+		logger.Info("Successfully disassociated apps from pool")
 	}
 
 	// STEP 2: Disassociate CONNECTORS second (after apps are removed)
@@ -749,8 +746,8 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	currentConnectors, err := client.GetConnectorNamesInPool(eaaclient, id)
 	switch {
 	case err != nil:
-		logger.Error(fmt.Sprintf("Failed to get current connectors in pool: %v", err))
-		// Continue with deletion even if we can't get current connectors
+		logger.Error("Failed to get current connectors in pool", "error", err)
+		return diag.Errorf("cannot destroy connector pool: failed to get connectors: %v", err)
 	case len(currentConnectors) == 0:
 		logger.Info("No connectors currently in pool")
 	default:
@@ -777,18 +774,24 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	time.Sleep(2 * time.Second)
 
 	// Verify apps are disassociated
-	currentAppsAfter, err := client.GetAppNamesAssignedToPool(eaaclient, id) // Fixed: Use names, not UUIDs
-	if err == nil && len(currentAppsAfter) > 0 {
-		logger.Warn("apps still assigned after disassociation", "apps", currentAppsAfter)
-	} else {
+	currentAppsAfter, err := client.GetAppNamesAssignedToPool(eaaclient, id)
+	switch {
+	case err != nil:
+		logger.Warn("Could not verify app disassociation", "error", err)
+	case len(currentAppsAfter) > 0:
+		return diag.Errorf("cannot destroy connector pool %s: apps still assigned after disassociation: %v", id, currentAppsAfter)
+	default:
 		logger.Info("Apps successfully disassociated")
 	}
 
 	// Verify connectors are disassociated
 	currentConnectorsAfter, err := client.GetConnectorNamesInPool(eaaclient, id)
-	if err == nil && len(currentConnectorsAfter) > 0 {
-		logger.Warn(fmt.Sprintf("Connectors still in pool after disassociation: %v", currentConnectorsAfter))
-	} else {
+	switch {
+	case err != nil:
+		logger.Warn("Could not verify connector disassociation", "error", err)
+	case len(currentConnectorsAfter) > 0:
+		return diag.Errorf("cannot destroy connector pool %s: connectors still in pool after disassociation: %v", id, currentConnectorsAfter)
+	default:
 		logger.Info("Connectors successfully disassociated")
 	}
 
@@ -800,7 +803,6 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(fmt.Errorf("failed to delete connector pool %s: %w", id, err))
 	}
 
-	logger.Info("Successfully deleted connector pool")
 	logger.Info("Successfully deleted connector pool")
 	d.SetId("")
 	return nil

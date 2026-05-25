@@ -10,7 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// FormatExpiresAt parses an RFC3339 timestamp, bumps seconds to 1 if they are 0
+// FormatExpiresAt parses an RFC3339 timestamp (including fractional seconds and timezone offsets),
+// normalises it to UTC, strips sub-second precision, bumps seconds to 1 if they are 0
 // (the API rejects :00 seconds), and returns plain RFC3339 UTC (e.g. "2026-05-30T14:30:01Z").
 func FormatExpiresAt(raw string) (string, error) {
 	t, err := time.Parse(time.RFC3339Nano, raw)
@@ -63,7 +64,9 @@ type RegistrationTokenWriteRequest struct {
 	GenerateEmbeddedImg bool   `json:"generate_embedded_img"`
 }
 
-// Validate checks that RegistrationTokenWriteRequest fields are valid.
+// Validate checks that RegistrationTokenWriteRequest fields are non-empty and
+// within allowed ranges. ExpiresAt must already be normalised via FormatExpiresAt
+// (plain RFC3339 UTC, no fractional seconds); un-normalised values will be rejected.
 func (r *RegistrationTokenWriteRequest) Validate() error {
 	if r.Name == "" {
 		return fmt.Errorf("registration token name cannot be empty")
@@ -71,7 +74,11 @@ func (r *RegistrationTokenWriteRequest) Validate() error {
 	if r.ExpiresAt == "" {
 		return fmt.Errorf("registration token expires_at cannot be empty")
 	}
-	if t, err := time.Parse(time.RFC3339, r.ExpiresAt); err == nil && !t.After(time.Now()) {
+	t, err := time.Parse(time.RFC3339, r.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("expires_at must be a valid RFC3339 timestamp, got %q: %w", r.ExpiresAt, err)
+	}
+	if !t.After(time.Now()) {
 		return fmt.Errorf("expires_at must be in the future, got %s", r.ExpiresAt)
 	}
 	if r.MaxUse < 1 || r.MaxUse > 1000 {
@@ -80,7 +87,8 @@ func (r *RegistrationTokenWriteRequest) Validate() error {
 	return nil
 }
 
-// CreateRegistrationTokenRequestFromSchema creates a RegistrationTokenWriteRequest from Terraform schema data
+// CreateRegistrationTokenRequestFromSchema creates a RegistrationTokenWriteRequest from the first
+// registration token in the Terraform schema data. Only the first token block is used.
 func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema(ctx context.Context, d *schema.ResourceData, client *EaaClient) error {
 	// Get the registration tokens from the schema
 	tokens, ok := d.GetOk("registration_tokens")
