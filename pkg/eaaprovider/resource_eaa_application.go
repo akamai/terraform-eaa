@@ -126,10 +126,12 @@ func resourceEaaApplication() *schema.Resource {
 			"client_app_mode": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"host": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"bookmark_url": {
 				Type:     schema.TypeString,
@@ -146,16 +148,22 @@ func resourceEaaApplication() *schema.Resource {
 				Computed: true,
 			},
 			"origin_host": {
-				Type:     schema.TypeString,
-				Optional: true,
+				Type:       schema.TypeString,
+				Optional:   true,
+				Computed:   true,
+				Deprecated: "This field is computed by the API from the servers block and cannot be set directly. Use servers.origin_host instead.",
 			},
 			"orig_tls": {
-				Type:     schema.TypeString,
-				Optional: true,
+				Type:       schema.TypeString,
+				Optional:   true,
+				Computed:   true,
+				Deprecated: "This field is computed by the API from the servers block and cannot be set directly. Use servers.orig_tls instead.",
 			},
 			"origin_port": {
-				Type:     schema.TypeInt,
-				Optional: true,
+				Type:       schema.TypeInt,
+				Optional:   true,
+				Computed:   true,
+				Deprecated: "This field is computed by the API from the servers block and cannot be set directly. Use servers.origin_port instead.",
 			},
 			"tunnel_internal_hosts": {
 				Type:     schema.TypeList,
@@ -187,8 +195,10 @@ func resourceEaaApplication() *schema.Resource {
 							Optional: true,
 						},
 						"orig_tls": {
-							Type:     schema.TypeBool,
-							Optional: true,
+							Type:       schema.TypeBool,
+							Optional:   true,
+							Computed:   true,
+							Deprecated: "This field is computed by the API and cannot be set directly. The API determines TLS settings based on the origin_protocol value.",
 						},
 						"origin_port": {
 							Type:     schema.TypeInt,
