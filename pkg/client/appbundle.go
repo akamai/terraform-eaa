@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"net/url"
 )
 
 // AppBundle represents an application bundle
@@ -43,12 +44,17 @@ const (
 	APPBUNDLE_URL = "/crux/v1/mgmt-pop/appbundle"
 )
 
-// GetAppBundles fetches all app bundles from the API
-func (ec *EaaClient) GetAppBundles() (*AppBundleResponse, error) {
+// GetAppBundles fetches app bundles from the API, applying optional query filters
+// (e.g. url.Values{"name__icontains": {"my-bundle"}} or url.Values{"uuid_url__in": {"uuid1,uuid2"}}).
+func (ec *EaaClient) GetAppBundles(filters ...url.Values) (*AppBundleResponse, error) {
 	apiURL := fmt.Sprintf("%s://%s%s", URL_SCHEME, ec.Host, APPBUNDLE_URL)
+	if len(filters) > 0 && len(filters[0]) > 0 {
+		apiURL = fmt.Sprintf("%s?%s", apiURL, filters[0].Encode())
+	}
 
 	var appBundleResp AppBundleResponse
-	_, err := ec.SendAPIRequest(apiURL, "GET", nil, &appBundleResp, false)
+	expand := false
+	_, err := ec.SendAPIRequest(apiURL, "GET", nil, &appBundleResp, false, GetRequestOptions{Expand: &expand})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch app bundles: %w", err)
 	}
@@ -56,21 +62,36 @@ func (ec *EaaClient) GetAppBundles() (*AppBundleResponse, error) {
 	return &appBundleResp, nil
 }
 
-// GetAppBundleByName finds an app bundle by name and returns its UUID
+// GetAppBundleByName fetches app bundles filtered by name and returns the UUID for an exact name match.
 func (ec *EaaClient) GetAppBundleByName(name string) (string, error) {
-	appBundles, err := ec.GetAppBundles()
+	appBundles, err := ec.GetAppBundles(url.Values{"name__icontains": {name}})
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch app bundles: %w", err)
+		return "", err
 	}
 
-	for index := range appBundles.Objects {
-		bundle := &appBundles.Objects[index]
-		if bundle.Name == name {
-			return bundle.UUIDURL, nil
+	for i := range appBundles.Objects {
+		if appBundles.Objects[i].Name == name {
+			return appBundles.Objects[i].UUIDURL, nil
 		}
 	}
 
 	return "", fmt.Errorf("app bundle with name '%s' not found", name)
+}
+
+// GetAppBundleNameByUUID fetches app bundles filtered by UUID and returns the name for an exact UUID match.
+func (ec *EaaClient) GetAppBundleNameByUUID(uuid string) (string, error) {
+	appBundles, err := ec.GetAppBundles(url.Values{"uuid_url__in": {uuid}})
+	if err != nil {
+		return "", err
+	}
+
+	for i := range appBundles.Objects {
+		if appBundles.Objects[i].UUIDURL == uuid {
+			return appBundles.Objects[i].Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("app bundle with UUID '%s' not found", uuid)
 }
 
 // ValidateAppBundleName validates that the app bundle name exists

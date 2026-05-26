@@ -1174,14 +1174,15 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		// Explicitly set the AppAuth field to ensure it's preserved
 		appUpdateReq.AdvancedSettings.AppAuth = advSettings.AppAuth
 
-		// Set the app bundle UUID on the Application struct (top-level field)
-		if validatedAppBundleUUID != "" {
-			appUpdateReq.AppBundle = validatedAppBundleUUID
-			ec.Logger.Debug("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
-		}
-
 		// Log the final advanced settings to see what's being sent
 		ec.Logger.Debug("UPDATE FLOW: Final advanced settings AppAuth:", appUpdateReq.AdvancedSettings.AppAuth)
+	}
+
+	// Set the app bundle UUID on the Application struct (top-level field)
+	// This must run regardless of whether advanced_settings is provided.
+	if validatedAppBundleUUID != "" {
+		appUpdateReq.AppBundle = validatedAppBundleUUID
+		ec.Logger.Debug("UPDATE FLOW: Set app_bundle UUID on Application struct:", validatedAppBundleUUID)
 	}
 
 	// Set authentication flags based on Terraform boolean flags for UPDATE flow

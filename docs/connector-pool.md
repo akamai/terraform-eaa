@@ -60,7 +60,7 @@ This resource supports the following arguments:
   * Type: List of objects with the following attributes:
     * ```name``` - (Required) Name of the registration token
     * ```max_use``` - (Optional) Maximum number of times the token can be used. Defaults to 1, range 1-1000
-    * ```expires_in_days``` - (Optional) Number of days from now until the token expires. Defaults to 1, range 1-700
+    * ```expires_at``` - (Required) Expiration timestamp in RFC3339 format (for example, `2030-01-01T00:00:01Z`). Note: zero-second values (`:00`) are automatically bumped to `:01`
     * ```generate_embedded_img``` - (Optional) Whether to generate an embedded image for the token. Defaults to false
 
 #### Computed Attributes
@@ -71,7 +71,7 @@ This resource supports the following arguments:
   * ```uuid_url``` - UUID URL of the registration token
   * ```connector_pool``` - Connector pool UUID
   * ```agents``` - List of agents associated with the token
-  * ```expires_at``` - Expiration date in RFC3339 format
+  * ```expires_at``` - Expiration timestamp returned by the API in RFC3339 format
   * ```image_url``` - Image URL for the token
   * ```token``` - Token value
   * ```used_count``` - Number of times the token has been used

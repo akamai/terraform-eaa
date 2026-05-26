@@ -961,11 +961,6 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 		err = client.ValidateOIDCNestedBlocks(ctx, d, m, logger)
 	}
 
-	// Validate app bundle restrictions
-	if err == nil {
-		err = validateAppBundleRestrictions(d, logger)
-	}
-
 	return err
 }
 
@@ -1089,42 +1084,30 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(getAppError(getResp))
 	}
 
+	var diags diag.Diagnostics
+
 	// Map basic attributes
-	if diags := mapBasicAttributesFromResponse(d, &appResp, eaaclient); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapBasicAttributesFromResponse(d, &appResp, eaaclient)...)
 
 	// Map servers and tunnel hosts
-	if diags := mapServersAndTunnelHostsFromResponse(d, &appResp); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapServersAndTunnelHostsFromResponse(d, &appResp)...)
 
 	// Map advanced settings
-	if diags := mapAdvancedSettingsFromResponse(d, &appResp); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapAdvancedSettingsFromResponse(d, &appResp)...)
 
 	// Map agents, authentication, cert, and service
-	if diags := mapAgentsAndAuthFromResponse(d, &appResp, eaaclient); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapAgentsAndAuthFromResponse(d, &appResp, eaaclient)...)
 
 	// Map SAML settings
-	if diags := mapSAMLSettingsFromResponse(d, &appResp); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapSAMLSettingsFromResponse(d, &appResp)...)
 
 	// Map WSFED settings
-	if diags := mapWSFEDSettingsFromResponse(d, &appResp); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapWSFEDSettingsFromResponse(d, &appResp)...)
 
 	// Map OIDC settings
-	if diags := mapOIDCSettingsFromResponse(d, &appResp); diags != nil {
-		return diags
-	}
+	diags = append(diags, mapOIDCSettingsFromResponse(d, &appResp)...)
 
-	return nil
+	return diags
 }
 
 // resourceEaaApplicationUpdate function updates an existing EAA application.

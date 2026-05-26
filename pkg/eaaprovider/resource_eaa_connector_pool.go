@@ -79,6 +79,34 @@ func validateOperatingMode(val interface{}, key string) (warns []string, errs []
 	return client.ValidateStringInSlice(valStr, key, validModes)
 }
 
+func validateRFC3339Timestamp(val interface{}, key string) (warns []string, errs []error) {
+	valStr, ok := val.(string)
+	if !ok {
+		return nil, []error{fmt.Errorf("%s must be a string", key)}
+	}
+
+	if _, err := time.Parse(time.RFC3339Nano, valStr); err != nil {
+		return nil, []error{fmt.Errorf("%s must be a valid RFC3339 timestamp (e.g. 2026-01-02T15:04:05Z): %w", key, err)}
+	}
+
+	return nil, nil
+}
+
+func suppressRFC3339Diff(_, old, newValue string, _ *schema.ResourceData) bool {
+	// Normalise both sides the same way FormatExpiresAt does (bumps :00 seconds
+	// to :01 and converts to UTC) so plan diffs are suppressed for equivalent timestamps.
+	normOld, errOld := client.FormatExpiresAt(old)
+	normNew, errNew := client.FormatExpiresAt(newValue)
+	if errOld != nil || errNew != nil {
+		return false
+	}
+	return normOld == normNew
+}
+
+func formatRFC3339Timestamp(value string) (string, error) {
+	return client.FormatExpiresAt(value)
+}
+
 // ============================================================================
 // HELPER FUNCTIONS FOR RESOURCE OPERATIONS
 // ============================================================================
@@ -102,14 +130,6 @@ func resourceEaaConnectorPool() *schema.Resource {
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
-		SchemaVersion: 1,
-		StateUpgraders: []schema.StateUpgrader{
-			{
-				Type:    resourceEaaConnectorPoolV0().CoreConfigSchema().ImpliedType(),
-				Upgrade: client.ConnectorPoolStateUpgradeV0,
-				Version: 0,
-			},
-		},
 
 		Schema: map[string]*schema.Schema{
 			"name": {
@@ -132,12 +152,14 @@ func resourceEaaConnectorPool() *schema.Resource {
 			"infra_type": {
 				Type:         schema.TypeString,
 				Optional:     true,
+				Computed:     true,
 				Description:  "Infrastructure type for the connector pool. Valid values: eaa, unified, broker, cpag",
 				ValidateFunc: validateInfraType,
 			},
 			"operating_mode": {
 				Type:         schema.TypeString,
 				Optional:     true,
+				Computed:     true,
 				Description:  "Operating mode for the connector pool. Valid values: connector, peb, combined, cpag_public, cpag_private, connector_with_china_acceleration",
 				ValidateFunc: validateOperatingMode,
 			},
@@ -204,30 +226,12 @@ func resourceEaaConnectorPool() *schema.Resource {
 								Type: schema.TypeString,
 							},
 						},
-						"expires_in_days": {
-							Type:        schema.TypeInt,
-							Optional:    true,
-							Default:     1,
-							Description: "Number of days from now until the token expires (defaults to 1)",
-							ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-								v, ok := val.(int)
-								if !ok {
-									errs = append(errs, fmt.Errorf("%s must be an integer", key))
-									return
-								}
-								if v < 1 {
-									errs = append(errs, fmt.Errorf("%s must be greater than 0, got %d", key, v))
-								}
-								if v > 700 {
-									errs = append(errs, fmt.Errorf("%s cannot be greater than 700 days, got %d", key, v))
-								}
-								return
-							},
-						},
 						"expires_at": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: "Expiration date in RFC3339 format from API response",
+							Type:             schema.TypeString,
+							Required:         true,
+							Description:      "Expiration date in RFC3339 format (e.g. 2026-01-02T15:04:05Z)",
+							ValidateFunc:     validateRFC3339Timestamp,
+							DiffSuppressFunc: suppressRFC3339Diff,
 						},
 						"image_url": {
 							Type:        schema.TypeString,
@@ -274,9 +278,12 @@ func resourceEaaConnectorPool() *schema.Resource {
 			},
 			// API response fields as individual computed fields
 			"cidrs": {
-				Type:        schema.TypeString,
+				Type:        schema.TypeList,
 				Computed:    true,
 				Description: "CIDRs from API response",
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
 			},
 		},
 	}
@@ -304,34 +311,34 @@ func resourceEaaConnectorPoolCreate(ctx context.Context, d *schema.ResourceData,
 	createRequest := &client.CreateConnectorPoolRequest{}
 	err = createRequest.CreateConnectorPoolRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to build connector pool create request: %w", err))
 	}
 
 	connPoolResp, err := createRequest.CreateConnectorPool(ctx, eaaclient)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to create connector pool: %w", err))
 	}
 
 	// Set resource ID and basic attributes
 	d.SetId(connPoolResp.UUIDURL)
 	if err := d.Set("uuid_url", connPoolResp.UUIDURL); err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to set uuid_url: %w", err))
 	}
 	if err := d.Set("cidrs", connPoolResp.CIDRs); err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to set cidrs: %w", err))
 	}
 
 	// Handle additional operations using helper functions
 	if err := client.AssignConnectorsToPoolFromSchema(d, eaaclient, connPoolResp.UUIDURL); err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to assign connectors to pool: %w", err))
 	}
 
 	if err := client.CreateRegistrationTokensFromSchema(ctx, d, eaaclient, connPoolResp.UUIDURL); err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to create registration tokens: %w", err))
 	}
 
 	if err := client.AssignAppsToPoolFromSchema(d, eaaclient, connPoolResp.UUIDURL); err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to assign apps to pool: %w", err))
 	}
 
 	return resourceEaaConnectorPoolRead(ctx, d, m)
@@ -343,25 +350,27 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	var readDiags diag.Diagnostics
 
 	connectorPoolUUID := d.Id()
 
 	// Read connector pool details
 	connPool, err := client.GetConnectorPool(ctx, eaaclient, connectorPoolUUID)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to read connector pool %s: %w", connectorPoolUUID, err))
 	}
 
 	// Set basic connector pool attributes using helper function
 	setErr := setConnectorPoolBasicAttributes(d, connPool)
 	if setErr != nil {
-		return diag.FromErr(setErr)
+		return diag.FromErr(fmt.Errorf("failed to set connector pool attributes: %w", setErr))
 	}
 
 	// Read connectors in the pool
 	currentConnectors, err := client.GetConnectorNamesInPool(eaaclient, connectorPoolUUID)
 	if err != nil {
-		eaaclient.Logger.Error("Failed to get connectors in pool:", err)
+		eaaclient.Logger.Error("Failed to get connectors in pool", "error", err)
+		readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to get connectors in pool: %w", err))...)
 	} else {
 		var connectorsInterface []interface{}
 		for _, connector := range currentConnectors {
@@ -369,14 +378,15 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 		}
 		setConnectorsErr := d.Set("connectors", connectorsInterface)
 		if setConnectorsErr != nil {
-			return diag.FromErr(setConnectorsErr)
+			readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to set connectors: %w", setConnectorsErr))...)
 		}
 	}
 
 	// Read registration tokens
 	tokens, err := eaaclient.GetRegistrationTokens(connectorPoolUUID)
 	if err != nil {
-		eaaclient.Logger.Error("Failed to get registration tokens:", err)
+		eaaclient.Logger.Error("Failed to get registration tokens", "error", err)
+		readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to get registration tokens: %w", err))...)
 	} else {
 		// Debug: Print the full API response for registration tokens
 		if b, marshalErr := json.MarshalIndent(tokens, "", "  "); marshalErr == nil {
@@ -390,19 +400,9 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 		var tokensInterface []interface{}
 		for i := range tokens {
 			token := &tokens[i]
-			// Convert RFC3339 date back to days from now
-			expiresAtTime, parseErr := time.Parse(time.RFC3339, token.ExpiresAt)
-			var expiresInDays int
-			if parseErr == nil {
-				now := time.Now().UTC()
-				duration := expiresAtTime.Sub(now)
-				expiresInDays = int(duration.Hours() / 24)
-				if expiresInDays < 0 {
-					expiresInDays = 0 // Handle expired tokens
-				}
-			} else {
-				// If parsing fails, default to 1 day
-				expiresInDays = 1
+			formattedExpiresAt, formatErr := formatRFC3339Timestamp(token.ExpiresAt)
+			if formatErr != nil {
+				return diag.FromErr(fmt.Errorf("registration token %q has invalid expires_at value %q: %w", token.Name, token.ExpiresAt, formatErr))
 			}
 
 			tokenMap := map[string]interface{}{
@@ -411,8 +411,7 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 				"max_use":               token.MaxUse,
 				"connector_pool":        token.ConnectorPool,
 				"agents":                token.Agents,
-				"expires_in_days":       expiresInDays,   // Converted from RFC3339 to days
-				"expires_at":            token.ExpiresAt, // Store the RFC3339 date from API response
+				"expires_at":            formattedExpiresAt,
 				"image_url":             token.ImageURL,
 				"token":                 token.Token,
 				"used_count":            token.UsedCount,
@@ -425,30 +424,26 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 		}
 		setTokensErr := d.Set("registration_tokens", tokensInterface)
 		if setTokensErr != nil {
-			return diag.FromErr(setTokensErr)
+			readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to set registration_tokens: %w", setTokensErr))...)
 		}
 	}
 
 	// Read apps assigned to this connector pool
 	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, connectorPoolUUID)
 	if err != nil {
-		eaaclient.Logger.Error("Failed to get apps assigned to pool:", err)
-		// Set empty list if we can't get current apps
-		currentApps = []string{}
+		eaaclient.Logger.Error("Failed to get apps assigned to pool", "error", err)
+		readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to get apps assigned to pool: %w", err))...)
+	} else {
+		var appsInterface []interface{}
+		for _, app := range currentApps {
+			appsInterface = append(appsInterface, app)
+		}
+		if err := d.Set("apps", appsInterface); err != nil {
+			readDiags = append(readDiags, diag.FromErr(fmt.Errorf("failed to set apps: %w", err))...)
+		}
 	}
 
-	var appsInterface []interface{}
-	for _, app := range currentApps {
-		appsInterface = append(appsInterface, app)
-	}
-	if err := d.Set("apps", appsInterface); err != nil {
-		return diag.FromErr(err)
-	}
-
-	// Preserve api_create_response if it exists (don't overwrite it during read)
-	// The api_create_response is only set during creation and should be preserved
-
-	return nil
+	return readDiags
 }
 
 // resourceEaaConnectorPoolUpdate updates an existing EAA connector pool.
@@ -471,6 +466,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(err)
 	}
 	logger := eaaclient.Logger
+	var updateDiags diag.Diagnostics
 
 	connectorPoolUUID := d.Id()
 
@@ -479,7 +475,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		updateRequest := &client.CreateConnectorPoolRequest{}
 		err = updateRequest.CreateConnectorPoolRequestFromSchema(ctx, d, eaaclient)
 		if err != nil {
-			return diag.FromErr(err)
+			return diag.FromErr(fmt.Errorf("failed to build connector pool update request: %w", err))
 		}
 
 		// Update the connector pool using PUT
@@ -490,14 +486,14 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		// Log the actual JSON that will be sent
 		jsonData, err := json.Marshal(updateRequest)
 		if err != nil {
-			return diag.FromErr(err)
+			return diag.FromErr(fmt.Errorf("failed to marshal connector pool update request: %w", err))
 		}
 		logger.Info("update request JSON body", "body", string(jsonData))
 
 		resp, err := eaaclient.SendAPIRequest(apiURL, "PUT", updateRequest, nil, false)
 		if err != nil {
 			logger.Error("update API request failed", "error", err)
-			return diag.FromErr(err)
+			return diag.FromErr(fmt.Errorf("connector pool update API request failed: %w", err))
 		}
 
 		logger.Info("update response status", "status", resp.StatusCode)
@@ -523,7 +519,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		connectorsRaw := d.Get("connectors")
 		connectorList, ok := connectorsRaw.([]interface{})
 		if !ok {
-			return diag.FromErr(ErrInvalidData)
+			return diag.FromErr(fmt.Errorf("connectors: %w", ErrInvalidData))
 		}
 		var desiredConnectors []string
 		for _, connector := range connectorList {
@@ -573,51 +569,59 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		// Get new token names from configuration
 		newTokens, ok := newTokensInterface.([]interface{})
 		if !ok {
-			return diag.FromErr(ErrInvalidData)
+			return diag.FromErr(fmt.Errorf("registration_tokens must be a list, got %T", newTokensInterface))
 		}
 		newTokenNames := make(map[string]bool)
 
 		for _, tokenInterface := range newTokens {
 			tokenData, ok := tokenInterface.(map[string]interface{})
 			if !ok {
-				return diag.FromErr(ErrInvalidData)
+				return diag.FromErr(fmt.Errorf("registration token must be an object, got %T", tokenInterface))
 			}
 			tokenName, ok := tokenData["name"].(string)
 			if !ok || tokenName == "" {
-				return diag.FromErr(ErrInvalidData)
+				return diag.FromErr(fmt.Errorf("registration token 'name' must be a non-empty string, got %T", tokenData["name"]))
 			}
 			newTokenNames[tokenName] = true
 
-			// Check if token already exists
-			if _, exists := existingTokensMap[tokenName]; exists {
-				logger.Info("token already exists, skipping creation", "token", tokenName)
-				continue
-			}
-
-			// Create new token
-			logger.Info("creating registration token", "token", tokenName)
-
-			// Create token request with values - validation is handled by Terraform schema
-			// and the client layer will perform additional validation if needed
-			expiresInDays, ok := tokenData["expires_in_days"].(int)
+			expiresAtRaw, ok := tokenData["expires_at"].(string)
 			if !ok {
-				return diag.FromErr(ErrInvalidData)
+				return diag.FromErr(fmt.Errorf("registration token 'expires_at' must be a string, got %T", tokenData["expires_at"]))
+			}
+			expiresAt, formatErr := formatRFC3339Timestamp(expiresAtRaw)
+			if formatErr != nil {
+				return diag.FromErr(fmt.Errorf("invalid registration token expires_at %q for token %q: %w", expiresAtRaw, tokenName, formatErr))
 			}
 			maxUse, ok := tokenData["max_use"].(int)
 			if !ok {
-				return diag.FromErr(ErrInvalidData)
+				return diag.FromErr(fmt.Errorf("registration token 'max_use' must be an integer, got %T", tokenData["max_use"]))
 			}
 			generateEmbeddedImg, ok := tokenData["generate_embedded_img"].(bool)
 			if !ok {
-				return diag.FromErr(ErrInvalidData)
+				return diag.FromErr(fmt.Errorf("registration token 'generate_embedded_img' must be a boolean, got %T", tokenData["generate_embedded_img"]))
 			}
-			now := time.Now().UTC()
-			expiresAt := now.AddDate(0, 0, expiresInDays)
+			if existingToken, exists := existingTokensMap[tokenName]; exists {
+				logger.Info("token exists, updating", "token", tokenName)
+				updateReq := &client.RegistrationTokenWriteRequest{
+					Name:                tokenName,
+					MaxUse:              maxUse,
+					ExpiresAt:           expiresAt,
+					ConnectorPool:       connectorPoolUUID,
+					GenerateEmbeddedImg: generateEmbeddedImg,
+				}
+				err = client.UpdateRegistrationToken(ctx, eaaclient, existingToken.UUIDURL, updateReq)
+				if err != nil {
+					logger.Error("failed to update registration token", "error", err)
+					return diag.FromErr(fmt.Errorf("failed to update registration token %q: %w", tokenName, err))
+				}
+				continue
+			}
 
-			createTokenRequest := client.CreateRegistrationTokenRequest{
+			logger.Info("creating registration token", "token", tokenName)
+			createTokenRequest := client.RegistrationTokenWriteRequest{
 				Name:                tokenName,
 				MaxUse:              maxUse,
-				ExpiresAt:           expiresAt.Format(time.RFC3339),
+				ExpiresAt:           expiresAt,
 				ConnectorPool:       connectorPoolUUID,
 				GenerateEmbeddedImg: generateEmbeddedImg,
 			}
@@ -644,7 +648,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 	if appsRaw, ok := d.GetOk("apps"); ok {
 		appsList, ok := appsRaw.([]interface{})
 		if !ok {
-			return diag.FromErr(ErrInvalidData)
+			return diag.FromErr(fmt.Errorf("apps: %w", ErrInvalidData))
 		}
 		var desiredApps []string
 		for _, app := range appsList {
@@ -657,31 +661,30 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		currApps, err := client.GetAppNamesAssignedToPool(eaaclient, connectorPoolUUID)
 		if err != nil {
 			logger.Error("failed to get current apps assigned to pool", "error", err)
-			// Continue with empty list if we can't get current apps
-			currApps = []string{}
-		}
+			updateDiags = append(updateDiags, diag.FromErr(fmt.Errorf("failed to get current apps assigned to pool: %w", err))...)
+		} else {
+			// Calculate differences
+			appsToAssign := client.DifferenceIgnoreCase(desiredApps, currApps)
+			appsToUnassign := client.DifferenceIgnoreCase(currApps, desiredApps)
 
-		// Calculate differences
-		appsToAssign := client.DifferenceIgnoreCase(desiredApps, currApps)
-		appsToUnassign := client.DifferenceIgnoreCase(currApps, desiredApps)
-
-		// Assign new apps
-		if len(appsToAssign) > 0 {
-			logger.Info("assigning apps to connector pool", "apps", appsToAssign)
-			err = client.AssignConnectorPoolToApps(eaaclient, connectorPoolUUID, appsToAssign)
-			if err != nil {
-				logger.Error("failed to assign apps to connector pool", "error", err)
-				return diag.FromErr(fmt.Errorf("failed to assign apps to connector pool: %w", err))
+			// Assign new apps
+			if len(appsToAssign) > 0 {
+				logger.Info("assigning apps to connector pool", "apps", appsToAssign)
+				err = client.AssignConnectorPoolToApps(eaaclient, connectorPoolUUID, appsToAssign)
+				if err != nil {
+					logger.Error("failed to assign apps to connector pool", "error", err)
+					return diag.FromErr(fmt.Errorf("failed to assign apps to connector pool: %w", err))
+				}
 			}
-		}
 
-		// Unassign removed apps
-		if len(appsToUnassign) > 0 {
-			logger.Info("unassigning apps from connector pool", "apps", appsToUnassign)
-			err = client.UnassignConnectorPoolFromApps(eaaclient, connectorPoolUUID, appsToUnassign)
-			if err != nil {
-				logger.Error("failed to unassign apps from connector pool", "error", err)
-				return diag.FromErr(fmt.Errorf("failed to unassign apps from connector pool: %w", err))
+			// Unassign removed apps
+			if len(appsToUnassign) > 0 {
+				logger.Info("unassigning apps from connector pool", "apps", appsToUnassign)
+				err = client.UnassignConnectorPoolFromApps(eaaclient, connectorPoolUUID, appsToUnassign)
+				if err != nil {
+					logger.Error("failed to unassign apps from connector pool", "error", err)
+					return diag.FromErr(fmt.Errorf("failed to unassign apps from connector pool: %w", err))
+				}
 			}
 		}
 	} else {
@@ -692,12 +695,9 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		currApps, err := client.GetAppNamesAssignedToPool(eaaclient, connectorPoolUUID)
 		if err != nil {
 			logger.Error("failed to get current apps assigned to pool", "error", err)
-			// Continue with empty list if we can't get current apps
-			currApps = []string{}
-		}
-
-		// Unassign all current apps
-		if len(currApps) > 0 {
+			updateDiags = append(updateDiags, diag.FromErr(fmt.Errorf("failed to get current apps assigned to pool: %w", err))...)
+		} else if len(currApps) > 0 {
+			// Unassign all current apps
 			logger.Info("unassigning all apps from connector pool", "apps", currApps)
 			err = client.UnassignConnectorPoolFromApps(eaaclient, connectorPoolUUID, currApps)
 			if err != nil {
@@ -707,7 +707,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	return resourceEaaConnectorPoolRead(ctx, d, m)
+	return append(updateDiags, resourceEaaConnectorPoolRead(ctx, d, m)...)
 }
 
 // resourceEaaConnectorPoolDelete deletes an existing EAA connector pool.
@@ -723,25 +723,22 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 
 	// STEP 1: Disassociate APPS first (must be done before connectors)
 	logger.Info("Step 1: Disassociating apps from pool before deletion")
-	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, id) // Fixed: Use names, not UUIDs
+	currentApps, err := client.GetAppNamesAssignedToPool(eaaclient, id)
 	switch {
 	case err != nil:
-		logger.Error(fmt.Sprintf("Failed to get current apps assigned to pool: %v", err))
-		// Continue with deletion even if we can't get current apps
+		logger.Error("Failed to get current apps assigned to pool", "error", err)
+		return diag.Errorf("cannot destroy connector pool: failed to get assigned apps: %v", err)
 	case len(currentApps) == 0:
 		logger.Info("No apps currently assigned to pool")
 	default:
-		logger.Info(fmt.Sprintf("Disassociating apps from pool: %v", currentApps))
+		logger.Info("Disassociating apps from pool", "apps", currentApps)
 
-		// Disassociate all current apps from the pool
 		err = client.UnassignConnectorPoolFromApps(eaaclient, id, currentApps)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to disassociate apps from pool: %v", err))
-			// Continue with deletion even if disassociation fails
-			// The API might handle this automatically
-		} else {
-			logger.Info("Successfully disassociated apps from pool")
+			logger.Error("Failed to disassociate apps from pool", "error", err)
+			return diag.Errorf("cannot destroy connector pool: failed to disassociate apps: %v", err)
 		}
+		logger.Info("Successfully disassociated apps from pool")
 	}
 
 	// STEP 2: Disassociate CONNECTORS second (after apps are removed)
@@ -749,8 +746,8 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	currentConnectors, err := client.GetConnectorNamesInPool(eaaclient, id)
 	switch {
 	case err != nil:
-		logger.Error(fmt.Sprintf("Failed to get current connectors in pool: %v", err))
-		// Continue with deletion even if we can't get current connectors
+		logger.Error("Failed to get current connectors in pool", "error", err)
+		return diag.Errorf("cannot destroy connector pool: failed to get connectors: %v", err)
 	case len(currentConnectors) == 0:
 		logger.Info("No connectors currently in pool")
 	default:
@@ -777,18 +774,24 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	time.Sleep(2 * time.Second)
 
 	// Verify apps are disassociated
-	currentAppsAfter, err := client.GetAppNamesAssignedToPool(eaaclient, id) // Fixed: Use names, not UUIDs
-	if err == nil && len(currentAppsAfter) > 0 {
-		logger.Warn("apps still assigned after disassociation", "apps", currentAppsAfter)
-	} else {
+	currentAppsAfter, err := client.GetAppNamesAssignedToPool(eaaclient, id)
+	switch {
+	case err != nil:
+		logger.Warn("Could not verify app disassociation", "error", err)
+	case len(currentAppsAfter) > 0:
+		return diag.Errorf("cannot destroy connector pool %s: apps still assigned after disassociation: %v", id, currentAppsAfter)
+	default:
 		logger.Info("Apps successfully disassociated")
 	}
 
 	// Verify connectors are disassociated
 	currentConnectorsAfter, err := client.GetConnectorNamesInPool(eaaclient, id)
-	if err == nil && len(currentConnectorsAfter) > 0 {
-		logger.Warn(fmt.Sprintf("Connectors still in pool after disassociation: %v", currentConnectorsAfter))
-	} else {
+	switch {
+	case err != nil:
+		logger.Warn("Could not verify connector disassociation", "error", err)
+	case len(currentConnectorsAfter) > 0:
+		return diag.Errorf("cannot destroy connector pool %s: connectors still in pool after disassociation: %v", id, currentConnectorsAfter)
+	default:
 		logger.Info("Connectors successfully disassociated")
 	}
 
@@ -797,83 +800,12 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	err = client.DeleteConnectorPool(ctx, eaaclient, id)
 	if err != nil {
 		logger.Error("delete connector pool failed", "error", err)
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to delete connector pool %s: %w", id, err))
 	}
 
-	logger.Info("Successfully deleted connector pool")
 	logger.Info("Successfully deleted connector pool")
 	d.SetId("")
 	return nil
-}
-
-// State migration functions for schema version 1
-func resourceEaaConnectorPoolV0() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"name": {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"description": {
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-			"package_type": {
-				Type:     schema.TypeInt,
-				Required: true,
-			},
-			"infra_type": {
-				Type:     schema.TypeInt,
-				Optional: true,
-			},
-			"operating_mode": {
-				Type:     schema.TypeInt,
-				Optional: true,
-			},
-			"connectors": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-			},
-			"apps": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-			},
-			"registration_tokens": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-						"max_use": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"expires_in_days": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"generate_embedded_img": {
-							Type:     schema.TypeBool,
-							Required: true,
-						},
-					},
-				},
-			},
-			"uuid_url": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-		},
-	}
 }
 
 // hasDuplicateTokenNames checks for duplicate registration token names
@@ -885,16 +817,16 @@ func hasDuplicateTokenNames(d *schema.ResourceData) error {
 	nameSet := make(map[string]struct{})
 	tokenList, ok := tokens.([]interface{})
 	if !ok {
-		return ErrInvalidData
+		return fmt.Errorf("registration_tokens: %w", ErrInvalidData)
 	}
 	for _, tokenInterface := range tokenList {
 		tokenData, ok := tokenInterface.(map[string]interface{})
 		if !ok {
-			return ErrInvalidData
+			return fmt.Errorf("registration_tokens entry: %w", ErrInvalidData)
 		}
 		name, ok := tokenData["name"].(string)
 		if !ok {
-			return ErrInvalidData
+			return fmt.Errorf("registration_tokens name: %w", ErrInvalidData)
 		}
 		if _, exists := nameSet[name]; exists {
 			return fmt.Errorf("duplicate registration token name found: %s. Each registration token name must be unique within the connector pool", name)

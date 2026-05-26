@@ -17,8 +17,6 @@ import (
 
 // convertConnectorPoolToMap converts a ConnectorPool to a map for the schema with detailed connector information
 func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.EaaClient) map[string]interface{} {
-
-	// Build the pool data directly from the raw response instead of using client.ConvertConnectorPoolToMap
 	poolData := map[string]interface{}{
 		"name":        pool.Name,
 		"description": "",
@@ -414,11 +412,6 @@ func dataSourceEaaConnectorPools() *schema.Resource {
 										Elem: &schema.Schema{
 											Type: schema.TypeString,
 										},
-									},
-									"expires_in_days": {
-										Type:        schema.TypeInt,
-										Computed:    true,
-										Description: "Days until the token expires",
 									},
 									"expires_at": {
 										Type:        schema.TypeString,
