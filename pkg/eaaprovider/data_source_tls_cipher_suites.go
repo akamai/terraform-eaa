@@ -3,6 +3,7 @@ package eaaprovider
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -20,13 +21,35 @@ func dataSourceTLSCipherSuites() *schema.Resource {
 				Description: "The UUID URL of the application to get TLS cipher suites for",
 			},
 			"cipher_suites": {
-				Type:        schema.TypeMap,
+				Type:        schema.TypeList,
 				Computed:    true,
-				Description: "Map of available TLS cipher suites",
-				Elem: &schema.Schema{
-					Type: schema.TypeMap,
-					Elem: &schema.Schema{
-						Type: schema.TypeString,
+				Description: "List of available TLS cipher suites",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"default": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
+						"selected": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
+						"ssl_cipher": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"ssl_protocols": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"weak_cipher": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
 					},
 				},
 			},
@@ -73,33 +96,35 @@ func dataSourceTLSCipherSuitesRead(ctx context.Context, d *schema.ResourceData, 
 		return diags
 	}
 
-	// Convert cipher suites to map format for Terraform
-	cipherSuitesMap := make(map[string]interface{})
 	cipherSuiteNames := make([]string, 0, len(tlsResponse.TLSCipherSuite))
+	for name := range tlsResponse.TLSCipherSuite {
+		cipherSuiteNames = append(cipherSuiteNames, name)
+	}
+	sort.Strings(cipherSuiteNames)
+
+	cipherSuitesList := make([]map[string]interface{}, 0, len(tlsResponse.TLSCipherSuite))
 	var defaultSuiteName string
 
-	for name, suite := range tlsResponse.TLSCipherSuite { // Add to names list
-		cipherSuiteNames = append(cipherSuiteNames, name)
+	for _, name := range cipherSuiteNames {
+		suite := tlsResponse.TLSCipherSuite[name]
 
-		// Track default suite
 		if suite.Default {
 			defaultSuiteName = name
 		}
 
-		// Convert suite to map for Terraform
 		suiteMap := map[string]interface{}{
+			"name":          name,
 			"default":       suite.Default,
 			"selected":      suite.Selected,
 			"ssl_cipher":    suite.SSLCipher,
 			"ssl_protocols": suite.SSLProtocols,
 			"weak_cipher":   suite.WeakCipher,
 		}
-		cipherSuitesMap[name] = suiteMap
+		cipherSuitesList = append(cipherSuitesList, suiteMap)
 	}
 
-	// Set the data source attributes
-	d.SetId(appUUIDURL) // Use app_uuid_url as the ID
-	if err := d.Set("cipher_suites", cipherSuitesMap); err != nil {
+	d.SetId(appUUIDURL)
+	if err := d.Set("cipher_suites", cipherSuitesList); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("cipher_suite_names", cipherSuiteNames); err != nil {
