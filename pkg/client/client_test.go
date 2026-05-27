@@ -9,11 +9,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-type noopSigner struct{}
-
-func (noopSigner) SignRequest(_ *http.Request) {}
-func (noopSigner) CheckRequestLimit(_ int)     {}
-
 func TestSendAPIRequestExpandFalseOverride(t *testing.T) {
 	var capturedQuery string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
