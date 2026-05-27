@@ -1,37 +1,27 @@
 package client
 
 import (
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-func newAppBundleTestClient(t *testing.T, handler http.HandlerFunc) (client *EaaClient, cleanup func()) {
-	t.Helper()
-	ts := httptest.NewTLSServer(handler)
-	ec := &EaaClient{
-		Signer: noopSigner{},
-		Logger: hclog.NewNullLogger(),
-		Client: ts.Client(),
-		Host:   ts.Listener.Addr().String(),
-	}
-	return ec, ts.Close
-}
-
-func serveAppBundles(bundles []AppBundle) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(AppBundleResponse{Objects: bundles}) //nolint:errcheck // test helper; encoding error is not actionable
-	}
-}
 
 var testBundles = []AppBundle{
 	{Name: "bundle-a", UUIDURL: "/appbundle/uuid-a"},
 	{Name: "bundle-b", UUIDURL: "/appbundle/uuid-b"},
+}
+
+func TestGetAppBundles(t *testing.T) {
+	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+	defer cleanup()
+
+	resp, err := ec.GetAppBundles()
+	require.NoError(t, err)
+	assert.Len(t, resp.Objects, 2)
+	assert.Equal(t, "bundle-a", resp.Objects[0].Name)
 }
 
 func TestGetAppBundleByName(t *testing.T) {
@@ -40,45 +30,24 @@ func TestGetAppBundleByName(t *testing.T) {
 		wantUUID      string
 		wantErrSubstr string
 	}{
-		"match_first": {
-			name:     "bundle-a",
-			wantUUID: "/appbundle/uuid-a",
-		},
-		"match_second": {
-			name:     "bundle-b",
-			wantUUID: "/appbundle/uuid-b",
-		},
-		"not_found": {
-			name:          "bundle-c",
-			wantErrSubstr: "not found",
-		},
-		"partial_name_no_exact_match": {
-			name:          "bundle",
-			wantErrSubstr: "not found",
-		},
+		"match_first":           {name: "bundle-a", wantUUID: "/appbundle/uuid-a"},
+		"match_second":          {name: "bundle-b", wantUUID: "/appbundle/uuid-b"},
+		"not_found":             {name: "bundle-c", wantErrSubstr: "not found"},
+		"partial_name_no_match": {name: "bundle", wantErrSubstr: "not found"},
 	}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newAppBundleTestClient(t, serveAppBundles(testBundles))
+			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 			defer cleanup()
 
 			got, err := ec.GetAppBundleByName(tt.name)
 			if tt.wantErrSubstr != "" {
-				if err == nil {
-					t.Fatalf("GetAppBundleByName(%q) returned nil error, want error containing %q", tt.name, tt.wantErrSubstr)
-				}
-				if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-					t.Fatalf("GetAppBundleByName(%q) error = %q, want error containing %q", tt.name, err.Error(), tt.wantErrSubstr)
-				}
+				require.Error(t, err)
+				assert.True(t, strings.Contains(err.Error(), tt.wantErrSubstr))
 				return
 			}
-			if err != nil {
-				t.Fatalf("GetAppBundleByName(%q) returned unexpected error: %v", tt.name, err)
-			}
-			if got != tt.wantUUID {
-				t.Fatalf("GetAppBundleByName(%q) = %q, want %q", tt.name, got, tt.wantUUID)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantUUID, got)
 		})
 	}
 }
@@ -89,40 +58,45 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 		wantName      string
 		wantErrSubstr string
 	}{
-		"match_first": {
-			uuid:     "/appbundle/uuid-a",
-			wantName: "bundle-a",
-		},
-		"match_second": {
-			uuid:     "/appbundle/uuid-b",
-			wantName: "bundle-b",
-		},
-		"not_found": {
-			uuid:          "/appbundle/uuid-c",
-			wantErrSubstr: "not found",
-		},
+		"match_first":  {uuid: "/appbundle/uuid-a", wantName: "bundle-a"},
+		"match_second": {uuid: "/appbundle/uuid-b", wantName: "bundle-b"},
+		"not_found":    {uuid: "/appbundle/uuid-c", wantErrSubstr: "not found"},
 	}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newAppBundleTestClient(t, serveAppBundles(testBundles))
+			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 			defer cleanup()
 
 			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
 			if tt.wantErrSubstr != "" {
-				if err == nil {
-					t.Fatalf("GetAppBundleNameByUUID(%q) returned nil error, want error containing %q", tt.uuid, tt.wantErrSubstr)
-				}
-				if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-					t.Fatalf("GetAppBundleNameByUUID(%q) error = %q, want error containing %q", tt.uuid, err.Error(), tt.wantErrSubstr)
-				}
+				require.Error(t, err)
+				assert.True(t, strings.Contains(err.Error(), tt.wantErrSubstr))
 				return
 			}
-			if err != nil {
-				t.Fatalf("GetAppBundleNameByUUID(%q) returned unexpected error: %v", tt.uuid, err)
-			}
-			if got != tt.wantName {
-				t.Fatalf("GetAppBundleNameByUUID(%q) = %q, want %q", tt.uuid, got, tt.wantName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantName, got)
+		})
+	}
+}
+
+func TestValidateAppBundleName(t *testing.T) {
+	tests := map[string]struct {
+		name    string
+		wantErr bool
+	}{
+		"valid":   {name: "bundle-a", wantErr: false},
+		"invalid": {name: "nonexistent", wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+			defer cleanup()
+
+			err := ec.ValidateAppBundleName(tt.name)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
