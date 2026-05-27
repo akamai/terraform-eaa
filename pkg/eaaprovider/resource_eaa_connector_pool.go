@@ -153,14 +153,14 @@ func resourceEaaConnectorPool() *schema.Resource {
 				Type:         schema.TypeString,
 				Optional:     true,
 				Computed:     true,
-				Description:  "Infrastructure type for the connector pool. Valid values: eaa, unified, broker, cpag",
+				Description:  "Infrastructure type for the connector pool. Valid values: eaa, unified, broker, cpag. Note: the EAA API requires cpag to be paired with operating_mode cpag_public or cpag_private.",
 				ValidateFunc: validateInfraType,
 			},
 			"operating_mode": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				Computed:     true,
-				Description:  "Operating mode for the connector pool. Valid values: connector, peb, combined, cpag_public, cpag_private, connector_with_china_acceleration",
+				Description:  "Operating mode for the connector pool. Valid values: connector, peb, combined, cpag_public, cpag_private, connector_with_china_acceleration. Note: the EAA API requires cpag_public and cpag_private to be paired with infra_type cpag.",
 				ValidateFunc: validateOperatingMode,
 			},
 			"uuid_url": {
@@ -314,30 +314,37 @@ func resourceEaaConnectorPoolCreate(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(fmt.Errorf("failed to build connector pool create request: %w", err))
 	}
 
+	logger := eaaclient.Logger
 	connPoolResp, err := createRequest.CreateConnectorPool(ctx, eaaclient)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("failed to create connector pool: %w", err))
+		logger.Error("create API request failed", "error", err)
+		return diag.FromErr(fmt.Errorf("[API Error] connector pool create failed: %w", err))
 	}
 
 	// Set resource ID and basic attributes
 	d.SetId(connPoolResp.UUIDURL)
 	if err := d.Set("uuid_url", connPoolResp.UUIDURL); err != nil {
+		logger.Error("failed to set uuid_url", "error", err)
 		return diag.FromErr(fmt.Errorf("failed to set uuid_url: %w", err))
 	}
 	if err := d.Set("cidrs", connPoolResp.CIDRs); err != nil {
+		logger.Error("failed to set cidrs", "error", err)
 		return diag.FromErr(fmt.Errorf("failed to set cidrs: %w", err))
 	}
 
 	// Handle additional operations using helper functions
 	if err := client.AssignConnectorsToPoolFromSchema(d, eaaclient, connPoolResp.UUIDURL); err != nil {
+		logger.Error("failed to assign connectors to pool", "error", err)
 		return diag.FromErr(fmt.Errorf("failed to assign connectors to pool: %w", err))
 	}
 
 	if err := client.CreateRegistrationTokensFromSchema(ctx, d, eaaclient, connPoolResp.UUIDURL); err != nil {
+		logger.Error("failed to create registration tokens", "error", err)
 		return diag.FromErr(fmt.Errorf("failed to create registration tokens: %w", err))
 	}
 
 	if err := client.AssignAppsToPoolFromSchema(d, eaaclient, connPoolResp.UUIDURL); err != nil {
+		logger.Error("failed to assign apps to pool", "error", err)
 		return diag.FromErr(fmt.Errorf("failed to assign apps to pool: %w", err))
 	}
 
@@ -493,16 +500,15 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 		resp, err := eaaclient.SendAPIRequest(apiURL, "PUT", updateRequest, nil, false)
 		if err != nil {
 			logger.Error("update API request failed", "error", err)
-			return diag.FromErr(fmt.Errorf("connector pool update API request failed: %w", err))
+			return diag.FromErr(fmt.Errorf("[API Error] connector pool update request failed (transport error): %w", err))
 		}
 
 		logger.Info("update response status", "status", resp.StatusCode)
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			desc := client.FormatErrorDescription(resp)
-			updateErrMsg := fmt.Errorf("connector pool update failed: %s", desc)
 			logger.Error("update failed", "status", resp.StatusCode, "error", desc)
-			return diag.FromErr(updateErrMsg)
+			return diag.FromErr(fmt.Errorf("[API Error] connector pool update rejected (HTTP %d): %s", resp.StatusCode, desc))
 		}
 	}
 

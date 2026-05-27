@@ -32,15 +32,17 @@ This resource supports the following arguments:
   * `eaa` - EAA infrastructure
   * `unified` - Unified infrastructure
   * `broker` - Broker infrastructure
-  * `cpag` - CPAG infrastructure
+  * `cpag` - CPAG infrastructure (requires `operating_mode` to be `cpag_public` or `cpag_private`)
 
 * ```operating_mode``` - (Optional) Operating mode for the connector pool. Valid values:
   * `connector` - Connector mode
   * `peb` - PEB mode
   * `combined` - Combined mode
-  * `cpag_public` - CPAG public mode
-  * `cpag_private` - CPAG private mode
+  * `cpag_public` - CPAG public mode (requires `infra_type` to be `cpag`)
+  * `cpag_private` - CPAG private mode (requires `infra_type` to be `cpag`)
   * `connector_with_china_acceleration` - Connector with China acceleration
+
+> **CPAG Compatibility:** When using `infra_type = "cpag"`, the `operating_mode` must be set to either `cpag_public` or `cpag_private`. Similarly, `operating_mode` values `cpag_public` and `cpag_private` require `infra_type = "cpag"`. Incompatible combinations will be rejected by the EAA API at apply time (not during plan or validate).
 
 #### Connector Management
 
