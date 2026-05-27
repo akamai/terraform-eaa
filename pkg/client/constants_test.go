@@ -350,3 +350,439 @@ func TestAppTypeInt_String(t *testing.T) {
 		})
 	}
 }
+
+func TestConnPackageType_ToInt(t *testing.T) {
+	tests := map[string]struct {
+		input       ConnPackageType
+		expected    int
+		expectError bool
+	}{
+		"vmware": {
+			input:    ConnPackageTypeVmware,
+			expected: int(AGENT_PACKAGE_VMWARE),
+		},
+		"vbox": {
+			input:    ConnPackageTypeVbox,
+			expected: int(AGENT_PACKAGE_VBOX),
+		},
+		"aws": {
+			input:    ConnPackageTypeAWS,
+			expected: int(AGENT_PACKAGE_AWS),
+		},
+		"kvm": {
+			input:    ConnPackageTypeKVM,
+			expected: int(AGENT_PACKAGE_KVM),
+		},
+		"hyperv": {
+			input:    ConnPackageTypeHyperv,
+			expected: int(AGENT_PACKAGE_HYPERV),
+		},
+		"docker": {
+			input:    ConnPackageTypeDocker,
+			expected: int(AGENT_PACKAGE_DOCKER),
+		},
+		"aws_classic": {
+			input:    ConnPackageTypeAWSClassic,
+			expected: int(AGENT_PACKAGE_AWS_CLASSIC),
+		},
+		"azure": {
+			input:    ConnPackageTypeAzure,
+			expected: int(AGENT_PACKAGE_AZURE),
+		},
+		"google": {
+			input:    ConnPackageTypeGoogle,
+			expected: int(AGENT_PACKAGE_GOOGLE),
+		},
+		"softlayer": {
+			input:    ConnPackageTypeSoftLayer,
+			expected: int(AGENT_PACKAGE_SOFTLAYER),
+		},
+		"fujitsu_k5": {
+			input:    ConnPackageTypeFujitsu_k5,
+			expected: int(AGENT_PACKAGE_FUJITSU_K5),
+		},
+		"unknown": {
+			input:       ConnPackageType("unknown"),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.ToInt()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestConnPackageTypeInt_String(t *testing.T) {
+	tests := map[string]struct {
+		expected    string
+		input       ConnPackageTypeInt
+		expectError bool
+	}{
+		"AGENT_PACKAGE_VMWARE": {
+			input:    AGENT_PACKAGE_VMWARE,
+			expected: "vmware",
+		},
+		"AGENT_PACKAGE_VBOX": {
+			input:    AGENT_PACKAGE_VBOX,
+			expected: "vbox",
+		},
+		"AGENT_PACKAGE_AWS": {
+			input:    AGENT_PACKAGE_AWS,
+			expected: "aws",
+		},
+		"AGENT_PACKAGE_KVM": {
+			input:    AGENT_PACKAGE_KVM,
+			expected: "kvm",
+		},
+		"AGENT_PACKAGE_HYPERV": {
+			input:    AGENT_PACKAGE_HYPERV,
+			expected: "hyperv",
+		},
+		"AGENT_PACKAGE_DOCKER": {
+			input:    AGENT_PACKAGE_DOCKER,
+			expected: "docker",
+		},
+		"AGENT_PACKAGE_AWS_CLASSIC": {
+			input:    AGENT_PACKAGE_AWS_CLASSIC,
+			expected: "aws_classic",
+		},
+		"AGENT_PACKAGE_AZURE": {
+			input:    AGENT_PACKAGE_AZURE,
+			expected: "azure",
+		},
+		"AGENT_PACKAGE_GOOGLE": {
+			input:    AGENT_PACKAGE_GOOGLE,
+			expected: "google",
+		},
+		"AGENT_PACKAGE_SOFTLAYER": {
+			input:    AGENT_PACKAGE_SOFTLAYER,
+			expected: "softlayer",
+		},
+		"AGENT_PACKAGE_FUJITSU_K5": {
+			input:    AGENT_PACKAGE_FUJITSU_K5,
+			expected: "fujitsu_k5",
+		},
+		"unknown": {
+			input:       ConnPackageTypeInt(99),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.String()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestConnPackageStateInt_String(t *testing.T) {
+	tests := map[string]struct {
+		expected    string
+		input       ConnPackageStateInt
+		expectError bool
+	}{
+		"AGENT_STATE_NOT_CREATED": {
+			input:    AGENT_STATE_NOT_CREATED,
+			expected: "not_created",
+		},
+		"AGENT_STATE_CREATED": {
+			input:    AGENT_STATE_CREATED,
+			expected: "created",
+		},
+		"AGENT_STATE_NOT_INSTALLED": {
+			input:    AGENT_STATE_NOT_INSTALLED,
+			expected: "not_installed",
+		},
+		"AGENT_STATE_NOT_VERIFIED": {
+			input:    AGENT_STATE_NOT_VERIFIED,
+			expected: "not_verified",
+		},
+		"AGENT_STATE_VERIFIED": {
+			input:    AGENT_STATE_VERIFIED,
+			expected: "verified",
+		},
+		"AGENT_STATE_UNENROLLED": {
+			input:    AGENT_STATE_UNENROLLED,
+			expected: "unenrolled",
+		},
+		"AGENT_STATE_NOT_CONFIGURED": {
+			input:    AGENT_STATE_NOT_CONFIGURED,
+			expected: "not_configured",
+		},
+		"AGENT_STATE_CONFIGURED": {
+			input:    AGENT_STATE_CONFIGURED,
+			expected: "configured",
+		},
+		"unknown": {
+			input:       ConnPackageStateInt(99),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.String()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestServiceType_ToInt(t *testing.T) {
+	tests := map[string]struct {
+		input       ServiceType
+		expected    int
+		expectError bool
+	}{
+		"waf": {
+			input:    ServiceTypeWAF,
+			expected: int(SERVICE_TYPE_WAF),
+		},
+		"acceleration": {
+			input:    ServiceTypeAcceleration,
+			expected: int(SERVICE_TYPE_ACCELERATION),
+		},
+		"av": {
+			input:    ServiceTypeAV,
+			expected: int(SERVICE_TYPE_AV),
+		},
+		"ips": {
+			input:    ServiceTypeIPS,
+			expected: int(SERVICE_TYPE_IPS),
+		},
+		"slb": {
+			input:    ServiceTypeSLB,
+			expected: int(SERVICE_TYPE_SLB),
+		},
+		"access": {
+			input:    ServiceTypeAccessCtrl,
+			expected: int(SERVICE_TYPE_ACCESS_CTRL),
+		},
+		"rewrite": {
+			input:    ServiceTypeRewrite,
+			expected: int(SERVICE_TYPE_REWRITE),
+		},
+		"unknown": {
+			input:       ServiceType("unknown"),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.ToInt()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestHealthCheckType_ToNumeric(t *testing.T) {
+	tests := map[string]struct {
+		input    HealthCheckType
+		expected string
+	}{
+		"default": {
+			input:    HealthCheckTypeDefault,
+			expected: "0",
+		},
+		"http": {
+			input:    HealthCheckTypeHTTP,
+			expected: "1",
+		},
+		"https": {
+			input:    HealthCheckTypeHTTPS,
+			expected: "2",
+		},
+		"tls": {
+			input:    HealthCheckTypeTLS,
+			expected: "3",
+		},
+		"sslv3": {
+			input:    HealthCheckTypeSSLv3,
+			expected: "4",
+		},
+		"tcp": {
+			input:    HealthCheckTypeTCP,
+			expected: "5",
+		},
+		"none": {
+			input:    HealthCheckTypeNone,
+			expected: "6",
+		},
+		"fallback": {
+			input:    HealthCheckType("99"),
+			expected: "99",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := tc.input.ToNumeric()
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestHealthCheckTypeInt_ToDescriptive(t *testing.T) {
+	tests := map[string]struct {
+		expected string
+		input    HealthCheckTypeInt
+	}{
+		"HEALTH_CHECK_TYPE_DEFAULT": {
+			input:    HEALTH_CHECK_TYPE_DEFAULT,
+			expected: "Default",
+		},
+		"HEALTH_CHECK_TYPE_HTTP": {
+			input:    HEALTH_CHECK_TYPE_HTTP,
+			expected: "HTTP",
+		},
+		"HEALTH_CHECK_TYPE_HTTPS": {
+			input:    HEALTH_CHECK_TYPE_HTTPS,
+			expected: "HTTPS",
+		},
+		"HEALTH_CHECK_TYPE_TLS": {
+			input:    HEALTH_CHECK_TYPE_TLS,
+			expected: "TLS",
+		},
+		"HEALTH_CHECK_TYPE_SSLV3": {
+			input:    HEALTH_CHECK_TYPE_SSLV3,
+			expected: "SSLv3",
+		},
+		"HEALTH_CHECK_TYPE_TCP": {
+			input:    HEALTH_CHECK_TYPE_TCP,
+			expected: "TCP",
+		},
+		"HEALTH_CHECK_TYPE_NONE": {
+			input:    HEALTH_CHECK_TYPE_NONE,
+			expected: "None",
+		},
+		"unknown": {
+			input:    HealthCheckTypeInt(99),
+			expected: "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := tc.input.ToDescriptive()
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestMapHealthCheckTypeToDescriptive(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected string
+	}{
+		"0": {
+			input:    "0",
+			expected: "Default",
+		},
+		"1": {
+			input:    "1",
+			expected: "HTTP",
+		},
+		"2": {
+			input:    "2",
+			expected: "HTTPS",
+		},
+		"3": {
+			input:    "3",
+			expected: "TLS",
+		},
+		"4": {
+			input:    "4",
+			expected: "SSLv3",
+		},
+		"5": {
+			input:    "5",
+			expected: "TCP",
+		},
+		"6": {
+			input:    "6",
+			expected: "None",
+		},
+		"unknown": {
+			input:    "unknown",
+			expected: "unknown",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := MapHealthCheckTypeToDescriptive(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestMapHealthCheckTypeToNumeric(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected string
+	}{
+		"Default": {
+			input:    "Default",
+			expected: "0",
+		},
+		"HTTP": {
+			input:    "HTTP",
+			expected: "1",
+		},
+		"HTTPS": {
+			input:    "HTTPS",
+			expected: "2",
+		},
+		"TLS": {
+			input:    "TLS",
+			expected: "3",
+		},
+		"SSLv3": {
+			input:    "SSLv3",
+			expected: "4",
+		},
+		"TCP": {
+			input:    "TCP",
+			expected: "5",
+		},
+		"None": {
+			input:    "None",
+			expected: "6",
+		},
+		"fallback": {
+			input:    "99",
+			expected: "99",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := MapHealthCheckTypeToNumeric(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
