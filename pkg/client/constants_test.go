@@ -786,3 +786,183 @@ func TestMapHealthCheckTypeToNumeric(t *testing.T) {
 		})
 	}
 }
+
+func TestInfraType_ToInt(t *testing.T) {
+	tests := map[string]struct {
+		input       InfraType
+		expected    int
+		expectError bool
+	}{
+		"eaa": {
+			input:    InfraTypeEAA,
+			expected: int(INFRA_TYPE_EAA),
+		},
+		"unified": {
+			input:    InfraTypeUnified,
+			expected: int(INFRA_TYPE_UNIFIED),
+		},
+		"broker": {
+			input:    InfraTypeBroker,
+			expected: int(INFRA_TYPE_BROKER),
+		},
+		"cpag": {
+			input:    InfraTypeCPAG,
+			expected: int(INFRA_TYPE_CPAG),
+		},
+		"unknown": {
+			input:       InfraType("unknown"),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.ToInt()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestInfraTypeInt_String(t *testing.T) {
+	tests := map[string]struct {
+		expected    string
+		input       InfraTypeInt
+		expectError bool
+	}{
+		"INFRA_TYPE_EAA": {
+			input:    INFRA_TYPE_EAA,
+			expected: "eaa",
+		},
+		"INFRA_TYPE_UNIFIED": {
+			input:    INFRA_TYPE_UNIFIED,
+			expected: "unified",
+		},
+		"INFRA_TYPE_BROKER": {
+			input:    INFRA_TYPE_BROKER,
+			expected: "broker",
+		},
+		"INFRA_TYPE_CPAG": {
+			input:    INFRA_TYPE_CPAG,
+			expected: "cpag",
+		},
+		"unknown": {
+			input:       InfraTypeInt(99),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.String()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestOperatingMode_ToInt(t *testing.T) {
+	tests := map[string]struct {
+		input       OperatingMode
+		expected    int
+		expectError bool
+	}{
+		"connector": {
+			input:    OperatingModeConnector,
+			expected: int(OPERATING_MODE_CONNECTOR),
+		},
+		"peb": {
+			input:    OperatingModePEB,
+			expected: int(OPERATING_MODE_PEB),
+		},
+		"combined": {
+			input:    OperatingModeCombined,
+			expected: int(OPERATING_MODE_COMBINED),
+		},
+		"cpag_public": {
+			input:    OperatingModeCPAGPublic,
+			expected: int(OPERATING_MODE_CPAG_PUBLIC),
+		},
+		"cpag_private": {
+			input:    OperatingModeCPAGPrivate,
+			expected: int(OPERATING_MODE_CPAG_PRIVATE),
+		},
+		"connector_with_china_acceleration": {
+			input:    OperatingModeConnectorWithChinaAccel,
+			expected: int(OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION),
+		},
+		"unknown": {
+			input:       OperatingMode("unknown"),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.ToInt()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestOperatingModeInt_String(t *testing.T) {
+	tests := map[string]struct {
+		expected    string
+		input       OperatingModeInt
+		expectError bool
+	}{
+		"OPERATING_MODE_CONNECTOR": {
+			input:    OPERATING_MODE_CONNECTOR,
+			expected: "connector",
+		},
+		"OPERATING_MODE_PEB": {
+			input:    OPERATING_MODE_PEB,
+			expected: "peb",
+		},
+		"OPERATING_MODE_COMBINED": {
+			input:    OPERATING_MODE_COMBINED,
+			expected: "combined",
+		},
+		"OPERATING_MODE_CPAG_PUBLIC": {
+			input:    OPERATING_MODE_CPAG_PUBLIC,
+			expected: "cpag_public",
+		},
+		"OPERATING_MODE_CPAG_PRIVATE": {
+			input:    OPERATING_MODE_CPAG_PRIVATE,
+			expected: "cpag_private",
+		},
+		"OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION": {
+			input:    OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION,
+			expected: "connector_with_china_acceleration",
+		},
+		"unknown": {
+			input:       OperatingModeInt(99),
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := tc.input.String()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
