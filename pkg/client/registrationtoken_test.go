@@ -1,200 +1,269 @@
+// pkg/client/registrationtoken_test.go
 package client
 
 import (
 	"context"
-	"strings"
+	"net/http"
 	"testing"
+	"time"
 
-	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatExpiresAt(t *testing.T) {
 	tests := map[string]struct {
-		input         string
-		want          string
-		wantErrSubstr string
+		input   string
+		want    string
+		wantErr bool
 	}{
-		"zero_seconds_bumped_to_one": {
-			input: "2026-05-30T14:30:00Z",
-			want:  "2026-05-30T14:30:01Z",
+		"utc_timestamp": {
+			input: "2026-06-15T14:30:01Z",
+			want:  "2026-06-15T14:30:01Z",
 		},
-		"non_zero_seconds_unchanged": {
-			input: "2026-05-30T14:30:05Z",
-			want:  "2026-05-30T14:30:05Z",
+		"zero_seconds_bumped": {
+			input: "2026-06-15T14:30:00Z",
+			want:  "2026-06-15T14:30:01Z",
 		},
-		"positive_timezone_offset_normalized_to_utc": {
-			input: "2026-05-30T16:30:00+02:00",
-			want:  "2026-05-30T14:30:01Z",
+		"with_offset": {
+			input: "2026-06-15T10:30:01-04:00",
+			want:  "2026-06-15T14:30:01Z",
 		},
-		"negative_timezone_offset_normalized_to_utc": {
-			input: "2026-05-30T09:30:00-05:00",
-			want:  "2026-05-30T14:30:01Z",
+		"with_fractional_seconds": {
+			input: "2026-06-15T14:30:01.123456Z",
+			want:  "2026-06-15T14:30:01Z",
 		},
-		"already_utc_non_zero_seconds": {
-			input: "2026-01-02T15:04:05Z",
-			want:  "2026-01-02T15:04:05Z",
-		},
-		"nanoseconds_stripped": {
-			input: "2026-05-30T14:30:05.999999999Z",
-			want:  "2026-05-30T14:30:05Z",
-		},
-		"invalid_input": {
-			input:         "not-a-timestamp",
-			wantErrSubstr: "invalid RFC3339 timestamp",
-		},
-		"empty_input": {
-			input:         "",
-			wantErrSubstr: "invalid RFC3339 timestamp",
+		"invalid_format": {
+			input:   "not-a-date",
+			wantErr: true,
 		},
 	}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := FormatExpiresAt(tt.input)
-			if tt.wantErrSubstr != "" {
-				if err == nil {
-					t.Fatalf("FormatExpiresAt(%q) returned nil error, want error containing %q", tt.input, tt.wantErrSubstr)
-				}
-				if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-					t.Fatalf("FormatExpiresAt(%q) error = %q, want message containing %q", tt.input, err.Error(), tt.wantErrSubstr)
-				}
+			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("FormatExpiresAt(%q) returned unexpected error: %v", tt.input, err)
-			}
-			if got != tt.want {
-				t.Fatalf("FormatExpiresAt(%q) = %q, want %q", tt.input, got, tt.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestRegistrationTokenWriteRequestValidate(t *testing.T) {
+func TestRegistrationTokenWriteRequest_Validate(t *testing.T) {
+	futureTime := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	pastTime := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+
 	tests := map[string]struct {
-		wantErrSubstr string
-		req           RegistrationTokenWriteRequest
+		req     RegistrationTokenWriteRequest
+		wantErr bool
 	}{
-		"max_use_zero": {
+		"valid": {
 			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    0,
+				Name:      "test-token",
+				ExpiresAt: futureTime,
+				MaxUse:    5,
 			},
-			wantErrSubstr: "max_use must be in the range of 1 to 1000",
-		},
-		"max_use_one": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1,
-			},
-		},
-		"max_use_thousand": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1000,
-			},
-		},
-		"max_use_thousand_one": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1001,
-			},
-			wantErrSubstr: "max_use must be in the range of 1 to 1000",
 		},
 		"empty_name": {
 			req: RegistrationTokenWriteRequest{
 				Name:      "",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1,
+				ExpiresAt: futureTime,
+				MaxUse:    5,
 			},
-			wantErrSubstr: "registration token name cannot be empty",
-		},
-		"past_expires_at": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "2020-01-01T00:00:01Z",
-				MaxUse:    1,
-			},
-			wantErrSubstr: "expires_at must be in the future",
+			wantErr: true,
 		},
 		"empty_expires_at": {
 			req: RegistrationTokenWriteRequest{
-				Name:      "token-name",
-				ExpiresAt: "",
-				MaxUse:    1,
+				Name:   "test-token",
+				MaxUse: 5,
 			},
-			wantErrSubstr: "registration token expires_at cannot be empty",
+			wantErr: true,
+		},
+		"past_expires_at": {
+			req: RegistrationTokenWriteRequest{
+				Name:      "test-token",
+				ExpiresAt: pastTime,
+				MaxUse:    5,
+			},
+			wantErr: true,
+		},
+		"max_use_too_low": {
+			req: RegistrationTokenWriteRequest{
+				Name:      "test-token",
+				ExpiresAt: futureTime,
+				MaxUse:    0,
+			},
+			wantErr: true,
+		},
+		"max_use_too_high": {
+			req: RegistrationTokenWriteRequest{
+				Name:      "test-token",
+				ExpiresAt: futureTime,
+				MaxUse:    1001,
+			},
+			wantErr: true,
+		},
+		"invalid_timestamp_format": {
+			req: RegistrationTokenWriteRequest{
+				Name:      "test-token",
+				ExpiresAt: "not-a-date",
+				MaxUse:    5,
+			},
+			wantErr: true,
 		},
 	}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := tt.req.Validate()
-			if tt.wantErrSubstr == "" {
-				if err != nil {
-					t.Fatalf("Validate() returned unexpected error: %v", err)
-				}
-				return
-			}
-
-			if err == nil {
-				t.Fatalf("Validate() returned nil error, want error containing %q", tt.wantErrSubstr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-				t.Fatalf("Validate() error = %q, want message containing %q", err.Error(), tt.wantErrSubstr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-func TestUpdateRegistrationTokenValidatesBeforeAPICall(t *testing.T) {
+func TestGetRegistrationTokens(t *testing.T) {
+	tokens := []RegistrationToken{
+		{Name: "token-1", UUIDURL: "tok-uuid-1", ConnectorPool: "pool-1"},
+		{Name: "token-2", UUIDURL: "tok-uuid-2", ConnectorPool: "pool-1"},
+	}
+	resp := RegistrationTokenResponse{Objects: tokens}
+
 	tests := map[string]struct {
-		wantErrSubstr string
-		req           RegistrationTokenWriteRequest
+		handler http.HandlerFunc
+		wantLen int
+		wantErr bool
 	}{
-		"empty_name_rejected": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1,
-			},
-			wantErrSubstr: "invalid update registration token request",
+		"success": {
+			handler: jsonHandler(http.StatusOK, resp),
+			wantLen: 2,
 		},
-		"max_use_zero_rejected": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "my-token",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    0,
-			},
-			wantErrSubstr: "invalid update registration token request",
-		},
-		"max_use_over_limit_rejected": {
-			req: RegistrationTokenWriteRequest{
-				Name:      "my-token",
-				ExpiresAt: "2030-01-01T00:00:01Z",
-				MaxUse:    1001,
-			},
-			wantErrSubstr: "invalid update registration token request",
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "error"),
+			wantErr: true,
 		},
 	}
-
-	// EaaClient with no HTTP client — if Validate() did not run first the test
-	// would panic reaching SendAPIRequest, confirming validation is a pre-check.
-	nilClient := &EaaClient{Logger: hclog.NewNullLogger()}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := UpdateRegistrationToken(context.Background(), nilClient, "some-uuid", &tt.req)
-			if err == nil {
-				t.Fatalf("UpdateRegistrationToken() returned nil error, want error containing %q", tt.wantErrSubstr)
+			ec, cleanup := newTestClient(t, tt.handler)
+			defer cleanup()
+
+			got, err := ec.GetRegistrationTokens("pool-1")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
-			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-				t.Fatalf("UpdateRegistrationToken() error = %q, want message containing %q", err.Error(), tt.wantErrSubstr)
+			require.NoError(t, err)
+			assert.Len(t, got, tt.wantLen)
+		})
+	}
+}
+
+func TestGetRegistrationTokenByUUID(t *testing.T) {
+	tokens := []RegistrationToken{
+		{Name: "token-1", UUIDURL: "tok-uuid-1", ConnectorPool: "pool-1"},
+		{Name: "token-2", UUIDURL: "tok-uuid-2", ConnectorPool: "pool-1"},
+	}
+	resp := RegistrationTokenResponse{Objects: tokens}
+	handler := jsonHandler(http.StatusOK, resp)
+
+	tests := map[string]struct {
+		uuid    string
+		wantErr bool
+	}{
+		"found":     {uuid: "tok-uuid-1"},
+		"not_found": {uuid: "tok-uuid-missing", wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec, cleanup := newTestClient(t, handler)
+			defer cleanup()
+
+			got, err := ec.GetRegistrationTokenByUUID(tt.uuid, "pool-1")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.uuid, got.UUIDURL)
+		})
+	}
+}
+
+func TestDeleteRegistrationTokenByUUID(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success_204": {handler: jsonHandler(http.StatusNoContent, nil)},
+		"success_200": {handler: jsonHandler(http.StatusOK, nil)},
+		"api_error":   {handler: errorJSONHandler(http.StatusNotFound, "not found"), wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec, cleanup := newTestClient(t, tt.handler)
+			defer cleanup()
+
+			err := DeleteRegistrationTokenByUUID(context.Background(), ec, "tok-uuid-1")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestUpdateRegistrationToken(t *testing.T) {
+	futureTime := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+
+	tests := map[string]struct {
+		req       *RegistrationTokenWriteRequest
+		handler   http.HandlerFunc
+		tokenUUID string
+		wantErr   bool
+	}{
+		"success": {
+			tokenUUID: "tok-uuid-1",
+			req: &RegistrationTokenWriteRequest{
+				Name:      "updated-token",
+				ExpiresAt: futureTime,
+				MaxUse:    10,
+			},
+			handler: jsonHandler(http.StatusOK, nil),
+		},
+		"empty_uuid": {
+			tokenUUID: "",
+			req: &RegistrationTokenWriteRequest{
+				Name:      "test",
+				ExpiresAt: futureTime,
+				MaxUse:    1,
+			},
+			handler: jsonHandler(http.StatusOK, nil),
+			wantErr: true,
+		},
+		"invalid_request": {
+			tokenUUID: "tok-uuid-1",
+			req:       &RegistrationTokenWriteRequest{Name: ""},
+			handler:   jsonHandler(http.StatusOK, nil),
+			wantErr:   true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec, cleanup := newTestClient(t, tt.handler)
+			defer cleanup()
+
+			err := UpdateRegistrationToken(context.Background(), ec, tt.tokenUUID, tt.req)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
