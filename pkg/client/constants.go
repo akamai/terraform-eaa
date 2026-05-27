@@ -700,7 +700,7 @@ func (cat ConnPackageTypeInt) String() (string, error) {
 type ConnPackageState string
 
 const (
-	ConnPackageStateNotCreated    ConnPackageState = "not_created "
+	ConnPackageStateNotCreated    ConnPackageState = "not_created"
 	ConnPackageStateCreated       ConnPackageState = "created"
 	ConnPackageStateNotInstalled  ConnPackageState = "not_installed"
 	ConnPackageStateNotVerified   ConnPackageState = "not_verified"
