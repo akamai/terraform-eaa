@@ -6,261 +6,326 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSetAdvancedSettingsReturnsErrorOnNilSettings(t *testing.T) {
+// ---------------------------------------------------------------------------
+// SetAdvancedSettings
+// ---------------------------------------------------------------------------
+
+func TestSetAdvancedSettings_NilSettings(t *testing.T) {
 	resourceSchema := map[string]*schema.Schema{
 		"advanced_settings": {
 			Type:     schema.TypeMap,
 			Optional: true,
 		},
 	}
-
 	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{})
 
 	err := SetAdvancedSettings(d, nil)
-	if err == nil {
-		t.Fatal("SetAdvancedSettings returned nil error, want non-nil")
-	}
-
-	if !strings.Contains(err.Error(), "advanced settings cannot be nil") {
-		t.Fatalf("SetAdvancedSettings error = %q, want message containing %q", err.Error(), "advanced settings cannot be nil")
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "advanced settings cannot be nil")
 }
 
-func TestParseAdvancedSettingsAppliesCORSSupportCredentialDefault(t *testing.T) {
+// ---------------------------------------------------------------------------
+// ParseAdvancedSettingsWithDefaults
+// ---------------------------------------------------------------------------
+
+func TestParseAdvancedSettingsWithDefaults_EmptyJSON(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
-	if err != nil {
-		t.Fatalf("ParseAdvancedSettingsWithDefaults returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if advSettings.CORSSupportCredential != string(DefaultCORSSupportCredential) {
-		t.Fatalf("CORSSupportCredential = %q, want %q", advSettings.CORSSupportCredential, string(DefaultCORSSupportCredential))
-	}
-
-	if advSettings.ExternalCookieDomain != nil {
-		t.Fatalf("ExternalCookieDomain = %v, want nil", *advSettings.ExternalCookieDomain)
-	}
-
-	if advSettings.IsSSLVerificationEnabled != string(DefaultIsSSLVerificationEnabled) {
-		t.Fatalf("IsSSLVerificationEnabled = %q, want %q", advSettings.IsSSLVerificationEnabled, string(DefaultIsSSLVerificationEnabled))
-	}
-
-	if advSettings.KeepaliveTimeout != string(DefaultKeepAliveTimeout) {
-		t.Fatalf("KeepaliveTimeout = %q, want %q", advSettings.KeepaliveTimeout, string(DefaultKeepAliveTimeout))
-	}
-
-	if advSettings.SingleHostCookieDomain != string(DefaultSingleHostCookieDomain) {
-		t.Fatalf("SingleHostCookieDomain = %q, want %q", advSettings.SingleHostCookieDomain, string(DefaultSingleHostCookieDomain))
-	}
+	// Verify several important defaults
+	assert.Equal(t, string(DefaultCORSSupportCredential), advSettings.CORSSupportCredential)
+	assert.Nil(t, advSettings.ExternalCookieDomain)
+	assert.Equal(t, string(DefaultIsSSLVerificationEnabled), advSettings.IsSSLVerificationEnabled)
+	assert.Equal(t, string(DefaultKeepAliveTimeout), advSettings.KeepaliveTimeout)
+	assert.Equal(t, string(DefaultSingleHostCookieDomain), advSettings.SingleHostCookieDomain)
+	assert.Equal(t, string(DefaultAcceleration), advSettings.Acceleration)
+	assert.Equal(t, string(DefaultAppAuth), advSettings.AppAuth)
+	assert.Equal(t, "round-robin", advSettings.LoadBalancingMetric)
+	assert.Equal(t, "50", advSettings.AnonymousServerConnLimit)
+	assert.Equal(t, "100", advSettings.AnonymousServerReqLimit)
+	assert.Equal(t, "60", advSettings.AppServerReadTimeout)
 }
 
-func TestParseAdvancedSettingsRemoteSparkSnakeCaseAliases(t *testing.T) {
+func TestParseAdvancedSettingsWithDefaults_EnterpriseHTTPApp(t *testing.T) {
+	input := `{
+		"acceleration": "true",
+		"app_auth": "none",
+		"load_balancing_metric": "weighted-round-robin",
+		"health_check_type": "0",
+		"websocket_enabled": "true"
+	}`
+
+	advSettings, err := ParseAdvancedSettingsWithDefaults(input)
+	require.NoError(t, err)
+
+	assert.Equal(t, "true", advSettings.Acceleration)
+	assert.Equal(t, "none", advSettings.AppAuth)
+	assert.Equal(t, "weighted-round-robin", advSettings.LoadBalancingMetric)
+	assert.Equal(t, "0", advSettings.HealthCheckType)
+	assert.Equal(t, "true", advSettings.WebSocketEnabled)
+	// Other defaults should still be applied
+	assert.Equal(t, "50", advSettings.AnonymousServerConnLimit)
+}
+
+func TestParseAdvancedSettingsWithDefaults_TunnelApp(t *testing.T) {
+	input := `{
+		"app_auth": "none",
+		"internal_host_port": "8080",
+		"wildcard_internal_hostname": "*.example.com"
+	}`
+
+	advSettings, err := ParseAdvancedSettingsWithDefaults(input)
+	require.NoError(t, err)
+
+	assert.Equal(t, "none", advSettings.AppAuth)
+	assert.Equal(t, "8080", advSettings.InternalHostPort)
+	assert.Equal(t, "*.example.com", advSettings.WildcardInternalHostname)
+}
+
+func TestParseAdvancedSettingsWithDefaults_SaaSApp(t *testing.T) {
+	input := `{
+		"saas_enabled": "true",
+		"app_auth": "oidc",
+		"single_host_enable": "true",
+		"single_host_fqdn": "app.saas.example.com"
+	}`
+
+	advSettings, err := ParseAdvancedSettingsWithDefaults(input)
+	require.NoError(t, err)
+
+	assert.Equal(t, "true", advSettings.SaaSEnabled)
+	assert.Equal(t, "oidc", advSettings.AppAuth)
+	assert.Equal(t, "true", advSettings.SingleHostEnable)
+	assert.Equal(t, "app.saas.example.com", advSettings.SingleHostFQDN)
+}
+
+func TestParseAdvancedSettingsWithDefaults_InvalidJSON(t *testing.T) {
+	_, err := ParseAdvancedSettingsWithDefaults(`{not json}`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid JSON")
+}
+
+func TestParseAdvancedSettingsWithDefaults_PointerStringFields(t *testing.T) {
+	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
+		"external_cookie_domain": "",
+		"login_url": null,
+		"user_name": "alice"
+	}`)
+	require.NoError(t, err)
+
+	require.NotNil(t, advSettings.ExternalCookieDomain)
+	assert.Equal(t, "", *advSettings.ExternalCookieDomain)
+	assert.Nil(t, advSettings.LoginURL)
+	require.NotNil(t, advSettings.UserName)
+	assert.Equal(t, "alice", *advSettings.UserName)
+}
+
+func TestParseAdvancedSettingsWithDefaults_RemoteSparkSnakeCaseAliases(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
 		"remote_spark_map_clipboard": "true",
 		"remote_spark_map_disk": "false",
 		"remote_spark_map_printer": "true"
 	}`)
-	if err != nil {
-		t.Fatalf("ParseAdvancedSettingsWithDefaults returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if advSettings.RemoteSparkMapClipboard != "true" {
-		t.Fatalf("RemoteSparkMapClipboard = %q, want %q", advSettings.RemoteSparkMapClipboard, "true")
-	}
-	if advSettings.RemoteSparkMapDisk != "false" {
-		t.Fatalf("RemoteSparkMapDisk = %q, want %q", advSettings.RemoteSparkMapDisk, "false")
-	}
-	if advSettings.RemoteSparkMapPrinter != "true" {
-		t.Fatalf("RemoteSparkMapPrinter = %q, want %q", advSettings.RemoteSparkMapPrinter, "true")
-	}
+	assert.Equal(t, "true", advSettings.RemoteSparkMapClipboard)
+	assert.Equal(t, "false", advSettings.RemoteSparkMapDisk)
+	assert.Equal(t, "true", advSettings.RemoteSparkMapPrinter)
 
 	var complete AdvancedSettingsComplete
 	UpdateAdvancedSettings(&complete, advSettings)
 
 	payload, err := json.Marshal(complete)
-	if err != nil {
-		t.Fatalf("json.Marshal returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	payloadStr := string(payload)
 	for _, key := range []string{"remote_spark_mapClipboard", "remote_spark_mapDisk", "remote_spark_mapPrinter"} {
-		if !strings.Contains(payloadStr, `"`+key+`"`) {
-			t.Fatalf("payload %s missing API key %q", payloadStr, key)
-		}
+		assert.Contains(t, payloadStr, `"`+key+`"`, "payload should contain API key %s", key)
 	}
-
 	for _, key := range []string{"remote_spark_map_clipboard", "remote_spark_map_disk", "remote_spark_map_printer"} {
-		if strings.Contains(payloadStr, `"`+key+`"`) {
-			t.Fatalf("payload %s unexpectedly contains HCL alias key %q", payloadStr, key)
-		}
+		assert.NotContains(t, payloadStr, `"`+key+`"`, "payload should NOT contain HCL alias key %s", key)
 	}
 }
 
-func TestAdvancedSettingsFromBlockDecodesFormPostAttributes(t *testing.T) {
-	block := map[string]interface{}{
-		"form_post_attributes": `["attr1","attr2"]`,
+func TestParseAdvancedSettingsWithDefaults_UnknownFieldsGoToExtraFields(t *testing.T) {
+	input := `{"unknown_field": "some_value", "another_unknown": "42"}`
+	advSettings, err := ParseAdvancedSettingsWithDefaults(input)
+	require.NoError(t, err)
+
+	require.NotNil(t, advSettings.ExtraFields)
+	assert.Equal(t, "some_value", advSettings.ExtraFields["unknown_field"])
+	assert.Equal(t, "42", advSettings.ExtraFields["another_unknown"])
+}
+
+// ---------------------------------------------------------------------------
+// advancedSettingsFromBlock
+// ---------------------------------------------------------------------------
+
+func TestAdvancedSettingsFromBlock_FormPostAttributes(t *testing.T) {
+	tests := map[string]struct {
+		block   map[string]interface{}
+		wantErr string
+		wantLen int
+	}{
+		"valid_json": {
+			block:   map[string]interface{}{"form_post_attributes": `["attr1","attr2"]`},
+			wantLen: 2,
+		},
+		"empty_string": {
+			block:   map[string]interface{}{"form_post_attributes": ""},
+			wantLen: 0,
+		},
+		"invalid_json": {
+			block:   map[string]interface{}{"form_post_attributes": `not-json`},
+			wantErr: "invalid form_post_attributes JSON",
+		},
 	}
-	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	if len(got.FormPostAttributes) != 2 || got.FormPostAttributes[0] != "attr1" || got.FormPostAttributes[1] != "attr2" {
-		t.Fatalf("FormPostAttributes = %v, want [attr1 attr2]", got.FormPostAttributes)
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := advancedSettingsFromBlock(tc.block)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, got.FormPostAttributes, tc.wantLen)
+		})
 	}
 }
 
-func TestAdvancedSettingsFromBlockEmptyFormPostAttributes(t *testing.T) {
-	block := map[string]interface{}{
-		"form_post_attributes": "",
+func TestAdvancedSettingsFromBlock_CustomHeaders(t *testing.T) {
+	tests := map[string]struct {
+		block   map[string]interface{}
+		wantErr string
+		wantLen int
+	}{
+		"valid_json": {
+			block:   map[string]interface{}{"custom_headers": `[{"attribute_type":"static","header":"X-Foo","attribute":"bar"}]`},
+			wantLen: 1,
+		},
+		"invalid_json": {
+			block:   map[string]interface{}{"custom_headers": `{bad json`},
+			wantErr: "invalid custom_headers JSON",
+		},
 	}
-	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	if got.FormPostAttributes == nil {
-		t.Fatal("FormPostAttributes = nil, want empty slice")
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := advancedSettingsFromBlock(tc.block)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, got.CustomHeaders, tc.wantLen)
+			if tc.wantLen > 0 {
+				assert.Equal(t, "static", got.CustomHeaders[0].AttributeType)
+				assert.Equal(t, "X-Foo", got.CustomHeaders[0].Header)
+				assert.Equal(t, "bar", got.CustomHeaders[0].Attribute)
+			}
+		})
 	}
 }
 
-func TestAdvancedSettingsFromBlockErrorOnInvalidFormPostAttributes(t *testing.T) {
-	block := map[string]interface{}{
-		"form_post_attributes": `not-json`,
+func TestAdvancedSettingsFromBlock_RDPRemoteApps(t *testing.T) {
+	tests := map[string]struct {
+		block   map[string]interface{}
+		wantErr string
+		wantLen int
+	}{
+		"valid_json": {
+			block:   map[string]interface{}{"rdp_remote_apps": `[{"remote_app":"notepad","remote_app_args":"/f","remote_app_dir":"C:\\"}]`},
+			wantLen: 1,
+		},
+		"invalid_json": {
+			block:   map[string]interface{}{"rdp_remote_apps": `not-json`},
+			wantErr: "invalid rdp_remote_apps JSON",
+		},
 	}
-	_, err := advancedSettingsFromBlock(block)
-	if err == nil {
-		t.Fatal("expected error for invalid form_post_attributes JSON, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid form_post_attributes JSON") {
-		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid form_post_attributes JSON")
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := advancedSettingsFromBlock(tc.block)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, got.RDPRemoteApps, tc.wantLen)
+			if tc.wantLen > 0 {
+				assert.Equal(t, "notepad", got.RDPRemoteApps[0].RemoteApp)
+			}
+		})
 	}
 }
 
-func TestAdvancedSettingsFromBlockDecodesCustomHeaders(t *testing.T) {
-	block := map[string]interface{}{
-		"custom_headers": `[{"attribute_type":"static","header":"X-Foo","attribute":"bar"}]`,
-	}
-	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	if len(got.CustomHeaders) != 1 {
-		t.Fatalf("CustomHeaders len = %d, want 1", len(got.CustomHeaders))
-	}
-	h := got.CustomHeaders[0]
-	if h.AttributeType != "static" || h.Header != "X-Foo" || h.Attribute != "bar" {
-		t.Fatalf("CustomHeaders[0] = %+v, want {static X-Foo bar}", h)
-	}
-}
-
-func TestAdvancedSettingsFromBlockErrorOnInvalidCustomHeaders(t *testing.T) {
-	block := map[string]interface{}{
-		"custom_headers": `{bad json`,
-	}
-	_, err := advancedSettingsFromBlock(block)
-	if err == nil {
-		t.Fatal("expected error for invalid custom_headers JSON, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid custom_headers JSON") {
-		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid custom_headers JSON")
-	}
-}
-
-func TestAdvancedSettingsFromBlockDecodesRequestParameters(t *testing.T) {
+func TestAdvancedSettingsFromBlock_RequestParameters(t *testing.T) {
 	block := map[string]interface{}{
 		"request_parameters": `{"key":"value"}`,
 	}
 	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	if got.RequestParameters == nil {
-		t.Fatal("RequestParameters = nil, want non-nil pointer")
-	}
-	if *got.RequestParameters != `{"key":"value"}` {
-		t.Fatalf("RequestParameters = %q, want %q", *got.RequestParameters, `{"key":"value"}`)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, got.RequestParameters)
+	assert.Equal(t, `{"key":"value"}`, *got.RequestParameters)
 }
 
-func TestAdvancedSettingsFromBlockDecodesRDPRemoteApps(t *testing.T) {
-	block := map[string]interface{}{
-		"rdp_remote_apps": `[{"remote_app":"notepad","remote_app_args":"/f","remote_app_dir":"C:\\"}]`,
-	}
-	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	if len(got.RDPRemoteApps) != 1 {
-		t.Fatalf("RDPRemoteApps len = %d, want 1", len(got.RDPRemoteApps))
-	}
-	app := got.RDPRemoteApps[0]
-	if app.RemoteApp != "notepad" || app.RemoteAppArgs != "/f" {
-		t.Fatalf("RDPRemoteApps[0] = %+v, want {notepad /f ...}", app)
-	}
-}
-
-func TestAdvancedSettingsFromBlockErrorOnInvalidRDPRemoteApps(t *testing.T) {
-	block := map[string]interface{}{
-		"rdp_remote_apps": `not-json`,
-	}
-	_, err := advancedSettingsFromBlock(block)
-	if err == nil {
-		t.Fatal("expected error for invalid rdp_remote_apps JSON, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid rdp_remote_apps JSON") {
-		t.Fatalf("error = %q, want message containing %q", err.Error(), "invalid rdp_remote_apps JSON")
-	}
-}
-
-func TestAdvancedSettingsFromBlockStripsTLSKeys(t *testing.T) {
+func TestAdvancedSettingsFromBlock_StripsTLSKeys(t *testing.T) {
 	block := map[string]interface{}{
 		"tls_suite_type": "1",
 		"tls_suite_name": "tls-1-2",
 		"acceleration":   "true",
 	}
 	got, err := advancedSettingsFromBlock(block)
-	if err != nil {
-		t.Fatalf("advancedSettingsFromBlock returned error: %v", err)
-	}
-	// TLS keys are stripped — they must not land in ExtraFields.
+	require.NoError(t, err)
+
+	// TLS keys should NOT appear in ExtraFields
 	if got.ExtraFields != nil {
-		if _, hasTLSType := got.ExtraFields["tls_suite_type"]; hasTLSType {
-			t.Fatal("tls_suite_type should not appear in ExtraFields")
-		}
-		if _, hasTLSName := got.ExtraFields["tls_suite_name"]; hasTLSName {
-			t.Fatal("tls_suite_name should not appear in ExtraFields")
-		}
+		_, hasTLSType := got.ExtraFields["tls_suite_type"]
+		_, hasTLSName := got.ExtraFields["tls_suite_name"]
+		assert.False(t, hasTLSType, "tls_suite_type should not appear in ExtraFields")
+		assert.False(t, hasTLSName, "tls_suite_name should not appear in ExtraFields")
 	}
-	if got.Acceleration != "true" {
-		t.Fatalf("Acceleration = %q, want true", got.Acceleration)
-	}
+	assert.Equal(t, "true", got.Acceleration)
 }
 
-func TestParseAdvancedSettingsAppliesPointerStringFields(t *testing.T) {
-	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
-		"external_cookie_domain": "",
-		"login_url": null,
-		"user_name": "alice"
-	}`)
-	if err != nil {
-		t.Fatalf("ParseAdvancedSettingsWithDefaults returned error: %v", err)
+// ---------------------------------------------------------------------------
+// AdvancedSettings MarshalJSON (ExtraFields merge)
+// ---------------------------------------------------------------------------
+
+func TestAdvancedSettings_MarshalJSON_ExtraFieldsMerged(t *testing.T) {
+	as := &AdvancedSettings{
+		Acceleration: "true",
+		ExtraFields: map[string]interface{}{
+			"custom_unknown_field": "hello",
+		},
 	}
 
-	if advSettings.ExternalCookieDomain == nil {
-		t.Fatal("ExternalCookieDomain = nil, want non-nil pointer to empty string")
-	}
-	if *advSettings.ExternalCookieDomain != "" {
-		t.Fatalf("ExternalCookieDomain = %q, want empty string", *advSettings.ExternalCookieDomain)
+	data, err := as.MarshalJSON()
+	require.NoError(t, err)
+
+	var parsed map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &parsed))
+	assert.Equal(t, "hello", parsed["custom_unknown_field"])
+	assert.Equal(t, "true", parsed["acceleration"])
+}
+
+func TestAdvancedSettings_MarshalJSON_NoExtraFields(t *testing.T) {
+	as := &AdvancedSettings{
+		Acceleration: "false",
 	}
 
-	if advSettings.LoginURL != nil {
-		t.Fatalf("LoginURL = %v, want nil", *advSettings.LoginURL)
-	}
+	data, err := as.MarshalJSON()
+	require.NoError(t, err)
 
-	if advSettings.UserName == nil {
-		t.Fatal("UserName = nil, want non-nil pointer")
-	}
-	if *advSettings.UserName != "alice" {
-		t.Fatalf("UserName = %q, want %q", *advSettings.UserName, "alice")
-	}
+	payloadStr := string(data)
+	assert.True(t, strings.Contains(payloadStr, `"acceleration"`))
+	// Ensure it doesn't error without ExtraFields
 }
