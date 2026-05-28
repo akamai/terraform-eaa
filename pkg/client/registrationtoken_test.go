@@ -149,8 +149,7 @@ func TestGetRegistrationTokens(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			got, err := ec.GetRegistrationTokens("pool-1")
 			if tt.wantErr {
@@ -180,8 +179,7 @@ func TestGetRegistrationTokenByUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			got, err := ec.GetRegistrationTokenByUUID(tt.uuid, "pool-1")
 			if tt.wantErr {
@@ -205,8 +203,7 @@ func TestDeleteRegistrationTokenByUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := DeleteRegistrationTokenByUUID(context.Background(), ec, "tok-uuid-1")
 			if tt.wantErr {
@@ -255,8 +252,7 @@ func TestUpdateRegistrationToken(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := UpdateRegistrationToken(context.Background(), ec, tt.tokenUUID, tt.req)
 			if tt.wantErr {

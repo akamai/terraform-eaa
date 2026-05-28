@@ -56,8 +56,7 @@ func TestGetAppAgents(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppAgents(ec)
@@ -123,10 +122,9 @@ func TestAssignAgents(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			pr := newPathRouter()
+			pr := newPathRouter(t)
 			tt.setupRouter(pr)
-			ec, cleanup := newTestClient(t, pr)
-			defer cleanup()
+			ec := newTestClient(t, pr)
 
 			aar := &AssignAgents{
 				AppID:      "app-123",
@@ -195,10 +193,9 @@ func TestUnAssignAgents(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			pr := newPathRouter()
+			pr := newPathRouter(t)
 			tt.setupRouter(pr)
-			ec, cleanup := newTestClient(t, pr)
-			defer cleanup()
+			ec := newTestClient(t, pr)
 
 			aar := &AssignAgents{
 				AppID:      "app-123",

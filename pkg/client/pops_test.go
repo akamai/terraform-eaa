@@ -31,8 +31,7 @@ func TestGetPops(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			pops, err := GetPops(ec)
 			if tt.wantErr {
@@ -59,8 +58,7 @@ func TestGetPopUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			gotName, gotUUID, err := GetPopUUID(ec, tt.region)
 			if tt.wantErr {

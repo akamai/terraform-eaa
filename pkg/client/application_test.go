@@ -20,8 +20,7 @@ func TestCreateMinimalApplication_Success(t *testing.T) {
 		Name:    "my-app",
 		UUIDURL: "abc-123",
 	}
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, wantResp))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, wantResp))
 
 	mcar := &MinimalCreateAppRequest{
 		Name:          "my-app",
@@ -37,8 +36,7 @@ func TestCreateMinimalApplication_Success(t *testing.T) {
 }
 
 func TestCreateMinimalApplication_APIError(t *testing.T) {
-	ec, cleanup := newTestClient(t, errorJSONHandler(http.StatusBadRequest, "bad request"))
-	defer cleanup()
+	ec := newTestClient(t, errorJSONHandler(http.StatusBadRequest, "bad request"))
 
 	mcar := &MinimalCreateAppRequest{
 		Name:          "bad-app",
@@ -58,8 +56,7 @@ func TestCreateMinimalApplication_MalformedJSON(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{invalid json`)) //nolint:errcheck // test helper, error handling not needed
 	}
-	ec, cleanup := newTestClient(t, http.HandlerFunc(handler))
-	defer cleanup()
+	ec := newTestClient(t, http.HandlerFunc(handler))
 
 	mcar := &MinimalCreateAppRequest{
 		Name:          "my-app",
@@ -81,12 +78,11 @@ func TestCreateMinimalApplication_MalformedJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeployApplication_Success(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-1/deploy",
 		jsonHandler(http.StatusOK, nil))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-1"}
 	err := app.DeployApplication(ec)
@@ -94,12 +90,11 @@ func TestDeployApplication_Success(t *testing.T) {
 }
 
 func TestDeployApplication_APIError(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-1/deploy",
 		errorJSONHandler(http.StatusInternalServerError, "deploy failed"))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-1"}
 	err := app.DeployApplication(ec)
@@ -112,12 +107,11 @@ func TestDeployApplication_APIError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeleteApplication_Success(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("DELETE", "/crux/v1/mgmt-pop/apps/app-uuid-2",
 		jsonHandler(http.StatusOK, nil))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-2"}
 	err := app.DeleteApplication(ec)
@@ -125,12 +119,11 @@ func TestDeleteApplication_Success(t *testing.T) {
 }
 
 func TestDeleteApplication_APIError(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("DELETE", "/crux/v1/mgmt-pop/apps/app-uuid-2",
 		errorJSONHandler(http.StatusForbidden, "forbidden"))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-2"}
 	err := app.DeleteApplication(ec)
@@ -149,12 +142,11 @@ func TestUpdateApplication_Success(t *testing.T) {
 			"app_auth": "none",
 		},
 	}
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-uuid-3",
 		jsonHandler(http.StatusOK, respBody))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	updateReq := &ApplicationUpdateRequest{}
 	updateReq.UUIDURL = "app-uuid-3"
@@ -164,12 +156,11 @@ func TestUpdateApplication_Success(t *testing.T) {
 }
 
 func TestUpdateApplication_APIError(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-uuid-3",
 		errorJSONHandler(http.StatusBadRequest, "bad fields"))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	updateReq := &ApplicationUpdateRequest{}
 	updateReq.UUIDURL = "app-uuid-3"
@@ -188,12 +179,11 @@ func TestUpdateG2O_Success(t *testing.T) {
 		G2OKey:     "some-key",
 		G2ONonce:   "some-nonce",
 	}
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-4/g2o",
 		jsonHandler(http.StatusOK, wantResp))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-4"}
 	got, err := app.UpdateG2O(ec)
@@ -204,12 +194,11 @@ func TestUpdateG2O_Success(t *testing.T) {
 }
 
 func TestUpdateG2O_APIError(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-4/g2o",
 		errorJSONHandler(http.StatusInternalServerError, "g2o failed"))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-4"}
 	got, err := app.UpdateG2O(ec)
@@ -227,12 +216,11 @@ func TestUpdateEdgeAuthentication_Success(t *testing.T) {
 		EdgeCookieKey: "cookie-key-123",
 		SLAObjectURL:  "sla-object-url",
 	}
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-5/edgekey",
 		jsonHandler(http.StatusOK, wantResp))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-5"}
 	got, err := app.UpdateEdgeAuthentication(ec)
@@ -243,12 +231,11 @@ func TestUpdateEdgeAuthentication_Success(t *testing.T) {
 }
 
 func TestUpdateEdgeAuthentication_APIError(t *testing.T) {
-	router := newPathRouter()
+	router := newPathRouter(t)
 	router.Handle("POST", "/crux/v1/mgmt-pop/apps/app-uuid-5/edgekey",
 		errorJSONHandler(http.StatusBadRequest, "edge auth failed"))
 
-	ec, cleanup := newTestClient(t, router)
-	defer cleanup()
+	ec := newTestClient(t, router)
 
 	app := &Application{UUIDURL: "app-uuid-5"}
 	got, err := app.UpdateEdgeAuthentication(ec)
@@ -266,8 +253,7 @@ func TestCreateApplication_Success(t *testing.T) {
 		Name:    "full-app",
 		UUIDURL: "full-uuid-1",
 	}
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, wantResp))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, wantResp))
 
 	car := &CreateAppRequest{
 		Name:          "full-app",
@@ -283,8 +269,7 @@ func TestCreateApplication_Success(t *testing.T) {
 }
 
 func TestCreateApplication_APIError(t *testing.T) {
-	ec, cleanup := newTestClient(t, errorJSONHandler(http.StatusBadRequest, "invalid fields"))
-	defer cleanup()
+	ec := newTestClient(t, errorJSONHandler(http.StatusBadRequest, "invalid fields"))
 
 	car := &CreateAppRequest{
 		Name:          "bad-full-app",

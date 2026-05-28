@@ -32,8 +32,7 @@ func TestGetAgents(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			agents, err := GetAgents(ec)
 			if tt.wantErr {
@@ -69,8 +68,7 @@ func TestGetAgentUUIDs(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			got, err := GetAgentUUIDs(ec, tt.names)
 			if tt.wantErr {
@@ -98,8 +96,7 @@ func TestDeleteConnector(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := DeleteConnector(ec, "test-uuid")
 			if tt.wantErr {
@@ -128,8 +125,7 @@ func TestCreateConnector(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			req := &CreateConnectorRequest{
 				Name:    "new-conn",

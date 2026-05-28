@@ -31,8 +31,7 @@ func TestGetTLSCipherSuites(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			resp, err := GetTLSCipherSuites(ec, "test-app-uuid")
 			if tt.wantErr {

@@ -40,8 +40,7 @@ func TestGetAppIdpMembership(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppIdpMembership(ec)
@@ -94,8 +93,7 @@ func TestGetAppDirectoryMembership(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppDirectoryMembership(ec)
@@ -139,8 +137,7 @@ func TestGetAppGroupMembership(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppGroupMembership(ec)
@@ -209,10 +206,9 @@ func TestCreateAppAuthenticationStruct(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			pr := newPathRouter()
+			pr := newPathRouter(t)
 			tt.setupRouter(pr)
-			ec, cleanup := newTestClient(t, pr)
-			defer cleanup()
+			ec := newTestClient(t, pr)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.CreateAppAuthenticationStruct(ec)

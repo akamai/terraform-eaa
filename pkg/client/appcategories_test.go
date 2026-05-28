@@ -31,8 +31,7 @@ func TestGetAppCategories(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			cats, err := GetAppCategories(ec)
 			if tt.wantErr {
@@ -58,8 +57,7 @@ func TestGetAppCategoryUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			got, err := GetAppCategoryUUID(ec, tt.name)
 			if tt.wantErr {

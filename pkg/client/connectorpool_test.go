@@ -10,8 +10,7 @@ import (
 )
 
 func TestConvertPackageType(t *testing.T) {
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 	tests := map[string]struct {
 		input   string
@@ -37,8 +36,7 @@ func TestConvertPackageType(t *testing.T) {
 }
 
 func TestConvertInfraType(t *testing.T) {
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 	tests := map[string]struct {
 		input   string
@@ -66,8 +64,7 @@ func TestConvertInfraType(t *testing.T) {
 }
 
 func TestConvertOperatingMode(t *testing.T) {
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 	tests := map[string]struct {
 		input   string
@@ -116,8 +113,7 @@ func TestCreateConnectorPool(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			req := &CreateConnectorPoolRequest{
 				Name:        "test-pool",
@@ -151,8 +147,7 @@ func TestDeleteConnectorPool(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			// DeleteConnectorPool is a standalone function: (ctx, ec, uuid)
 			err := DeleteConnectorPool(nil, ec, "pool-uuid-1")

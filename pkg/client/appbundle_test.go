@@ -15,8 +15,7 @@ var testBundles = []AppBundle{
 }
 
 func TestGetAppBundles(t *testing.T) {
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 
 	resp, err := ec.GetAppBundles()
 	require.NoError(t, err)
@@ -37,8 +36,7 @@ func TestGetAppBundleByName(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
-			defer cleanup()
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 
 			got, err := ec.GetAppBundleByName(tt.name)
 			if tt.wantErrSubstr != "" {
@@ -64,8 +62,7 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
-			defer cleanup()
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 
 			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
 			if tt.wantErrSubstr != "" {
@@ -89,8 +86,7 @@ func TestValidateAppBundleName(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
-			defer cleanup()
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 
 			err := ec.ValidateAppBundleName(tt.name)
 			if tt.wantErr {

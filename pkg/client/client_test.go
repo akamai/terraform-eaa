@@ -78,8 +78,7 @@ func TestSendAPIRequest(t *testing.T) {
 				capturedQuery = r.URL.RawQuery
 				tt.handler(w, r)
 			})
-			ec, cleanup := newTestClient(t, wrappedHandler)
-			defer cleanup()
+			ec := newTestClient(t, wrappedHandler)
 
 			var out map[string]string
 			resp, err := ec.SendAPIRequest(
@@ -144,8 +143,7 @@ func TestSendAPIRequest_AccountSwitchKey(t *testing.T) {
 		capturedQuery = r.URL.RawQuery
 		w.WriteHeader(http.StatusOK)
 	})
-	ec, cleanup := newTestClient(t, handler)
-	defer cleanup()
+	ec := newTestClient(t, handler)
 	ec.AccountSwitchKey = "test-switch-key"
 
 	_, err := ec.SendAPIRequest(

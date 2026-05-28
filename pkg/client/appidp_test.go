@@ -45,8 +45,7 @@ func TestAssignIDP(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := tt.appIdp.AssignIDP(ec)
 			if tt.wantErr {
@@ -92,8 +91,7 @@ func TestUnAssignIDP(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := tt.appIdp.UnAssignIDP(ec)
 			if tt.wantErr {

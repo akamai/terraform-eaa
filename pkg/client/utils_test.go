@@ -159,8 +159,7 @@ func TestConvertConnectorStrings(t *testing.T) {
 }
 
 func TestValidateIntegerField(t *testing.T) {
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 	tests := map[string]struct {
 		value   interface{}

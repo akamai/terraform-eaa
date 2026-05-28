@@ -2,12 +2,12 @@ package client
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,48 +16,29 @@ type noopSigner struct{}
 func (noopSigner) SignRequest(_ *http.Request) {}
 func (noopSigner) CheckRequestLimit(_ int)     {}
 
-//nolint:unused,gocritic // test helper for future tests
-func newTestClient(t *testing.T, handler http.Handler) (*EaaClient, func()) {
+func newTestClient(t *testing.T, handler http.Handler) *EaaClient {
 	t.Helper()
 	ts := httptest.NewTLSServer(handler)
-	ec := &EaaClient{
+	t.Cleanup(ts.Close)
+	return &EaaClient{
 		Signer:     noopSigner{},
 		Logger:     hclog.NewNullLogger(),
 		Client:     ts.Client(),
 		Host:       ts.Listener.Addr().String(),
 		ContractID: "test-contract",
 	}
-	return ec, ts.Close
 }
 
-//nolint:unused // test helper for future tests
-func mustEncodeJSON(t *testing.T, v interface{}) []byte {
-	t.Helper()
-	data, err := json.Marshal(v)
-	require.NoError(t, err, "failed to encode JSON")
-	return data
-}
-
-//nolint:unused // test helper for future tests
-func mustDecodeJSONBody(t *testing.T, r *http.Request, v interface{}) {
-	t.Helper()
-	data, err := io.ReadAll(r.Body)
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(data, v))
-}
-
-//nolint:unused // test helper for future tests
 func jsonHandler(statusCode int, body interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(statusCode)
 		if body != nil {
-			json.NewEncoder(w).Encode(body) //nolint:errcheck // test helper, error handling not needed
+			json.NewEncoder(w).Encode(body) //nolint:errcheck // test helper, encoding errors are not meaningful
 		}
 	}
 }
 
-//nolint:unused // test helper for future tests
 func errorJSONHandler(statusCode int, detail string) http.HandlerFunc {
 	return jsonHandler(statusCode, ErrorResponse{
 		Type:   "error",
@@ -66,27 +47,76 @@ func errorJSONHandler(statusCode int, detail string) http.HandlerFunc {
 	})
 }
 
-//nolint:unused // test helper for future tests
 type pathRouter struct {
+	t      *testing.T
 	routes map[string]http.HandlerFunc
 }
 
-//nolint:unused // test helper for future tests
-func newPathRouter() *pathRouter {
-	return &pathRouter{routes: make(map[string]http.HandlerFunc)}
+func newPathRouter(t *testing.T) *pathRouter {
+	return &pathRouter{t: t, routes: make(map[string]http.HandlerFunc)}
 }
 
-//nolint:unused // test helper for future tests
 func (pr *pathRouter) Handle(method, path string, handler http.HandlerFunc) {
 	pr.routes[method+" "+path] = handler
 }
 
-//nolint:unused // test helper for future tests
 func (pr *pathRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	key := r.Method + " " + r.URL.Path
 	if h, ok := pr.routes[key]; ok {
 		h(w, r)
 		return
 	}
+	pr.t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 	http.NotFound(w, r)
+}
+
+//nolint:unused // used by upcoming tasks in this branch
+func requireErr(t *testing.T, err error, wantErr bool) bool {
+	t.Helper()
+	if wantErr {
+		require.Error(t, err)
+		return true
+	}
+	require.NoError(t, err)
+	return false
+}
+
+//nolint:unused // used by upcoming tasks in this branch
+func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map[string]struct {
+	input       S
+	expected    int
+	expectError bool
+}) {
+	t.Helper()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := convFunc(tc.input)
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+//nolint:unused // used by upcoming tasks in this branch
+func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests map[string]struct {
+	input       I
+	expected    string
+	expectError bool
+}) {
+	t.Helper()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := convFunc(tc.input)
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
 }

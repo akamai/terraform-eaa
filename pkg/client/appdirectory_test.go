@@ -41,8 +41,7 @@ func TestAssignIdpDirectory(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := tt.appDir.AssignIdpDirectory(context.Background(), ec)
 			if tt.wantErr {
@@ -84,8 +83,7 @@ func TestGetIdpDirectoryGroup(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// GetIdpDirectoryGroup doesn't use the client, but still needs one for logger
-			ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-			defer cleanup()
+			ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 			got, err := dirData.GetIdpDirectoryGroup(context.Background(), ec, tt.groupName)
 			if tt.wantErr {
@@ -160,8 +158,7 @@ func TestAssignIdpDirectoryGroups(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignIdpDirectoryGroups(context.Background(), ec, "app-uuid-1", tt.appGroupsList)
 			if tt.wantErr {
@@ -213,8 +210,7 @@ func TestAssignAllDirectoryGroups(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignAllDirectoryGroups(context.Background(), ec, "app-uuid-1")
 			if tt.wantErr {

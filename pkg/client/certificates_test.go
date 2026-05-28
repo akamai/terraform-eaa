@@ -33,8 +33,7 @@ func TestGetCertificates(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			certs, err := GetCertificates(ec)
 			if tt.wantErr {
@@ -60,8 +59,7 @@ func TestDoesSelfSignedCertExistForHost(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			cert, err := DoesSelfSignedCertExistForHost(ec, tt.host)
 			require.NoError(t, err)
@@ -87,8 +85,7 @@ func TestDoesUploadedCertExist(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, handler)
-			defer cleanup()
+			ec := newTestClient(t, handler)
 
 			cert, err := DoesUploadedCertExist(ec, tt.host)
 			if tt.wantErr {
@@ -126,8 +123,7 @@ func TestCreateSelfSignedCertificate(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			req := &CreateSelfSignedCertRequest{HostName: tt.hostname}
 			got, err := req.CreateSelfSignedCertificate(context.Background(), ec)
@@ -158,8 +154,7 @@ func TestGetCertificate(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, tt.handler)
-			defer cleanup()
+			ec := newTestClient(t, tt.handler)
 
 			got, err := GetCertificate(ec, "cert-uuid-1")
 			if tt.wantErr {

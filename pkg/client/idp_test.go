@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func idpRouter() *pathRouter {
-	router := newPathRouter()
+func idpRouter(t *testing.T) *pathRouter {
+	router := newPathRouter(t)
 
 	idpResp := IDPResponse{
 		IDPS: []IDPResponseData{
@@ -32,8 +32,7 @@ func idpRouter() *pathRouter {
 }
 
 func TestGetIDPS(t *testing.T) {
-	ec, cleanup := newTestClient(t, idpRouter())
-	defer cleanup()
+	ec := newTestClient(t, idpRouter(t))
 
 	idpList, err := GetIDPS(context.Background(), ec)
 	require.NoError(t, err)
@@ -51,8 +50,7 @@ func TestGetIdpWithName(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec, cleanup := newTestClient(t, idpRouter())
-			defer cleanup()
+			ec := newTestClient(t, idpRouter(t))
 
 			got, err := GetIdpWithName(context.Background(), ec, tt.name)
 			if tt.wantErr {
@@ -66,8 +64,7 @@ func TestGetIdpWithName(t *testing.T) {
 }
 
 func TestGetIDPDirectories(t *testing.T) {
-	ec, cleanup := newTestClient(t, idpRouter())
-	defer cleanup()
+	ec := newTestClient(t, idpRouter(t))
 
 	dirs, err := GetIDPDirectories(ec, "idp-uuid-1")
 	require.NoError(t, err)
@@ -85,8 +82,7 @@ func TestIDPData_GetIdpDirectory(t *testing.T) {
 			{Name: "dir-2", UUID: "dir-uuid-2"},
 		},
 	}
-	ec, cleanup := newTestClient(t, jsonHandler(http.StatusOK, nil))
-	defer cleanup()
+	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 	tests := map[string]struct {
 		dirName string
