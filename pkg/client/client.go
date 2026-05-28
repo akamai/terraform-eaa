@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,12 +11,12 @@ import (
 	"strconv"
 
 	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v6/pkg/edgegrid"
-	"github.com/hashicorp/go-hclog"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type EaaClient struct {
 	Signer           edgegrid.Signer
-	Logger           hclog.Logger
 	Client           *http.Client
 	ContractID       string
 	AccountSwitchKey string
@@ -40,9 +41,9 @@ type GetRequestOptions struct {
 // SendAPIRequest signs and executes the request using the client edgegrid
 // config. Optional opts customize GET query handling (expand/limit); defaults
 // are Expand=true and Limit=0 when opts are not provided.
-func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, global bool, opts ...GetRequestOptions) (*http.Response, error) {
+func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, in, out interface{}, global bool, opts ...GetRequestOptions) (*http.Response, error) {
 	if len(opts) > 1 {
-		return nil, fmt.Errorf("%w: expected at most one GetRequestOptions, got %d", ErrInvalidArgument, len(opts))
+		return nil, logging.Errorf([]logging.Tag{logging.TagAPI, logging.TagValidate}, "expected at most one GetRequestOptions, got %d", len(opts))
 	}
 
 	defaultExpand := true
@@ -60,7 +61,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 	if !global {
 		parsedURL, err := url.Parse(apiURL)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrMarshaling, err)
+			return nil, logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to parse API URL")
 		}
 		queryParams := parsedURL.Query()
 		if ec.ContractID != "" {
@@ -79,7 +80,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 
 	}
 
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "sending API request", []logging.Tag{logging.TagAPI}, map[string]any{"url": apiURL, "method": method})
 	r, err := http.NewRequest(method, apiURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -90,9 +91,10 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 	if in != nil {
 		data, marshalErr := json.Marshal(in)
 		if marshalErr != nil {
-			return nil, fmt.Errorf("%w: %s", ErrMarshaling, marshalErr)
+			return nil, logging.Wrapf(marshalErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to marshal request")
 		}
 
+		logging.Trace(ctx, "request body", []logging.Tag{logging.TagAPI}, map[string]any{"body": string(data)})
 		r.Body = io.NopCloser(bytes.NewBuffer(data))
 		r.ContentLength = int64(len(data))
 	}
@@ -109,6 +111,9 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	logging.Debug(ctx, "received API response", []logging.Tag{logging.TagAPI}, map[string]any{"status_code": resp.StatusCode})
+	logging.Trace(ctx, "response body", []logging.Tag{logging.TagAPI}, map[string]any{"body": string(responseBody)})
+
 	// Create a new reader for the unmarshaling
 	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 
@@ -117,7 +122,7 @@ func (ec *EaaClient) SendAPIRequest(apiURL, method string, in, out interface{}, 
 		resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices &&
 		resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusResetContent {
 		if err := json.Unmarshal(responseBody, out); err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrUnmarshaling, err)
+			return nil, logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to unmarshal response")
 		}
 	}
 
@@ -129,13 +134,12 @@ func FormatErrorResponse(errResp *http.Response) (string, error) {
 	data, err := io.ReadAll(errResp.Body)
 
 	if err == nil {
-		err := json.Unmarshal(data, &errResponse)
-		if err != nil {
-			return "", ErrUnmarshaling
+		if unmarshalErr := json.Unmarshal(data, &errResponse); unmarshalErr != nil {
+			return "", logging.Wrapf(unmarshalErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to unmarshal error response")
 		}
 		return errResponse.Detail, nil
 	}
-	return "", ErrUnmarshaling
+	return "", logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to read error response body")
 }
 
 func FormatErrorDescription(errResp *http.Response) string {

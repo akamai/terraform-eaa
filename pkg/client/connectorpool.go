@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -16,84 +17,74 @@ import (
 // ============================================================================
 
 // convertPackageType converts package_type string to integer using the type system
-func convertPackageType(packageTypeStr string, ec *EaaClient) (int, error) {
+func convertPackageType(packageTypeStr string, ctx context.Context) (int, error) {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if packageTypeStr == "" {
-		ec.Logger.Error("package_type cannot be empty")
-		return 0, fmt.Errorf("package_type cannot be empty")
+		return 0, logging.Errorf(tags, "package_type cannot be empty")
 	}
 
 	packageType := ConnPackageType(packageTypeStr)
 	packageTypeInt, err := packageType.ToInt()
 	if err != nil {
-		ec.Logger.Error("Invalid package_type", "value", packageTypeStr)
-		return 0, fmt.Errorf("invalid package_type '%s': %w", packageTypeStr, err)
+		return 0, logging.Wrapf(err, tags, "invalid package_type '%s'", packageTypeStr)
 	}
 
 	return packageTypeInt, nil
 }
 
 // convertInfraType converts infra_type string to integer using the type system
-func convertInfraType(infraTypeStr string, ec *EaaClient) (int, error) {
+func convertInfraType(infraTypeStr string, ctx context.Context) (int, error) {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if infraTypeStr == "" {
-		ec.Logger.Error("infra_type cannot be empty if provided")
-		return 0, fmt.Errorf("infra_type cannot be empty if provided")
+		return 0, logging.Errorf(tags, "infra_type cannot be empty if provided")
 	}
 
 	infraTypeEnum := InfraType(infraTypeStr)
 	infraTypeInt, err := infraTypeEnum.ToInt()
 	if err != nil {
-		ec.Logger.Error("Invalid infra_type", "value", infraTypeStr)
-		return 0, fmt.Errorf("invalid infra_type '%s': %w", infraTypeStr, err)
+		return 0, logging.Wrapf(err, tags, "invalid infra_type '%s'", infraTypeStr)
 	}
 
 	return infraTypeInt, nil
 }
 
 // convertOperatingMode converts operating_mode string to integer using the type system
-func convertOperatingMode(operatingModeStr string, ec *EaaClient) (int, error) {
+func convertOperatingMode(operatingModeStr string, ctx context.Context) (int, error) {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if operatingModeStr == "" {
-		ec.Logger.Error("operating_mode cannot be empty if provided")
-		return 0, fmt.Errorf("operating_mode cannot be empty if provided")
+		return 0, logging.Errorf(tags, "operating_mode cannot be empty if provided")
 	}
 
 	operatingModeEnum := OperatingMode(operatingModeStr)
 	operatingModeInt, err := operatingModeEnum.ToInt()
 	if err != nil {
-		ec.Logger.Error("Invalid operating_mode", "value", operatingModeStr)
-		return 0, fmt.Errorf("invalid operating_mode '%s': %w", operatingModeStr, err)
+		return 0, logging.Wrapf(err, tags, "invalid operating_mode '%s'", operatingModeStr)
 	}
 
 	return operatingModeInt, nil
 }
 
 // validateAndConvertEnumField validates and converts an enum field from string to int
-func validateAndConvertEnumField(d *schema.ResourceData, fieldName string, converter func(string, *EaaClient) (int, error), ec *EaaClient) (*int, error) {
+func validateAndConvertEnumField(d *schema.ResourceData, fieldName string, converter func(string, context.Context) (int, error), ctx context.Context) (*int, error) {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if value, ok := d.GetOk(fieldName); ok {
 		valueStr, ok := value.(string)
 		if !ok {
-			ec.Logger.Error("field must be a string", "field", fieldName)
-			return nil, fmt.Errorf("%s must be a string, got %T", fieldName, value)
+			return nil, logging.Errorf(tags, "%s must be a string, got %T", fieldName, value)
 		}
 
-		valueInt, err := converter(valueStr, ec)
+		valueInt, err := converter(valueStr, ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		ec.Logger.Info("Setting field value", "field", fieldName, "value", valueInt)
+		logging.Trace(ctx, "setting field value", tags, map[string]any{"field": fieldName, "value": valueInt})
 		return &valueInt, nil
 	}
 
-	ec.Logger.Info("Field not found in schema, leaving as nil", "field", fieldName)
+	logging.Trace(ctx, "field not found in schema, leaving as nil", tags, map[string]any{"field": fieldName})
 	return nil, nil
 }
-
-var (
-	ErrConnectorPoolCreate = errors.New("connector pool creation failed")
-	ErrConnectorPoolGet    = errors.New("connector pool get failed")
-	ErrConnectorPoolUpdate = errors.New("connector pool update failed")
-	ErrConnectorPoolDelete = errors.New("connector pool delete failed")
-)
 
 // ConnectorPool represents a connector pool
 type ConnectorPool struct {
@@ -142,26 +133,26 @@ type CreateConnectorPoolResponse struct {
 // CreateConnectorPoolRequestFromSchema creates a CreateConnectorPoolRequest from the schema
 func (ccpr *CreateConnectorPoolRequest) CreateConnectorPoolRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
 	// Validate and set required fields
-	name, err := ValidateRequiredString(d, "name", ec)
+	name, err := ValidateRequiredString(d, "name", ctx)
 	if err != nil {
 		return err
 	}
 	ccpr.Name = name
 
 	// Validate and set optional description
-	description, err := ValidateOptionalString(d, "description", ec)
+	description, err := ValidateOptionalString(d, "description", ctx)
 	if err != nil {
 		return err
 	}
 	ccpr.Description = description
 
 	// Validate and convert package_type
-	packageTypeStr, err := ValidateRequiredString(d, "package_type", ec)
+	packageTypeStr, err := ValidateRequiredString(d, "package_type", ctx)
 	if err != nil {
 		return err
 	}
 
-	packageTypeInt, err := convertPackageType(packageTypeStr, ec)
+	packageTypeInt, err := convertPackageType(packageTypeStr, ctx)
 	if err != nil {
 		return err
 	}
@@ -172,12 +163,12 @@ func (ccpr *CreateConnectorPoolRequest) CreateConnectorPoolRequestFromSchema(ctx
 	ccpr.OperatingMode = nil
 
 	// Validate and convert optional enum fields
-	ccpr.InfraType, err = validateAndConvertEnumField(d, "infra_type", convertInfraType, ec)
+	ccpr.InfraType, err = validateAndConvertEnumField(d, "infra_type", convertInfraType, ctx)
 	if err != nil {
 		return err
 	}
 
-	ccpr.OperatingMode, err = validateAndConvertEnumField(d, "operating_mode", convertOperatingMode, ec)
+	ccpr.OperatingMode, err = validateAndConvertEnumField(d, "operating_mode", convertOperatingMode, ctx)
 	if err != nil {
 		return err
 	}
@@ -194,13 +185,11 @@ func buildConnectorPoolDetailURL(ec *EaaClient, uuid string) string {
 	return fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CONNECTOR_POOLS_MGMT_URL, uuid)
 }
 
-// handleAPIResponse handles common API response processing
-func handleConnectorPoolAPIResponse(resp *http.Response, operation string, ec *EaaClient) error {
+// handleConnectorPoolAPIResponse handles common API response processing
+func handleConnectorPoolAPIResponse(resp *http.Response, operation string, tags []logging.Tag) error {
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(resp)
-		errMsg := fmt.Errorf("%s failed: %s", operation, desc)
-		ec.Logger.Error("Operation failed", "operation", operation, "status_code", resp.StatusCode, "error", desc)
-		return errMsg
+		return logging.Errorf(tags, "%s failed: HTTP %d: %s", operation, resp.StatusCode, desc)
 	}
 	return nil
 }
@@ -211,35 +200,36 @@ func handleConnectorPoolAPIResponse(resp *http.Response, operation string, ec *E
 
 // CreateConnectorPool creates a new connector pool
 func (ccpr *CreateConnectorPoolRequest) CreateConnectorPool(ctx context.Context, ec *EaaClient) (*CreateConnectorPoolResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagCreate}
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CONNECTOR_POOLS_URL)
 
 	var response CreateConnectorPoolResponse
-	resp, err := ec.SendAPIRequest(apiURL, "POST", ccpr, &response, false)
+	resp, err := ec.SendAPIRequest(ctx, apiURL, "POST", ccpr, &response, false)
 	if err != nil {
-		ec.Logger.Error("API request failed", "error", err)
+		return nil, logging.Wrapf(err, tags, "connector pool creation API request failed")
+	}
+
+	if err := handleConnectorPoolAPIResponse(resp, "create ConnectorPool", tags); err != nil {
 		return nil, err
 	}
 
-	if err := handleConnectorPoolAPIResponse(resp, "create ConnectorPool", ec); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrConnectorPoolCreate, err)
-	}
-
+	logging.Info(ctx, "connector pool created", tags, map[string]any{"uuid": response.UUIDURL})
 	return &response, nil
 }
 
 // GetConnectorPool retrieves a connector pool by UUID
 func GetConnectorPool(ctx context.Context, ec *EaaClient, uuid string) (*ConnectorPool, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	apiURL := buildConnectorPoolDetailURL(ec, uuid)
 
 	var connectorPool ConnectorPool
-	resp, err := ec.SendAPIRequest(apiURL, "GET", nil, &connectorPool, false)
+	resp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &connectorPool, false)
 	if err != nil {
-		ec.Logger.Error("Get API request failed", "error", err)
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "get connector pool API request failed")
 	}
 
-	if err := handleConnectorPoolAPIResponse(resp, "get ConnectorPool", ec); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrConnectorPoolGet, err)
+	if err := handleConnectorPoolAPIResponse(resp, "get ConnectorPool", tags); err != nil {
+		return nil, err
 	}
 
 	return &connectorPool, nil
@@ -247,17 +237,19 @@ func GetConnectorPool(ctx context.Context, ec *EaaClient, uuid string) (*Connect
 
 // DeleteConnectorPool deletes a connector pool
 func DeleteConnectorPool(ctx context.Context, ec *EaaClient, uuid string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagDelete}
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CONNECTOR_POOLS_URL, uuid)
 
-	resp, err := ec.SendAPIRequest(apiURL, "DELETE", nil, nil, false)
+	resp, err := ec.SendAPIRequest(ctx, apiURL, "DELETE", nil, nil, false)
 	if err != nil {
-		ec.Logger.Error("DELETE request failed", "error", err)
+		return logging.Wrapf(err, tags, "delete connector pool API request failed")
+	}
+
+	if err := handleConnectorPoolAPIResponse(resp, "delete ConnectorPool", tags); err != nil {
 		return err
 	}
 
-	if err := handleConnectorPoolAPIResponse(resp, "delete ConnectorPool", ec); err != nil {
-		return fmt.Errorf("%w: %w", ErrConnectorPoolDelete, err)
-	}
+	logging.Info(ctx, "connector pool deleted", tags, map[string]any{"uuid": uuid})
 	return nil
 }
 
@@ -294,20 +286,20 @@ func buildConnectorAssociationRequest(connectorUUIDs []string) *ConnectorPoolAss
 }
 
 // AssignConnectorsToPool assigns multiple connectors to a connector pool
-func AssignConnectorsToPool(client *EaaClient, poolUUID string, connectorUUIDs []string) error {
+func AssignConnectorsToPool(ctx context.Context, ec *EaaClient, poolUUID string, connectorUUIDs []string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
 	url := fmt.Sprintf("%s://%s/%s/%s/agents/associate",
-		URL_SCHEME, client.Host, CONNECTOR_POOLS_URL, poolUUID)
+		URL_SCHEME, ec.Host, CONNECTOR_POOLS_URL, poolUUID)
 
 	// Use the helper function to build the request
 	associationRequest := buildConnectorAssociationRequest(connectorUUIDs)
 
-	resp, err := client.SendAPIRequest(url, "PUT", associationRequest, nil, false)
+	resp, err := ec.SendAPIRequest(ctx, url, "PUT", associationRequest, nil, false)
 	if err != nil {
-		client.Logger.Error("Assignment API request failed", "error", err)
-		return err
+		return logging.Wrapf(err, tags, "assign connectors to pool API request failed")
 	}
 
-	if err := handleConnectorPoolAPIResponse(resp, "assign connectors to pool", client); err != nil {
+	if err := handleConnectorPoolAPIResponse(resp, "assign connectors to pool", tags); err != nil {
 		return err
 	}
 
@@ -315,7 +307,8 @@ func AssignConnectorsToPool(client *EaaClient, poolUUID string, connectorUUIDs [
 }
 
 // UnassignConnectorsFromPool removes multiple connectors from a connector pool
-func UnassignConnectorsFromPool(ec *EaaClient, connectorPoolUUID string, connectorUUIDs []string) error {
+func UnassignConnectorsFromPool(ctx context.Context, ec *EaaClient, connectorPoolUUID string, connectorUUIDs []string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
 
 	// Use existing constants for URL building
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents/disassociate",
@@ -329,47 +322,39 @@ func UnassignConnectorsFromPool(ec *EaaClient, connectorPoolUUID string, connect
 			UUIDURL:        connectorUUID,
 		}
 		agents = append(agents, agent)
-
 	}
 
 	disassociationRequest := &ConnectorPoolAssociationRequest{
 		Agents: agents,
 	}
 
-	resp, err := ec.SendAPIRequest(apiURL, "PUT", disassociationRequest, nil, false)
+	resp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", disassociationRequest, nil, false)
 	if err != nil {
-		ec.Logger.Error("Unassignment API request failed", "error", err)
-		return err
+		return logging.Wrapf(err, tags, "unassign connectors from pool API request failed")
 	}
 
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(resp)
-		unassignmentErrMsg := fmt.Errorf("connector pool unassignment failed: %s", desc)
-		ec.Logger.Error("Unassignment failed", "status_code", resp.StatusCode, "error", desc)
-		return unassignmentErrMsg
+	if err := handleConnectorPoolAPIResponse(resp, "unassign connectors from pool", tags); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // GetConnectorsInPool retrieves the list of connector UUIDs currently in a connector pool
-func GetConnectorsInPool(client *EaaClient, poolUUID string) ([]string, error) {
+func GetConnectorsInPool(ctx context.Context, ec *EaaClient, poolUUID string) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	// Use existing constants for URL building
 	url := fmt.Sprintf("%s://%s/%s/%s",
-		URL_SCHEME, client.Host, CONNECTOR_POOLS_MGMT_URL, poolUUID)
+		URL_SCHEME, ec.Host, CONNECTOR_POOLS_MGMT_URL, poolUUID)
 
 	var connectorPool ConnectorPool
-	resp, err := client.SendAPIRequest(url, "GET", nil, &connectorPool, false)
+	resp, err := ec.SendAPIRequest(ctx, url, "GET", nil, &connectorPool, false)
 	if err != nil {
-		client.Logger.Error("Get connectors API request failed", "error", err)
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "get connectors in pool API request failed")
 	}
 
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(resp)
-		getErrMsg := fmt.Errorf("get connectors in pool failed: %s", desc)
-		client.Logger.Error("Get connectors failed", "status_code", resp.StatusCode, "error", desc)
-		return nil, getErrMsg
+	if err := handleConnectorPoolAPIResponse(resp, "get connectors in pool", tags); err != nil {
+		return nil, err
 	}
 
 	// Parse the connectors from the JSON response
@@ -377,13 +362,13 @@ func GetConnectorsInPool(client *EaaClient, poolUUID string) ([]string, error) {
 	if connectorPool.Connectors != nil {
 		var connectorData []map[string]interface{}
 		if err := json.Unmarshal(connectorPool.Connectors, &connectorData); err != nil {
-			return nil, fmt.Errorf("failed to parse connectors JSON for pool %s: %w", poolUUID, err)
+			return nil, logging.Wrapf(err, tags, "failed to parse connectors JSON for pool %s", poolUUID)
 		}
 		for _, connector := range connectorData {
 			if uuid, ok := connector["uuid_url"].(string); ok {
 				connectors = append(connectors, uuid)
 			} else {
-				client.Logger.Warn("Connector entry missing uuid_url field", "connector", connector)
+				logging.Warn(ctx, "connector entry missing uuid_url field", tags, map[string]any{"connector": connector})
 			}
 		}
 	}
@@ -392,18 +377,15 @@ func GetConnectorsInPool(client *EaaClient, poolUUID string) ([]string, error) {
 }
 
 // GetConnectorNamesInPool retrieves the list of connector names currently in a connector pool
-func GetConnectorNamesInPool(client *EaaClient, poolUUID string) ([]string, error) {
-
-	connectorUUIDs, err := GetConnectorsInPool(client, poolUUID)
+func GetConnectorNamesInPool(ctx context.Context, ec *EaaClient, poolUUID string) ([]string, error) {
+	connectorUUIDs, err := GetConnectorsInPool(ctx, ec, poolUUID)
 	if err != nil {
-		client.Logger.Error("Failed to get connectors in pool", "error", err)
 		return nil, err
 	}
 
 	// Get all agents to build a UUID-to-name mapping
-	agents, err := GetAgents(client)
+	agents, err := GetAgents(ctx, ec)
 	if err != nil {
-		client.Logger.Error("Failed to get agents", "error", err)
 		return nil, err
 	}
 
@@ -412,7 +394,6 @@ func GetConnectorNamesInPool(client *EaaClient, poolUUID string) ([]string, erro
 	for i := range agents {
 		agent := &agents[i]
 		uuidToName[agent.UUIDURL] = agent.Name
-
 	}
 
 	// Map UUIDs back to names
@@ -420,9 +401,7 @@ func GetConnectorNamesInPool(client *EaaClient, poolUUID string) ([]string, erro
 	for _, uuid := range connectorUUIDs {
 		if name, exists := uuidToName[uuid]; exists {
 			connectorNames = append(connectorNames, name)
-			// Found connector mapping
 		}
-		// else No agent found for connector UUID
 	}
 
 	return connectorNames, nil
@@ -441,27 +420,25 @@ type AppConnectorPoolAssignmentRequest struct {
 }
 
 // AssignConnectorPoolsToApp assigns connector pools to an application
-func AssignConnectorPoolsToApp(ec *EaaClient, appUUID string, request *AppConnectorPoolAssignmentRequest) error {
+func AssignConnectorPoolsToApp(ctx context.Context, ec *EaaClient, appUUID string, request *AppConnectorPoolAssignmentRequest) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, fmt.Sprintf(APP_CONNECTOR_POOLS_ASSOCIATE_URL, appUUID))
 
-	resp, err := ec.SendAPIRequest(apiURL, "PUT", request, nil, false)
+	resp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", request, nil, false)
 	if err != nil {
-		ec.Logger.Error("Assignment API request failed", "error", err)
-		return err
+		return logging.Wrapf(err, tags, "assign connector pools to app API request failed")
 	}
 
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(resp)
-		assignmentErrMsg := fmt.Errorf("app connector pool assignment failed: %s", desc)
-		ec.Logger.Error("Assignment failed", "status_code", resp.StatusCode, "error", desc)
-		return assignmentErrMsg
+	if err := handleConnectorPoolAPIResponse(resp, "assign connector pools to app", tags); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // GetConnectorUUIDs maps connector names to UUIDs by fetching all agents with pagination and building a lookup table
-func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error) {
+func GetConnectorUUIDs(ctx context.Context, ec *EaaClient, connectorNames []string) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	// Implement pagination directly here to fetch all agents
 	var allAgents []Connector
 	offset := 0
@@ -493,10 +470,9 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 			} `json:"meta"`
 		}
 
-		resp, err := ec.SendAPIRequest(apiURL, "GET", nil, &response, false)
+		resp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &response, false)
 		if err != nil {
-			ec.Logger.Error("Get agents API request failed", "error", err)
-			return nil, ErrAgentsGet
+			return nil, logging.Wrapf(err, tags, "get agents API request failed")
 		}
 
 		// Set the API limit from the first response (if not already set)
@@ -504,17 +480,14 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 			apiLimit = response.Meta.Limit
 		}
 
-		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			desc := FormatErrorDescription(resp)
-			getErrMsg := fmt.Errorf("get agents failed: %s", desc)
-			ec.Logger.Error("Get agents failed", "status_code", resp.StatusCode, "error", desc)
-			return nil, getErrMsg
+		if err := handleConnectorPoolAPIResponse(resp, "get agents", tags); err != nil {
+			return nil, err
 		}
 
 		// Convert response objects to Connector and add to results
 		for _, agent := range response.Objects {
 			if agent.Name == "" || agent.UUIDURL == "" {
-				ec.Logger.Warn("Skipping agent with empty name or UUID", "name", agent.Name, "uuid", agent.UUIDURL)
+				logging.Warn(ctx, "skipping agent with empty name or UUID", tags, map[string]any{"name": agent.Name, "uuid": agent.UUIDURL})
 				continue
 			}
 			allAgents = append(allAgents, Connector{
@@ -535,7 +508,6 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 
 		// Move to next page
 		offset += apiLimit
-
 	}
 
 	// Now search for the requested connector names
@@ -548,55 +520,49 @@ func GetConnectorUUIDs(ec *EaaClient, connectorNames []string) ([]string, error)
 			agentData := &allAgents[i]
 			if connectorName == agentData.Name {
 				connectorUUIDs = append(connectorUUIDs, agentData.UUIDURL)
-
 				found = true
 				break
 			}
 		}
 		if !found {
-			ec.Logger.Warn("Connector not found", "name", connectorName)
 			notFoundConnectors = append(notFoundConnectors, connectorName)
 		}
 	}
 
 	if len(notFoundConnectors) > 0 {
-		ec.Logger.Error("Connectors not found", "connectors", notFoundConnectors)
-		return nil, fmt.Errorf("connectors not found: %v", notFoundConnectors)
+		return nil, logging.Errorf(tags, "connectors not found: %v", notFoundConnectors)
 	}
 
 	return connectorUUIDs, nil
 }
 
 // AssignConnectorsToPoolByName assigns connectors to a pool using connector names instead of UUIDs
-func AssignConnectorsToPoolByName(client *EaaClient, poolUUID string, connectorNames []string) error {
-	connectorUUIDs, err := GetConnectorUUIDs(client, connectorNames)
+func AssignConnectorsToPoolByName(ctx context.Context, ec *EaaClient, poolUUID string, connectorNames []string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
+	connectorUUIDs, err := GetConnectorUUIDs(ctx, ec, connectorNames)
 	if err != nil {
-		client.Logger.Error("unable to lookup uuids from connector names", "error", err)
 		return err
 	}
 
 	if len(connectorUUIDs) == 0 {
-		return fmt.Errorf("no valid connectors found to assign")
+		return logging.Errorf(tags, "no valid connectors found to assign")
 	}
 
-	return AssignConnectorsToPool(client, poolUUID, connectorUUIDs)
+	return AssignConnectorsToPool(ctx, ec, poolUUID, connectorUUIDs)
 }
 
 // UnassignConnectorsFromPoolByName removes connectors from a pool using connector names instead of UUIDs
-func UnassignConnectorsFromPoolByName(ec *EaaClient, connectorPoolUUID string, connectorNames []string) error {
-
-	connectorUUIDs, err := GetConnectorUUIDs(ec, connectorNames)
+func UnassignConnectorsFromPoolByName(ctx context.Context, ec *EaaClient, connectorPoolUUID string, connectorNames []string) error {
+	connectorUUIDs, err := GetConnectorUUIDs(ctx, ec, connectorNames)
 	if err != nil {
-		ec.Logger.Error("Unable to lookup UUIDs from connector names", "error", err)
 		return err
 	}
 
 	if len(connectorUUIDs) == 0 {
-		ec.Logger.Error("No connectors to unassign")
 		return nil
 	}
 
-	return UnassignConnectorsFromPool(ec, connectorPoolUUID, connectorUUIDs)
+	return UnassignConnectorsFromPool(ctx, ec, connectorPoolUUID, connectorUUIDs)
 }
 
 // App represents an application
@@ -607,7 +573,8 @@ type App struct {
 
 // GetApps retrieves all applications using smart pagination that reads meta information
 // Uses the API's own limit and pagination information for optimal performance
-func GetApps(client *EaaClient) ([]App, error) {
+func GetApps(ctx context.Context, ec *EaaClient) ([]App, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagList}
 	var allApps []App
 	offset := 0
 	var apiLimit int // Will be set from API response meta
@@ -618,13 +585,11 @@ func GetApps(client *EaaClient) ([]App, error) {
 		if offset == 0 {
 			// First request: use v3 API with optimized parameters
 			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=10&offset=0&fields=name,uuid_url&ordering=name",
-				URL_SCHEME, client.Host)
-
+				URL_SCHEME, ec.Host)
 		} else {
 			// Subsequent requests: use the limit we got from API response meta
 			url = fmt.Sprintf("%s://%s/crux/v3/mgmt-pop/apps?limit=%d&offset=%d&fields=name,uuid_url&ordering=name",
-				URL_SCHEME, client.Host, apiLimit, offset)
-
+				URL_SCHEME, ec.Host, apiLimit, offset)
 		}
 
 		// Define the response structure to read ALL meta information from v3 API
@@ -642,28 +607,22 @@ func GetApps(client *EaaClient) ([]App, error) {
 			} `json:"meta"`
 		}
 
-		resp, err := client.SendAPIRequest(url, "GET", nil, &response, false)
+		resp, err := ec.SendAPIRequest(ctx, url, "GET", nil, &response, false)
 		if err != nil {
-			client.Logger.Error("Get apps API request failed", "error", err)
-			return nil, err
+			return nil, logging.Wrapf(err, tags, "get apps API request failed")
 		}
 
-		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			desc := FormatErrorDescription(resp)
-			getErrMsg := fmt.Errorf("get apps failed: %s", desc)
-			client.Logger.Error("Get apps failed", "status_code", resp.StatusCode, "error", desc)
-			return nil, getErrMsg
+		if err := handleConnectorPoolAPIResponse(resp, "get apps", tags); err != nil {
+			return nil, err
 		}
 
 		// Set the API limit from the first response (if not already set)
 		if offset == 0 {
 			apiLimit = response.Meta.Limit
-
 		}
 
 		// Convert response objects to App and add to results
 		for _, app := range response.Objects {
-
 			allApps = append(allApps, App{
 				Name:    app.Name,
 				UUIDURL: app.UUIDURL,
@@ -674,13 +633,11 @@ func GetApps(client *EaaClient) ([]App, error) {
 
 		// Check 1: No more pages available (meta.next is null)
 		if response.Meta.Next == nil {
-
 			break
 		}
 
 		// Check 2: We've retrieved all apps according to API total count
 		if response.Meta.TotalCount > 0 && len(allApps) >= response.Meta.TotalCount {
-
 			break
 		}
 
@@ -705,12 +662,10 @@ func GetApps(client *EaaClient) ([]App, error) {
 }
 
 // GetAppUUIDs converts app names to UUIDs
-func GetAppUUIDs(ec *EaaClient, appNames []string) ([]string, error) {
-
-	apps, err := GetApps(ec)
+func GetAppUUIDs(ctx context.Context, ec *EaaClient, appNames []string) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagRead}
+	apps, err := GetApps(ctx, ec)
 	if err != nil {
-
-		ec.Logger.Error("Failed to get apps from API", "error", err)
 		return nil, err
 	}
 
@@ -718,42 +673,36 @@ func GetAppUUIDs(ec *EaaClient, appNames []string) ([]string, error) {
 	notFoundApps := make([]string, 0)
 
 	for _, appName := range appNames {
-
 		found := false
 		for _, appData := range apps {
-
 			if appName == appData.Name {
-
 				appUUIDs = append(appUUIDs, appData.UUIDURL)
 				found = true
 				break
 			}
 		}
 		if !found {
-			ec.Logger.Error("App not found", "name", appName)
 			notFoundApps = append(notFoundApps, appName)
 		}
 	}
 
 	if len(notFoundApps) > 0 {
-		ec.Logger.Error("Apps not found", "apps", notFoundApps)
-		return nil, fmt.Errorf("apps not found: %v", notFoundApps)
+		return nil, logging.Errorf(tags, "apps not found: %v", notFoundApps)
 	}
 
 	return appUUIDs, nil
 }
 
 // AssignConnectorPoolToApps assigns a connector pool to multiple apps
-func AssignConnectorPoolToApps(ec *EaaClient, poolUUID string, appNames []string) error {
-	appUUIDs, err := GetAppUUIDs(ec, appNames)
+func AssignConnectorPoolToApps(ctx context.Context, ec *EaaClient, poolUUID string, appNames []string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
+	appUUIDs, err := GetAppUUIDs(ctx, ec, appNames)
 	if err != nil {
-		ec.Logger.Error("unable to lookup uuids from app names")
 		return err
 	}
 
 	if len(appUUIDs) == 0 {
-		ec.Logger.Error("no apps to assign")
-		return fmt.Errorf("no valid apps found to assign")
+		return logging.Errorf(tags, "no valid apps found to assign")
 	}
 
 	var errs []error
@@ -765,9 +714,8 @@ func AssignConnectorPoolToApps(ec *EaaClient, poolUUID string, appNames []string
 			},
 			Delete: []string{},
 		}
-		err := AssignConnectorPoolsToApp(ec, appUUID, request)
+		err := AssignConnectorPoolsToApp(ctx, ec, appUUID, request)
 		if err != nil {
-			ec.Logger.Error("Failed to assign pool to app", "app_uuid", appUUID, "error", err)
 			errs = append(errs, fmt.Errorf("app %s: %w", appUUID, err))
 		}
 	}
@@ -778,24 +726,21 @@ func AssignConnectorPoolToApps(ec *EaaClient, poolUUID string, appNames []string
 }
 
 // UnassignConnectorPoolFromApps removes a connector pool from multiple apps
-func UnassignConnectorPoolFromApps(ec *EaaClient, poolUUID string, appNames []string) error {
-	appUUIDs, err := GetAppUUIDs(ec, appNames)
+func UnassignConnectorPoolFromApps(ctx context.Context, ec *EaaClient, poolUUID string, appNames []string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagAssign}
+	appUUIDs, err := GetAppUUIDs(ctx, ec, appNames)
 	if err != nil {
-		ec.Logger.Error("unable to lookup uuids from app names")
 		return err
 	}
 
 	if len(appUUIDs) == 0 {
-		ec.Logger.Error("no apps to unassign")
-		return fmt.Errorf("no valid apps found to unassign")
+		return logging.Errorf(tags, "no valid apps found to unassign")
 	}
 
-	ec.Logger.Info("Unassigning connector pool from apps", "count", len(appUUIDs), "apps", appNames)
+	logging.Info(ctx, "unassigning connector pool from apps", tags, map[string]any{"count": len(appUUIDs), "apps": appNames})
 
 	var errs []error
-	for i, appUUID := range appUUIDs {
-		ec.Logger.Info("Unassigning app", "index", i+1, "total", len(appUUIDs), "app_uuid", appUUID)
-
+	for _, appUUID := range appUUIDs {
 		request := &AppConnectorPoolAssignmentRequest{
 			Add: AppConnectorPoolAssignment{
 				Active:  []string{},
@@ -804,51 +749,40 @@ func UnassignConnectorPoolFromApps(ec *EaaClient, poolUUID string, appNames []st
 			Delete: []string{poolUUID},
 		}
 
-		err := AssignConnectorPoolsToApp(ec, appUUID, request)
+		err := AssignConnectorPoolsToApp(ctx, ec, appUUID, request)
 		if err != nil {
-			ec.Logger.Error("Failed to unassign app", "app_uuid", appUUID, "error", err)
 			errs = append(errs, fmt.Errorf("app %s: %w", appUUID, err))
 			continue
 		}
-
-		ec.Logger.Info("Successfully unassigned app", "index", i+1, "total", len(appUUIDs), "app_uuid", appUUID)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to unassign pool from %d app(s): %w", len(errs), errors.Join(errs...))
 	}
 
-	ec.Logger.Info("Successfully unassigned connector pool from all apps", "count", len(appUUIDs))
+	logging.Info(ctx, "successfully unassigned connector pool from all apps", tags, map[string]any{"count": len(appUUIDs)})
 	return nil
 }
 
 // GetAppsAssignedToPool retrieves the list of app UUIDs currently assigned to a connector pool
-func GetAppsAssignedToPool(client *EaaClient, poolUUID string) ([]string, error) {
-	client.Logger.Info("Getting apps assigned to pool", "pool_uuid", poolUUID)
+func GetAppsAssignedToPool(ctx context.Context, ec *EaaClient, poolUUID string) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 
 	// Use the same pattern as GetConnectorsInPool - read the connector pool object directly
-	url := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, client.Host, CONNECTOR_POOLS_MGMT_URL, poolUUID)
-
-	client.Logger.Info("Calling API", "url", url)
+	url := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CONNECTOR_POOLS_MGMT_URL, poolUUID)
 
 	var connectorPool ConnectorPool
-	resp, err := client.SendAPIRequest(url, "GET", nil, &connectorPool, false)
+	resp, err := ec.SendAPIRequest(ctx, url, "GET", nil, &connectorPool, false)
 	if err != nil {
-		client.Logger.Error("Failed to get connector pool", "error", err)
-		return nil, fmt.Errorf("failed to get connector pool: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to get connector pool")
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			client.Logger.Warn("Failed to close connector pool response body", "error", closeErr)
+			logging.Warn(ctx, "failed to close connector pool response body", tags, map[string]any{"error": closeErr.Error()})
 		}
 	}()
 
-	client.Logger.Info("API Response Status", "status_code", resp.StatusCode)
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(resp)
-		getErrMsg := fmt.Errorf("get connector pool failed: %s", desc)
-		client.Logger.Error("Get connector pool failed", "status_code", resp.StatusCode, "error", desc)
-		return nil, getErrMsg
+	if err := handleConnectorPoolAPIResponse(resp, "get connector pool", tags); err != nil {
+		return nil, err
 	}
 
 	// Parse the applications from the JSON response, similar to how we parse connectors
@@ -860,27 +794,26 @@ func GetAppsAssignedToPool(client *EaaClient, poolUUID string) ([]string, error)
 			for _, app := range appData {
 				if uuid, ok := app["uuid_url"].(string); ok {
 					assignedAppUUIDs = append(assignedAppUUIDs, uuid)
-					client.Logger.Info("Found app assigned to pool", "uuid", uuid)
 				}
 			}
 		} else {
-			client.Logger.Warn("Failed to parse applications JSON", "error", err)
+			logging.Warn(ctx, "failed to parse applications JSON", tags, map[string]any{"error": err.Error()})
 		}
 	}
 
-	client.Logger.Info("Total apps assigned to pool", "count", len(assignedAppUUIDs))
+	logging.Trace(ctx, "apps assigned to pool", tags, map[string]any{"count": len(assignedAppUUIDs), "pool_uuid": poolUUID})
 	return assignedAppUUIDs, nil
 }
 
 // GetAppNamesAssignedToPool retrieves the list of app names currently assigned to a connector pool
-func GetAppNamesAssignedToPool(client *EaaClient, poolUUID string) ([]string, error) {
-	appUUIDs, err := GetAppsAssignedToPool(client, poolUUID)
+func GetAppNamesAssignedToPool(ctx context.Context, ec *EaaClient, poolUUID string) ([]string, error) {
+	appUUIDs, err := GetAppsAssignedToPool(ctx, ec, poolUUID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get all apps to build a UUID-to-name mapping
-	apps, err := GetApps(client)
+	apps, err := GetApps(ctx, ec)
 	if err != nil {
 		return nil, err
 	}
@@ -905,6 +838,7 @@ func GetAppNamesAssignedToPool(client *EaaClient, poolUUID string) ([]string, er
 // GetConnectorPools retrieves all connector pools using smart pagination that reads meta information
 // Uses the API's own limit and pagination information for optimal performance
 func GetConnectorPools(ctx context.Context, ec *EaaClient) ([]ConnectorPool, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagList}
 	var allPools []ConnectorPool
 	offset := 0
 	var apiLimit int // Will be set from API response meta
@@ -933,17 +867,13 @@ func GetConnectorPools(ctx context.Context, ec *EaaClient) ([]ConnectorPool, err
 		}
 
 		var response connectorPoolsListResponse
-		resp, err := ec.SendAPIRequest(apiURL, "GET", nil, &response, false)
+		resp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &response, false)
 		if err != nil {
-			ec.Logger.Error("Get connector pools API request failed", "error", err)
-			return nil, err
+			return nil, logging.Wrapf(err, tags, "get connector pools API request failed")
 		}
 
-		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			desc := FormatErrorDescription(resp)
-			getErrMsg := fmt.Errorf("%w: %s", ErrConnectorPoolGet, desc)
-			ec.Logger.Error("Get connector pools failed", "status_code", resp.StatusCode, "error", desc)
-			return nil, getErrMsg
+		if err := handleConnectorPoolAPIResponse(resp, "get connector pools", tags); err != nil {
+			return nil, err
 		}
 
 		// Set the API limit from the first response (if not already set)
@@ -976,7 +906,7 @@ func GetConnectorPools(ctx context.Context, ec *EaaClient) ([]ConnectorPool, err
 
 		// Safety check to prevent infinite loops
 		if offset > 10000 {
-			ec.Logger.Warn("Reached maximum offset limit (10000). Stopping pagination.")
+			logging.Warn(ctx, "reached maximum offset limit (10000), stopping pagination", tags)
 			break
 		}
 
@@ -1041,7 +971,8 @@ func SetConnectorPoolBasicAttributes(d *schema.ResourceData, connPool *Connector
 // ============================================================================
 
 // AssignConnectorsToPoolFromSchema assigns connectors to a connector pool from Terraform schema data
-func AssignConnectorsToPoolFromSchema(d *schema.ResourceData, eaaclient *EaaClient, poolUUID string) error {
+func AssignConnectorsToPoolFromSchema(ctx context.Context, d *schema.ResourceData, eaaclient *EaaClient, poolUUID string) error {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagAssign}
 	connectors, ok := d.GetOk("connectors")
 	if !ok {
 		return nil
@@ -1049,22 +980,21 @@ func AssignConnectorsToPoolFromSchema(d *schema.ResourceData, eaaclient *EaaClie
 
 	connectorsList, ok := connectors.([]interface{})
 	if !ok {
-		return fmt.Errorf("connectors must be a list, got %T", connectors)
+		return logging.Errorf(tags, "connectors must be a list, got %T", connectors)
 	}
 	var connectorNames []string
 	for _, connector := range connectorsList {
 		connectorName, ok := connector.(string)
 		if !ok {
-			return fmt.Errorf("connector name must be a string, got %T", connector)
+			return logging.Errorf(tags, "connector name must be a string, got %T", connector)
 		}
 		connectorNames = append(connectorNames, connectorName)
 	}
 
 	if len(connectorNames) > 0 {
-		err := AssignConnectorsToPoolByName(eaaclient, poolUUID, connectorNames)
+		err := AssignConnectorsToPoolByName(ctx, eaaclient, poolUUID, connectorNames)
 		if err != nil {
-			eaaclient.Logger.Error("Failed to assign connectors to pool:", err)
-			return fmt.Errorf("failed to assign connectors to pool: %w", err)
+			return logging.Wrapf(err, tags, "failed to assign connectors to pool")
 		}
 	}
 
@@ -1072,7 +1002,8 @@ func AssignConnectorsToPoolFromSchema(d *schema.ResourceData, eaaclient *EaaClie
 }
 
 // AssignAppsToPoolFromSchema assigns apps to a connector pool from Terraform schema data
-func AssignAppsToPoolFromSchema(d *schema.ResourceData, eaaclient *EaaClient, poolUUID string) error {
+func AssignAppsToPoolFromSchema(ctx context.Context, d *schema.ResourceData, eaaclient *EaaClient, poolUUID string) error {
+	tags := []logging.Tag{logging.TagConnPool, logging.TagAssign}
 	apps, ok := d.GetOk("apps")
 	if !ok {
 		return nil
@@ -1080,22 +1011,21 @@ func AssignAppsToPoolFromSchema(d *schema.ResourceData, eaaclient *EaaClient, po
 
 	appsList, ok := apps.([]interface{})
 	if !ok {
-		return fmt.Errorf("apps must be a list, got %T", apps)
+		return logging.Errorf(tags, "apps must be a list, got %T", apps)
 	}
 	var appNames []string
 	for _, app := range appsList {
 		appName, ok := app.(string)
 		if !ok {
-			return fmt.Errorf("app name must be a string, got %T", app)
+			return logging.Errorf(tags, "app name must be a string, got %T", app)
 		}
 		appNames = append(appNames, appName)
 	}
 
 	if len(appNames) > 0 {
-		err := AssignConnectorPoolToApps(eaaclient, poolUUID, appNames)
+		err := AssignConnectorPoolToApps(ctx, eaaclient, poolUUID, appNames)
 		if err != nil {
-			eaaclient.Logger.Error("Failed to assign apps to connector pool:", err)
-			return fmt.Errorf("failed to assign apps to connector pool: %w", err)
+			return logging.Wrapf(err, tags, "failed to assign apps to connector pool")
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -67,26 +68,31 @@ func dataSourceIdps() *schema.Resource {
 }
 
 func dataSourceIdpsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagIDP, logging.TagRead}
+	logging.Info(ctx, "reading IDPs data source", tags)
+
 	eaaClient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 
 	idps, err := client.GetIDPS(ctx, eaaClient)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get IDPs")
 	}
 
 	if idps != nil {
 		idpListSchema := convertToSchemaType(idps.IDPS)
 
 		if err := d.Set("idps", idpListSchema); err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, tags, "failed to set IDPs data")
 		}
 
 		// Set the resource ID
 		d.SetId("eaa_idps")
 	}
+
+	logging.Info(ctx, "IDPs data source read successfully", tags)
 	return nil
 
 }

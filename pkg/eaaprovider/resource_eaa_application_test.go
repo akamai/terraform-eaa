@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -993,11 +992,6 @@ func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockR
 
 // createMockClient creates a mock EAA client for testing
 func createMockClient() (*client.EaaClient, *MockHTTPTransport) {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Level:  hclog.Info,
-		Output: io.Discard,
-	})
-
 	mockTransport := &MockHTTPTransport{
 		Responses: make(map[string]MockResponse),
 	}
@@ -1006,8 +1000,6 @@ func createMockClient() (*client.EaaClient, *MockHTTPTransport) {
 		Transport: mockTransport,
 	}
 
-	// Create a mock signer that does nothing (no-op)
-	// The mock transport bypasses actual signing anyway
 	mockSigner := &MockSigner{}
 
 	return &client.EaaClient{
@@ -1015,7 +1007,6 @@ func createMockClient() (*client.EaaClient, *MockHTTPTransport) {
 		Client:     mockClient,
 		Signer:     mockSigner,
 		Host:       "test.example.com",
-		Logger:     logger,
 	}, mockTransport
 }
 

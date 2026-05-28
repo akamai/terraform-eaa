@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -16,7 +17,7 @@ import (
 // ============================================================================
 
 // convertConnectorPoolToMap converts a ConnectorPool to a map for the schema with detailed connector information
-func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.EaaClient) map[string]interface{} {
+func convertConnectorPoolToMap(ctx context.Context, pool *client.ConnectorPool, eaaclient *client.EaaClient) map[string]interface{} {
 	poolData := map[string]interface{}{
 		"name":        pool.Name,
 		"description": "",
@@ -74,7 +75,7 @@ func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.Eaa
 			for _, connector := range rawConnectors {
 				if connector.UUIDURL != "" {
 					// Fetch detailed connector information from the agents API
-					detailedConnector := fetchDetailedConnectorInfo(eaaclient, connector.UUIDURL)
+					detailedConnector := fetchDetailedConnectorInfo(ctx, eaaclient, connector.UUIDURL)
 					if detailedConnector != nil {
 						detailedConnectors = append(detailedConnectors, detailedConnector)
 					} else {
@@ -115,7 +116,7 @@ func convertConnectorPoolToMap(pool *client.ConnectorPool, eaaclient *client.Eaa
 }
 
 // fetchDetailedConnectorInfo fetches detailed connector information from the agents API
-func fetchDetailedConnectorInfo(eaaClient *client.EaaClient, uuidURL string) map[string]interface{} {
+func fetchDetailedConnectorInfo(ctx context.Context, eaaClient *client.EaaClient, uuidURL string) map[string]interface{} {
 	// Build API URL to get detailed connector info with expanded fields
 	apiURL := fmt.Sprintf("https://%s/crux/v1/mgmt-pop/agents?uuid_url=%s&expand=true&fields=name,uuid_url,package,state,status,created_at,description,load_status,localization,reach,agent_infra_type,geo_location,last_checkin,is_enabled,modified_at,resource_uri,operating_mode,package_type,infra_type", eaaClient.Host, uuidURL)
 
@@ -147,7 +148,7 @@ func fetchDetailedConnectorInfo(eaaClient *client.EaaClient, uuidURL string) map
 	}
 
 	// Make API request
-	resp, err := eaaClient.SendAPIRequest(apiURL, "GET", nil, &response, false)
+	resp, err := eaaClient.SendAPIRequest(ctx, apiURL, "GET", nil, &response, false)
 	if err != nil {
 
 		return nil
@@ -463,9 +464,12 @@ func dataSourceEaaConnectorPools() *schema.Resource {
 // ============================================================================
 
 func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagConnPool, logging.TagRead}
+	logging.Info(ctx, "reading connector pools data source", tags)
+
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 
 	// Implement smart pagination directly here for maximum performance
@@ -497,16 +501,14 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 		}
 
 		var response connectorPoolsListResponse
-		apiResp, requestErr := eaaclient.SendAPIRequest(apiURL, "GET", nil, &response, false)
+		apiResp, requestErr := eaaclient.SendAPIRequest(ctx, apiURL, "GET", nil, &response, false)
 		if requestErr != nil {
-			return diag.FromErr(fmt.Errorf("failed to get connector pools: %w", requestErr))
+			return logging.DiagFromErr(requestErr, tags, "failed to get connector pools")
 		}
 
 		if apiResp.StatusCode < 200 || apiResp.StatusCode >= 300 {
 			desc := client.FormatErrorDescription(apiResp)
-			getErrMsg := fmt.Errorf("get connector pools failed: %s", desc)
-
-			return diag.FromErr(getErrMsg)
+			return logging.DiagErrorf(tags, "get connector pools failed: %s", desc)
 		}
 
 		// Set the API limit from the first response (if not already set)
@@ -517,7 +519,7 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 
 		// Process each pool in this batch
 		for i := range response.Objects {
-			poolData := convertConnectorPoolToMap(&response.Objects[i], eaaclient)
+			poolData := convertConnectorPoolToMap(ctx, &response.Objects[i], eaaclient)
 
 			allPools = append(allPools, poolData)
 		}
@@ -561,9 +563,9 @@ func dataSourceEaaConnectorPoolsRead(ctx context.Context, d *schema.ResourceData
 
 	err = d.Set("connector_pools", allPools)
 	if err != nil {
-
-		return diag.FromErr(fmt.Errorf("failed to set connector_pools: %w", err))
+		return logging.DiagFromErr(err, tags, "failed to set connector_pools")
 	}
 
+	logging.Info(ctx, "connector pools data source read successfully", tags)
 	return nil
 }

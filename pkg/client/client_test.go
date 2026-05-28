@@ -1,12 +1,12 @@
 package client
 
 import (
-	"errors"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type noopSigner struct{}
@@ -25,11 +25,11 @@ func TestSendAPIRequestExpandFalseOverride(t *testing.T) {
 	expand := false
 	ec := &EaaClient{
 		Signer: noopSigner{},
-		Logger: hclog.NewNullLogger(),
 		Client: ts.Client(),
 	}
 
-	_, err := ec.SendAPIRequest(ts.URL+"/crux/v1/mgmt-pop/appbundle", http.MethodGet, nil, nil, false, GetRequestOptions{Expand: &expand})
+	ctx := context.Background()
+	_, err := ec.SendAPIRequest(ctx, ts.URL+"/crux/v1/mgmt-pop/appbundle", http.MethodGet, nil, nil, false, GetRequestOptions{Expand: &expand})
 	if err != nil {
 		t.Fatalf("SendAPIRequest() returned unexpected error: %v", err)
 	}
@@ -44,7 +44,9 @@ func TestSendAPIRequestRejectsMultipleGetRequestOptions(t *testing.T) {
 	ec := &EaaClient{}
 	apiURL := "https://example.com/crux/v1/mgmt-pop/apps"
 
+	ctx := context.Background()
 	_, err := ec.SendAPIRequest(
+		ctx,
 		apiURL,
 		http.MethodGet,
 		nil,
@@ -56,7 +58,7 @@ func TestSendAPIRequestRejectsMultipleGetRequestOptions(t *testing.T) {
 	if err == nil {
 		t.Fatal("SendAPIRequest() returned nil error, want non-nil")
 	}
-	if !errors.Is(err, ErrInvalidArgument) {
-		t.Fatalf("SendAPIRequest() error = %v, want wrapped ErrInvalidArgument", err)
+	if !logging.HasTag(err, logging.TagValidate) {
+		t.Fatalf("SendAPIRequest() error = %v, want error with TagValidate", err)
 	}
 }

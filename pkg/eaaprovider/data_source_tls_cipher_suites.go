@@ -2,13 +2,13 @@ package eaaprovider
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 func dataSourceTLSCipherSuites() *schema.Resource {
@@ -71,29 +71,27 @@ func dataSourceTLSCipherSuites() *schema.Resource {
 }
 
 func dataSourceTLSCipherSuitesRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagCipher, logging.TagRead}
+	logging.Info(ctx, "reading TLS cipher suites data source", tags)
+
 	var diags diag.Diagnostics
 
 	// Get the EAA client
 	eaaClient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 
 	// Get the app_uuid_url parameter
 	appUUIDURL, ok := d.Get("app_uuid_url").(string)
 	if !ok || appUUIDURL == "" {
-		return diag.Errorf("app_uuid_url must be a non-empty string")
+		return logging.DiagErrorf(tags, "app_uuid_url must be a non-empty string")
 	}
 
 	// Make API call to get TLS cipher suites
-	tlsResponse, err := client.GetTLSCipherSuites(eaaClient, appUUIDURL)
+	tlsResponse, err := client.GetTLSCipherSuites(ctx, eaaClient, appUUIDURL)
 	if err != nil {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "Failed to fetch TLS cipher suites",
-			Detail:   fmt.Sprintf("Error calling API: %v", err),
-		})
-		return diags
+		return logging.DiagFromErrf(err, tags, "failed to fetch TLS cipher suites")
 	}
 
 	cipherSuiteNames := make([]string, 0, len(tlsResponse.TLSCipherSuite))
@@ -125,14 +123,15 @@ func dataSourceTLSCipherSuitesRead(ctx context.Context, d *schema.ResourceData, 
 
 	d.SetId(appUUIDURL)
 	if err := d.Set("cipher_suites", cipherSuitesList); err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to set cipher_suites")
 	}
 	if err := d.Set("cipher_suite_names", cipherSuiteNames); err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to set cipher_suite_names")
 	}
 	if err := d.Set("default_suite_name", defaultSuiteName); err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to set default_suite_name")
 	}
 
+	logging.Info(ctx, "TLS cipher suites data source read successfully", tags)
 	return diags
 }

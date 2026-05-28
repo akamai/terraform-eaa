@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -14,9 +15,10 @@ import (
 // normalises it to UTC, strips sub-second precision, bumps seconds to 1 if they are 0
 // (the API rejects :00 seconds), and returns plain RFC3339 UTC (e.g. "2026-05-30T14:30:01Z").
 func FormatExpiresAt(raw string) (string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagValidate}
 	t, err := time.Parse(time.RFC3339Nano, raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid RFC3339 timestamp %q: %w", raw, err)
+		return "", logging.Wrapf(err, tags, "invalid RFC3339 timestamp %q", raw)
 	}
 	if t.Second() == 0 {
 		t = t.Add(time.Second)
@@ -68,21 +70,22 @@ type RegistrationTokenWriteRequest struct {
 // within allowed ranges. ExpiresAt must already be normalised via FormatExpiresAt
 // (plain RFC3339 UTC, no fractional seconds); un-normalised values will be rejected.
 func (r *RegistrationTokenWriteRequest) Validate() error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagValidate}
 	if r.Name == "" {
-		return fmt.Errorf("registration token name cannot be empty")
+		return logging.Errorf(tags, "registration token name cannot be empty")
 	}
 	if r.ExpiresAt == "" {
-		return fmt.Errorf("registration token expires_at cannot be empty")
+		return logging.Errorf(tags, "registration token expires_at cannot be empty")
 	}
 	t, err := time.Parse(time.RFC3339, r.ExpiresAt)
 	if err != nil {
-		return fmt.Errorf("expires_at must be a valid RFC3339 timestamp, got %q: %w", r.ExpiresAt, err)
+		return logging.Wrapf(err, tags, "expires_at must be a valid RFC3339 timestamp, got %q", r.ExpiresAt)
 	}
 	if !t.After(time.Now()) {
-		return fmt.Errorf("expires_at must be in the future, got %s", r.ExpiresAt)
+		return logging.Errorf(tags, "expires_at must be in the future, got %s", r.ExpiresAt)
 	}
 	if r.MaxUse < 1 || r.MaxUse > 1000 {
-		return fmt.Errorf("max_use must be in the range of 1 to 1000, got %d", r.MaxUse)
+		return logging.Errorf(tags, "max_use must be in the range of 1 to 1000, got %d", r.MaxUse)
 	}
 	return nil
 }
@@ -90,35 +93,38 @@ func (r *RegistrationTokenWriteRequest) Validate() error {
 // CreateRegistrationTokenRequestFromSchema creates a RegistrationTokenWriteRequest from the first
 // registration token in the Terraform schema data. Only the first token block is used.
 func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema(ctx context.Context, d *schema.ResourceData, client *EaaClient) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagValidate}
+	logging.Info(ctx, "validating registration token request from schema", tags)
+
 	// Get the registration tokens from the schema
 	tokens, ok := d.GetOk("registration_tokens")
 	if !ok {
-		return fmt.Errorf("no registration tokens found in schema")
+		return logging.Errorf(tags, "no registration tokens found in schema")
 	}
 
 	tokensList, ok := tokens.([]interface{})
 	if !ok {
-		return fmt.Errorf("registration_tokens must be a list, got %T", tokens)
+		return logging.Errorf(tags, "registration_tokens must be a list, got %T", tokens)
 	}
 	if len(tokensList) == 0 {
-		return fmt.Errorf("registration tokens list is empty")
+		return logging.Errorf(tags, "registration tokens list is empty")
 	}
 
 	tokenData, ok := tokensList[0].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("registration token must be an object, got %T", tokensList[0])
+		return logging.Errorf(tags, "registration token must be an object, got %T", tokensList[0])
 	}
 
 	// Validate and set the token name
-	tokenName, err := ValidateRequiredString(d, "registration_tokens.0.name", client)
+	tokenName, err := ValidateRequiredString(d, "registration_tokens.0.name", ctx)
 	if err != nil {
-		return fmt.Errorf("failed to validate token name: %w", err)
+		return logging.Wrapf(err, tags, "failed to validate token name")
 	}
 	r.Name = tokenName
 
 	// Set max_use (optional, default to 1 if not specified)
 	if maxUseRaw, exists := tokenData["max_use"]; exists {
-		maxUseValue, validateErr := ValidateIntegerField(maxUseRaw, "max_use", 1, 1000, client)
+		maxUseValue, validateErr := ValidateIntegerField(maxUseRaw, "max_use", 1, 1000, ctx)
 		if validateErr != nil {
 			return validateErr
 		}
@@ -130,11 +136,11 @@ func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema
 	// Set expires_at (required RFC3339 timestamp)
 	expiresAtRaw, ok := tokenData["expires_at"].(string)
 	if !ok || expiresAtRaw == "" {
-		return fmt.Errorf("registration token expires_at must be a non-empty RFC3339 string (e.g. 2026-01-02T15:04:05Z)")
+		return logging.Errorf(tags, "registration token expires_at must be a non-empty RFC3339 string (e.g. 2026-01-02T15:04:05Z)")
 	}
 	formattedExpiresAt, err := FormatExpiresAt(expiresAtRaw)
 	if err != nil {
-		return fmt.Errorf("registration token expires_at %q is not valid RFC3339 (e.g. 2026-01-02T15:04:05Z): %w", expiresAtRaw, err)
+		return logging.Wrapf(err, tags, "registration token expires_at %q is not valid RFC3339", expiresAtRaw)
 	}
 	r.ExpiresAt = formattedExpiresAt
 
@@ -145,46 +151,51 @@ func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema
 		r.GenerateEmbeddedImg = false // Default value
 	}
 
+	logging.Info(ctx, "registration token request validation succeeded", tags, map[string]any{"name": r.Name})
 	return nil
 }
 
 // CreateRegistrationToken creates a new registration token
 func (r *RegistrationTokenWriteRequest) CreateRegistrationToken(ctx context.Context, client *EaaClient) (*RegistrationToken, error) {
 	// Create the registration token via API
-	body, err := r.createTokenViaAPI(client)
+	body, err := r.createTokenViaAPI(ctx, client)
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse and find the created token
-	return r.parseAndFindToken(client, body)
+	return r.parseAndFindToken(ctx, body)
 }
 
 // createTokenViaAPI handles the API call to create the registration token
-func (r *RegistrationTokenWriteRequest) createTokenViaAPI(client *EaaClient) ([]byte, error) {
+func (r *RegistrationTokenWriteRequest) createTokenViaAPI(ctx context.Context, client *EaaClient) ([]byte, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagCreate}
+	logging.Info(ctx, "create registration token starting", tags, map[string]any{"name": r.Name})
+
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_URL)
 
 	// Make the API call using SendAPIRequest
-	resp, err := client.SendAPIRequest(apiURL, http.MethodPost, r, nil, false)
+	resp, err := client.SendAPIRequest(ctx, apiURL, http.MethodPost, r, nil, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create registration token: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to create registration token")
 	}
 
-	client.Logger.Info("Response status", "status_code", resp.StatusCode)
+	logging.Trace(ctx, "create registration token response", tags, map[string]any{"status_code": resp.StatusCode})
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		errorDetail := FormatErrorDescription(resp)
-		return nil, fmt.Errorf("failed to create registration token: %s", errorDetail)
+		return nil, logging.Errorf(tags, "failed to create registration token: %s", errorDetail)
 	}
 
 	// The create API does not return the token in the response body, so we fetch it from the token list.
-	client.Logger.Info("=== CREATE OPERATION COMPLETE - FETCHING TOKENS ===")
-	return r.fetchTokensFromList(client)
+	logging.Info(ctx, "create operation complete, fetching tokens", tags)
+	return r.fetchTokensFromList(ctx, client)
 }
 
 // fetchTokensFromList fetches the created token by listing all tokens for the connector pool.
-func (r *RegistrationTokenWriteRequest) fetchTokensFromList(client *EaaClient) ([]byte, error) {
-	client.Logger.Info("=== FETCHING CREATED TOKEN FROM LIST ===")
+func (r *RegistrationTokenWriteRequest) fetchTokensFromList(ctx context.Context, client *EaaClient) ([]byte, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagList}
+	logging.Debug(ctx, "fetching created token from list", tags)
 
 	// Add a small delay to ensure the token is fully created
 	time.Sleep(100 * time.Millisecond)
@@ -193,75 +204,63 @@ func (r *RegistrationTokenWriteRequest) fetchTokensFromList(client *EaaClient) (
 	listURL := fmt.Sprintf("%s://%s/%s?connector_pool_id=%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_GET_URL, r.ConnectorPool)
 
 	var response RegistrationTokenResponse
-	resp, err := client.SendAPIRequest(listURL, http.MethodGet, nil, &response, false)
+	resp, err := client.SendAPIRequest(ctx, listURL, http.MethodGet, nil, &response, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch registration tokens: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to fetch registration tokens")
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		errorDetail := FormatErrorDescription(resp)
-		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
+		return nil, logging.Errorf(tags, "failed to fetch registration tokens: %s", errorDetail)
 	}
 
-	// Convert the parsed response back to JSON for logging
+	// Convert the parsed response back to JSON
 	body, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to marshal response")
 	}
 
-	client.Logger.Info("=== FETCHED TOKENS RESPONSE ===")
-	client.Logger.Info("Response Status", "status_code", resp.StatusCode)
-	client.Logger.Info("Response Body", "body", string(body))
-	client.Logger.Info("=== END FETCHED TOKENS ===")
+	logging.Trace(ctx, "fetched tokens response", tags, map[string]any{"status_code": resp.StatusCode, "body_length": len(body)})
 
 	return body, nil
 }
 
 // parseAndFindToken parses the response and finds the created token
-func (r *RegistrationTokenWriteRequest) parseAndFindToken(client *EaaClient, body []byte) (*RegistrationToken, error) {
+func (r *RegistrationTokenWriteRequest) parseAndFindToken(ctx context.Context, body []byte) (*RegistrationToken, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
+
 	// Parse the response as list format (API always returns list)
 	var listResponse RegistrationTokenResponse
 	if err := json.Unmarshal(body, &listResponse); err != nil {
-		client.Logger.Error("Failed to parse as list format", "error", err)
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to parse response")
 	}
 
-	client.Logger.Info("=== PARSED AS LIST FORMAT ===")
-	client.Logger.Info("Total tokens in response", "count", len(listResponse.Objects))
-	for i := range listResponse.Objects {
-		token := &listResponse.Objects[i]
-		client.Logger.Info("Token info", "index", i+1, "name", token.Name, "uuid", token.UUIDURL, "connector_pool", token.ConnectorPool)
-	}
-	client.Logger.Info("=== END LIST FORMAT ===")
+	logging.Trace(ctx, "parsed token list", tags, map[string]any{"count": len(listResponse.Objects)})
 
 	if len(listResponse.Objects) == 0 {
-		return nil, fmt.Errorf("no registration token returned from API")
+		return nil, logging.Errorf(tags, "no registration token returned from API")
 	}
 
 	// Find exact matches first
-	exactMatches := r.findExactMatches(listResponse.Objects, client)
+	exactMatches := r.findExactMatches(ctx, listResponse.Objects)
 	if len(exactMatches) > 0 {
-		client.Logger.Info("=== EXACT MATCHES ===")
-		client.Logger.Info("Total exact matches found", "count", len(exactMatches))
-		for i, token := range exactMatches {
-			client.Logger.Info("Exact match", "index", i+1, "name", token.Name, "uuid", token.UUIDURL)
-		}
-		client.Logger.Info("=== END EXACT MATCHES ===")
+		logging.Debug(ctx, "found exact match for registration token", tags, map[string]any{"count": len(exactMatches), "uuid": exactMatches[0].UUIDURL})
 		return exactMatches[0], nil
 	}
 
 	// If no exact matches, look for name match
-	return r.findTokenByName(listResponse.Objects, client)
+	return r.findTokenByName(ctx, listResponse.Objects)
 }
 
 // findExactMatches finds tokens that exactly match our request
-func (r *RegistrationTokenWriteRequest) findExactMatches(tokens []RegistrationToken, client *EaaClient) []*RegistrationToken {
+func (r *RegistrationTokenWriteRequest) findExactMatches(ctx context.Context, tokens []RegistrationToken) []*RegistrationToken {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	var exactMatches []*RegistrationToken
 
 	normalizeExpiresAt := func(expiresAt string) string {
 		normalized, err := FormatExpiresAt(expiresAt)
 		if err != nil {
-			client.Logger.Warn("Could not normalize", "expires_at", expiresAt, "error", err)
+			logging.Warn(ctx, "could not normalize expires_at", tags, map[string]any{"expires_at": expiresAt, "error": err.Error()})
 			return expiresAt
 		}
 		return normalized
@@ -288,173 +287,133 @@ func (r *RegistrationTokenWriteRequest) findExactMatches(tokens []RegistrationTo
 }
 
 // findTokenByName finds a token by name when no exact matches are found
-func (r *RegistrationTokenWriteRequest) findTokenByName(tokens []RegistrationToken, client *EaaClient) (*RegistrationToken, error) {
-	client.Logger.Info("=== NO EXACT MATCHES - LOOKING FOR NAME MATCH ===")
+func (r *RegistrationTokenWriteRequest) findTokenByName(ctx context.Context, tokens []RegistrationToken) (*RegistrationToken, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
+	logging.Debug(ctx, "no exact matches, looking for name match", tags, map[string]any{"name": r.Name})
 
 	for i := range tokens {
 		token := &tokens[i]
 		if token.Name == r.Name {
-			client.Logger.Info("Found token with matching name", "name", token.Name, "uuid", token.UUIDURL)
+			logging.Debug(ctx, "found token with matching name", tags, map[string]any{"name": token.Name, "uuid": token.UUIDURL})
 			return token, nil
 		}
 	}
 
-	client.Logger.Error("=== NO TOKEN FOUND WITH MATCHING NAME ===")
-	return nil, fmt.Errorf("no registration token found with matching name: %s", r.Name)
+	return nil, logging.Errorf(tags, "no registration token found with matching name: %s", r.Name)
 }
 
 // GetRegistrationTokens retrieves all registration tokens for a connector pool
-func (client *EaaClient) GetRegistrationTokens(connectorPool string) ([]RegistrationToken, error) {
+func (client *EaaClient) GetRegistrationTokens(ctx context.Context, connectorPool string) ([]RegistrationToken, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagList}
+	logging.Info(ctx, "get all registration tokens starting", tags, map[string]any{"connector_pool": connectorPool})
+
 	listURL := fmt.Sprintf("%s://%s/%s?connector_pool_id=%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_GET_URL, connectorPool)
 
-	client.Logger.Info("=== GET ALL REGISTRATION TOKENS ===")
-	client.Logger.Info("Connector Pool UUID", "uuid", connectorPool)
-	client.Logger.Info("API URL", "url", listURL)
-
 	var response RegistrationTokenResponse
-	resp, err := client.SendAPIRequest(listURL, http.MethodGet, nil, &response, false)
+	resp, err := client.SendAPIRequest(ctx, listURL, http.MethodGet, nil, &response, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch registration tokens: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to fetch registration tokens")
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		errorDetail := FormatErrorDescription(resp)
-		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
+		return nil, logging.Errorf(tags, "failed to fetch registration tokens: %s", errorDetail)
 	}
 
-	// Convert the parsed response back to JSON for logging
-	body, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	client.Logger.Info("=== COMPLETE GET ALL TOKENS API RESPONSE ===")
-	client.Logger.Info("Response Status", "status_code", resp.StatusCode)
-	client.Logger.Info("Response Body", "body", string(body))
-	client.Logger.Info("=== END GET ALL TOKENS API RESPONSE ===")
+	logging.Trace(ctx, "get all registration tokens response", tags, map[string]any{"status_code": resp.StatusCode, "count": len(response.Objects)})
 
 	return response.Objects, nil
 }
 
 // GetRegistrationTokenByUUID retrieves a registration token by UUID
-func (client *EaaClient) GetRegistrationTokenByUUID(uuidURL, connectorPool string) (*RegistrationToken, error) {
+func (client *EaaClient) GetRegistrationTokenByUUID(ctx context.Context, uuidURL, connectorPool string) (*RegistrationToken, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
+	logging.Info(ctx, "get registration token by UUID starting", tags, map[string]any{"uuid": uuidURL, "connector_pool": connectorPool})
+
 	listURL := fmt.Sprintf("%s://%s/%s?connector_pool_id=%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_GET_URL, connectorPool)
 
-	client.Logger.Info("=== GET REGISTRATION TOKENS BY CONNECTOR POOL ===")
-	client.Logger.Info("Connector Pool UUID", "uuid", connectorPool)
-	client.Logger.Info("Looking for Token UUID", "uuid", uuidURL)
-	client.Logger.Info("API URL", "url", listURL)
-
 	var response RegistrationTokenResponse
-	resp, err := client.SendAPIRequest(listURL, http.MethodGet, nil, &response, false)
+	resp, err := client.SendAPIRequest(ctx, listURL, http.MethodGet, nil, &response, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch registration tokens: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to fetch registration tokens")
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		errorDetail := FormatErrorDescription(resp)
-		return nil, fmt.Errorf("failed to fetch registration tokens: %s", errorDetail)
+		return nil, logging.Errorf(tags, "failed to fetch registration tokens: %s", errorDetail)
 	}
 
-	// Convert the parsed response back to JSON for logging
-	body, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	client.Logger.Info("=== COMPLETE GET API RESPONSE ===")
-	client.Logger.Info("Response Status", "status_code", resp.StatusCode)
-	client.Logger.Info("Response Body", "body", string(body))
-	client.Logger.Info("=== END RESPONSE ===")
-
-	client.Logger.Info("=== SEARCHING FOR TOKEN ===")
-	client.Logger.Info("Total tokens found", "count", len(response.Objects))
+	logging.Trace(ctx, "get registration tokens response", tags, map[string]any{"status_code": resp.StatusCode, "count": len(response.Objects)})
 
 	// Find the token by UUID
 	for i := range response.Objects {
 		token := &response.Objects[i]
-		client.Logger.Info("Token info", "index", i+1, "uuid", token.UUIDURL, "name", token.Name)
 		if token.UUIDURL == uuidURL {
-			client.Logger.Info("=== FOUND MATCHING TOKEN ===")
-			client.Logger.Info("Token UUID", "uuid", token.UUIDURL)
-			client.Logger.Info("Token Name", "name", token.Name)
-			client.Logger.Debug("Token Value", "token", token.Token)
-			client.Logger.Info("=== END MATCHING TOKEN ===")
+			logging.Debug(ctx, "found matching registration token", tags, map[string]any{"uuid": token.UUIDURL, "name": token.Name})
 			return token, nil
 		}
 	}
 
-	client.Logger.Error("=== TOKEN NOT FOUND ===")
-	client.Logger.Error("Searched for UUID", "uuid", uuidURL)
-	client.Logger.Error("In connector pool", "uuid", connectorPool)
-	client.Logger.Error("Available tokens")
-	for i := range response.Objects {
-		token := &response.Objects[i]
-		client.Logger.Error("Available token", "index", i+1, "uuid", token.UUIDURL, "name", token.Name)
-	}
-	client.Logger.Error("=== END TOKEN NOT FOUND ===")
-
-	return nil, fmt.Errorf("registration token with UUID %s not found in connector pool %s", uuidURL, connectorPool)
+	return nil, logging.Errorf(tags, "registration token with UUID %s not found in connector pool %s", uuidURL, connectorPool)
 }
 
 // DeleteRegistrationTokenByUUID deletes a registration token by its UUID
 func DeleteRegistrationTokenByUUID(ctx context.Context, client *EaaClient, tokenUUID string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagDelete}
+	logging.Info(ctx, "delete registration token starting", tags, map[string]any{"uuid": tokenUUID})
+
 	// Construct the URL for deleting the specific token
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_URL, tokenUUID)
 
-	client.Logger.Info("=== DELETE REGISTRATION TOKEN ===")
-	client.Logger.Info("Token UUID", "uuid", tokenUUID)
-	client.Logger.Info("API URL", "url", apiURL)
-
 	// Make the DELETE request
-	resp, err := client.SendAPIRequest(apiURL, http.MethodDelete, nil, nil, false)
+	resp, err := client.SendAPIRequest(ctx, apiURL, http.MethodDelete, nil, nil, false)
 	if err != nil {
-		return fmt.Errorf("failed to delete registration token: %w", err)
+		return logging.Wrapf(err, tags, "failed to delete registration token")
 	}
-
-	client.Logger.Info("Delete response status", "status_code", resp.StatusCode)
 
 	// Check if the deletion was successful
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		errorDetail := FormatErrorDescription(resp)
-		return fmt.Errorf("failed to delete registration token: %s", errorDetail)
+		return logging.Errorf(tags, "failed to delete registration token: %s", errorDetail)
 	}
 
-	client.Logger.Info("=== SUCCESSFULLY DELETED REGISTRATION TOKEN ===")
+	logging.Info(ctx, "delete registration token succeeded", tags, map[string]any{"uuid": tokenUUID})
 	return nil
 }
 
 // UpdateRegistrationToken updates an existing registration token via PUT
 func UpdateRegistrationToken(ctx context.Context, client *EaaClient, tokenUUID string, req *RegistrationTokenWriteRequest) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagUpdate}
+
 	if tokenUUID == "" {
-		return fmt.Errorf("tokenUUID cannot be empty when updating a registration token")
+		return logging.Errorf(tags, "tokenUUID cannot be empty when updating a registration token")
 	}
 	if err := req.Validate(); err != nil {
-		return fmt.Errorf("invalid update registration token request: %w", err)
+		return logging.Wrapf(err, tags, "invalid update registration token request")
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, client.Host, REGISTRATION_TOKEN_URL, tokenUUID)
 
-	client.Logger.Info("=== UPDATE REGISTRATION TOKEN ===")
-	client.Logger.Info("Token UUID", "uuid", tokenUUID)
-	client.Logger.Info("API URL", "url", apiURL)
+	logging.Info(ctx, "update registration token starting", tags, map[string]any{"uuid": tokenUUID})
 
-	resp, err := client.SendAPIRequest(apiURL, http.MethodPut, req, nil, false)
+	resp, err := client.SendAPIRequest(ctx, apiURL, http.MethodPut, req, nil, false)
 	if err != nil {
-		return fmt.Errorf("failed to update registration token: %w", err)
+		return logging.Wrapf(err, tags, "failed to update registration token")
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		errorDetail := FormatErrorDescription(resp)
-		return fmt.Errorf("failed to update registration token: %s", errorDetail)
+		return logging.Errorf(tags, "failed to update registration token: %s", errorDetail)
 	}
 
-	client.Logger.Info("=== SUCCESSFULLY UPDATED REGISTRATION TOKEN ===")
+	logging.Info(ctx, "update registration token succeeded", tags, map[string]any{"uuid": tokenUUID})
 	return nil
 }
 
 // CreateRegistrationTokensFromSchema creates registration tokens for a connector pool from Terraform schema
 func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceData, eaaclient *EaaClient, poolUUID string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagCreate}
+
 	tokens, ok := d.GetOk("registration_tokens")
 	if !ok {
 		return nil
@@ -462,37 +421,37 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 
 	tokensList, ok := tokens.([]interface{})
 	if !ok {
-		return fmt.Errorf("registration_tokens must be a list, got %T", tokens)
+		return logging.Errorf(tags, "registration_tokens must be a list, got %T", tokens)
 	}
 	for _, tokenInterface := range tokensList {
 		tokenData, ok := tokenInterface.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("registration token must be an object, got %T", tokenInterface)
+			return logging.Errorf(tags, "registration token must be an object, got %T", tokenInterface)
 		}
 
 		// Validate max_use and expires_at fields
-		maxUse, err := ValidateIntegerField(tokenData["max_use"], "max_use", 1, 1000, eaaclient)
+		maxUse, err := ValidateIntegerField(tokenData["max_use"], "max_use", 1, 1000, ctx)
 		if err != nil {
 			return err
 		}
 
 		expiresAtRaw, ok := tokenData["expires_at"].(string)
 		if !ok || expiresAtRaw == "" {
-			return fmt.Errorf("registration token expires_at must be a non-empty RFC3339 string (e.g. 2026-01-02T15:04:05Z)")
+			return logging.Errorf(tags, "registration token expires_at must be a non-empty RFC3339 string (e.g. 2026-01-02T15:04:05Z)")
 		}
 		formattedExpiresAt, err := FormatExpiresAt(expiresAtRaw)
 		if err != nil {
-			return fmt.Errorf("registration token expires_at %q is not valid RFC3339 (e.g. 2026-01-02T15:04:05Z): %w", expiresAtRaw, err)
+			return logging.Wrapf(err, tags, "registration token expires_at %q is not valid RFC3339", expiresAtRaw)
 		}
 
 		tokenName, ok := tokenData["name"].(string)
 		if !ok || tokenName == "" {
-			return fmt.Errorf("registration token name must be a non-empty string")
+			return logging.Errorf(tags, "registration token name must be a non-empty string")
 		}
 
 		generateEmbeddedImg, ok := tokenData["generate_embedded_img"].(bool)
 		if !ok {
-			return fmt.Errorf("registration token generate_embedded_img must be a bool")
+			return logging.Errorf(tags, "registration token generate_embedded_img must be a bool")
 		}
 
 		createTokenRequest := RegistrationTokenWriteRequest{
@@ -505,8 +464,7 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 
 		_, err3 := createTokenRequest.CreateRegistrationToken(ctx, eaaclient)
 		if err3 != nil {
-			eaaclient.Logger.Error("Failed to create registration token:", err3)
-			return fmt.Errorf("failed to create registration token: %w", err3)
+			return logging.Wrapf(err3, tags, "failed to create registration token %q", tokenName)
 		}
 	}
 

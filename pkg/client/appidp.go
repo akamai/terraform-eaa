@@ -1,8 +1,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type AppIdp struct {
@@ -11,26 +14,26 @@ type AppIdp struct {
 }
 
 // AssignIDP method handles the assignment of an IDP to an application.
-func (ai *AppIdp) AssignIDP(ec *EaaClient) error {
-	ec.Logger.Info("assigning IDP to application")
+func (ai *AppIdp) AssignIDP(ctx context.Context, ec *EaaClient) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagAssign}
+	logging.Info(ctx, "assigning IDP to application", tags)
+
 	if ai.App == "" || ai.IDP == "" {
-		errMsg := fmt.Errorf("%w: app or idp is empty", ErrAssignIdpFailure)
-		ec.Logger.Error("assigning IDP to Application failed. app or idp is empty")
-		return errMsg
+		logging.Warn(ctx, "assigning IDP to Application failed: app or idp is empty", tags)
+		return logging.Errorf(tags, "assigning IDP to application failed: app or idp is empty")
 	}
 	apiURL := fmt.Sprintf("%s://%s/%s/appidp", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
-	appIdpResp, err := ec.SendAPIRequest(apiURL, "POST", ai, nil, false)
+	appIdpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", ai, nil, false)
 	if err != nil {
-		ec.Logger.Error("assign IDP to Application failed", "error", err)
+		logging.Warn(ctx, "assign IDP to Application failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
-		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
-		ec.Logger.Error("assigning IDP to Application failed", "status", appIdpResp.StatusCode)
-		return appIdpErrMsg
+		logging.Warn(ctx, "assigning IDP to Application failed", tags, map[string]any{"status": appIdpResp.StatusCode})
+		return logging.Errorf(tags, "assigning IDP to application failed: %s", desc)
 	}
 	return nil
 }
@@ -40,29 +43,29 @@ type UnAssignIDPRequest struct {
 }
 
 // UnAssignIDP method handles the unassignment of an IDP to an application.
-func (ai *AppIdp) UnAssignIDP(ec *EaaClient) error {
-	ec.Logger.Info("unassigning IDP from application")
+func (ai *AppIdp) UnAssignIDP(ctx context.Context, ec *EaaClient) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagAssign}
+	logging.Info(ctx, "unassigning IDP from application", tags)
+
 	if ai.App == "" || ai.IDP == "" {
-		errMsg := fmt.Errorf("%w: app or idp is empty", ErrAssignIdpFailure)
-		ec.Logger.Error("unassigning IDP from Application failed. app or idp is empty")
-		return errMsg
+		logging.Warn(ctx, "unassigning IDP from Application failed: app or idp is empty", tags)
+		return logging.Errorf(tags, "unassigning IDP from application failed: app or idp is empty")
 	}
 	var unassignIdp UnAssignIDPRequest
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appidp?method=DELETE", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	unassignIdp.IDP = append(unassignIdp.IDP, ai.IDP)
 
-	appIdpResp, err := ec.SendAPIRequest(apiURL, "POST", unassignIdp, nil, false)
+	appIdpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", unassignIdp, nil, false)
 	if err != nil {
-		ec.Logger.Error("unassign IDP from Application failed", "error", err)
+		logging.Warn(ctx, "unassign IDP from Application failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
-		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAssignIdpFailure, desc)
-		ec.Logger.Error("unassigning IDP from Application failed", "status", appIdpResp.StatusCode)
-		return appIdpErrMsg
+		logging.Warn(ctx, "unassigning IDP from Application failed", tags, map[string]any{"status": appIdpResp.StatusCode})
+		return logging.Errorf(tags, "unassigning IDP from application failed: %s", desc)
 	}
 	return nil
 }

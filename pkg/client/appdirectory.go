@@ -2,9 +2,10 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type GroupData struct {
@@ -31,11 +32,12 @@ type AppGroup struct {
 
 // AssignIdpDirectory method assigns an IDP directory to an application.
 func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClient) error {
-	ec.Logger.Info("assign IDP directory")
+	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagAssign}
+	logging.Info(ctx, "assign IDP directory", tags)
+
 	if dirData.APP_ID == "" || dirData.UUID == "" {
-		assignErrMsg := fmt.Errorf("%w: app or dir is empty", ErrAssignDirectoryFailure)
-		ec.Logger.Error("assign directories to application failed. app or dir is empty")
-		return assignErrMsg
+		logging.Warn(ctx, "assign directories to application failed: app or dir is empty", tags)
+		return logging.Errorf(tags, "assigning directory to the app failed: app or dir is empty")
 	}
 	var directories []map[string]interface{}
 
@@ -57,38 +59,40 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appdirectories", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
-	appDirResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
+	appDirResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign directories to application failed", "error", err)
+		logging.Warn(ctx, "assign directories to application failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if appDirResp.StatusCode < http.StatusOK || appDirResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appDirResp)
-		assignDirErrMsg := fmt.Errorf("%w: %s", ErrAssignDirectoryFailure, desc)
-		ec.Logger.Error("assign directories to application failed", "status", appDirResp.StatusCode)
-		return assignDirErrMsg
+		logging.Warn(ctx, "assign directories to application failed", tags, map[string]any{"status": appDirResp.StatusCode})
+		return logging.Errorf(tags, "assigning directory to the app failed: %s", desc)
 	}
 	return nil
 }
 
 // GetIdpDirectoryGroup method searches for an IDP group within a directory
 func (dirData *DirectoryData) GetIdpDirectoryGroup(ctx context.Context, ec *EaaClient, groupName string) (*GroupData, error) {
-	ec.Logger.Info("get IDP Group ")
+	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagRead}
+	logging.Info(ctx, "get IDP Group", tags)
+
 	for _, group := range dirData.Groups {
 		if groupName == group.Name {
-			ec.Logger.Info("group found", "name", group.Name)
+			logging.Info(ctx, "group found", tags, map[string]any{"name": group.Name})
 			return &group, nil
 		}
 	}
 
-	return nil, errors.New("group with name not found")
+	return nil, logging.Errorf(tags, "group with name not found")
 }
 
 // AssignIdpDirectoryGroups assigns IDP directory groups to an application
 func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *EaaClient, appUUIDURL string, appGroupsList []interface{}) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagAssign}
 	var groups []map[string]interface{}
 
 	for _, s := range appGroupsList {
@@ -132,25 +136,25 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appgroups", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
-	appGroupResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
+	appGroupResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign groups to application failed", "error", err)
+		logging.Warn(ctx, "assign groups to application failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appGroupResp)
-		assignGrpErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
-		ec.Logger.Error("assign groups to application failed", "status", appGroupResp.StatusCode)
-		return assignGrpErrMsg
+		logging.Warn(ctx, "assign groups to application failed", tags, map[string]any{"status": appGroupResp.StatusCode})
+		return logging.Errorf(tags, "assigning groups to the app failed: %s", desc)
 	}
 	return nil
 }
 
 // AssignAllDirectoryGroups assigns all directory groups to an application with an "inherit" enable_mfa value
 func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *EaaClient, appUUIDURL string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagAssign}
 	var groups []map[string]interface{}
 
 	for _, grp := range dirData.Groups {
@@ -175,19 +179,18 @@ func (dirData *DirectoryData) AssignAllDirectoryGroups(ctx context.Context, ec *
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/appgroups", URL_SCHEME, ec.Host, MGMT_POP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
-	appGroupResp, err := ec.SendAPIRequest(apiURL, "POST", result, nil, false)
+	appGroupResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", result, nil, false)
 
 	if err != nil {
-		ec.Logger.Error("assign directory groups to application failed", "error", err)
+		logging.Warn(ctx, "assign directory groups to application failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if appGroupResp.StatusCode < http.StatusOK || appGroupResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appGroupResp)
-		appGroupErrMsg := fmt.Errorf("%w: %s", ErrAssignGroupFailure, desc)
-		ec.Logger.Error("assign directory groups to application failed", "status", appGroupResp.StatusCode)
-		return appGroupErrMsg
+		logging.Warn(ctx, "assign directory groups to application failed", tags, map[string]any{"status": appGroupResp.StatusCode})
+		return logging.Errorf(tags, "assigning groups to the app failed: %s", desc)
 	}
 	return nil
 }

@@ -4,23 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 // ValidateCustomHeadersConfiguration validates custom headers configuration.
-func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType string, logger hclog.Logger) error {
+func ValidateCustomHeadersConfiguration(ctx context.Context, settings map[string]interface{}, appType string) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+
 	// Check if custom headers are present
 	if customHeaders, exists := settings["custom_headers"]; exists {
-		logger.Debug("validating custom headers", "app_type", appType)
+		logging.Debug(ctx, "validating custom headers", tags, map[string]any{"app_type": appType})
 
 		// STEP 1: Validate app type restrictions based on Table 4: Application Types and Custom HTTP Headers Support
 		if appType != "" {
 			switch appType {
 			case string(ClientAppTypeEnterprise):
 				// Custom headers are available for Enterprise apps (Advanced Settings)
-				logger.Debug("custom headers allowed for app type", "app_type", appType)
-				logger.Debug("Continuing with structure validation for enterprise app")
+				logging.Debug(ctx, "custom headers allowed for app type", tags, map[string]any{"app_type": appType})
+				logging.Debug(ctx, "continuing with structure validation for enterprise app", tags)
 			case string(ClientAppTypeSaaS), string(ClientAppTypeBookmark):
 				// Custom headers are disabled for SaaS and Bookmark apps
 				// Since advanced_settings are blocked for these app types, custom headers are not available
@@ -35,17 +37,17 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 		} else {
 			// When appType is empty (schema validation), we cannot validate app type restrictions
 			// but we can still validate the custom headers structure
-			logger.Debug("App type not provided, skipping app type validation but continuing with custom headers structure validation")
+			logging.Debug(ctx, "app type not provided, skipping app type validation but continuing with custom headers structure validation", tags)
 			// During schema validation, we'll be more lenient and only validate the structure
 			// The app type validation will happen during runtime validation (terraform apply)
 		}
 
-		logger.Debug("App type validation completed, proceeding to structure validation")
+		logging.Debug(ctx, "app type validation completed, proceeding to structure validation", tags)
 
 		// STEP 2: Sanitize and validate custom headers structure
-		logger.Debug("About to validate custom headers structure")
+		logging.Debug(ctx, "about to validate custom headers structure", tags)
 		if headersList, ok := customHeaders.([]interface{}); ok {
-			logger.Debug("custom headers array", "count", len(headersList))
+			logging.Debug(ctx, "custom headers array", tags, map[string]any{"count": len(headersList)})
 			// Filter out empty headers (Table 8: Empty Headers validation)
 			sanitizedHeaders := []interface{}{}
 			for _, header := range headersList {
@@ -72,11 +74,11 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 				if !isEmpty {
 					sanitizedHeaders = append(sanitizedHeaders, header)
 				} else {
-					logger.Debug("sanitized empty custom header", "header", headerMap)
+					logging.Debug(ctx, "sanitized empty custom header", tags, map[string]any{"header": headerMap})
 				}
 			}
 
-			logger.Debug("sanitized custom headers", "original_count", len(headersList), "sanitized_count", len(sanitizedHeaders))
+			logging.Debug(ctx, "sanitized custom headers", tags, map[string]any{"original_count": len(headersList), "sanitized_count": len(sanitizedHeaders)})
 
 			// Validate each non-empty custom header
 			for i, header := range sanitizedHeaders {
@@ -84,7 +86,7 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 				if !ok {
 					return ErrCustomHeaderNotObject
 				}
-				if err := validateCustomHeader(headerMap, i, logger); err != nil {
+				if err := validateCustomHeader(ctx, headerMap, i); err != nil {
 					return ErrCustomHeaderValidation
 				}
 			}
@@ -97,8 +99,9 @@ func ValidateCustomHeadersConfiguration(settings map[string]interface{}, appType
 }
 
 // validateCustomHeader validates a single custom header object based on Table 2-11 specifications
-func validateCustomHeader(header map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("validating custom header", "index", index, "header", header)
+func validateCustomHeader(ctx context.Context, header map[string]interface{}, index int) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validating custom header", tags, map[string]any{"index": index, "header": header})
 
 	// STEP 1: Sanitize empty headers (Table 8: Empty Headers validation)
 	// Remove headers with empty header and attribute_type
@@ -110,7 +113,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 		attributeTypeStr, attributeTypeOk := attributeTypeValue.(string)
 
 		if headerOk && attributeTypeOk && headerStr == "" && attributeTypeStr == "" {
-			logger.Debug("skipping empty header", "index", index)
+			logging.Debug(ctx, "skipping empty header", tags, map[string]any{"index": index})
 			return nil // Skip validation for empty headers
 		}
 	}
@@ -171,10 +174,10 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 				return ErrCustomHeaderAttributeEmpty
 			}
 
-			logger.Debug("custom header validated", "index", index, "attribute_type", attributeTypeStr, "attribute", attributeStr)
+			logging.Debug(ctx, "custom header validated", tags, map[string]any{"index": index, "attribute_type": attributeTypeStr, "attribute": attributeStr})
 		} else if attributeTypeStr == string(CustomHeaderAttributeTypeUser) || attributeTypeStr == string(CustomHeaderAttributeTypeGroup) || attributeTypeStr == string(CustomHeaderAttributeTypeClientIP) {
 			// For user, group, clientip - attribute is not required (dropdown selection)
-			logger.Debug("custom header validated", "index", index, "attribute_type", attributeTypeStr)
+			logging.Debug(ctx, "custom header validated", tags, map[string]any{"index": index, "attribute_type": attributeTypeStr})
 		}
 	} else {
 		// If attribute_type is not provided, attribute should also not be provided
@@ -190,7 +193,7 @@ func validateCustomHeader(header map[string]interface{}, index int, logger hclog
 		}
 	}
 
-	logger.Debug("custom header validation passed", "index", index)
+	logging.Debug(ctx, "custom header validation passed", tags, map[string]any{"index": index})
 	return nil
 }
 
@@ -204,11 +207,13 @@ type AuthValidationConfig struct {
 
 // isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both
 // the direct flag and app_auth in advanced_settings
-func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, logger hclog.Logger) bool {
+func isAuthProtocolEnabled(ctx context.Context, d *schema.ResourceDiff, config AuthValidationConfig) bool {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+
 	// Check direct flag
 	if flag, ok := d.GetOk(config.FlagKey); ok {
 		if flagBool, ok := flag.(bool); ok && flagBool {
-			logger.Debug("auth protocol enabled via direct flag", "protocol", config.ProtocolName, "flag", config.FlagKey)
+			logging.Debug(ctx, "auth protocol enabled via direct flag", tags, map[string]any{"protocol": config.ProtocolName, "flag": config.FlagKey})
 			return true
 		}
 	}
@@ -219,7 +224,7 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 			if appAuthVal, ok := settingsMap["app_auth"].(string); ok && appAuthVal != "" {
 				for _, validValue := range config.AppAuthValues {
 					if appAuthVal == validValue {
-						logger.Debug("auth protocol enabled via app_auth", "protocol", config.ProtocolName, "app_auth", appAuthVal)
+						logging.Debug(ctx, "auth protocol enabled via app_auth", tags, map[string]any{"protocol": config.ProtocolName, "app_auth": appAuthVal})
 						return true
 					}
 				}
@@ -232,23 +237,25 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 
 // getFirstSettingsBlock retrieves the first block from a settings list in the schema
 // Returns the block map and true if found, or nil and false if not found
-func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
+func getFirstSettingsBlock(ctx context.Context, d *schema.ResourceDiff, settingsKey string) (map[string]interface{}, bool) {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+
 	settings, ok := d.GetOk(settingsKey)
 	if !ok {
-		logger.Debug("settings not found", "settings_key", settingsKey)
+		logging.Debug(ctx, "settings not found", tags, map[string]any{"settings_key": settingsKey})
 		return nil, false
 	}
 
 	settingsList, ok := settings.([]interface{})
 	if !ok || len(settingsList) == 0 {
-		logger.Debug("settings empty or not a list", "settings_key", settingsKey)
+		logging.Debug(ctx, "settings empty or not a list", tags, map[string]any{"settings_key": settingsKey})
 		return nil, false
 	}
 
 	// Defensively check type of first element
 	firstBlock, ok := settingsList[0].(map[string]interface{})
 	if !ok {
-		logger.Debug("settings first element is not a map", "settings_key", settingsKey)
+		logging.Debug(ctx, "settings first element is not a map", tags, map[string]any{"settings_key": settingsKey})
 		return nil, false
 	}
 
@@ -257,13 +264,15 @@ func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hc
 
 // validateIDPSelfSignedCert validates that sign_cert is provided when self_signed = false
 // This validation is common to both SAML and WSFED
-func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName string, signCertError error, logger hclog.Logger) error {
+func validateIDPSelfSignedCert(ctx context.Context, idpBlock map[string]interface{}, protocolName string, signCertError error) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+
 	if selfSigned, hasSelfSigned := idpBlock["self_signed"]; hasSelfSigned {
 		if selfSignedBool, ok := selfSigned.(bool); ok && !selfSignedBool {
-			logger.Debug("self_signed = false, checking sign_cert")
+			logging.Debug(ctx, "self_signed = false, checking sign_cert", tags)
 			// When self_signed = false, sign_cert is mandatory
 			if signCert, hasSignCert := idpBlock["sign_cert"]; !hasSignCert || signCert == "" {
-				logger.Debug("sign_cert missing or empty", "has_sign_cert", hasSignCert, "sign_cert", signCert)
+				logging.Debug(ctx, "sign_cert missing or empty", tags, map[string]any{"has_sign_cert": hasSignCert, "sign_cert": signCert})
 				return signCertError
 			}
 		}
@@ -272,8 +281,9 @@ func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName str
 }
 
 // ValidateWSFEDNestedBlocks validates WSFED nested blocks configuration.
-func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
-	logger.Debug("validateWSFEDNestedBlocks called")
+func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validateWSFEDNestedBlocks called", tags)
 
 	config := AuthValidationConfig{
 		FlagKey:       "wsfed",
@@ -282,14 +292,14 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 		ProtocolName:  "WSFED",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
-		logger.Debug("WSFED not enabled, skipping validation")
+	if !isAuthProtocolEnabled(ctx, d, config) {
+		logging.Debug(ctx, "WSFED not enabled, skipping validation", tags)
 		return nil
 	}
 
-	logger.Debug("WSFED is enabled, validating nested blocks")
+	logging.Debug(ctx, "WSFED is enabled, validating nested blocks", tags)
 
-	wsfedBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	wsfedBlock, ok := getFirstSettingsBlock(ctx, d, config.SettingsKey)
 	if !ok {
 		return nil
 	}
@@ -297,19 +307,20 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 	// Check IDP block for self_signed validation
 	if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
 		if idpBlock, ok := idpBlocks[0].(map[string]interface{}); ok {
-			if err := validateIDPSelfSignedCert(idpBlock, config.ProtocolName, ErrWSFEDSignCertRequired, logger); err != nil {
+			if err := validateIDPSelfSignedCert(ctx, idpBlock, config.ProtocolName, ErrWSFEDSignCertRequired); err != nil {
 				return err
 			}
 		}
 	}
 
-	logger.Info("WSFED nested blocks validation passed")
+	logging.Info(ctx, "WSFED nested blocks validation passed", tags)
 	return nil
 }
 
 // ValidateSAMLNestedBlocks validates SAML nested blocks configuration.
-func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
-	logger.Debug("validateSAMLNestedBlocks called")
+func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validateSAMLNestedBlocks called", tags)
 
 	config := AuthValidationConfig{
 		FlagKey:       "saml",
@@ -318,14 +329,14 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 		ProtocolName:  "SAML",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
-		logger.Debug("SAML not enabled, skipping validation")
+	if !isAuthProtocolEnabled(ctx, d, config) {
+		logging.Debug(ctx, "SAML not enabled, skipping validation", tags)
 		return nil
 	}
 
-	logger.Debug("SAML is enabled, validating nested blocks")
+	logging.Debug(ctx, "SAML is enabled, validating nested blocks", tags)
 
-	samlBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	samlBlock, ok := getFirstSettingsBlock(ctx, d, config.SettingsKey)
 	if !ok {
 		return nil
 	}
@@ -333,7 +344,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 	// Check IDP block for self_signed validation
 	if idpBlocks, ok := samlBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
 		if idpBlock, ok := idpBlocks[0].(map[string]interface{}); ok {
-			if err := validateIDPSelfSignedCert(idpBlock, config.ProtocolName, ErrSAMLSignCertRequired, logger); err != nil {
+			if err := validateIDPSelfSignedCert(ctx, idpBlock, config.ProtocolName, ErrSAMLSignCertRequired); err != nil {
 				return err
 			}
 		}
@@ -341,7 +352,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 	// Validate attrmap for unique attribute names
 	if attrmapBlocks, ok := samlBlock["attrmap"].([]interface{}); ok && len(attrmapBlocks) > 0 {
-		logger.Debug("Validating attrmap for unique attribute names")
+		logging.Debug(ctx, "validating attrmap for unique attribute names", tags)
 
 		attributeNames := make(map[string]bool)
 		for i, attrmapBlock := range attrmapBlocks {
@@ -349,24 +360,25 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 				if name, hasName := attrmapMap["name"]; hasName {
 					if nameStr, ok := name.(string); ok && nameStr != "" {
 						if attributeNames[nameStr] {
-							logger.Error("duplicate attribute name in attrmap", "name", nameStr, "index", i)
+							logging.Warn(ctx, "duplicate attribute name in attrmap", tags, map[string]any{"name": nameStr, "index": i})
 							return fmt.Errorf("duplicate attribute name '%s' found in attrmap. Each attribute name must be unique", nameStr)
 						}
 						attributeNames[nameStr] = true
-						logger.Debug("attribute name is unique", "name", nameStr)
+						logging.Debug(ctx, "attribute name is unique", tags, map[string]any{"name": nameStr})
 					}
 				}
 			}
 		}
-		logger.Debug("All attribute names in attrmap are unique")
+		logging.Debug(ctx, "all attribute names in attrmap are unique", tags)
 	}
 
 	return nil
 }
 
 // ValidateOIDCNestedBlocks validates OIDC nested blocks configuration.
-func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
-	logger.Debug("validateOIDCNestedBlocks called")
+func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validateOIDCNestedBlocks called", tags)
 
 	config := AuthValidationConfig{
 		FlagKey:       "oidc",
@@ -375,14 +387,14 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 		ProtocolName:  "OIDC",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
-		logger.Debug("OIDC not enabled, skipping validation")
+	if !isAuthProtocolEnabled(ctx, d, config) {
+		logging.Debug(ctx, "OIDC not enabled, skipping validation", tags)
 		return nil
 	}
 
-	logger.Debug("OIDC is enabled, validating nested blocks")
+	logging.Debug(ctx, "OIDC is enabled, validating nested blocks", tags)
 
-	oidcBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	oidcBlock, ok := getFirstSettingsBlock(ctx, d, config.SettingsKey)
 	if !ok {
 		return nil
 	}
@@ -397,7 +409,7 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 	}
 
 	if !hasContent {
-		logger.Debug("oidc_settings block is empty, skipping validation")
+		logging.Debug(ctx, "oidc_settings block is empty, skipping validation", tags)
 		return nil
 	}
 
@@ -406,7 +418,7 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 		for i, clientData := range oidcClients {
 			if clientMap, ok := clientData.(map[string]interface{}); ok {
-				if err := validateOIDCClientNested(clientMap, i, logger); err != nil {
+				if err := validateOIDCClientNested(ctx, clientMap, i); err != nil {
 					return ErrOIDCClientValidation
 				}
 			} else {
@@ -419,8 +431,9 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 }
 
 // validateOIDCClientNested validates an OIDC client configuration in nested blocks
-func validateOIDCClientNested(clientConfig map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("validating OIDC client", "index", index, "config", clientConfig)
+func validateOIDCClientNested(ctx context.Context, clientConfig map[string]interface{}, index int) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validating OIDC client", tags, map[string]any{"index": index, "config": clientConfig})
 
 	// Validate that response_type is an array if present
 	if responseTypes, exists := clientConfig["response_type"]; exists {
@@ -455,7 +468,7 @@ func validateOIDCClientNested(clientConfig map[string]interface{}, index int, lo
 		if claimsList, ok := claims.([]interface{}); ok {
 			for i, claim := range claimsList {
 				if claimMap, ok := claim.(map[string]interface{}); ok {
-					if err := validateOIDCClaimNested(claimMap, i, logger); err != nil {
+					if err := validateOIDCClaimNested(ctx, claimMap, i); err != nil {
 						return ErrOIDCClaimValidation
 					}
 				} else {
@@ -471,8 +484,9 @@ func validateOIDCClientNested(clientConfig map[string]interface{}, index int, lo
 }
 
 // validateOIDCClaimNested validates an OIDC claim configuration in nested blocks
-func validateOIDCClaimNested(claim map[string]interface{}, index int, logger hclog.Logger) error {
-	logger.Debug("validating OIDC claim", "index", index, "claim", claim)
+func validateOIDCClaimNested(ctx context.Context, claim map[string]interface{}, index int) error {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
+	logging.Debug(ctx, "validating OIDC claim", tags, map[string]any{"index": index, "claim": claim})
 
 	// Only validate that it's a non-empty object
 	if len(claim) == 0 {

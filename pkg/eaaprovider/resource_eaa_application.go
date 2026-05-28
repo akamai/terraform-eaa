@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -933,32 +934,23 @@ func resourceEaaApplication() *schema.Resource {
 
 // customizeDiffApplication is the CustomizeDiff function for the EAA application resource
 func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
-	// Get client logger from meta
-	eaaclient, err := Client(m)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
-	}
-	logger := eaaclient.Logger
-
 	// Validate authentication methods for app type (always run this validation)
 	authErr := validateAuthenticationMethodsForAppTypeWithDiff(d)
 	if authErr != nil {
 		return authErr
 	}
 
-	// Note: SAML validation is handled by validateSAMLSettings in the schema
-
 	// Validate WSFED nested blocks
-	err = client.ValidateWSFEDNestedBlocks(ctx, d, m, logger)
+	err := client.ValidateWSFEDNestedBlocks(ctx, d, m)
 
 	// Validate SAML nested blocks
 	if err == nil {
-		err = client.ValidateSAMLNestedBlocks(ctx, d, m, logger)
+		err = client.ValidateSAMLNestedBlocks(ctx, d, m)
 	}
 
 	// Validate OIDC nested blocks
 	if err == nil {
-		err = client.ValidateOIDCNestedBlocks(ctx, d, m, logger)
+		err = client.ValidateOIDCNestedBlocks(ctx, d, m)
 	}
 
 	return err
@@ -968,14 +960,14 @@ func customizeDiffApplication(ctx context.Context, d *schema.ResourceDiff, m int
 // Phase 1: Create app with minimal required fields
 // Phase 2: Configure additional settings (agents, authentication, advanced settings, deployment)
 func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagCreate}
+	logging.Info(ctx, "creating application (two-phase)", tags)
+
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
-	logger := eaaclient.Logger
 	var warningDiags diag.Diagnostics
-
-	logger.Debug("Starting two-phase application creation")
 
 	var appUUIDURL string
 	var phase2Steps []func() error
@@ -983,23 +975,23 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// ========================================
 	// PHASE 1: Create minimal application
 	// ========================================
-	logger.Debug("Phase 1: Creating minimal application")
+	logging.Debug(ctx, "phase 1: creating minimal application", tags)
 
 	minimalRequest := client.MinimalCreateAppRequest{}
 	err = minimalRequest.CreateMinimalAppRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal app request failed", "error", err)
-		return append(warningDiags, diag.FromErr(err)...)
+		logging.Warn(ctx, "Phase 1 failed: create minimal app request failed", tags, map[string]any{"error": err.Error()})
+		return append(warningDiags, logging.DiagFromErr(err, tags, "Phase 1 failed: create minimal app request failed")...)
 	}
 
 	appResp, err := minimalRequest.CreateMinimalApplication(ctx, eaaclient)
 	if err != nil {
-		logger.Error("Phase 1 failed: create minimal application failed", "error", err)
-		return append(warningDiags, diag.FromErr(err)...)
+		logging.Warn(ctx, "Phase 1 failed: create minimal application failed", tags, map[string]any{"error": err.Error()})
+		return append(warningDiags, logging.DiagFromErr(err, tags, "Phase 1 failed: create minimal application failed")...)
 	}
 
 	appUUIDURL = appResp.UUIDURL
-	logger.Debug("Phase 1 succeeded: application created", "app_id", appUUIDURL)
+	logging.Debug(ctx, "phase 1 succeeded: application created", tags, map[string]any{"app_id": appUUIDURL})
 
 	// Set the resource ID early so cleanup can work if later steps fail
 	d.SetId(appUUIDURL)
@@ -1007,28 +999,28 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// ========================================
 	// PHASE 2: Configure additional settings
 	// ========================================
-	logger.Debug("Phase 2: Configuring additional settings")
+	logging.Debug(ctx, "phase 2: configuring additional settings", tags)
 
 	// Prepare Phase 2 steps for potential rollback
 	phase2Steps = []func() error{
 		func() error {
-			logger.Debug("Phase 2: Configuring agents...")
+			logging.Debug(ctx, "phase 2: configuring agents", tags)
 			return client.ConfigureAgents(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
-			logger.Debug("Phase 2: Configuring authentication...")
+			logging.Debug(ctx, "phase 2: configuring authentication", tags)
 			return client.ConfigureAuthentication(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
-			logger.Debug("Phase 2: Configuring access service...")
+			logging.Debug(ctx, "phase 2: configuring access service", tags)
 			return client.ConfigureService(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
-			logger.Debug("Phase 2: Configuring advanced settings...")
+			logging.Debug(ctx, "phase 2: configuring advanced settings", tags)
 			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient)
 		},
 		func() error {
-			logger.Debug("Phase 2: Deploying application...")
+			logging.Debug(ctx, "phase 2: deploying application", tags)
 			return client.DeployExistingApplication(ctx, appUUIDURL, eaaclient)
 		},
 	}
@@ -1036,28 +1028,20 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 	// Execute Phase 2 steps with error handling
 	for i, step := range phase2Steps {
 		if err := step(); err != nil {
-			logger.Error("Phase 2 failed", "step", i+1, "error", err)
+			logging.Warn(ctx, fmt.Sprintf("phase 2 step %d failed, attempting cleanup", i+1), tags, map[string]any{"error": err.Error()})
 
-			// Clean up the created application
-			logger.Warn("Cleaning up created application due to Phase 2 failure...")
-			if !cleanupOrphanedApp(eaaclient, appUUIDURL) {
-				logger.Error("Failed to clean up orphaned app")
-				// Add a warning about manual cleanup needed
-				return append(append(warningDiags, diag.FromErr(err)...), diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Application creation failed and cleanup failed",
-					Detail:   fmt.Sprintf("Application %s was created but configuration failed. Manual cleanup may be required.", appUUIDURL),
-				})
+			if !cleanupOrphanedApp(ctx, eaaclient, appUUIDURL) {
+				logging.Warn(ctx, "failed to clean up orphaned app", tags)
+				return append(append(warningDiags, logging.DiagFromErr(err, tags, "Phase 2 failed")...), logging.DiagWarningf(tags, "Application %s was created but configuration failed. Manual cleanup may be required.", appUUIDURL)...)
 			}
 
-			// Clear the state
 			d.SetId("")
-			return append(warningDiags, diag.FromErr(err)...)
+			return append(warningDiags, logging.DiagFromErr(err, tags, "Phase 2 failed")...)
 		}
-		logger.Debug("Phase 2 step completed", "step", i+1)
+		logging.Debug(ctx, fmt.Sprintf("phase 2 step %d completed", i+1), tags)
 	}
 
-	logger.Debug("Two-phase application creation completed successfully")
+	logging.Info(ctx, "application created successfully (two-phase)", tags)
 
 	// Return the read result
 	return append(warningDiags, resourceEaaApplicationRead(ctx, d, m)...)
@@ -1067,27 +1051,30 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 // fetches application details using and maps the response to the schema attributes.
 
 func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagRead}
+	logging.Info(ctx, "reading application", tags)
+
 	id := d.Id()
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var appResp client.ApplicationResponse
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
 
-	getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to read application")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		return diag.FromErr(getAppError(getResp))
+		return logging.DiagFromErr(getAppError(getResp), tags, "application get failed")
 	}
 
 	var diags diag.Diagnostics
 
 	// Map basic attributes
-	diags = append(diags, mapBasicAttributesFromResponse(d, &appResp, eaaclient)...)
+	diags = append(diags, mapBasicAttributesFromResponse(ctx, d, &appResp, eaaclient)...)
 
 	// Map servers and tunnel hosts
 	diags = append(diags, mapServersAndTunnelHostsFromResponse(d, &appResp)...)
@@ -1096,7 +1083,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	diags = append(diags, mapAdvancedSettingsFromResponse(d, &appResp)...)
 
 	// Map agents, authentication, cert, and service
-	diags = append(diags, mapAgentsAndAuthFromResponse(d, &appResp, eaaclient)...)
+	diags = append(diags, mapAgentsAndAuthFromResponse(ctx, d, &appResp, eaaclient)...)
 
 	// Map SAML settings
 	diags = append(diags, mapSAMLSettingsFromResponse(d, &appResp)...)
@@ -1115,11 +1102,14 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 // then calls the read function to ensure the updated data is correctly populated in the schema.
 
 func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagUpdate}
+	logging.Info(ctx, "updating application", tags)
+
 	// Set the resource ID
 	id := d.Id()
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var warningDiags diag.Diagnostics
 
@@ -1129,12 +1119,12 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
 
-	getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		return append(warningDiags, diag.FromErr(err)...)
+		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to read application for update")...)
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		return append(warningDiags, diag.FromErr(getAppError(getResp))...)
+		return append(warningDiags, logging.DiagFromErr(getAppError(getResp), tags, "application get failed")...)
 	}
 
 	// Store the update request for later use after IDP assignment
@@ -1142,15 +1132,15 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	appUpdateReq.Application = appResp
 	err = appUpdateReq.UpdateAppRequestFromSchema(ctx, d, eaaclient)
 	if err != nil {
-		return append(warningDiags, diag.FromErr(err)...)
+		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to build update request")...)
 	}
 
-	currAgents, err := appResp.GetAppAgents(eaaclient)
+	currAgents, err := appResp.GetAppAgents(ctx, eaaclient)
 	if err == nil {
 		if agentsRaw, ok := d.GetOk("agents"); ok {
 			agentList, ok := agentsRaw.([]interface{})
 			if !ok {
-				return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+				return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid agent data in schema")...)
 			}
 			var desiredAgents []string
 			for _, agent := range agentList {
@@ -1168,7 +1158,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 				agents.AgentNames = append(agents.AgentNames, agentsToAssign...)
 				assignErr := agents.AssignAgents(ctx, eaaclient)
 				if assignErr != nil {
-					return append(warningDiags, diag.FromErr(assignErr)...)
+					return append(warningDiags, logging.DiagFromErr(assignErr, tags, "failed to assign agents")...)
 				}
 			}
 			if len(agentsToUnassign) > 0 {
@@ -1178,7 +1168,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 
 				unassignErr := agents.UnAssignAgents(ctx, eaaclient)
 				if unassignErr != nil {
-					return append(warningDiags, diag.FromErr(unassignErr)...)
+					return append(warningDiags, logging.DiagFromErr(unassignErr, tags, "failed to unassign agents")...)
 				}
 			}
 		}
@@ -1189,7 +1179,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		if aE, ok := d.GetOk("auth_enabled"); ok {
 			authEnabled, ok := aE.(string)
 			if !ok {
-				return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+				return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid auth_enabled data")...)
 			}
 			authEnabledValue = authEnabled
 		}
@@ -1197,76 +1187,74 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		if authEnabledValue == "true" {
 			if appAuth, ok := d.GetOk("app_authentication"); ok {
 				appUUIDURL := id
-				appIDPMembership, membershipErr := appResp.GetAppIdpMembership(eaaclient)
+				appIDPMembership, membershipErr := appResp.GetAppIdpMembership(ctx, eaaclient)
 				if membershipErr != nil {
-					return append(warningDiags, diag.FromErr(membershipErr)...)
+					return append(warningDiags, logging.DiagFromErr(membershipErr, tags, "failed to get app IDP membership")...)
 				}
 				if appIDPMembership != nil {
 					appIdp := client.AppIdp{
 						App: appUUIDURL,
 						IDP: appIDPMembership.UUIDURL,
 					}
-					err = appIdp.UnAssignIDP(eaaclient)
+					err = appIdp.UnAssignIDP(ctx, eaaclient)
 					if err != nil {
-						eaaclient.Logger.Error("idp unassign error err ", err)
-						return append(warningDiags, diag.FromErr(err)...)
+						logging.Warn(ctx, "IDP unassign error", tags, map[string]any{"error": err.Error()})
+						return append(warningDiags, logging.DiagFromErr(err, tags, "failed to unassign IDP")...)
 					}
 				}
 				appAuthList, ok := appAuth.([]interface{})
 				if !ok {
-					return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+					return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid authentication data")...)
 				}
 				if appAuthList == nil {
-					return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+					return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "authentication data is nil")...)
 				}
 				if len(appAuthList) > 0 {
 					appAuthenticationMap, ok := appAuthList[0].(map[string]interface{})
 					if !ok {
-						return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+						return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid authentication map data")...)
 					}
 					if appAuthenticationMap == nil {
-						eaaclient.Logger.Error("invalid authentication data")
-						return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+						logging.Warn(ctx, "invalid authentication data", tags)
+						return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "authentication map is nil")...)
 					}
 
-					// Check if app_idp key is present
 					if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
 						idpData, getIDPErr := client.GetIdpWithName(ctx, eaaclient, appIDPName)
 						if getIDPErr != nil || idpData == nil {
-							eaaclient.Logger.Error("get idp with name error, err ", getIDPErr)
-							return append(warningDiags, diag.FromErr(getIDPErr)...)
+							logging.Warn(ctx, "get IDP with name error", tags, map[string]any{"error": fmt.Sprintf("%v", getIDPErr)})
+							return append(warningDiags, logging.DiagFromErr(getIDPErr, tags, "failed to get IDP with name")...)
 						}
 
-						eaaclient.Logger.Debug("Starting IDP assignment in UPDATE flow")
-						eaaclient.Logger.Debug("Assigning IDP to application in UPDATE")
-						eaaclient.Logger.Debug("app_uuid_url", "value", appUUIDURL)
-						eaaclient.Logger.Debug("idpData.UUIDURL", "value", idpData.UUIDURL)
+						logging.Debug(ctx, "assigning IDP to application in UPDATE", tags, map[string]any{
+							"app_uuid_url": appUUIDURL,
+							"idp_uuid_url": idpData.UUIDURL,
+						})
 
 						appIdp := client.AppIdp{
 							App: appUUIDURL,
 							IDP: idpData.UUIDURL,
 						}
-						err = appIdp.AssignIDP(eaaclient)
+						err = appIdp.AssignIDP(ctx, eaaclient)
 						if err != nil {
-							eaaclient.Logger.Error("IDP assign error in UPDATE", "error", err)
-							return append(warningDiags, diag.FromErr(err)...)
+							logging.Warn(ctx, "IDP assign error in UPDATE", tags, map[string]any{"error": err.Error()})
+							return append(warningDiags, logging.DiagFromErr(err, tags, "failed to assign IDP")...)
 						}
-						eaaclient.Logger.Debug("IDP assigned successfully in UPDATE", "app_name", appResp.Name, "idp", appIDPName)
+						logging.Debug(ctx, "IDP assigned successfully in UPDATE", tags, map[string]any{"app_name": appResp.Name, "idp": appIDPName})
 
-						// check if app_directories are present
 						if appDirs, ok := appAuthenticationMap["app_directories"]; ok {
-							eaaclient.Logger.Debug("Starting directory assignment in UPDATE...")
+							logging.Debug(ctx, "starting directory assignment in UPDATE...", tags)
 							directoryErr := idpData.AssignIdpDirectories(ctx, appDirs, appUUIDURL, eaaclient)
 							if directoryErr != nil {
-								eaaclient.Logger.Error("Directory assignment error in UPDATE", "error", directoryErr)
-								return append(warningDiags, diag.FromErr(directoryErr)...)
+								logging.Warn(ctx, "directory assignment error in UPDATE", tags, map[string]any{"error": directoryErr.Error()})
+								return append(warningDiags, logging.DiagFromErr(directoryErr, tags, "failed to assign directories")...)
 							}
-							eaaclient.Logger.Debug("Directory assignment completed successfully in UPDATE")
+							logging.Debug(ctx, "directory assignment completed successfully in UPDATE", tags)
 						} else {
-							eaaclient.Logger.Debug("No app_directories found in UPDATE, skipping directory assignment")
+							logging.Debug(ctx, "no app_directories found in UPDATE, skipping directory assignment", tags)
 						}
 
-						eaaclient.Logger.Debug("IDP assignment complete in UPDATE flow")
+						logging.Debug(ctx, "IDP assignment complete in UPDATE flow", tags)
 					}
 				}
 			}
@@ -1278,32 +1266,32 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		// Get the service attribute as a list (since it is defined as a list in the schema)
 		services, ok := d.Get("service").([]interface{})
 		if !ok {
-			return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+			return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid service data")...)
 		}
 
 		if len(services) > 0 {
 			appUUIDURL := appResp.UUIDURL
-			appSrv, serviceErr := client.GetACLService(eaaclient, appUUIDURL)
+			appSrv, serviceErr := client.GetACLService(ctx, eaaclient, appUUIDURL)
 			if serviceErr != nil {
-				return append(warningDiags, diag.FromErr(serviceErr)...)
+				return append(warningDiags, logging.DiagFromErr(serviceErr, tags, "failed to get ACL service")...)
 			}
 
 			aclSrv, extractErr := client.ExtractACLService(ctx, d, eaaclient)
 			if extractErr != nil {
-				return append(warningDiags, diag.FromErr(extractErr)...)
+				return append(warningDiags, logging.DiagFromErr(extractErr, tags, "failed to extract ACL service")...)
 			}
 
 			if appSrv.Status != aclSrv.Status {
 				appSrv.Status = aclSrv.Status
-				if serviceErr := appSrv.EnableService(eaaclient); serviceErr != nil {
-					return append(warningDiags, diag.FromErr(serviceErr)...)
+				if serviceErr := appSrv.EnableService(ctx, eaaclient); serviceErr != nil {
+					return append(warningDiags, logging.DiagFromErr(serviceErr, tags, "failed to enable service")...)
 				}
 			}
 			if d.HasChange("service.0.access_rule") {
 				// Fetch existing rules
-				existingACLResponse, rulesErr := client.GetAccessControlRules(eaaclient, appSrv.UUIDURL)
+				existingACLResponse, rulesErr := client.GetAccessControlRules(ctx, eaaclient, appSrv.UUIDURL)
 				if rulesErr != nil {
-					return append(warningDiags, diag.FromErr(rulesErr)...)
+					return append(warningDiags, logging.DiagFromErr(rulesErr, tags, "failed to get access control rules")...)
 				}
 				existingRulesMap := make(map[string]client.AccessRule)
 				for _, rule := range existingACLResponse.ACLRules {
@@ -1320,7 +1308,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 				for name, existingRule := range existingRulesMap {
 					if _, exists := newRulesMap[name]; !exists {
 						if deleteErr := existingRule.DeleteAccessRule(ctx, eaaclient, appSrv.UUIDURL); deleteErr != nil {
-							return append(warningDiags, diag.FromErr(deleteErr)...)
+							return append(warningDiags, logging.DiagFromErr(deleteErr, tags, "failed to delete access rule")...)
 						}
 					}
 				}
@@ -1331,13 +1319,13 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 						if !existingRule.IsEqual(newRule) {
 							newRule.UUID_URL = existingRule.UUID_URL
 							if modifyErr := newRule.ModifyAccessRule(ctx, eaaclient, appSrv.UUIDURL); modifyErr != nil {
-								return append(warningDiags, diag.FromErr(modifyErr)...)
+								return append(warningDiags, logging.DiagFromErr(modifyErr, tags, "failed to modify access rule")...)
 							}
 						}
 					} else {
 						// Create new rule
 						if createErr := newRule.CreateAccessRule(ctx, eaaclient, appSrv.UUIDURL); createErr != nil {
-							return append(warningDiags, diag.FromErr(createErr)...)
+							return append(warningDiags, logging.DiagFromErr(createErr, tags, "failed to create access rule")...)
 						}
 					}
 				}
@@ -1346,51 +1334,56 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
-	eaaclient.Logger.Debug("Performing PUT call after IDP assignment in UPDATE flow")
+	logging.Debug(ctx, "performing PUT call after IDP assignment in UPDATE flow", tags)
 	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
 	if err != nil {
-		eaaclient.Logger.Error("PUT call failed after IDP assignment in UPDATE", "error", err)
-		return append(warningDiags, diag.FromErr(err)...)
+		logging.Warn(ctx, "PUT call failed after IDP assignment in UPDATE", tags, map[string]any{"error": err.Error()})
+		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to update application")...)
 	}
-	eaaclient.Logger.Debug("PUT call completed successfully in UPDATE flow")
+	logging.Debug(ctx, "PUT call completed successfully in UPDATE flow", tags)
 
 	// Add delay before deploy in UPDATE flow to ensure all operations are complete
-	eaaclient.Logger.Debug("waiting before deploy in UPDATE flow...")
+	logging.Debug(ctx, "waiting before deploy in UPDATE flow...", tags)
 
-	err = appUpdateReq.DeployApplication(eaaclient)
+	err = appUpdateReq.DeployApplication(ctx, eaaclient)
 	if err != nil {
-		return append(warningDiags, diag.FromErr(err)...)
+		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to deploy application")...)
 	}
 
+	logging.Info(ctx, "application updated successfully", tags)
 	return append(warningDiags, resourceEaaApplicationRead(ctx, d, m)...)
 }
 
 // resourceEaaApplicationDelete function deletes an existing EAA application.
 // sends a delete request to the EAA client to remove the application.
 func resourceEaaApplicationDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagDelete}
+	logging.Info(ctx, "deleting application", tags)
+
 	// Read the resource ID from d
 	id := d.Id()
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var appResp client.ApplicationDataModel
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
-	getResp, err := eaaclient.SendAPIRequest(apiURL, "GET", nil, &appResp, false)
+	getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to read application for delete")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		return diag.FromErr(getAppError(getResp))
+		return logging.DiagFromErr(getAppError(getResp), tags, "application get failed")
 	}
-	err = appResp.DeleteApplication(eaaclient)
+	err = appResp.DeleteApplication(ctx, eaaclient)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to delete application")
 	}
 
 	// Set the resource ID to mark it as deleted
 	d.SetId("")
 
+	logging.Info(ctx, "application deleted successfully", tags)
 	return nil
 }

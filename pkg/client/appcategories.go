@@ -1,13 +1,11 @@
 package client
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net/http"
-)
 
-var (
-	ErrAppCategoriesGet = errors.New("app categories get failed")
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type AppCate struct {
@@ -27,19 +25,20 @@ type AppCategoryResponse struct {
 }
 
 // GetAppCategories method retrieves app categories and formats the data as a list of maps
-func GetAppCategories(ec *EaaClient) ([]AppCate, error) {
-	ec.Logger.Info("GetAppCategories")
+func GetAppCategories(ctx context.Context, ec *EaaClient) ([]AppCate, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagList}
+	logging.Info(ctx, "GetAppCategories", tags)
+
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APP_CATEGORIES_URL)
 	acResponse := AppCategoryResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &acResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &acResponse, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get app categories: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to get app categories")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		appCatErrMsg := fmt.Errorf("%w: %s", ErrAppCategoriesGet, desc)
-		return nil, appCatErrMsg
+		return nil, logging.Errorf(tags, "app categories get failed: %s", desc)
 	}
 
 	var acs []AppCate
@@ -54,10 +53,11 @@ func GetAppCategories(ec *EaaClient) ([]AppCate, error) {
 }
 
 // GetAppCategoryUUID fetches categories and returns the UUID for the requested category name.
-func GetAppCategoryUUID(ec *EaaClient, categoryName string) (string, error) {
-	acs, err := GetAppCategories(ec)
+func GetAppCategoryUUID(ctx context.Context, ec *EaaClient, categoryName string) (string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagRead}
+	acs, err := GetAppCategories(ctx, ec)
 	if err != nil {
-		return "", ErrAppCategoriesGet
+		return "", logging.Errorf(tags, "app categories get failed")
 	}
 	for _, ac := range acs {
 		if categoryName == ac.Name {
@@ -66,5 +66,5 @@ func GetAppCategoryUUID(ec *EaaClient, categoryName string) (string, error) {
 
 	}
 
-	return "", fmt.Errorf("%w: category '%s' not found", ErrAppCategoriesGet, categoryName)
+	return "", logging.Errorf(tags, "app categories get failed: category '%s' not found", categoryName)
 }

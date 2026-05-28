@@ -1,18 +1,20 @@
 package eaaprovider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 // mapBasicAttributesFromResponse maps basic application attributes from API response to schema
-func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.ApplicationResponse, eaaclient *client.EaaClient) diag.Diagnostics {
+func mapBasicAttributesFromResponse(ctx context.Context, d *schema.ResourceData, appResp *client.ApplicationResponse, eaaclient *client.EaaClient) diag.Diagnostics {
 	attrs := make(map[string]interface{})
 	attrs["name"] = appResp.Name
 	if appResp.Description != nil {
@@ -22,28 +24,28 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 	aProfile := client.AppProfileInt(appResp.AppProfile)
 	profileString, err := aProfile.String()
 	if err != nil {
-		eaaclient.Logger.Info("error converting app_profile")
+		logging.Warn(ctx, "error converting app_profile", []logging.Tag{logging.TagApp, logging.TagRead})
 	}
 	attrs["app_profile"] = profileString
 
 	aType := client.AppTypeInt(appResp.AppType)
 	typeString, err := aType.String()
 	if err != nil {
-		eaaclient.Logger.Info("error converting app_type")
+		logging.Warn(ctx, "error converting app_type", []logging.Tag{logging.TagApp, logging.TagRead})
 	}
 	attrs["app_type"] = typeString
 
 	aMode := client.AppModeInt(appResp.ClientAppMode)
 	modeString, err := aMode.String()
 	if err != nil {
-		eaaclient.Logger.Info("error converting client_app_mode")
+		logging.Warn(ctx, "error converting client_app_mode", []logging.Tag{logging.TagApp, logging.TagRead})
 	}
 	attrs["client_app_mode"] = modeString
 
 	appDomain := client.DomainInt(appResp.Domain)
 	domainString, err := appDomain.String()
 	if err != nil {
-		eaaclient.Logger.Info("error converting domain")
+		logging.Warn(ctx, "error converting domain", []logging.Tag{logging.TagApp, logging.TagRead})
 		attrs["domain"] = ""
 	} else {
 		attrs["domain"] = domainString
@@ -108,14 +110,14 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 
 	var diags diag.Diagnostics
 	if appResp.AppBundle != "" {
-		bundleName, err := eaaclient.GetAppBundleNameByUUID(appResp.AppBundle)
+		bundleName, err := eaaclient.GetAppBundleNameByUUID(ctx, appResp.AppBundle)
 		if err != nil {
 			attrs["app_bundle"] = ""
-			diags = append(diags, diag.Diagnostic{
-				Severity: diag.Warning,
-				Summary:  "Could not resolve app_bundle UUID to name",
-				Detail:   "Failed to look up the app_bundle name for UUID " + appResp.AppBundle + ": " + err.Error() + ". app_bundle has been set to empty to avoid a perpetual diff. Check that the bundle exists and is accessible.",
-			})
+			diags = append(diags, logging.DiagWarningf(
+				[]logging.Tag{logging.TagApp, logging.TagRead},
+				"Could not resolve app_bundle UUID to name: Failed to look up the app_bundle name for UUID %s: %s. app_bundle has been set to empty to avoid a perpetual diff. Check that the bundle exists and is accessible.",
+				appResp.AppBundle, err.Error(),
+			)...)
 		} else {
 			attrs["app_bundle"] = bundleName
 		}
@@ -124,7 +126,7 @@ func mapBasicAttributesFromResponse(d *schema.ResourceData, appResp *client.Appl
 	}
 
 	if err := client.SetAttrs(d, attrs); err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set basic attributes")
 	}
 
 	return diags
@@ -144,7 +146,7 @@ func mapServersAndTunnelHostsFromResponse(d *schema.ResourceData, appResp *clien
 
 	err := d.Set("servers", servers)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set servers")
 	}
 
 	if client.AppTypeInt(appResp.AppType) == client.APP_TYPE_TUNNEL {
@@ -158,7 +160,7 @@ func mapServersAndTunnelHostsFromResponse(d *schema.ResourceData, appResp *clien
 		}
 		err = d.Set("tunnel_internal_hosts", tunnelInternalHosts)
 		if err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set tunnel_internal_hosts")
 		}
 	}
 
@@ -357,7 +359,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	if len(appResp.AdvancedSettings.FormPostAttributes) > 0 {
 		fpaJSON, err := json.Marshal(appResp.AdvancedSettings.FormPostAttributes)
 		if err != nil {
-			return diag.Errorf("failed to marshal form_post_attributes to JSON: %v", err)
+			return logging.DiagErrorf([]logging.Tag{logging.TagApp, logging.TagRead}, "failed to marshal form_post_attributes to JSON: %v", err)
 		}
 		full["form_post_attributes"] = string(fpaJSON)
 	} else if existingKeys["form_post_attributes"] {
@@ -377,7 +379,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	if len(appResp.AdvancedSettings.CustomHeaders) > 0 {
 		chJSON, err := json.Marshal(appResp.AdvancedSettings.CustomHeaders)
 		if err != nil {
-			return diag.Errorf("failed to marshal custom_headers to JSON: %v", err)
+			return logging.DiagErrorf([]logging.Tag{logging.TagApp, logging.TagRead}, "failed to marshal custom_headers to JSON: %v", err)
 		}
 		full["custom_headers"] = string(chJSON)
 	} else if existingKeys["custom_headers"] {
@@ -389,7 +391,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	if len(appResp.AdvancedSettings.RDPRemoteApps) > 0 {
 		rdpJSON, err := json.Marshal(appResp.AdvancedSettings.RDPRemoteApps)
 		if err != nil {
-			return diag.Errorf("failed to marshal rdp_remote_apps to JSON: %v", err)
+			return logging.DiagErrorf([]logging.Tag{logging.TagApp, logging.TagRead}, "failed to marshal rdp_remote_apps to JSON: %v", err)
 		}
 		full["rdp_remote_apps"] = string(rdpJSON)
 	} else if existingKeys["rdp_remote_apps"] {
@@ -416,33 +418,33 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	}
 
 	if err := d.Set("advanced_settings", result); err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set advanced_settings")
 	}
 
 	return nil
 }
 
 // mapAgentsAndAuthFromResponse maps agents, authentication, cert, and service from API response to schema
-func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.ApplicationResponse, eaaclient *client.EaaClient) diag.Diagnostics {
+func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, appResp *client.ApplicationResponse, eaaclient *client.EaaClient) diag.Diagnostics {
 	app := client.Application{}
 	app.FromResponse(appResp)
 
-	appAgents, err := app.GetAppAgents(eaaclient)
+	appAgents, err := app.GetAppAgents(ctx, eaaclient)
 	if err == nil {
 		err = d.Set("agents", appAgents)
 		if err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set agents")
 		}
 	}
 
 	if appResp.AuthEnabled == "true" {
-		appAuthData, authErr := app.CreateAppAuthenticationStruct(eaaclient)
+		appAuthData, authErr := app.CreateAppAuthenticationStruct(ctx, eaaclient)
 		if authErr != nil {
-			eaaclient.Logger.Error(fmt.Sprintf("failed to read app_authentication: %s", authErr.Error()))
+			logging.Warn(ctx, fmt.Sprintf("failed to read app_authentication: %s", authErr.Error()), []logging.Tag{logging.TagApp, logging.TagRead})
 		} else {
 			err = d.Set("app_authentication", appAuthData)
 			if err != nil {
-				return diag.FromErr(err)
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set app_authentication")
 			}
 		}
 	} else {
@@ -451,29 +453,29 @@ func mapAgentsAndAuthFromResponse(d *schema.ResourceData, appResp *client.Applic
 			"app_directories": []map[string]interface{}{},
 		}})
 		if err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set app_authentication")
 		}
 	}
 
 	if appResp.Cert != nil {
-		appCertData, certErr := client.GetCertificate(eaaclient, *appResp.Cert)
+		appCertData, certErr := client.GetCertificate(ctx, eaaclient, *appResp.Cert)
 		if certErr == nil {
 			err = d.Set("cert", appCertData.Cert)
 			if err != nil {
-				return diag.FromErr(err)
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert")
 			}
 		}
 	}
 
-	aclSrv, err := client.GetACLService(eaaclient, appResp.UUIDURL)
+	aclSrv, err := client.GetACLService(ctx, eaaclient, appResp.UUIDURL)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to get ACL service")
 	}
-	appSvcData, err := aclSrv.CreateAppServiceStruct(eaaclient)
+	appSvcData, err := aclSrv.CreateAppServiceStruct(ctx, eaaclient)
 	if err == nil && appSvcData != nil {
 		err = d.Set("service", appSvcData)
 		if err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set service")
 		}
 	}
 
@@ -536,7 +538,7 @@ func mapSAMLSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 
 	err := d.Set("saml_settings", samlSettings)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set saml_settings")
 	}
 
 	return nil
@@ -613,7 +615,7 @@ func mapWSFEDSettingsFromResponse(d *schema.ResourceData, appResp *client.Applic
 
 	err := d.Set("wsfed_settings", wsfedSettings)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set wsfed_settings")
 	}
 
 	return nil
@@ -694,7 +696,7 @@ func mapOIDCSettingsFromResponse(d *schema.ResourceData, appResp *client.Applica
 	if appResp.Oidc {
 		err := d.Set("oidc_settings", oidcSettings)
 		if err != nil {
-			return diag.FromErr(err)
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set oidc_settings")
 		}
 	}
 

@@ -1,13 +1,12 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/hashicorp/go-hclog"
 )
 
 func newAppBundleTestClient(t *testing.T, handler http.HandlerFunc) (client *EaaClient, cleanup func()) {
@@ -15,7 +14,6 @@ func newAppBundleTestClient(t *testing.T, handler http.HandlerFunc) (client *Eaa
 	ts := httptest.NewTLSServer(handler)
 	ec := &EaaClient{
 		Signer: noopSigner{},
-		Logger: hclog.NewNullLogger(),
 		Client: ts.Client(),
 		Host:   ts.Listener.Addr().String(),
 	}
@@ -63,7 +61,7 @@ func TestGetAppBundleByName(t *testing.T) {
 			ec, cleanup := newAppBundleTestClient(t, serveAppBundles(testBundles))
 			defer cleanup()
 
-			got, err := ec.GetAppBundleByName(tt.name)
+			got, err := ec.GetAppBundleByName(context.Background(), tt.name)
 			if tt.wantErrSubstr != "" {
 				if err == nil {
 					t.Fatalf("GetAppBundleByName(%q) returned nil error, want error containing %q", tt.name, tt.wantErrSubstr)
@@ -108,7 +106,7 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 			ec, cleanup := newAppBundleTestClient(t, serveAppBundles(testBundles))
 			defer cleanup()
 
-			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
+			got, err := ec.GetAppBundleNameByUUID(context.Background(), tt.uuid)
 			if tt.wantErrSubstr != "" {
 				if err == nil {
 					t.Fatalf("GetAppBundleNameByUUID(%q) returned nil error, want error containing %q", tt.uuid, tt.wantErrSubstr)

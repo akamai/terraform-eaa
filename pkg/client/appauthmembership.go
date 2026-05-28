@@ -1,16 +1,12 @@
 package client
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
-)
 
-var (
-	ErrAppIdpMembershipGet       = errors.New("unable to get app idp membership")
-	ErrAppDirectoryMembershipGet = errors.New("unable to get app directory membership")
-	ErrAppGroupMembershipGet     = errors.New("unable to get app group membership")
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type IDPMembership struct {
@@ -35,19 +31,20 @@ type AppIdpMembershipResponse struct {
 	Meta              Meta               `json:"meta"`
 }
 
-func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, error) {
-	ec.Logger.Info("get App-Idp membership")
+func (app *Application) GetAppIdpMembership(ctx context.Context, ec *EaaClient) (*AppIdpMembership, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagAuth}
+	logging.Info(ctx, "get App-Idp membership", tags)
+
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/idp_membership", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appidpMembershipResponse := AppIdpMembershipResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appidpMembershipResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appidpMembershipResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		appIdpErrMsg := fmt.Errorf("%w: %s", ErrAppIdpMembershipGet, desc)
-		return nil, appIdpErrMsg
+		return nil, logging.Errorf(tags, "unable to get app idp membership: %s", desc)
 	}
 	if len(appidpMembershipResponse.AppIdpMemberships) > 0 {
 		appIdpmem := appidpMembershipResponse.AppIdpMemberships[0]
@@ -56,7 +53,7 @@ func (app *Application) GetAppIdpMembership(ec *EaaClient) (*AppIdpMembership, e
 	if len(appidpMembershipResponse.AppIdpMemberships) == 0 {
 		return nil, nil
 	}
-	return nil, ErrAppIdpMembershipGet
+	return nil, logging.Errorf(tags, "unable to get app idp membership")
 }
 
 type DirectoryMembership struct {
@@ -76,19 +73,20 @@ type AppDirectoryMembershipResponse struct {
 	Meta                    Meta                     `json:"meta"`
 }
 
-func (app *Application) GetAppDirectoryMembership(ec *EaaClient) ([]AppDirectoryMembership, error) {
-	ec.Logger.Info("get App-Directory membership")
+func (app *Application) GetAppDirectoryMembership(ctx context.Context, ec *EaaClient) ([]AppDirectoryMembership, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagAuth}
+	logging.Info(ctx, "get App-Directory membership", tags)
+
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories_membership", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appdirectoryMembershipResponse := AppDirectoryMembershipResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appdirectoryMembershipResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appdirectoryMembershipResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		appDirErrMsg := fmt.Errorf("%w: %s", ErrAppDirectoryMembershipGet, desc)
-		return nil, appDirErrMsg
+		return nil, logging.Errorf(tags, "unable to get app directory membership: %s", desc)
 	}
 	return appdirectoryMembershipResponse.AppDirectoryMemberships, nil
 }
@@ -112,29 +110,31 @@ type AppGroupMembershipResponse struct {
 	Meta                Meta                 `json:"meta"`
 }
 
-func (app *Application) GetAppGroupMembership(ec *EaaClient) ([]AppGroupMembership, error) {
-	ec.Logger.Info("get App-Group membership")
+func (app *Application) GetAppGroupMembership(ctx context.Context, ec *EaaClient) ([]AppGroupMembership, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagAuth}
+	logging.Info(ctx, "get App-Group membership", tags)
+
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/groups", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	appgroupMembershipResponse := AppGroupMembershipResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &appgroupMembershipResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appgroupMembershipResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		appGrpErrMsg := fmt.Errorf("%w: %s", ErrAppGroupMembershipGet, desc)
-		return nil, appGrpErrMsg
+		return nil, logging.Errorf(tags, "unable to get app group membership: %s", desc)
 	}
 	return appgroupMembershipResponse.AppGroupMemberships, nil
 }
 
-func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interface{}, error) {
-	ec.Logger.Info("create App Authentication struct")
+func (app *Application) CreateAppAuthenticationStruct(ctx context.Context, ec *EaaClient) ([]interface{}, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagAuth}
+	logging.Info(ctx, "create App Authentication struct", tags)
 	appAuth := make(map[string]interface{})
 
 	// Get the data from the auth membership functions
-	appIDPMembership, err := app.GetAppIdpMembership(ec)
+	appIDPMembership, err := app.GetAppIdpMembership(ctx, ec)
 	if err != nil {
 		return nil, err
 	}
@@ -146,12 +146,12 @@ func (app *Application) CreateAppAuthenticationStruct(ec *EaaClient) ([]interfac
 	}
 
 	appAuth["app_idp"] = appIDPMembership.IDP.Name
-	appDirectoryMemberships, err := app.GetAppDirectoryMembership(ec)
+	appDirectoryMemberships, err := app.GetAppDirectoryMembership(ctx, ec)
 	if err != nil {
 		return nil, err
 	}
 
-	appGroupMemberships, err := app.GetAppGroupMembership(ec)
+	appGroupMemberships, err := app.GetAppGroupMembership(ctx, ec)
 	if err != nil {
 		return nil, err
 	}

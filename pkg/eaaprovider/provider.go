@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
-	"github.com/hashicorp/go-hclog"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 
 	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v6/pkg/edgegrid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -59,32 +58,26 @@ func Provider() *schema.Provider {
 func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	contractID, ok := d.Get("contractid").(string)
 	if !ok || contractID == "" {
-		return nil, diag.Errorf("contractid must be a non-empty string")
+		return nil, logging.DiagErrorf([]logging.Tag{logging.TagConfig, logging.TagValidate}, "contractid must be a non-empty string")
 	}
 	accountSwitchKey, ok := d.Get("accountswitchkey").(string)
 	if !ok {
-		return nil, diag.Errorf("accountswitchkey must be a string")
+		return nil, logging.DiagErrorf([]logging.Tag{logging.TagConfig, logging.TagValidate}, "accountswitchkey must be a string")
 	}
 
 	edgercPath, ok := d.Get("edgerc").(string)
 	if !ok {
-		return nil, diag.Errorf("edgerc must be a string")
+		return nil, logging.DiagErrorf([]logging.Tag{logging.TagConfig, logging.TagValidate}, "edgerc must be a string")
 	}
 
 	edgerc, err := edgegrid.New(edgegrid.WithEnv(true), edgegrid.WithFile(edgercPath))
 	if err != nil {
-		return nil, diag.Errorf("%s: %s", ErrInvalidEdgercConfig, err.Error())
+		return nil, logging.DiagErrorf([]logging.Tag{logging.TagConfig, logging.TagValidate}, "%s: %s", ErrInvalidEdgercConfig, err.Error())
 	}
 
 	if err := edgerc.Validate(); err != nil {
-		return nil, diag.FromErr(err)
+		return nil, logging.DiagFromErr(err, []logging.Tag{logging.TagConfig, logging.TagValidate}, "edgerc validation failed")
 	}
-
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:       "eaa_terraform",
-		Level:      hclog.Info,
-		TimeFormat: time.RFC3339,
-	})
 
 	eaaClient := &client.EaaClient{
 		Client:           http.DefaultClient,
@@ -92,7 +85,6 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 		AccountSwitchKey: accountSwitchKey,
 		Signer:           edgerc,
 		Host:             edgerc.Host,
-		Logger:           logger,
 	}
 
 	// Return the configured client as the provider configuration

@@ -3,9 +3,9 @@ package eaaprovider
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -44,15 +44,18 @@ func dataSourceApps() *schema.Resource {
 }
 
 func dataSourceAppsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagRead}
+	logging.Info(ctx, "reading apps data source", tags)
+
 	eaaClient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 
 	// Get all applications using the existing GetApps function with smart pagination
-	apps, err := client.GetApps(eaaClient)
+	apps, err := client.GetApps(ctx, eaaClient)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("%w: %w", ErrAppsGet, err))
+		return logging.DiagFromErrf(err, tags, "apps get failed")
 	}
 
 	// Convert apps to the expected schema format
@@ -67,11 +70,12 @@ func dataSourceAppsRead(ctx context.Context, d *schema.ResourceData, m interface
 
 	// Set the apps data in the schema
 	if err := d.Set("apps", appDataList); err != nil {
-		return diag.FromErr(fmt.Errorf("failed to set apps data: %w", err))
+		return logging.DiagFromErr(err, tags, "failed to set apps data")
 	}
 
 	// Set the resource ID
 	d.SetId("eaa_apps")
 
+	logging.Info(ctx, "apps data source read successfully", tags)
 	return nil
 }

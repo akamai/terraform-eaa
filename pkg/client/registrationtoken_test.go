@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-
-	"github.com/hashicorp/go-hclog"
 )
 
 func TestFormatExpiresAt(t *testing.T) {
@@ -184,7 +182,7 @@ func TestUpdateRegistrationTokenValidatesBeforeAPICall(t *testing.T) {
 
 	// EaaClient with no HTTP client — if Validate() did not run first the test
 	// would panic reaching SendAPIRequest, confirming validation is a pre-check.
-	nilClient := &EaaClient{Logger: hclog.NewNullLogger()}
+	nilClient := &EaaClient{}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
