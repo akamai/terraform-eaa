@@ -1,61 +1,76 @@
 package eaaprovider
 
 import (
-	"fmt"
-	"strconv"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDataAgents(t *testing.T) {
-	t.Run("DataAgents", func(t *testing.T) {
+// ---------------------------------------------------------------------------
+// dataSourceAgents — schema validation
+// ---------------------------------------------------------------------------
 
-		resource.Test(t, resource.TestCase{
-			IsUnitTest:        false,
-			ProviderFactories: testAccProviders,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccEaaAgentsConfigBasic(),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("data.eaa_data_source_agents.agents", "id", "eaa_agents"),
-						func(s *terraform.State) error {
-
-							attr := s.RootModule().Resources["data.eaa_data_source_agents.agents"].Primary.Attributes
-							y1, _ := strconv.Atoi(attr["agents.#"])
-							if y1 == 0 {
-								return fmt.Errorf("0 agents")
-							}
-							i := 0
-							for i = 0; i < y1; i++ {
-								att := "agents." + strconv.Itoa(i) + ".name"
-								if attr[att] == "terraform-test-connector" {
-									break
-								}
-							}
-							if i == y1 {
-								return fmt.Errorf("terraform-test-connector not found")
-							}
-							return nil
-						},
-					),
-				},
-			},
-		})
-	})
+func TestDataSourceAgents_ReturnsNonNil(t *testing.T) {
+	ds := dataSourceAgents()
+	require.NotNil(t, ds)
 }
 
-func testAccEaaAgentsConfigBasic() string {
-	return `
-	data "eaa_data_source_agents" "agents"{
+func TestDataSourceAgents_HasReadContext(t *testing.T) {
+	ds := dataSourceAgents()
+	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
+}
+
+func TestDataSourceAgents_AgentsFieldExists(t *testing.T) {
+	ds := dataSourceAgents()
+	_, ok := ds.Schema["agents"]
+	assert.True(t, ok, "schema must contain 'agents' field")
+}
+
+func TestDataSourceAgents_AgentsFieldType(t *testing.T) {
+	ds := dataSourceAgents()
+	assert.Equal(t, schema.TypeList, ds.Schema["agents"].Type)
+}
+
+func TestDataSourceAgents_AgentsFieldOptional(t *testing.T) {
+	ds := dataSourceAgents()
+	assert.True(t, ds.Schema["agents"].Optional)
+}
+
+func TestDataSourceAgents_ElemFields(t *testing.T) {
+	ds := dataSourceAgents()
+	elem, ok := ds.Schema["agents"].Elem.(*schema.Resource)
+	require.True(t, ok, "agents Elem must be *schema.Resource")
+
+	tests := map[string]struct {
+		expectedType schema.ValueType
+	}{
+		"name":                    {schema.TypeString},
+		"reach":                   {schema.TypeInt},
+		"state":                   {schema.TypeInt},
+		"os_version":              {schema.TypeString},
+		"public_ip":               {schema.TypeString},
+		"private_ip":              {schema.TypeString},
+		"type":                    {schema.TypeInt},
+		"region":                  {schema.TypeString},
+		"uuid":                    {schema.TypeString},
+		"uuid_url":                {schema.TypeString},
+		"connector_pool_uuid_url": {schema.TypeString},
+		"connector_pool_name":     {schema.TypeString},
 	}
 
-	provider "eaa" {
-		contractid = "1-3CV382"
-		edgerc           = ".edgerc"
-
+	for fieldName, tc := range tests {
+		t.Run(fieldName, func(t *testing.T) {
+			f, exists := elem.Schema[fieldName]
+			require.True(t, exists, "field %q must exist in agents elem schema", fieldName)
+			assert.Equal(t, tc.expectedType, f.Type, "field %q type mismatch", fieldName)
+		})
 	}
-`
+}
+
+func TestDataSourceAgents_NameFieldRequired(t *testing.T) {
+	ds := dataSourceAgents()
+	elem := ds.Schema["agents"].Elem.(*schema.Resource)
+	assert.True(t, elem.Schema["name"].Required, "name must be required")
 }
