@@ -203,7 +203,7 @@ func TestDeleteRegistrationTokenByUUID(t *testing.T) {
 }
 
 func TestUpdateRegistrationToken(t *testing.T) {
-	futureTime := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 
 	tests := map[string]struct {
 		req       *RegistrationTokenWriteRequest
@@ -212,37 +212,57 @@ func TestUpdateRegistrationToken(t *testing.T) {
 		wantErr   bool
 	}{
 		"success": {
-			tokenUUID: "tok-uuid-1",
+			tokenUUID: "token-uuid-123",
 			req: &RegistrationTokenWriteRequest{
 				Name:      "updated-token",
 				ExpiresAt: futureTime,
 				MaxUse:    10,
 			},
-			handler: jsonHandler(http.StatusOK, nil),
+			handler: jsonHandler(200, nil),
 		},
 		"empty_uuid": {
 			tokenUUID: "",
 			req: &RegistrationTokenWriteRequest{
-				Name:      "test",
+				Name:      "token",
 				ExpiresAt: futureTime,
-				MaxUse:    1,
+				MaxUse:    10,
 			},
-			handler: jsonHandler(http.StatusOK, nil),
 			wantErr: true,
 		},
-		"invalid_request": {
-			tokenUUID: "tok-uuid-1",
-			req:       &RegistrationTokenWriteRequest{Name: ""},
-			handler:   jsonHandler(http.StatusOK, nil),
-			wantErr:   true,
+		"validation_failure_empty_name": {
+			tokenUUID: "token-uuid-123",
+			req: &RegistrationTokenWriteRequest{
+				Name:      "",
+				ExpiresAt: futureTime,
+				MaxUse:    10,
+			},
+			wantErr: true,
+		},
+		"api_error": {
+			tokenUUID: "token-uuid-123",
+			req: &RegistrationTokenWriteRequest{
+				Name:      "token",
+				ExpiresAt: futureTime,
+				MaxUse:    10,
+			},
+			handler: errorJSONHandler(500, "update failed"),
+			wantErr: true,
 		},
 	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, tt.handler)
 
-			err := UpdateRegistrationToken(context.Background(), ec, tt.tokenUUID, tt.req)
-			if requireErr(t, err, tt.wantErr) {
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var ec *EaaClient
+			if tc.handler != nil {
+				router := newPathRouter(t)
+				router.Handle("PUT", "/crux/v1/zt/registration-token/"+tc.tokenUUID, tc.handler)
+				ec = newTestClient(t, router)
+			} else {
+				ec = newTestClient(t, http.NotFoundHandler())
+			}
+
+			err := UpdateRegistrationToken(context.Background(), ec, tc.tokenUUID, tc.req)
+			if requireErr(t, err, tc.wantErr) {
 				return
 			}
 		})

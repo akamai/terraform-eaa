@@ -3,6 +3,7 @@ package eaaprovider
 import (
 	"testing"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,4 +48,53 @@ func TestServerComputedAdvancedSettingsKeys(t *testing.T) {
 
 	assert.False(t, serverComputedAdvancedSettingsKeys["acceleration"],
 		"acceleration should not be in serverComputedAdvancedSettingsKeys")
+}
+
+// ---------------------------------------------------------------------------
+// mapAdvancedSettingsFromResponse
+// ---------------------------------------------------------------------------
+
+func TestMapAdvancedSettingsFromResponse(t *testing.T) {
+	t.Run("preserves_only_existing_keys_on_read", func(t *testing.T) {
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"advanced_settings": map[string]interface{}{
+				"websocket_enabled": "true",
+			},
+		})
+		d.SetId("test-app-uuid")
+
+		appResp := &client.ApplicationResponse{
+			AdvancedSettings: client.AdvancedSettingsComplete{
+				WebSocketEnabled:        "false",
+				KeepaliveConnectionPool: "30",
+			},
+		}
+
+		diags := mapAdvancedSettingsFromResponse(d, appResp)
+		assert.Empty(t, diags)
+
+		settings := d.Get("advanced_settings").(map[string]interface{})
+		assert.Equal(t, "false", settings["websocket_enabled"], "existing key should be updated")
+		_, hasKeepalive := settings["keepalive_connection_pool"]
+		assert.False(t, hasKeepalive, "key not in prior state should not appear")
+	})
+
+	t.Run("surfaces_all_nonempty_values_on_import", func(t *testing.T) {
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		d.SetId("test-app-uuid")
+
+		appResp := &client.ApplicationResponse{
+			AdvancedSettings: client.AdvancedSettingsComplete{
+				WebSocketEnabled:        "true",
+				KeepaliveConnectionPool: "30",
+			},
+		}
+
+		diags := mapAdvancedSettingsFromResponse(d, appResp)
+		assert.Empty(t, diags)
+
+		settings := d.Get("advanced_settings").(map[string]interface{})
+		assert.Equal(t, "true", settings["websocket_enabled"])
+		assert.Equal(t, "30", settings["keepalive_connection_pool"])
+	})
 }

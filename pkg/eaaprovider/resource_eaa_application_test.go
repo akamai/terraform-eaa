@@ -195,42 +195,6 @@ func TestStringPointerValue(t *testing.T) {
 }
 
 // ===========================================================================
-// mapAdvancedSettingsFromResponse
-// ===========================================================================
-
-func TestMapAdvancedSettingsFromResponse(t *testing.T) {
-	resource := resourceEaaApplication()
-	d := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{
-		"advanced_settings": map[string]interface{}{
-			"user_name":              "",
-			"service_principle_name": "",
-			"websocket_enabled":      "true",
-		},
-	})
-
-	appResp := &client.ApplicationResponse{}
-	appResp.AdvancedSettings.WebSocketEnabled = "true"
-	appResp.AdvancedSettings.Acceleration = "true"
-	appResp.AdvancedSettings.AllowCORS = "false"
-
-	diags := mapAdvancedSettingsFromResponse(d, appResp)
-	require.False(t, diags.HasError(), "mapAdvancedSettingsFromResponse should not return errors")
-
-	settings, ok := d.Get("advanced_settings").(map[string]interface{})
-	require.True(t, ok, "advanced_settings should be map[string]interface{}")
-
-	assert.Equal(t, "true", settings["websocket_enabled"])
-	assert.Equal(t, "", settings["user_name"])
-	assert.Equal(t, "", settings["service_principle_name"])
-
-	_, present := settings["acceleration"]
-	assert.False(t, present, "acceleration should not be in state when not in prior config")
-
-	_, present = settings["allow_cors"]
-	assert.False(t, present, "allow_cors should not be in state when not in prior config")
-}
-
-// ===========================================================================
 // validateAppAuthValue
 // ===========================================================================
 

@@ -3,8 +3,10 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -152,20 +154,85 @@ func TestSendAPIRequest_AccountSwitchKey(t *testing.T) {
 	assert.Contains(t, capturedQuery, "accountSwitchKey=test-switch-key")
 }
 
-func TestFormatErrorDescription(t *testing.T) {
+func TestFormatErrorResponse(t *testing.T) {
 	tests := map[string]struct {
-		resp *http.Response
-		want string
+		body       string
+		wantDetail string
+		wantErr    bool
 	}{
-		"nil_response": {
-			resp: nil,
-			want: "unknown error",
+		"valid_error_body": {
+			body:       `{"type":"error","title":"Bad Request","detail":"invalid app_type"}`,
+			wantDetail: "invalid app_type",
+		},
+		"malformed_json": {
+			body:    `{not-json`,
+			wantErr: true,
+		},
+		"empty_body": {
+			body:    ``,
+			wantErr: true,
+		},
+		"empty_json_object": {
+			body:       `{}`,
+			wantDetail: "",
 		},
 	}
-	for name, tt := range tests {
+
+	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := FormatErrorDescription(tt.resp)
-			assert.Equal(t, tt.want, got)
+			resp := &http.Response{
+				Body: io.NopCloser(strings.NewReader(tc.body)),
+			}
+			detail, err := FormatErrorResponse(resp)
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+			assert.Equal(t, tc.wantDetail, detail)
+		})
+	}
+}
+
+func TestFormatErrorDescription(t *testing.T) {
+	tests := map[string]struct {
+		resp     *http.Response
+		expected string
+	}{
+		"nil_response": {
+			resp:     nil,
+			expected: "unknown error",
+		},
+		"with_error_detail": {
+			resp: &http.Response{
+				Body: io.NopCloser(strings.NewReader(`{"detail":"not found"}`)),
+			},
+			expected: "not found",
+		},
+		"malformed_body_falls_back_to_status": {
+			resp: &http.Response{
+				Status: "403 Forbidden",
+				Body:   io.NopCloser(strings.NewReader(`{bad`)),
+			},
+			expected: "403 Forbidden",
+		},
+		"empty_detail_falls_back_to_status": {
+			resp: &http.Response{
+				Status: "500 Internal Server Error",
+				Body:   io.NopCloser(strings.NewReader(`{}`)),
+			},
+			expected: "500 Internal Server Error",
+		},
+		"no_detail_no_status": {
+			resp: &http.Response{
+				Body: io.NopCloser(strings.NewReader(`{}`)),
+			},
+			expected: "unknown error",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := FormatErrorDescription(tc.resp)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

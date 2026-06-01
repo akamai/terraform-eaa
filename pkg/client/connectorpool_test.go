@@ -2,6 +2,8 @@
 package client
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -143,6 +145,202 @@ func TestDeleteConnectorPool(t *testing.T) {
 			// DeleteConnectorPool is a standalone function: (ctx, ec, uuid)
 			err := DeleteConnectorPool(nil, ec, "pool-uuid-1")
 			if requireErr(t, err, tt.wantErr) {
+				return
+			}
+		})
+	}
+}
+
+func TestGetConnectorPool(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, ConnectorPool{
+				Name:    "test-pool",
+				UUIDURL: "pool-uuid-123",
+			}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "internal error"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("GET", "/crux/v1/mgmt-pop/connector-pools/pool-uuid-123", tc.handler)
+			ec := newTestClient(t, router)
+
+			got, err := GetConnectorPool(context.Background(), ec, "pool-uuid-123")
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+			assert.Equal(t, "test-pool", got.Name)
+			assert.Equal(t, "pool-uuid-123", got.UUIDURL)
+		})
+	}
+}
+
+func TestAssignConnectorsToPool(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, nil),
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "assignment failed"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("PUT", "/crux/v1/zt/connector-pools/pool-uuid/agents/associate", tc.handler)
+			ec := newTestClient(t, router)
+
+			err := AssignConnectorsToPool(ec, "pool-uuid", []string{"conn-1", "conn-2"})
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+		})
+	}
+}
+
+func TestUnassignConnectorsFromPool(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, nil),
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "unassignment failed"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("PUT", "/crux/v1/zt/connector-pools/pool-uuid/agents/disassociate", tc.handler)
+			ec := newTestClient(t, router)
+
+			err := UnassignConnectorsFromPool(ec, "pool-uuid", []string{"conn-1"})
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+		})
+	}
+}
+
+func TestGetConnectorsInPool(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		want    []string
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, ConnectorPool{
+				Connectors: json.RawMessage(`[{"uuid_url":"conn-1"},{"uuid_url":"conn-2"}]`),
+			}),
+			want: []string{"conn-1", "conn-2"},
+		},
+		"empty_connectors": {
+			handler: jsonHandler(200, ConnectorPool{}),
+			want:    nil,
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "server error"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("GET", "/crux/v1/mgmt-pop/connector-pools/pool-uuid", tc.handler)
+			ec := newTestClient(t, router)
+
+			got, err := GetConnectorsInPool(ec, "pool-uuid")
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGetAppsAssignedToPool(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		want    []string
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, ConnectorPool{
+				Applications: json.RawMessage(`[{"uuid_url":"app-1"},{"uuid_url":"app-2"}]`),
+			}),
+			want: []string{"app-1", "app-2"},
+		},
+		"no_apps": {
+			handler: jsonHandler(200, ConnectorPool{}),
+			want:    nil,
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "server error"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("GET", "/crux/v1/mgmt-pop/connector-pools/pool-uuid", tc.handler)
+			ec := newTestClient(t, router)
+
+			got, err := GetAppsAssignedToPool(ec, "pool-uuid")
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestAssignConnectorPoolsToApp(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(200, nil),
+		},
+		"api_error": {
+			handler: errorJSONHandler(500, "assignment failed"),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			router := newPathRouter(t)
+			router.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-uuid/connector-pools/associate", tc.handler)
+			ec := newTestClient(t, router)
+
+			req := &AppConnectorPoolAssignmentRequest{
+				Add: AppConnectorPoolAssignment{
+					Active: []string{"pool-1"},
+				},
+			}
+			err := AssignConnectorPoolsToApp(ec, "app-uuid", req)
+			if requireErr(t, err, tc.wantErr) {
 				return
 			}
 		})
