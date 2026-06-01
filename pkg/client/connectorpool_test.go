@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConvertPackageType(t *testing.T) {
@@ -25,11 +24,9 @@ func TestConvertPackageType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertPackageType(tt.input, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -53,11 +50,9 @@ func TestConvertInfraType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertInfraType(tt.input, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -83,11 +78,9 @@ func TestConvertOperatingMode(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertOperatingMode(tt.input, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -122,11 +115,9 @@ func TestCreateConnectorPool(t *testing.T) {
 			}
 			// CreateConnectorPool is a method on *CreateConnectorPoolRequest
 			got, err := req.CreateConnectorPool(nil, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, "pool-uuid-1", got.UUIDURL)
 		})
 	}
@@ -151,11 +142,9 @@ func TestDeleteConnectorPool(t *testing.T) {
 
 			// DeleteConnectorPool is a standalone function: (ctx, ec, uuid)
 			err := DeleteConnectorPool(nil, ec, "pool-uuid-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }

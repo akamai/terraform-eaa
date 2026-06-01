@@ -12,29 +12,9 @@ import (
 // dataSourcePops — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourcePops_ReturnsNonNil(t *testing.T) {
+func TestDataSourcePops_SchemaBasics(t *testing.T) {
 	ds := dataSourcePops()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourcePops_HasReadContext(t *testing.T) {
-	ds := dataSourcePops()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourcePops_PopsFieldExists(t *testing.T) {
-	ds := dataSourcePops()
-	_, ok := ds.Schema["pops"]
-	assert.True(t, ok, "schema must contain 'pops' field")
-}
-
-func TestDataSourcePops_PopsFieldType(t *testing.T) {
-	ds := dataSourcePops()
-	assert.Equal(t, schema.TypeList, ds.Schema["pops"].Type)
-}
-
-func TestDataSourcePops_PopsFieldOptional(t *testing.T) {
-	ds := dataSourcePops()
+	assertDataSourceBasics(t, ds, "pops", schema.TypeList)
 	assert.True(t, ds.Schema["pops"].Optional)
 }
 

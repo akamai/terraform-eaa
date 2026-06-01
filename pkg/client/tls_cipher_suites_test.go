@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetTLSCipherSuites(t *testing.T) {
@@ -34,11 +33,9 @@ func TestGetTLSCipherSuites(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			resp, err := GetTLSCipherSuites(ec, "test-app-uuid")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, "default", resp.TLSSuiteName)
 			assert.Len(t, resp.TLSCipherSuite, 2)
 		})

@@ -36,11 +36,9 @@ func TestGetCertificates(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			certs, err := GetCertificates(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, certs, tt.wantCount)
 		})
 	}
@@ -88,11 +86,9 @@ func TestDoesUploadedCertExist(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			cert, err := DoesUploadedCertExist(ec, tt.host)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.NotNil(t, cert)
 		})
 	}
@@ -127,11 +123,9 @@ func TestCreateSelfSignedCertificate(t *testing.T) {
 
 			req := &CreateSelfSignedCertRequest{HostName: tt.hostname}
 			got, err := req.CreateSelfSignedCertificate(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, "test.example.com", got.HostName)
 		})
 	}
@@ -157,11 +151,9 @@ func TestGetCertificate(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			got, err := GetCertificate(ec, "cert-uuid-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, "test.example.com", got.HostName)
 		})
 	}

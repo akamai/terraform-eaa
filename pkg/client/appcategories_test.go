@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var testCategories = []AppCate{
@@ -34,11 +33,9 @@ func TestGetAppCategories(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			cats, err := GetAppCategories(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, cats, tt.wantCount)
 		})
 	}
@@ -60,11 +57,9 @@ func TestGetAppCategoryUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := GetAppCategoryUUID(ec, tt.name)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantUUID, got)
 		})
 	}

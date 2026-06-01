@@ -2,7 +2,6 @@ package client
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,7 @@ func TestGetAppBundleByName(t *testing.T) {
 			got, err := ec.GetAppBundleByName(tt.name)
 			if tt.wantErrSubstr != "" {
 				require.Error(t, err)
-				assert.True(t, strings.Contains(err.Error(), tt.wantErrSubstr))
+				assert.Contains(t, err.Error(), tt.wantErrSubstr)
 				return
 			}
 			require.NoError(t, err)
@@ -67,7 +66,7 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
 			if tt.wantErrSubstr != "" {
 				require.Error(t, err)
-				assert.True(t, strings.Contains(err.Error(), tt.wantErrSubstr))
+				assert.Contains(t, err.Error(), tt.wantErrSubstr)
 				return
 			}
 			require.NoError(t, err)
@@ -89,11 +88,7 @@ func TestValidateAppBundleName(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
 
 			err := ec.ValidateAppBundleName(tt.name)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			requireErr(t, err, tt.wantErr)
 		})
 	}
 }

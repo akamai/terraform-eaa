@@ -12,29 +12,9 @@ import (
 // dataSourceIdps — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceIdps_ReturnsNonNil(t *testing.T) {
+func TestDataSourceIdps_SchemaBasics(t *testing.T) {
 	ds := dataSourceIdps()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourceIdps_HasReadContext(t *testing.T) {
-	ds := dataSourceIdps()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourceIdps_IdpsFieldExists(t *testing.T) {
-	ds := dataSourceIdps()
-	_, ok := ds.Schema["idps"]
-	assert.True(t, ok, "schema must contain 'idps' field")
-}
-
-func TestDataSourceIdps_IdpsFieldType(t *testing.T) {
-	ds := dataSourceIdps()
-	assert.Equal(t, schema.TypeList, ds.Schema["idps"].Type)
-}
-
-func TestDataSourceIdps_IdpsFieldComputed(t *testing.T) {
-	ds := dataSourceIdps()
+	assertDataSourceBasics(t, ds, "idps", schema.TypeList)
 	assert.True(t, ds.Schema["idps"].Computed, "idps must be computed")
 }
 

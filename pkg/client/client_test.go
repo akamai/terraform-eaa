@@ -85,14 +85,12 @@ func TestSendAPIRequest(t *testing.T) {
 				"https://"+ec.Host+"/crux/v1/mgmt-pop/test",
 				tt.method, tt.in, &out, tt.global,
 			)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.wantErrIs != nil {
 					assert.True(t, errors.Is(err, tt.wantErrIs))
 				}
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 			if tt.checkQuery != nil {
 				tt.checkQuery(t, capturedQuery)

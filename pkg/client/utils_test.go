@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDifferenceIgnoreCase(t *testing.T) {
@@ -178,11 +177,9 @@ func TestValidateIntegerField(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := ValidateIntegerField(tt.value, "test_field", tt.min, tt.max, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}

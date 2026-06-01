@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestValidateCustomHeadersConfiguration(t *testing.T) {
@@ -122,14 +121,12 @@ func TestValidateCustomHeadersConfiguration(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := ValidateCustomHeadersConfiguration(tt.settings, tt.appType, logger)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -239,14 +236,12 @@ func TestValidateCustomHeader(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateCustomHeader(tt.header, 0, logger)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -293,14 +288,12 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateIDPSelfSignedCert(tt.idpBlock, "SAML", testError, logger)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }

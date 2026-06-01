@@ -12,29 +12,9 @@ import (
 // dataSourceAgents — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceAgents_ReturnsNonNil(t *testing.T) {
+func TestDataSourceAgents_SchemaBasics(t *testing.T) {
 	ds := dataSourceAgents()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourceAgents_HasReadContext(t *testing.T) {
-	ds := dataSourceAgents()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourceAgents_AgentsFieldExists(t *testing.T) {
-	ds := dataSourceAgents()
-	_, ok := ds.Schema["agents"]
-	assert.True(t, ok, "schema must contain 'agents' field")
-}
-
-func TestDataSourceAgents_AgentsFieldType(t *testing.T) {
-	ds := dataSourceAgents()
-	assert.Equal(t, schema.TypeList, ds.Schema["agents"].Type)
-}
-
-func TestDataSourceAgents_AgentsFieldOptional(t *testing.T) {
-	ds := dataSourceAgents()
+	assertDataSourceBasics(t, ds, "agents", schema.TypeList)
 	assert.True(t, ds.Schema["agents"].Optional)
 }
 

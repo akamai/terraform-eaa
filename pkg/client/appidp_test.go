@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAssignIDP(t *testing.T) {
@@ -48,14 +47,12 @@ func TestAssignIDP(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.appIdp.AssignIDP(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -94,14 +91,12 @@ func TestUnAssignIDP(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.appIdp.UnAssignIDP(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }

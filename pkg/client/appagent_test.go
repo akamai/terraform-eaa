@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetAppAgents(t *testing.T) {
@@ -60,11 +59,9 @@ func TestGetAppAgents(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppAgents(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantNames, got)
 		})
 	}
@@ -131,11 +128,9 @@ func TestAssignAgents(t *testing.T) {
 				AgentNames: tt.agentNames,
 			}
 			err := aar.AssignAgents(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -202,11 +197,9 @@ func TestUnAssignAgents(t *testing.T) {
 				AgentNames: tt.agentNames,
 			}
 			err := aar.UnAssignAgents(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }

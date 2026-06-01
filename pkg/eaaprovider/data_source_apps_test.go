@@ -12,26 +12,10 @@ import (
 // dataSourceApps — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceApps_ReturnsNonNil(t *testing.T) {
+func TestDataSourceApps_SchemaBasics(t *testing.T) {
 	ds := dataSourceApps()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourceApps_HasReadContext(t *testing.T) {
-	ds := dataSourceApps()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourceApps_AppsFieldExists(t *testing.T) {
-	ds := dataSourceApps()
-	_, ok := ds.Schema["apps"]
-	assert.True(t, ok, "schema must contain 'apps' field")
-}
-
-func TestDataSourceApps_AppsFieldComputed(t *testing.T) {
-	ds := dataSourceApps()
+	assertDataSourceBasics(t, ds, "apps", schema.TypeList)
 	assert.True(t, ds.Schema["apps"].Computed, "apps must be computed")
-	assert.Equal(t, schema.TypeList, ds.Schema["apps"].Type)
 }
 
 func TestDataSourceApps_ElemFields(t *testing.T) {

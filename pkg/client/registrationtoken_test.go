@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFormatExpiresAt(t *testing.T) {
@@ -41,11 +40,9 @@ func TestFormatExpiresAt(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := FormatExpiresAt(tt.input)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -117,11 +114,7 @@ func TestRegistrationTokenWriteRequest_Validate(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := tt.req.Validate()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			requireErr(t, err, tt.wantErr)
 		})
 	}
 }
@@ -152,11 +145,9 @@ func TestGetRegistrationTokens(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			got, err := ec.GetRegistrationTokens("pool-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, got, tt.wantLen)
 		})
 	}
@@ -182,11 +173,9 @@ func TestGetRegistrationTokenByUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := ec.GetRegistrationTokenByUUID(tt.uuid, "pool-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.uuid, got.UUIDURL)
 		})
 	}
@@ -206,11 +195,9 @@ func TestDeleteRegistrationTokenByUUID(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := DeleteRegistrationTokenByUUID(context.Background(), ec, "tok-uuid-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -255,11 +242,9 @@ func TestUpdateRegistrationToken(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := UpdateRegistrationToken(context.Background(), ec, tt.tokenUUID, tt.req)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }

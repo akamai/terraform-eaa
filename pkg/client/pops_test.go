@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var testPops = []Pop{
@@ -34,11 +33,9 @@ func TestGetPops(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			pops, err := GetPops(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, pops, tt.wantCount)
 		})
 	}
@@ -61,11 +58,9 @@ func TestGetPopUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			gotName, gotUUID, err := GetPopUUID(ec, tt.region)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantName, gotName)
 			assert.Equal(t, tt.wantUUID, gotUUID)
 		})

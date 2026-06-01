@@ -12,13 +12,9 @@ import (
 // dataSourceTLSCipherSuites — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceTLSCipherSuites_ReturnsNonNil(t *testing.T) {
+func TestDataSourceTLSCipherSuites_SchemaBasics(t *testing.T) {
 	ds := dataSourceTLSCipherSuites()
 	require.NotNil(t, ds)
-}
-
-func TestDataSourceTLSCipherSuites_HasReadContext(t *testing.T) {
-	ds := dataSourceTLSCipherSuites()
 	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
 }
 

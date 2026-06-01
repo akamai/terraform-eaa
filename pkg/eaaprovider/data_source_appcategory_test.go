@@ -12,29 +12,9 @@ import (
 // dataSourceAppCategories — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceAppCategories_ReturnsNonNil(t *testing.T) {
+func TestDataSourceAppCategories_SchemaBasics(t *testing.T) {
 	ds := dataSourceAppCategories()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourceAppCategories_HasReadContext(t *testing.T) {
-	ds := dataSourceAppCategories()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourceAppCategories_AppcategoriesFieldExists(t *testing.T) {
-	ds := dataSourceAppCategories()
-	_, ok := ds.Schema["appcategories"]
-	assert.True(t, ok, "schema must contain 'appcategories' field")
-}
-
-func TestDataSourceAppCategories_AppcategoriesFieldType(t *testing.T) {
-	ds := dataSourceAppCategories()
-	assert.Equal(t, schema.TypeList, ds.Schema["appcategories"].Type)
-}
-
-func TestDataSourceAppCategories_AppcategoriesFieldComputed(t *testing.T) {
-	ds := dataSourceAppCategories()
+	assertDataSourceBasics(t, ds, "appcategories", schema.TypeList)
 	assert.True(t, ds.Schema["appcategories"].Computed, "appcategories must be computed")
 }
 

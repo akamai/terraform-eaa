@@ -44,11 +44,9 @@ func TestGetAppIdpMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppIdpMembership(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			if tt.wantNil {
 				assert.Nil(t, got)
 				return
@@ -97,11 +95,9 @@ func TestGetAppDirectoryMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppDirectoryMembership(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, got, tt.wantCount)
 		})
 	}
@@ -141,11 +137,9 @@ func TestGetAppGroupMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppGroupMembership(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, got, tt.wantCount)
 		})
 	}
@@ -212,11 +206,9 @@ func TestCreateAppAuthenticationStruct(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.CreateAppAuthenticationStruct(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			require.Len(t, got, 1)
 
 			authMap, ok := got[0].(map[string]interface{})

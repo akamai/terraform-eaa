@@ -12,26 +12,10 @@ import (
 // dataSourceEaaConnectorPools — schema validation
 // ---------------------------------------------------------------------------
 
-func TestDataSourceEaaConnectorPools_ReturnsNonNil(t *testing.T) {
+func TestDataSourceEaaConnectorPools_SchemaBasics(t *testing.T) {
 	ds := dataSourceEaaConnectorPools()
-	require.NotNil(t, ds)
-}
-
-func TestDataSourceEaaConnectorPools_HasReadContext(t *testing.T) {
-	ds := dataSourceEaaConnectorPools()
-	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
-}
-
-func TestDataSourceEaaConnectorPools_ConnectorPoolsFieldExists(t *testing.T) {
-	ds := dataSourceEaaConnectorPools()
-	_, ok := ds.Schema["connector_pools"]
-	assert.True(t, ok, "schema must contain 'connector_pools' field")
-}
-
-func TestDataSourceEaaConnectorPools_ConnectorPoolsFieldComputed(t *testing.T) {
-	ds := dataSourceEaaConnectorPools()
+	assertDataSourceBasics(t, ds, "connector_pools", schema.TypeList)
 	assert.True(t, ds.Schema["connector_pools"].Computed, "connector_pools must be computed")
-	assert.Equal(t, schema.TypeList, ds.Schema["connector_pools"].Type)
 }
 
 func TestDataSourceEaaConnectorPools_PoolElemFields(t *testing.T) {

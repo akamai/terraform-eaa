@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var testConnectors = []Connector{
@@ -35,11 +34,9 @@ func TestGetAgents(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			agents, err := GetAgents(ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Len(t, agents, tt.wantCount)
 		})
 	}
@@ -71,11 +68,9 @@ func TestGetAgentUUIDs(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := GetAgentUUIDs(ec, tt.names)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantUUIDs, got)
 		})
 	}
@@ -99,11 +94,9 @@ func TestDeleteConnector(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := DeleteConnector(ec, "test-uuid")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -133,11 +126,9 @@ func TestCreateConnector(t *testing.T) {
 				Status:  STATE_ENABLED,
 			}
 			got, err := req.CreateConnector(nil, ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, "new-conn", got.Name)
 		})
 	}

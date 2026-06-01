@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAssignIdpDirectory(t *testing.T) {
@@ -44,14 +43,12 @@ func TestAssignIdpDirectory(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.appDir.AssignIdpDirectory(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -86,11 +83,9 @@ func TestGetIdpDirectoryGroup(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 			got, err := dirData.GetIdpDirectoryGroup(context.Background(), ec, tt.groupName)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantGroup, got)
 		})
 	}
@@ -161,11 +156,9 @@ func TestAssignIdpDirectoryGroups(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignIdpDirectoryGroups(context.Background(), ec, "app-uuid-1", tt.appGroupsList)
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -213,11 +206,9 @@ func TestAssignAllDirectoryGroups(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignAllDirectoryGroups(context.Background(), ec, "app-uuid-1")
-			if tt.wantErr {
-				require.Error(t, err)
+			if requireErr(t, err, tt.wantErr) {
 				return
 			}
-			require.NoError(t, err)
 		})
 	}
 }
