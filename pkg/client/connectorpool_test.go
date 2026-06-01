@@ -116,7 +116,7 @@ func TestCreateConnectorPool(t *testing.T) {
 				PackageType: int(AGENT_PACKAGE_DOCKER),
 			}
 			// CreateConnectorPool is a method on *CreateConnectorPoolRequest
-			got, err := req.CreateConnectorPool(nil, ec)
+			got, err := req.CreateConnectorPool(context.Background(), ec)
 			if requireErr(t, err, tt.wantErr) {
 				return
 			}
@@ -143,7 +143,7 @@ func TestDeleteConnectorPool(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			// DeleteConnectorPool is a standalone function: (ctx, ec, uuid)
-			err := DeleteConnectorPool(nil, ec, "pool-uuid-1")
+			err := DeleteConnectorPool(context.Background(), ec, "pool-uuid-1")
 			if requireErr(t, err, tt.wantErr) {
 				return
 			}

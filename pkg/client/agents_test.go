@@ -2,6 +2,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -125,7 +126,7 @@ func TestCreateConnector(t *testing.T) {
 				Package: int(AGENT_PACKAGE_DOCKER),
 				Status:  STATE_ENABLED,
 			}
-			got, err := req.CreateConnector(nil, ec)
+			got, err := req.CreateConnector(context.Background(), ec)
 			if requireErr(t, err, tt.wantErr) {
 				return
 			}
