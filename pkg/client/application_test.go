@@ -65,12 +65,8 @@ func TestCreateMinimalApplication_MalformedJSON(t *testing.T) {
 		ClientAppMode: 1,
 	}
 	got, err := mcar.CreateMinimalApplication(context.Background(), ec)
-	// The error could come from unmarshalling or the response might be zero-value
-	// depending on how SendAPIRequest handles parse errors.
-	// Either an error or a zero-value response is acceptable.
-	if err != nil {
-		assert.Nil(t, got)
-	}
+	require.Error(t, err, "malformed JSON should produce an error")
+	assert.Nil(t, got)
 }
 
 // ---------------------------------------------------------------------------

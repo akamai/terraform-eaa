@@ -12,11 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestResourceData(data map[string]interface{}) *schema.ResourceData {
+func createTestResourceData(t *testing.T, data map[string]interface{}) *schema.ResourceData {
+	t.Helper()
 	resource := resourceEaaConnectorPool()
 	d := resource.Data(nil)
 	for key, value := range data {
-		d.Set(key, value) //nolint:errcheck // test helper, error handling not needed
+		require.NoError(t, d.Set(key, value), "failed to set %q", key)
 	}
 	return d
 }
@@ -271,7 +272,7 @@ func TestHasDuplicateTokenNames(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			d := createTestResourceData(tc.data)
+			d := createTestResourceData(t, tc.data)
 			err := hasDuplicateTokenNames(d)
 			if tc.wantErr {
 				require.Error(t, err)
@@ -332,7 +333,7 @@ func TestResourceEaaConnectorPoolSchema(t *testing.T) {
 // ===========================================================================
 
 func TestResourceEaaConnectorPoolCreate_InvalidClient(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{
+	d := createTestResourceData(t, map[string]interface{}{
 		"name":         "pool",
 		"package_type": "vmware",
 	})
@@ -341,7 +342,7 @@ func TestResourceEaaConnectorPoolCreate_InvalidClient(t *testing.T) {
 }
 
 func TestResourceEaaConnectorPoolCreate_AWSClassicBlocked(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{
+	d := createTestResourceData(t, map[string]interface{}{
 		"name":         "pool",
 		"package_type": "aws_classic",
 	})
@@ -357,7 +358,7 @@ func TestResourceEaaConnectorPoolCreate_AWSClassicBlocked(t *testing.T) {
 }
 
 func TestResourceEaaConnectorPoolCreate_DuplicateTokensBlocked(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{
+	d := createTestResourceData(t, map[string]interface{}{
 		"name":         "pool",
 		"package_type": "vmware",
 		"registration_tokens": []map[string]interface{}{
@@ -377,13 +378,13 @@ func TestResourceEaaConnectorPoolCreate_DuplicateTokensBlocked(t *testing.T) {
 }
 
 func TestResourceEaaConnectorPoolRead_InvalidClient(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{})
+	d := createTestResourceData(t, map[string]interface{}{})
 	diags := resourceEaaConnectorPoolRead(context.Background(), d, nil)
 	require.NotEmpty(t, diags)
 }
 
 func TestResourceEaaConnectorPoolUpdate_InvalidClient(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{
+	d := createTestResourceData(t, map[string]interface{}{
 		"name":         "pool",
 		"package_type": "vmware",
 	})
@@ -392,7 +393,7 @@ func TestResourceEaaConnectorPoolUpdate_InvalidClient(t *testing.T) {
 }
 
 func TestResourceEaaConnectorPoolDelete_InvalidClient(t *testing.T) {
-	d := createTestResourceData(map[string]interface{}{})
+	d := createTestResourceData(t, map[string]interface{}{})
 	diags := resourceEaaConnectorPoolDelete(context.Background(), d, nil)
 	require.NotEmpty(t, diags)
 }
@@ -447,7 +448,7 @@ func TestSetConnectorPoolBasicAttributes(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			d := createTestResourceData(map[string]interface{}{})
+			d := createTestResourceData(t, map[string]interface{}{})
 			setConnectorPoolBasicAttributes(d, tc.connPool)
 
 			for key, expected := range tc.expectedMap {

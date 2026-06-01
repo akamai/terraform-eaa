@@ -373,7 +373,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 	appID := "test-app-uuid-123"
 
 	t.Run("READ_Success", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient()
+		mockClient, mockTransport := createMockClient(t)
 
 		readPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
 		mockTransport.Responses[readPattern] = MockResponse{
@@ -405,7 +405,23 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			},
 		}
 
-		d := createTestApplicationResourceData(map[string]interface{}{})
+		agentsPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)
+		mockTransport.Responses[agentsPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		rulesPattern := "GET /crux/v1/mgmt-pop/services/service-uuid-123/rules"
+		mockTransport.Responses[rulesPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
 		d.SetId(appID)
 
 		diags := resourceEaaApplicationRead(ctx, d, mockClient)
@@ -415,10 +431,10 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 	})
 
 	t.Run("READ_NotFound", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient()
+		mockClient, mockTransport := createMockClient(t)
 
-		readURL := fmt.Sprintf("https://test.example.com/crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[readURL] = MockResponse{
+		readPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
+		mockTransport.Responses[readPattern] = MockResponse{
 			StatusCode: 404,
 			Body: map[string]interface{}{
 				"type":   "error",
@@ -427,7 +443,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			},
 		}
 
-		d := createTestApplicationResourceData(map[string]interface{}{})
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
 		d.SetId(appID)
 
 		diags := resourceEaaApplicationRead(ctx, d, mockClient)
@@ -435,7 +451,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 	})
 
 	t.Run("DELETE_Success", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient()
+		mockClient, mockTransport := createMockClient(t)
 
 		getPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
 		mockTransport.Responses[getPattern] = MockResponse{
@@ -454,7 +470,7 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			Body:       map[string]interface{}{"status": "deleted"},
 		}
 
-		d := createTestApplicationResourceData(map[string]interface{}{})
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
 		d.SetId(appID)
 
 		diags := resourceEaaApplicationDelete(ctx, d, mockClient)
@@ -471,10 +487,10 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 	})
 
 	t.Run("CREATE_WithMockedClient", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient()
+		mockClient, mockTransport := createMockClient(t)
 
-		createURL := "https://test.example.com/crux/v1/mgmt-pop/apps"
-		mockTransport.Responses[createURL] = MockResponse{
+		createPattern := "POST /crux/v1/mgmt-pop/apps"
+		mockTransport.Responses[createPattern] = MockResponse{
 			StatusCode: 200,
 			Body: map[string]interface{}{
 				"uuid_url":    appID,
@@ -484,8 +500,8 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			},
 		}
 
-		readURL := fmt.Sprintf("https://test.example.com/crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[readURL] = MockResponse{
+		readPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
+		mockTransport.Responses[readPattern] = MockResponse{
 			StatusCode: 200,
 			Body: map[string]interface{}{
 				"uuid_url":    appID,
@@ -496,7 +512,47 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			},
 		}
 
-		d := createTestApplicationResourceData(map[string]interface{}{
+		updatePattern := fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)
+		mockTransport.Responses[updatePattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"uuid_url":    appID,
+				"name":        "test-enterprise-app",
+				"app_type":    1,
+				"app_profile": 1,
+				"host":        "test.example.com",
+			},
+		}
+
+		deletePattern := fmt.Sprintf("DELETE /crux/v1/mgmt-pop/apps/%s", appID)
+		mockTransport.Responses[deletePattern] = MockResponse{
+			StatusCode: 200,
+			Body:       map[string]interface{}{"status": "deleted"},
+		}
+
+		deployPattern := fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)
+		mockTransport.Responses[deployPattern] = MockResponse{
+			StatusCode: 200,
+			Body:       map[string]interface{}{"status": "deployed"},
+		}
+
+		agentsPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)
+		mockTransport.Responses[agentsPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		servicesPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)
+		mockTransport.Responses[servicesPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
 			"name":        "test-enterprise-app",
 			"app_type":    "enterprise",
 			"app_profile": "http",
@@ -505,11 +561,15 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 
 		// Create may produce diags due to mocked API limitations; just verify it runs
 		diags := resourceEaaApplicationCreateTwoPhase(ctx, d, mockClient)
-		_ = diags // CREATE is complex; we verify it doesn't panic
+		for _, d := range diags {
+			if d.Severity == diag.Error {
+				t.Logf("CREATE diag (expected with incomplete mock): %s", d.Summary)
+			}
+		}
 	})
 
 	t.Run("UPDATE_WithMockedClient", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient()
+		mockClient, mockTransport := createMockClient(t)
 
 		getPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
 		mockTransport.Responses[getPattern] = MockResponse{
@@ -533,14 +593,40 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 			},
 		}
 
-		d := createTestApplicationResourceData(map[string]interface{}{
+		agentsPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)
+		mockTransport.Responses[agentsPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		servicesPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)
+		mockTransport.Responses[servicesPattern] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{},
+			},
+		}
+
+		deployPattern := fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)
+		mockTransport.Responses[deployPattern] = MockResponse{
+			StatusCode: 200,
+			Body:       map[string]interface{}{"status": "deployed"},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
 			"name": "test-update-app-updated",
 		})
 		d.SetId(appID)
 
 		// Update may produce diags; verify no panic
 		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
-		_ = diags
+		for _, d := range diags {
+			if d.Severity == diag.Error {
+				t.Logf("UPDATE diag (expected with incomplete mock): %s", d.Summary)
+			}
+		}
 	})
 }
 
@@ -572,7 +658,7 @@ func TestResourceEaaApplicationCreateWithValidation(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			d := createTestApplicationResourceData(tc.resourceData)
+			d := createTestApplicationResourceData(t, tc.resourceData)
 
 			// Nil client will cause an error; this validates the function doesn't panic
 			diags := resourceEaaApplicationCreateTwoPhase(context.Background(), d, nil)
@@ -672,6 +758,7 @@ type MockResponse struct {
 
 // MockHTTPTransport is a custom HTTP transport for testing
 type MockHTTPTransport struct {
+	t         *testing.T
 	Responses map[string]MockResponse
 }
 
@@ -688,12 +775,7 @@ func (m *MockHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		return m.createHTTPResponse(req, resp)
 	}
 
-	for pattern, resp := range m.Responses {
-		if strings.Contains(url, pattern) {
-			return m.createHTTPResponse(req, resp)
-		}
-	}
-
+	m.t.Errorf("unregistered mock route: %s %s", method, req.URL)
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Status:     "404 Not Found",
@@ -705,13 +787,11 @@ func (m *MockHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockResponse) (*http.Response, error) {
 	var bodyBytes []byte
-	var err error
 
 	if mockResp.Body != nil {
+		var err error
 		bodyBytes, err = json.Marshal(mockResp.Body)
-		if err != nil {
-			bodyBytes = []byte("{}")
-		}
+		require.NoError(m.t, err, "failed to marshal mock response body")
 	}
 
 	header := mockResp.Header
@@ -728,13 +808,14 @@ func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockR
 	}, nil
 }
 
-func createMockClient() (*client.EaaClient, *MockHTTPTransport) {
+func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Level:  hclog.Info,
 		Output: io.Discard,
 	})
 
 	mockTransport := &MockHTTPTransport{
+		t:         t,
 		Responses: make(map[string]MockResponse),
 	}
 
@@ -751,11 +832,12 @@ func createMockClient() (*client.EaaClient, *MockHTTPTransport) {
 	}, mockTransport
 }
 
-func createTestApplicationResourceData(data map[string]interface{}) *schema.ResourceData {
+func createTestApplicationResourceData(t *testing.T, data map[string]interface{}) *schema.ResourceData {
+	t.Helper()
 	resource := resourceEaaApplication()
 	d := resource.Data(nil)
 	for key, value := range data {
-		d.Set(key, value)
+		require.NoError(t, d.Set(key, value), "failed to set %q", key)
 	}
 	return d
 }
