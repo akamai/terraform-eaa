@@ -82,9 +82,9 @@ func requireErr(t *testing.T, err error, wantErr bool) bool {
 
 // toIntCase holds a single test case for string-to-int conversion tests.
 type toIntCase[S ~string] struct {
-	input       S
-	expected    int
-	expectError bool
+	input    S
+	expected int
+	wantErr  bool
 }
 
 func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map[string]toIntCase[S]) {
@@ -92,7 +92,7 @@ func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result, err := convFunc(tc.input)
-			if tc.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -104,9 +104,9 @@ func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map
 
 // toStringCase holds a single test case for int-to-string conversion tests.
 type toStringCase[I ~int] struct {
-	input       I
-	expected    string
-	expectError bool
+	input    I
+	expected string
+	wantErr  bool
 }
 
 func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests map[string]toStringCase[I]) {
@@ -114,7 +114,7 @@ func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result, err := convFunc(tc.input)
-			if tc.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)

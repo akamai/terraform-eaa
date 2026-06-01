@@ -4,303 +4,72 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
-	"github.com/stretchr/testify/assert"
 )
 
-// ---------------------------------------------------------------------------
-// validateSAMLSigningAlgorithm
-// ---------------------------------------------------------------------------
-
 func TestValidateSAMLSigningAlgorithm(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_SHA1": {
-			val:      string(client.SAMLSigningAlgorithmSHA1),
-			wantErrs: false,
-		},
-		"valid_SHA256": {
-			val:      string(client.SAMLSigningAlgorithmSHA256),
-			wantErrs: false,
-		},
-		"invalid_SHA512": {
-			val:      "SHA512",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      123,
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateSAMLSigningAlgorithm(tc.val, "sign_algo")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateSAMLSigningAlgorithm, "sign_algo", map[string]validateFuncCase{
+		"valid_SHA1":         {val: string(client.SAMLSigningAlgorithmSHA1)},
+		"valid_SHA256":       {val: string(client.SAMLSigningAlgorithmSHA256)},
+		"invalid_SHA512":     {val: "SHA512", wantErr: true},
+		"invalid_empty":      {val: "", wantErr: true},
+		"invalid_non_string": {val: 123, wantErr: true},
+	})
 }
-
-// ---------------------------------------------------------------------------
-// validateSAMLEncryptionAlgorithm
-// ---------------------------------------------------------------------------
 
 func TestValidateSAMLEncryptionAlgorithm(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_aes128-cbc": {
-			val:      string(client.SAMLEncryptionAlgorithmAES128CBC),
-			wantErrs: false,
-		},
-		"valid_aes256-cbc": {
-			val:      string(client.SAMLEncryptionAlgorithmAES256CBC),
-			wantErrs: false,
-		},
-		"invalid_aes192-cbc": {
-			// Not in the validation function's valid list (only aes128 and aes256)
-			val:      "aes192-cbc",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      42,
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateSAMLEncryptionAlgorithm(tc.val, "encr_algo")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateSAMLEncryptionAlgorithm, "encr_algo", map[string]validateFuncCase{
+		"valid_aes128-cbc":   {val: string(client.SAMLEncryptionAlgorithmAES128CBC)},
+		"valid_aes256-cbc":   {val: string(client.SAMLEncryptionAlgorithmAES256CBC)},
+		"invalid_aes192-cbc": {val: "aes192-cbc", wantErr: true},
+		"invalid_empty":      {val: "", wantErr: true},
+		"invalid_non_string": {val: 42, wantErr: true},
+	})
 }
-
-// ---------------------------------------------------------------------------
-// validateSAMLResponseBinding
-// ---------------------------------------------------------------------------
 
 func TestValidateSAMLResponseBinding(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_post": {
-			val:      string(client.SAMLResponseBindingPost),
-			wantErrs: false,
-		},
-		"valid_redirect": {
-			val:      string(client.SAMLResponseBindingRedirect),
-			wantErrs: false,
-		},
-		"invalid_artifact": {
-			val:      "artifact",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      true,
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateSAMLResponseBinding(tc.val, "resp_bind")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateSAMLResponseBinding, "resp_bind", map[string]validateFuncCase{
+		"valid_post":         {val: string(client.SAMLResponseBindingPost)},
+		"valid_redirect":     {val: string(client.SAMLResponseBindingRedirect)},
+		"invalid_artifact":   {val: "artifact", wantErr: true},
+		"invalid_empty":      {val: "", wantErr: true},
+		"invalid_non_string": {val: true, wantErr: true},
+	})
 }
-
-// ---------------------------------------------------------------------------
-// validateSAMLSubjectFormat
-// ---------------------------------------------------------------------------
 
 func TestValidateSAMLSubjectFormat(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_email": {
-			val:      string(client.SAMLSubjectFormatEmail),
-			wantErrs: false,
-		},
-		"valid_persistent": {
-			val:      string(client.SAMLSubjectFormatPersistent),
-			wantErrs: false,
-		},
-		"valid_unspecified": {
-			val:      "unspecified",
-			wantErrs: false,
-		},
-		"valid_transient": {
-			val:      string(client.SAMLSubjectFormatTransient),
-			wantErrs: false,
-		},
-		"invalid_nameid": {
-			// nameid is defined in constants but NOT in the validation function's valid list
-			val:      "nameid",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      999,
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateSAMLSubjectFormat(tc.val, "subject_fmt")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateSAMLSubjectFormat, "subject_fmt", map[string]validateFuncCase{
+		"valid_email":        {val: string(client.SAMLSubjectFormatEmail)},
+		"valid_persistent":   {val: string(client.SAMLSubjectFormatPersistent)},
+		"valid_unspecified":  {val: "unspecified"},
+		"valid_transient":    {val: string(client.SAMLSubjectFormatTransient)},
+		"invalid_nameid":     {val: "nameid", wantErr: true}, // defined in constants but NOT in validation's valid list
+		"invalid_empty":      {val: "", wantErr: true},
+		"invalid_non_string": {val: 999, wantErr: true},
+	})
 }
-
-// ---------------------------------------------------------------------------
-// validateOIDCClientType
-// ---------------------------------------------------------------------------
 
 func TestValidateOIDCClientType(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_standard": {
-			val:      string(client.OIDCClientTypeStandard),
-			wantErrs: false,
-		},
-		"valid_confidential": {
-			val:      string(client.OIDCClientTypeConfidential),
-			wantErrs: false,
-		},
-		"valid_public": {
-			val:      string(client.OIDCClientTypePublic),
-			wantErrs: false,
-		},
-		"invalid_bearer": {
-			val:      "bearer",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      []string{"standard"},
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateOIDCClientType(tc.val, "client_type")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateOIDCClientType, "client_type", map[string]validateFuncCase{
+		"valid_standard":     {val: string(client.OIDCClientTypeStandard)},
+		"valid_confidential": {val: string(client.OIDCClientTypeConfidential)},
+		"valid_public":       {val: string(client.OIDCClientTypePublic)},
+		"invalid_bearer":     {val: "bearer", wantErr: true},
+		"invalid_empty":      {val: "", wantErr: true},
+		"invalid_non_string": {val: []string{"standard"}, wantErr: true},
+	})
 }
 
-// ---------------------------------------------------------------------------
-// validateOIDCResponseType
-// ---------------------------------------------------------------------------
-
 func TestValidateOIDCResponseType(t *testing.T) {
-	tests := map[string]struct {
-		val      interface{}
-		wantErrs bool
-	}{
-		"valid_code": {
-			val:      string(client.OIDCResponseTypeCode),
-			wantErrs: false,
-		},
-		"valid_id_token": {
-			val:      string(client.OIDCResponseTypeIDToken),
-			wantErrs: false,
-		},
-		"valid_token": {
-			val:      string(client.OIDCResponseTypeToken),
-			wantErrs: false,
-		},
-		"valid_code_id_token": {
-			val:      string(client.OIDCResponseTypeCodeIDToken),
-			wantErrs: false,
-		},
-		"valid_code_token": {
-			val:      string(client.OIDCResponseTypeCodeToken),
-			wantErrs: false,
-		},
-		"valid_id_token_token": {
-			val:      string(client.OIDCResponseTypeIDTokenToken),
-			wantErrs: false,
-		},
-		"valid_code_id_token_token": {
-			val:      string(client.OIDCResponseTypeCodeIDTokenToken),
-			wantErrs: false,
-		},
-		"invalid_password": {
-			val:      "password",
-			wantErrs: true,
-		},
-		"invalid_empty": {
-			val:      "",
-			wantErrs: true,
-		},
-		"invalid_non_string": {
-			val:      42,
-			wantErrs: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateOIDCResponseType(tc.val, "response_type")
-			assert.Empty(t, warns)
-			if tc.wantErrs {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateOIDCResponseType, "response_type", map[string]validateFuncCase{
+		"valid_code":                {val: string(client.OIDCResponseTypeCode)},
+		"valid_id_token":            {val: string(client.OIDCResponseTypeIDToken)},
+		"valid_token":               {val: string(client.OIDCResponseTypeToken)},
+		"valid_code_id_token":       {val: string(client.OIDCResponseTypeCodeIDToken)},
+		"valid_code_token":          {val: string(client.OIDCResponseTypeCodeToken)},
+		"valid_id_token_token":      {val: string(client.OIDCResponseTypeIDTokenToken)},
+		"valid_code_id_token_token": {val: string(client.OIDCResponseTypeCodeIDTokenToken)},
+		"invalid_password":          {val: "password", wantErr: true},
+		"invalid_empty":             {val: "", wantErr: true},
+		"invalid_non_string":        {val: 42, wantErr: true},
+	})
 }

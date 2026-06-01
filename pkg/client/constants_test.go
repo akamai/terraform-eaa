@@ -10,7 +10,7 @@ func TestDomain_ToInt(t *testing.T) {
 	testToInt(t, Domain.ToInt, map[string]toIntCase[Domain]{
 		"custom":  {input: AppDomainCustom, expected: int(APP_DOMAIN_CUSTOM)},
 		"wapp":    {input: AppDomainWapp, expected: int(APP_DOMAIN_WAPP)},
-		"unknown": {input: Domain("unknown"), expectError: true},
+		"unknown": {input: Domain("unknown"), wantErr: true},
 	})
 }
 
@@ -18,7 +18,7 @@ func TestDomainInt_String(t *testing.T) {
 	testToString(t, DomainInt.String, map[string]toStringCase[DomainInt]{
 		"APP_DOMAIN_CUSTOM": {input: APP_DOMAIN_CUSTOM, expected: "custom"},
 		"APP_DOMAIN_WAPP":   {input: APP_DOMAIN_WAPP, expected: "wapp"},
-		"unknown":           {input: DomainInt(99), expectError: true},
+		"unknown":           {input: DomainInt(99), wantErr: true},
 	})
 }
 
@@ -34,7 +34,7 @@ func TestAppProfile_ToInt(t *testing.T) {
 		"confluence": {input: AppProfileConfluence, expected: int(APP_PROFILE_CONFLUENCE)},
 		"tcp":        {input: AppProfileTCP, expected: int(APP_PROFILE_TCP)},
 		"smb":        {input: AppProfileSMB, expected: int(APP_PROFILE_SMB)},
-		"unknown":    {input: AppProfile("unknown"), expectError: true},
+		"unknown":    {input: AppProfile("unknown"), wantErr: true},
 	})
 }
 
@@ -50,7 +50,7 @@ func TestAppProfileInt_String(t *testing.T) {
 		"APP_PROFILE_CONFLUENCE": {input: APP_PROFILE_CONFLUENCE, expected: "confluence"},
 		"APP_PROFILE_TCP":        {input: APP_PROFILE_TCP, expected: "tcp"},
 		"APP_PROFILE_SMB":        {input: APP_PROFILE_SMB, expected: "smb"},
-		"unknown":                {input: AppProfileInt(99), expectError: true},
+		"unknown":                {input: AppProfileInt(99), wantErr: true},
 	})
 }
 
@@ -58,7 +58,7 @@ func TestAppMode_ToInt(t *testing.T) {
 	testToInt(t, AppMode.ToInt, map[string]toIntCase[AppMode]{
 		"tcp":     {input: ClientAppModeTCP, expected: int(CLIENT_APP_MODE_TCP)},
 		"tunnel":  {input: ClientAppModeTunnel, expected: int(CLIENT_APP_MODE_TUNNEL)},
-		"unknown": {input: AppMode("unknown"), expectError: true},
+		"unknown": {input: AppMode("unknown"), wantErr: true},
 	})
 }
 
@@ -66,7 +66,7 @@ func TestAppModeInt_String(t *testing.T) {
 	testToString(t, AppModeInt.String, map[string]toStringCase[AppModeInt]{
 		"CLIENT_APP_MODE_TCP":    {input: CLIENT_APP_MODE_TCP, expected: "tcp"},
 		"CLIENT_APP_MODE_TUNNEL": {input: CLIENT_APP_MODE_TUNNEL, expected: "tunnel"},
-		"unknown":                {input: AppModeInt(99), expectError: true},
+		"unknown":                {input: AppModeInt(99), wantErr: true},
 	})
 }
 
@@ -76,7 +76,7 @@ func TestAppType_ToInt(t *testing.T) {
 		"saas":       {input: ClientAppTypeSaaS, expected: int(APP_TYPE_SAAS)},
 		"bookmark":   {input: ClientAppTypeBookmark, expected: int(APP_TYPE_BOOKMARK)},
 		"tunnel":     {input: ClientAppTypeTunnel, expected: int(APP_TYPE_TUNNEL)},
-		"unknown":    {input: AppType("unknown"), expectError: true},
+		"unknown":    {input: AppType("unknown"), wantErr: true},
 	})
 }
 
@@ -86,7 +86,7 @@ func TestAppTypeInt_String(t *testing.T) {
 		"APP_TYPE_SAAS":              {input: APP_TYPE_SAAS, expected: "saas"},
 		"APP_TYPE_BOOKMARK":          {input: APP_TYPE_BOOKMARK, expected: "bookmark"},
 		"APP_TYPE_TUNNEL":            {input: APP_TYPE_TUNNEL, expected: "tunnel"},
-		"unknown":                    {input: AppTypeInt(99), expectError: true},
+		"unknown":                    {input: AppTypeInt(99), wantErr: true},
 	})
 }
 
@@ -103,7 +103,7 @@ func TestConnPackageType_ToInt(t *testing.T) {
 		"google":      {input: ConnPackageTypeGoogle, expected: int(AGENT_PACKAGE_GOOGLE)},
 		"softlayer":   {input: ConnPackageTypeSoftLayer, expected: int(AGENT_PACKAGE_SOFTLAYER)},
 		"fujitsu_k5":  {input: ConnPackageTypeFujitsu_k5, expected: int(AGENT_PACKAGE_FUJITSU_K5)},
-		"unknown":     {input: ConnPackageType("unknown"), expectError: true},
+		"unknown":     {input: ConnPackageType("unknown"), wantErr: true},
 	})
 }
 
@@ -120,7 +120,7 @@ func TestConnPackageTypeInt_String(t *testing.T) {
 		"AGENT_PACKAGE_GOOGLE":      {input: AGENT_PACKAGE_GOOGLE, expected: "google"},
 		"AGENT_PACKAGE_SOFTLAYER":   {input: AGENT_PACKAGE_SOFTLAYER, expected: "softlayer"},
 		"AGENT_PACKAGE_FUJITSU_K5":  {input: AGENT_PACKAGE_FUJITSU_K5, expected: "fujitsu_k5"},
-		"unknown":                   {input: ConnPackageTypeInt(99), expectError: true},
+		"unknown":                   {input: ConnPackageTypeInt(99), wantErr: true},
 	})
 }
 
@@ -132,10 +132,10 @@ func TestConnPackageStateInt_String(t *testing.T) {
 		"AGENT_STATE_NOT_VERIFIED":   {input: AGENT_STATE_NOT_VERIFIED, expected: "not_verified"},
 		"AGENT_STATE_VERIFIED":       {input: AGENT_STATE_VERIFIED, expected: "verified"},
 		"AGENT_STATE_UNENROLLED":     {input: AGENT_STATE_UNENROLLED, expected: "unenrolled"},
-		"AGENT_STATE_ENROLLED":       {input: AGENT_STATE_ENROLLED, expectError: true}, // value 6 missing from String() switch — documents source gap
+		"AGENT_STATE_ENROLLED":       {input: AGENT_STATE_ENROLLED, wantErr: true}, // value 6 missing from String() switch — documents source gap
 		"AGENT_STATE_NOT_CONFIGURED": {input: AGENT_STATE_NOT_CONFIGURED, expected: "not_configured"},
 		"AGENT_STATE_CONFIGURED":     {input: AGENT_STATE_CONFIGURED, expected: "configured"},
-		"unknown":                    {input: ConnPackageStateInt(99), expectError: true},
+		"unknown":                    {input: ConnPackageStateInt(99), wantErr: true},
 	})
 }
 
@@ -148,7 +148,7 @@ func TestServiceType_ToInt(t *testing.T) {
 		"slb":          {input: ServiceTypeSLB, expected: int(SERVICE_TYPE_SLB)},
 		"access":       {input: ServiceTypeAccessCtrl, expected: int(SERVICE_TYPE_ACCESS_CTRL)},
 		"rewrite":      {input: ServiceTypeRewrite, expected: int(SERVICE_TYPE_REWRITE)},
-		"unknown":      {input: ServiceType("unknown"), expectError: true},
+		"unknown":      {input: ServiceType("unknown"), wantErr: true},
 	})
 }
 
@@ -250,7 +250,7 @@ func TestInfraType_ToInt(t *testing.T) {
 		"unified": {input: InfraTypeUnified, expected: int(INFRA_TYPE_UNIFIED)},
 		"broker":  {input: InfraTypeBroker, expected: int(INFRA_TYPE_BROKER)},
 		"cpag":    {input: InfraTypeCPAG, expected: int(INFRA_TYPE_CPAG)},
-		"unknown": {input: InfraType("unknown"), expectError: true},
+		"unknown": {input: InfraType("unknown"), wantErr: true},
 	})
 }
 
@@ -260,7 +260,7 @@ func TestInfraTypeInt_String(t *testing.T) {
 		"INFRA_TYPE_UNIFIED": {input: INFRA_TYPE_UNIFIED, expected: "unified"},
 		"INFRA_TYPE_BROKER":  {input: INFRA_TYPE_BROKER, expected: "broker"},
 		"INFRA_TYPE_CPAG":    {input: INFRA_TYPE_CPAG, expected: "cpag"},
-		"unknown":            {input: InfraTypeInt(99), expectError: true},
+		"unknown":            {input: InfraTypeInt(99), wantErr: true},
 	})
 }
 
@@ -272,7 +272,7 @@ func TestOperatingMode_ToInt(t *testing.T) {
 		"cpag_public":                       {input: OperatingModeCPAGPublic, expected: int(OPERATING_MODE_CPAG_PUBLIC)},
 		"cpag_private":                      {input: OperatingModeCPAGPrivate, expected: int(OPERATING_MODE_CPAG_PRIVATE)},
 		"connector_with_china_acceleration": {input: OperatingModeConnectorWithChinaAccel, expected: int(OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION)},
-		"unknown":                           {input: OperatingMode("unknown"), expectError: true},
+		"unknown":                           {input: OperatingMode("unknown"), wantErr: true},
 	})
 }
 
@@ -284,6 +284,6 @@ func TestOperatingModeInt_String(t *testing.T) {
 		"OPERATING_MODE_CPAG_PUBLIC":                       {input: OPERATING_MODE_CPAG_PUBLIC, expected: "cpag_public"},
 		"OPERATING_MODE_CPAG_PRIVATE":                      {input: OPERATING_MODE_CPAG_PRIVATE, expected: "cpag_private"},
 		"OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION": {input: OPERATING_MODE_CONNECTOR_WITH_CHINA_ACCELERATION, expected: "connector_with_china_acceleration"},
-		"unknown": {input: OperatingModeInt(99), expectError: true},
+		"unknown": {input: OperatingModeInt(99), wantErr: true},
 	})
 }

@@ -27,39 +27,24 @@ func createTestResourceData(t *testing.T, data map[string]interface{}) *schema.R
 // ===========================================================================
 
 func TestValidatePackageType(t *testing.T) {
-	tests := map[string]struct {
-		value   interface{}
-		wantErr bool
-	}{
-		"valid_vmware":      {value: string(client.ConnPackageTypeVmware), wantErr: false},
-		"valid_vbox":        {value: string(client.ConnPackageTypeVbox), wantErr: false},
-		"valid_aws":         {value: string(client.ConnPackageTypeAWS), wantErr: false},
-		"valid_aws_classic": {value: string(client.ConnPackageTypeAWSClassic), wantErr: false},
-		"valid_kvm":         {value: string(client.ConnPackageTypeKVM), wantErr: false},
-		"valid_hyperv":      {value: string(client.ConnPackageTypeHyperv), wantErr: false},
-		"valid_docker":      {value: string(client.ConnPackageTypeDocker), wantErr: false},
-		"valid_azure":       {value: string(client.ConnPackageTypeAzure), wantErr: false},
-		"valid_google":      {value: string(client.ConnPackageTypeGoogle), wantErr: false},
-		"valid_softlayer":   {value: string(client.ConnPackageTypeSoftLayer), wantErr: false},
-		"valid_fujitsu_k5":  {value: string(client.ConnPackageTypeFujitsu_k5), wantErr: false},
-		"invalid_type":      {value: "invalid", wantErr: true},
-		"invalid_casing":    {value: "VMware", wantErr: true},
-		"empty_string":      {value: "", wantErr: true},
-		"non_string":        {value: 123, wantErr: true},
-		"nil_value":         {value: nil, wantErr: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validatePackageType(tc.value, "package_type")
-			assert.Empty(t, warns)
-			if tc.wantErr {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validatePackageType, "package_type", map[string]validateFuncCase{
+		"valid_vmware":      {val: string(client.ConnPackageTypeVmware)},
+		"valid_vbox":        {val: string(client.ConnPackageTypeVbox)},
+		"valid_aws":         {val: string(client.ConnPackageTypeAWS)},
+		"valid_aws_classic": {val: string(client.ConnPackageTypeAWSClassic)},
+		"valid_kvm":         {val: string(client.ConnPackageTypeKVM)},
+		"valid_hyperv":      {val: string(client.ConnPackageTypeHyperv)},
+		"valid_docker":      {val: string(client.ConnPackageTypeDocker)},
+		"valid_azure":       {val: string(client.ConnPackageTypeAzure)},
+		"valid_google":      {val: string(client.ConnPackageTypeGoogle)},
+		"valid_softlayer":   {val: string(client.ConnPackageTypeSoftLayer)},
+		"valid_fujitsu_k5":  {val: string(client.ConnPackageTypeFujitsu_k5)},
+		"invalid_type":      {val: "invalid", wantErr: true},
+		"invalid_casing":    {val: "VMware", wantErr: true},
+		"empty_string":      {val: "", wantErr: true},
+		"non_string":        {val: 123, wantErr: true},
+		"nil_value":         {val: nil, wantErr: true},
+	})
 }
 
 // ===========================================================================
@@ -67,33 +52,18 @@ func TestValidatePackageType(t *testing.T) {
 // ===========================================================================
 
 func TestValidateInfraType(t *testing.T) {
-	tests := map[string]struct {
-		value   interface{}
-		wantErr bool
-	}{
-		"valid_eaa":      {value: string(client.InfraTypeEAA), wantErr: false},
-		"valid_unified":  {value: string(client.InfraTypeUnified), wantErr: false},
-		"valid_broker":   {value: string(client.InfraTypeBroker), wantErr: false},
-		"valid_cpag":     {value: string(client.InfraTypeCPAG), wantErr: false},
-		"invalid_type":   {value: "invalid", wantErr: true},
-		"invalid_casing": {value: "EAA", wantErr: true},
-		"empty_string":   {value: "", wantErr: true},
-		"whitespace":     {value: " eaa ", wantErr: true},
-		"non_string":     {value: 123, wantErr: true},
-		"nil_value":      {value: nil, wantErr: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateInfraType(tc.value, "infra_type")
-			assert.Empty(t, warns)
-			if tc.wantErr {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateInfraType, "infra_type", map[string]validateFuncCase{
+		"valid_eaa":      {val: string(client.InfraTypeEAA)},
+		"valid_unified":  {val: string(client.InfraTypeUnified)},
+		"valid_broker":   {val: string(client.InfraTypeBroker)},
+		"valid_cpag":     {val: string(client.InfraTypeCPAG)},
+		"invalid_type":   {val: "invalid", wantErr: true},
+		"invalid_casing": {val: "EAA", wantErr: true},
+		"empty_string":   {val: "", wantErr: true},
+		"whitespace":     {val: " eaa ", wantErr: true},
+		"non_string":     {val: 123, wantErr: true},
+		"nil_value":      {val: nil, wantErr: true},
+	})
 }
 
 // ===========================================================================
@@ -101,35 +71,20 @@ func TestValidateInfraType(t *testing.T) {
 // ===========================================================================
 
 func TestValidateOperatingMode(t *testing.T) {
-	tests := map[string]struct {
-		value   interface{}
-		wantErr bool
-	}{
-		"valid_connector":                  {value: string(client.OperatingModeConnector), wantErr: false},
-		"valid_peb":                        {value: string(client.OperatingModePEB), wantErr: false},
-		"valid_combined":                   {value: string(client.OperatingModeCombined), wantErr: false},
-		"valid_cpag_public":                {value: string(client.OperatingModeCPAGPublic), wantErr: false},
-		"valid_cpag_private":               {value: string(client.OperatingModeCPAGPrivate), wantErr: false},
-		"valid_connector_with_china_accel": {value: string(client.OperatingModeConnectorWithChinaAccel), wantErr: false},
-		"invalid_mode":                     {value: "invalid", wantErr: true},
-		"invalid_casing":                   {value: "Connector", wantErr: true},
-		"empty_string":                     {value: "", wantErr: true},
-		"whitespace":                       {value: " connector ", wantErr: true},
-		"non_string":                       {value: 123, wantErr: true},
-		"nil_value":                        {value: nil, wantErr: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateOperatingMode(tc.value, "operating_mode")
-			assert.Empty(t, warns)
-			if tc.wantErr {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateOperatingMode, "operating_mode", map[string]validateFuncCase{
+		"valid_connector":                  {val: string(client.OperatingModeConnector)},
+		"valid_peb":                        {val: string(client.OperatingModePEB)},
+		"valid_combined":                   {val: string(client.OperatingModeCombined)},
+		"valid_cpag_public":                {val: string(client.OperatingModeCPAGPublic)},
+		"valid_cpag_private":               {val: string(client.OperatingModeCPAGPrivate)},
+		"valid_connector_with_china_accel": {val: string(client.OperatingModeConnectorWithChinaAccel)},
+		"invalid_mode":                     {val: "invalid", wantErr: true},
+		"invalid_casing":                   {val: "Connector", wantErr: true},
+		"empty_string":                     {val: "", wantErr: true},
+		"whitespace":                       {val: " connector ", wantErr: true},
+		"non_string":                       {val: 123, wantErr: true},
+		"nil_value":                        {val: nil, wantErr: true},
+	})
 }
 
 // ===========================================================================
@@ -137,30 +92,15 @@ func TestValidateOperatingMode(t *testing.T) {
 // ===========================================================================
 
 func TestValidateRFC3339Timestamp(t *testing.T) {
-	tests := map[string]struct {
-		value   interface{}
-		wantErr bool
-	}{
-		"valid_utc":             {value: "2026-01-02T15:04:05Z", wantErr: false},
-		"valid_offset":          {value: "2026-01-02T15:04:05+05:30", wantErr: false},
-		"valid_fractional_secs": {value: "2026-01-02T15:04:05.123Z", wantErr: false},
-		"invalid_date_only":     {value: "2026-01-02", wantErr: true},
-		"invalid_format":        {value: "2026-01-02 15:04:05", wantErr: true},
-		"empty_string":          {value: "", wantErr: true},
-		"non_string":            {value: 12345, wantErr: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			warns, errs := validateRFC3339Timestamp(tc.value, "expires_at")
-			assert.Empty(t, warns)
-			if tc.wantErr {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, validateRFC3339Timestamp, "expires_at", map[string]validateFuncCase{
+		"valid_utc":             {val: "2026-01-02T15:04:05Z"},
+		"valid_offset":          {val: "2026-01-02T15:04:05+05:30"},
+		"valid_fractional_secs": {val: "2026-01-02T15:04:05.123Z"},
+		"invalid_date_only":     {val: "2026-01-02", wantErr: true},
+		"invalid_format":        {val: "2026-01-02 15:04:05", wantErr: true},
+		"empty_string":          {val: "", wantErr: true},
+		"non_string":            {val: 12345, wantErr: true},
+	})
 }
 
 // ===========================================================================

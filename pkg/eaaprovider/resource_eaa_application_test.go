@@ -12,7 +12,6 @@ import (
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,30 +125,16 @@ func TestResourceEaaApplication_ProtocolValidation(t *testing.T) {
 	vf := r.Schema["protocol"].ValidateFunc
 	require.NotNil(t, vf, "protocol must have ValidateFunc")
 
-	tests := map[string]struct {
-		val       interface{}
-		wantError bool
-	}{
-		"valid_SAML":          {val: "SAML", wantError: false},
-		"valid_SAML2.0":       {val: "SAML2.0", wantError: false},
-		"valid_OIDC":          {val: "OIDC", wantError: false},
-		"valid_OpenIDConnect": {val: "OpenID Connect 1.0", wantError: false},
-		"valid_WSFed":         {val: "WSFed", wantError: false},
-		"valid_WS-Federation": {val: "WS-Federation", wantError: false},
-		"invalid_unknown":     {val: "unknown", wantError: true},
-		"invalid_empty":       {val: "", wantError: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			_, errs := vf(tc.val, "protocol")
-			if tc.wantError {
-				assert.NotEmpty(t, errs, "expected validation error")
-			} else {
-				assert.Empty(t, errs, "expected no validation errors")
-			}
-		})
-	}
+	testValidateFunc(t, vf, "protocol", map[string]validateFuncCase{
+		"valid_SAML":          {val: "SAML"},
+		"valid_SAML2.0":       {val: "SAML2.0"},
+		"valid_OIDC":          {val: "OIDC"},
+		"valid_OpenIDConnect": {val: "OpenID Connect 1.0"},
+		"valid_WSFed":         {val: "WSFed"},
+		"valid_WS-Federation": {val: "WS-Federation"},
+		"invalid_unknown":     {val: "unknown", wantErr: true},
+		"invalid_empty":       {val: "", wantErr: true},
+	})
 }
 
 // ===========================================================================
@@ -200,21 +185,21 @@ func TestStringPointerValue(t *testing.T) {
 
 func TestValidateAppAuthValue(t *testing.T) {
 	tests := map[string]struct {
-		appAuth     string
-		expectError bool
+		appAuth string
+		wantErr bool
 	}{
-		"valid_none":    {appAuth: "none", expectError: false},
-		"valid_saml":    {appAuth: "saml", expectError: false},
-		"valid_oidc":    {appAuth: "oidc", expectError: false},
-		"valid_wsfed":   {appAuth: "wsfed", expectError: false},
-		"invalid_value": {appAuth: "invalid", expectError: true},
-		"empty_value":   {appAuth: "", expectError: true},
+		"valid_none":    {appAuth: "none", wantErr: false},
+		"valid_saml":    {appAuth: "saml", wantErr: false},
+		"valid_oidc":    {appAuth: "oidc", wantErr: false},
+		"valid_wsfed":   {appAuth: "wsfed", wantErr: false},
+		"invalid_value": {appAuth: "invalid", wantErr: true},
+		"empty_value":   {appAuth: "", wantErr: true},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateAppAuthValue(tc.appAuth)
-			if tc.expectError {
+			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -229,20 +214,20 @@ func TestValidateAppAuthValue(t *testing.T) {
 
 func TestValidateWappAuthValue(t *testing.T) {
 	tests := map[string]struct {
-		wappAuth    string
-		expectError bool
+		wappAuth string
+		wantErr  bool
 	}{
-		"valid_basic":   {wappAuth: "basic", expectError: false},
-		"valid_none":    {wappAuth: "none", expectError: false},
-		"invalid_form":  {wappAuth: "form", expectError: true},
-		"invalid_value": {wappAuth: "invalid", expectError: true},
-		"empty_value":   {wappAuth: "", expectError: true},
+		"valid_basic":   {wappAuth: "basic", wantErr: false},
+		"valid_none":    {wappAuth: "none", wantErr: false},
+		"invalid_form":  {wappAuth: "form", wantErr: true},
+		"invalid_value": {wappAuth: "invalid", wantErr: true},
+		"empty_value":   {wappAuth: "", wantErr: true},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateWappAuthValue(tc.wappAuth)
-			if tc.expectError {
+			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -257,19 +242,19 @@ func TestValidateWappAuthValue(t *testing.T) {
 
 func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 	tests := map[string]struct {
-		appType     string
-		saml        bool
-		oidc        bool
-		wsfed       bool
-		expectError bool
+		appType string
+		saml    bool
+		oidc    bool
+		wsfed   bool
+		wantErr bool
 	}{
-		"tunnel_saml_fails":       {appType: "tunnel", saml: true, expectError: true},
-		"tunnel_oidc_fails":       {appType: "tunnel", oidc: true, expectError: true},
-		"tunnel_wsfed_fails":      {appType: "tunnel", wsfed: true, expectError: true},
-		"tunnel_no_auth_passes":   {appType: "tunnel", expectError: false},
-		"enterprise_saml_passes":  {appType: "enterprise", saml: true, expectError: false},
-		"enterprise_oidc_passes":  {appType: "enterprise", oidc: true, expectError: false},
-		"enterprise_wsfed_passes": {appType: "enterprise", wsfed: true, expectError: false},
+		"tunnel_saml_fails":       {appType: "tunnel", saml: true, wantErr: true},
+		"tunnel_oidc_fails":       {appType: "tunnel", oidc: true, wantErr: true},
+		"tunnel_wsfed_fails":      {appType: "tunnel", wsfed: true, wantErr: true},
+		"tunnel_no_auth_passes":   {appType: "tunnel", wantErr: false},
+		"enterprise_saml_passes":  {appType: "enterprise", saml: true, wantErr: false},
+		"enterprise_oidc_passes":  {appType: "enterprise", oidc: true, wantErr: false},
+		"enterprise_wsfed_passes": {appType: "enterprise", wsfed: true, wantErr: false},
 	}
 
 	for name, tc := range tests {
@@ -283,7 +268,7 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 			})
 
 			err := validateAuthenticationMethodsForAppType(resourceData)
-			if tc.expectError {
+			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -299,13 +284,13 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 func TestAppAuthInAdvancedSettings(t *testing.T) {
 	tests := map[string]struct {
 		advancedSettings string
-		expectError      bool
+		wantErr          bool
 	}{
-		"saml_enterprise":  {advancedSettings: `{"app_auth": "saml"}`, expectError: false},
-		"oidc_enterprise":  {advancedSettings: `{"app_auth": "oidc"}`, expectError: false},
-		"wsfed_enterprise": {advancedSettings: `{"app_auth": "wsfed"}`, expectError: false},
-		"saml_tunnel":      {advancedSettings: `{"app_auth": "saml"}`, expectError: false},
-		"invalid_method":   {advancedSettings: `{"app_auth": "invalid_method"}`, expectError: true},
+		"saml_enterprise":  {advancedSettings: `{"app_auth": "saml"}`, wantErr: false},
+		"oidc_enterprise":  {advancedSettings: `{"app_auth": "oidc"}`, wantErr: false},
+		"wsfed_enterprise": {advancedSettings: `{"app_auth": "wsfed"}`, wantErr: false},
+		"saml_tunnel":      {advancedSettings: `{"app_auth": "saml"}`, wantErr: false},
+		"invalid_method":   {advancedSettings: `{"app_auth": "invalid_method"}`, wantErr: true},
 	}
 
 	for name, tc := range tests {
@@ -320,7 +305,7 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			require.True(t, ok, "app_auth must be a string")
 
 			err = validateAppAuthValue(appAuthStr)
-			if tc.expectError {
+			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -440,23 +425,8 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 
 		diags := resourceEaaApplicationDelete(ctx, d, mockClient)
 
-		hasError := false
-		for _, d := range diags {
-			if d.Severity == diag.Error {
-				hasError = true
-				break
-			}
-		}
-		assert.False(t, hasError, "Delete should not have error diagnostics")
+		assert.False(t, diags.HasError(), "Delete should not have error diagnostics")
 		assert.Equal(t, "", d.Id(), "ID should be cleared after delete")
-	})
-
-	t.Run("CREATE_WithMockedClient", func(t *testing.T) {
-		t.Skip("smoke test — mock is incomplete for full create flow")
-	})
-
-	t.Run("UPDATE_WithMockedClient", func(t *testing.T) {
-		t.Skip("smoke test — mock is incomplete for full update flow")
 	})
 }
 
