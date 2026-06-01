@@ -81,12 +81,17 @@ func requireErr(t *testing.T, err error, wantErr bool) bool {
 	return false
 }
 
+// toIntCase holds a single test case for string-to-int conversion tests.
+//
 //nolint:unused // used by upcoming tasks in this branch
-func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map[string]struct {
+type toIntCase[S ~string] struct {
 	input       S
 	expected    int
 	expectError bool
-}) {
+}
+
+//nolint:unused // used by upcoming tasks in this branch
+func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map[string]toIntCase[S]) {
 	t.Helper()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -101,12 +106,17 @@ func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map
 	}
 }
 
+// toStringCase holds a single test case for int-to-string conversion tests.
+//
 //nolint:unused // used by upcoming tasks in this branch
-func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests map[string]struct {
+type toStringCase[I ~int] struct {
 	input       I
 	expected    string
 	expectError bool
-}) {
+}
+
+//nolint:unused // used by upcoming tasks in this branch
+func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests map[string]toStringCase[I]) {
 	t.Helper()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
