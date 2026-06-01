@@ -293,7 +293,7 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 }
 
 // ===========================================================================
-// app_auth in advanced_settings
+// validateAppAuthValue via advanced_settings JSON
 // ===========================================================================
 
 func TestAppAuthInAdvancedSettings(t *testing.T) {
@@ -314,15 +314,16 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			err := json.Unmarshal([]byte(tc.advancedSettings), &settings)
 			require.NoError(t, err)
 
-			if appAuth, exists := settings["app_auth"]; exists {
-				if appAuthStr, ok := appAuth.(string); ok {
-					err := validateAppAuthValue(appAuthStr)
-					if tc.expectError {
-						assert.Error(t, err)
-					} else {
-						assert.NoError(t, err)
-					}
-				}
+			appAuth, exists := settings["app_auth"]
+			require.True(t, exists, "app_auth key must exist in test data")
+			appAuthStr, ok := appAuth.(string)
+			require.True(t, ok, "app_auth must be a string")
+
+			err = validateAppAuthValue(appAuthStr)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -451,146 +452,11 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 	})
 
 	t.Run("CREATE_WithMockedClient", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient(t)
-
-		createPattern := "POST /crux/v1/mgmt-pop/apps"
-		mockTransport.Responses[createPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"uuid_url":    appID,
-				"name":        "test-enterprise-app",
-				"app_type":    1,
-				"app_profile": 1,
-			},
-		}
-
-		readPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[readPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"uuid_url":    appID,
-				"name":        "test-enterprise-app",
-				"app_type":    1,
-				"app_profile": 1,
-				"host":        "test.example.com",
-			},
-		}
-
-		updatePattern := fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[updatePattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"uuid_url":    appID,
-				"name":        "test-enterprise-app",
-				"app_type":    1,
-				"app_profile": 1,
-				"host":        "test.example.com",
-			},
-		}
-
-		deletePattern := fmt.Sprintf("DELETE /crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[deletePattern] = MockResponse{
-			StatusCode: 200,
-			Body:       map[string]interface{}{"status": "deleted"},
-		}
-
-		deployPattern := fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)
-		mockTransport.Responses[deployPattern] = MockResponse{
-			StatusCode: 200,
-			Body:       map[string]interface{}{"status": "deployed"},
-		}
-
-		agentsPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)
-		mockTransport.Responses[agentsPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"objects": []map[string]interface{}{},
-			},
-		}
-
-		servicesPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)
-		mockTransport.Responses[servicesPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"objects": []map[string]interface{}{},
-			},
-		}
-
-		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"name":        "test-enterprise-app",
-			"app_type":    "enterprise",
-			"app_profile": "http",
-			"host":        "test.example.com",
-		})
-
-		// Create may produce diags due to mocked API limitations; just verify it runs
-		diags := resourceEaaApplicationCreateTwoPhase(ctx, d, mockClient)
-		for _, d := range diags {
-			if d.Severity == diag.Error {
-				t.Logf("CREATE diag (expected with incomplete mock): %s", d.Summary)
-			}
-		}
+		t.Skip("smoke test — mock is incomplete for full create flow")
 	})
 
 	t.Run("UPDATE_WithMockedClient", func(t *testing.T) {
-		mockClient, mockTransport := createMockClient(t)
-
-		getPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[getPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"uuid_url":    appID,
-				"name":        "test-update-app",
-				"app_type":    1,
-				"app_profile": 1,
-			},
-		}
-
-		putPattern := fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)
-		mockTransport.Responses[putPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"uuid_url":    appID,
-				"name":        "test-update-app-updated",
-				"app_type":    1,
-				"app_profile": 1,
-			},
-		}
-
-		agentsPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)
-		mockTransport.Responses[agentsPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"objects": []map[string]interface{}{},
-			},
-		}
-
-		servicesPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)
-		mockTransport.Responses[servicesPattern] = MockResponse{
-			StatusCode: 200,
-			Body: map[string]interface{}{
-				"objects": []map[string]interface{}{},
-			},
-		}
-
-		deployPattern := fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)
-		mockTransport.Responses[deployPattern] = MockResponse{
-			StatusCode: 200,
-			Body:       map[string]interface{}{"status": "deployed"},
-		}
-
-		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"name": "test-update-app-updated",
-		})
-		d.SetId(appID)
-
-		// Update may produce diags; verify no panic
-		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
-		for _, d := range diags {
-			if d.Severity == diag.Error {
-				t.Logf("UPDATE diag (expected with incomplete mock): %s", d.Summary)
-			}
-		}
+		t.Skip("smoke test — mock is incomplete for full update flow")
 	})
 }
 

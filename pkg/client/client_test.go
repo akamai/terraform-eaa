@@ -20,6 +20,7 @@ func TestSendAPIRequest(t *testing.T) {
 		wantErrIs  error
 		handler    http.HandlerFunc
 		checkQuery func(t *testing.T, query string)
+		checkOut   func(t *testing.T, out map[string]string)
 		method     string
 		wantStatus int
 		global     bool
@@ -51,7 +52,7 @@ func TestSendAPIRequest(t *testing.T) {
 			in:     map[string]string{"name": "test"},
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				var body map[string]string
-				json.NewDecoder(r.Body).Decode(&body)
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 				assert.Equal(t, "test", body["name"])
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
@@ -64,12 +65,18 @@ func TestSendAPIRequest(t *testing.T) {
 			global:     false,
 			handler:    jsonHandler(http.StatusOK, map[string]string{"key": "value"}),
 			wantStatus: http.StatusOK,
+			checkOut: func(t *testing.T, out map[string]string) {
+				assert.Equal(t, "value", out["key"])
+			},
 		},
 		"error_status_does_not_unmarshal_out": {
 			method:     http.MethodGet,
 			global:     false,
 			handler:    jsonHandler(http.StatusBadRequest, map[string]string{"error": "bad"}),
 			wantStatus: http.StatusBadRequest,
+			checkOut: func(t *testing.T, out map[string]string) {
+				assert.Empty(t, out)
+			},
 		},
 	}
 
@@ -96,6 +103,9 @@ func TestSendAPIRequest(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 			if tt.checkQuery != nil {
 				tt.checkQuery(t, capturedQuery)
+			}
+			if tt.checkOut != nil {
+				tt.checkOut(t, out)
 			}
 		})
 	}

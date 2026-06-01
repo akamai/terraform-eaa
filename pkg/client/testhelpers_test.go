@@ -70,7 +70,6 @@ func (pr *pathRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-//nolint:unused // used by upcoming tasks in this branch
 func requireErr(t *testing.T, err error, wantErr bool) bool {
 	t.Helper()
 	if wantErr {
@@ -82,15 +81,12 @@ func requireErr(t *testing.T, err error, wantErr bool) bool {
 }
 
 // toIntCase holds a single test case for string-to-int conversion tests.
-//
-//nolint:unused // used by upcoming tasks in this branch
 type toIntCase[S ~string] struct {
 	input       S
 	expected    int
 	expectError bool
 }
 
-//nolint:unused // used by upcoming tasks in this branch
 func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map[string]toIntCase[S]) {
 	t.Helper()
 	for name, tc := range tests {
@@ -107,15 +103,12 @@ func testToInt[S ~string](t *testing.T, convFunc func(S) (int, error), tests map
 }
 
 // toStringCase holds a single test case for int-to-string conversion tests.
-//
-//nolint:unused // used by upcoming tasks in this branch
 type toStringCase[I ~int] struct {
 	input       I
 	expected    string
 	expectError bool
 }
 
-//nolint:unused // used by upcoming tasks in this branch
 func testToString[I ~int](t *testing.T, convFunc func(I) (string, error), tests map[string]toStringCase[I]) {
 	t.Helper()
 	for name, tc := range tests {

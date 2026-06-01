@@ -132,6 +132,7 @@ func TestConnPackageStateInt_String(t *testing.T) {
 		"AGENT_STATE_NOT_VERIFIED":   {input: AGENT_STATE_NOT_VERIFIED, expected: "not_verified"},
 		"AGENT_STATE_VERIFIED":       {input: AGENT_STATE_VERIFIED, expected: "verified"},
 		"AGENT_STATE_UNENROLLED":     {input: AGENT_STATE_UNENROLLED, expected: "unenrolled"},
+		"AGENT_STATE_ENROLLED":       {input: AGENT_STATE_ENROLLED, expectError: true}, // value 6 missing from String() switch — documents source gap
 		"AGENT_STATE_NOT_CONFIGURED": {input: AGENT_STATE_NOT_CONFIGURED, expected: "not_configured"},
 		"AGENT_STATE_CONFIGURED":     {input: AGENT_STATE_CONFIGURED, expected: "configured"},
 		"unknown":                    {input: ConnPackageStateInt(99), expectError: true},
