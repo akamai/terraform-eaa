@@ -1,6 +1,8 @@
 package eaaprovider
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -90,4 +92,74 @@ func TestDataSourceIdps_GroupElemFields(t *testing.T) {
 			assert.Equal(t, tc.computed, f.Computed, "field %q computed mismatch", fieldName)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// dataSourceIdpsRead — behavioral tests
+// ---------------------------------------------------------------------------
+
+func TestDataSourceIdpsRead_Success(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	// GetIDPS first fetches the IDP list
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/idp"] = MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":     "Okta IDP",
+					"uuid_url": "urn:idp:okta-1",
+				},
+			},
+		},
+	}
+
+	// Then GetIDPDirectories is called for each IDP
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/idp/urn:idp:okta-1/directories"] = MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":     "Cloud Directory",
+					"uuid_url": "dir-uuid-1",
+					"groups": []map[string]interface{}{
+						{
+							"name":     "Admins",
+							"uuid_url": "urn:group:admins",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceIdps, map[string]any{})
+	diags := dataSourceIdpsRead(context.Background(), d, mockClient)
+
+	assert.Empty(t, diags, "expected no diagnostics")
+	assert.Equal(t, "eaa_idps", d.Id())
+
+	idps := d.Get("idps").([]interface{})
+	require.Len(t, idps, 1)
+	idp := idps[0].(map[string]interface{})
+	assert.Equal(t, "Okta IDP", idp["name"])
+	assert.Equal(t, "urn:idp:okta-1", idp["uuid_url"])
+}
+
+func TestDataSourceIdpsRead_APIError(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/idp"] = MockResponse{
+		StatusCode: http.StatusInternalServerError,
+		Body: map[string]interface{}{
+			"type":   "error",
+			"title":  "Internal Server Error",
+			"detail": "something went wrong",
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceIdps, map[string]any{})
+	diags := dataSourceIdpsRead(context.Background(), d, mockClient)
+
+	assert.NotEmpty(t, diags, "expected error diagnostics for 500 response")
 }

@@ -7,10 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testCategories = []AppCate{
-	{Name: "Web Apps", UUIDURL: "cat-uuid-1"},
-	{Name: "SSH Apps", UUIDURL: "cat-uuid-2"},
-	{Name: "", UUIDURL: ""}, // filtered
+func testCategories() []AppCate {
+	return []AppCate{
+		{Name: "Web Apps", UUIDURL: "cat-uuid-1"},
+		{Name: "SSH Apps", UUIDURL: "cat-uuid-2"},
+		{Name: "", UUIDURL: ""}, // filtered
+	}
 }
 
 func TestGetAppCategories(t *testing.T) {
@@ -20,7 +22,7 @@ func TestGetAppCategories(t *testing.T) {
 		wantErr   bool
 	}{
 		"success": {
-			handler:   jsonHandler(http.StatusOK, AppCategoryResponse{AppCategories: testCategories}),
+			handler:   jsonHandler(http.StatusOK, AppCategoryResponse{AppCategories: testCategories()}),
 			wantCount: 2,
 		},
 		"api_error": {
@@ -42,7 +44,7 @@ func TestGetAppCategories(t *testing.T) {
 }
 
 func TestGetAppCategoryUUID(t *testing.T) {
-	handler := jsonHandler(http.StatusOK, AppCategoryResponse{AppCategories: testCategories})
+	handler := jsonHandler(http.StatusOK, AppCategoryResponse{AppCategories: testCategories()})
 
 	tests := map[string]struct {
 		name     string

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -291,6 +292,273 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestValidateWSFEDNestedBlocksWithLookup(t *testing.T) {
+	logger := hclog.NewNullLogger()
+	ctx := context.Background()
+
+	tests := map[string]struct {
+		errIs      error
+		lookup     mapBackedAuthSettingsLookup
+		errContain string
+		wantErr    bool
+	}{
+		"protocol_disabled_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"wsfed_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+		},
+		"protocol_enabled_via_app_auth": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "wsfed"},
+				"wsfed_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrWSFEDSignCertRequired,
+		},
+		"app_auth_not_enabling_protocol_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "saml"},
+				"wsfed_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			// should skip WSFED validation since app_auth = saml
+		},
+		"self_signed_false_missing_sign_cert": {
+			lookup: mapBackedAuthSettingsLookup{
+				"wsfed": true,
+				"wsfed_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrWSFEDSignCertRequired,
+		},
+		"self_signed_false_empty_sign_cert": {
+			lookup: mapBackedAuthSettingsLookup{
+				"wsfed": true,
+				"wsfed_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+						"sign_cert":   "",
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrWSFEDSignCertRequired,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateWSFEDNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			if requireErr(t, err, tt.wantErr) {
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
+				if tt.errContain != "" {
+					assert.ErrorContains(t, err, tt.errContain)
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestValidateSAMLNestedBlocksWithLookup(t *testing.T) {
+	logger := hclog.NewNullLogger()
+	ctx := context.Background()
+
+	tests := map[string]struct {
+		errIs      error
+		lookup     mapBackedAuthSettingsLookup
+		errContain string
+		wantErr    bool
+	}{
+		"protocol_disabled_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"saml_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+		},
+		"protocol_enabled_via_app_auth": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "saml"},
+				"saml_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrSAMLSignCertRequired,
+		},
+		"app_auth_not_enabling_protocol_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "wsfed"},
+				"saml_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			// should skip SAML validation since app_auth = wsfed
+		},
+		"self_signed_false_missing_sign_cert": {
+			lookup: mapBackedAuthSettingsLookup{
+				"saml": true,
+				"saml_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrSAMLSignCertRequired,
+		},
+		"self_signed_false_empty_sign_cert": {
+			lookup: mapBackedAuthSettingsLookup{
+				"saml": true,
+				"saml_settings": []interface{}{map[string]interface{}{
+					"idp": []interface{}{map[string]interface{}{
+						"self_signed": false,
+						"sign_cert":   "",
+					}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrSAMLSignCertRequired,
+		},
+		"duplicate_attrmap_name": {
+			lookup: mapBackedAuthSettingsLookup{
+				"saml": true,
+				"saml_settings": []interface{}{map[string]interface{}{
+					"attrmap": []interface{}{
+						map[string]interface{}{"name": "email"},
+						map[string]interface{}{"name": "email"},
+					},
+				}},
+			},
+			wantErr:    true,
+			errContain: "duplicate attribute name 'email' found in attrmap",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateSAMLNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			if requireErr(t, err, tt.wantErr) {
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
+				if tt.errContain != "" {
+					assert.ErrorContains(t, err, tt.errContain)
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestValidateOIDCNestedBlocksWithLookup(t *testing.T) {
+	logger := hclog.NewNullLogger()
+	ctx := context.Background()
+
+	tests := map[string]struct {
+		errIs      error
+		lookup     mapBackedAuthSettingsLookup
+		errContain string
+		wantErr    bool
+	}{
+		"protocol_disabled_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"oidc_settings": []interface{}{map[string]interface{}{
+					"oidc_clients": []interface{}{map[string]interface{}{"response_type": "code"}},
+				}},
+			},
+		},
+		"protocol_enabled_via_app_auth": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "oidc"},
+				"oidc_settings": []interface{}{map[string]interface{}{
+					"oidc_clients": []interface{}{map[string]interface{}{"response_type": "code"}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrOIDCClientValidation,
+		},
+		"app_auth_not_enabling_protocol_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"advanced_settings": map[string]interface{}{"app_auth": "saml"},
+				"oidc_settings": []interface{}{map[string]interface{}{
+					"oidc_clients": []interface{}{map[string]interface{}{"response_type": "code"}},
+				}},
+			},
+			// should skip OIDC validation since app_auth = saml
+		},
+		"empty_block_skips_validation": {
+			lookup: mapBackedAuthSettingsLookup{
+				"oidc":          true,
+				"oidc_settings": []interface{}{map[string]interface{}{}},
+			},
+		},
+		"invalid_nested_client_field_types_return_validation_error": {
+			lookup: mapBackedAuthSettingsLookup{
+				"oidc": true,
+				"oidc_settings": []interface{}{map[string]interface{}{
+					"oidc_clients": []interface{}{map[string]interface{}{"response_type": "code"}},
+				}},
+			},
+			wantErr: true,
+			errIs:   ErrOIDCClientValidation,
+		},
+		"valid_nested_client_passes": {
+			lookup: mapBackedAuthSettingsLookup{
+				"oidc": true,
+				"oidc_settings": []interface{}{map[string]interface{}{
+					"oidc_clients": []interface{}{map[string]interface{}{
+						"response_type":            []interface{}{"code"},
+						"redirect_uris":            []interface{}{"https://example.com/callback"},
+						"javascript_origins":       []interface{}{"https://example.com"},
+						"post_logout_redirect_uri": []interface{}{"https://example.com/logout"},
+						"claims":                   []interface{}{map[string]interface{}{"name": "sub"}},
+					}},
+				}},
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateOIDCNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			if requireErr(t, err, tt.wantErr) {
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
+				if tt.errContain != "" {
+					assert.ErrorContains(t, err, tt.errContain)
 				}
 				return
 			}

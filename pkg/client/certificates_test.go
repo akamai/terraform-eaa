@@ -1,4 +1,3 @@
-// pkg/client/certificates_test.go
 package client
 
 import (
@@ -10,10 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testCerts = []CertObject{
-	{Name: "app.example.com", UUIDURL: "cert-uuid-1", CertType: CERT_TYPE_APP_SSC},
-	{Name: "app2.example.com", UUIDURL: "cert-uuid-2", CertType: CERT_TYPE_APP},
-	{Name: "", UUIDURL: ""}, // filtered
+func testCerts() []CertObject {
+	return []CertObject{
+		{Name: "app.example.com", UUIDURL: "cert-uuid-1", CertType: CERT_TYPE_APP_SSC},
+		{Name: "app2.example.com", UUIDURL: "cert-uuid-2", CertType: CERT_TYPE_APP},
+		{Name: "", UUIDURL: ""}, // filtered
+	}
 }
 
 func TestGetCertificates(t *testing.T) {
@@ -23,7 +24,7 @@ func TestGetCertificates(t *testing.T) {
 		wantErr   bool
 	}{
 		"success": {
-			handler:   jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts}),
+			handler:   jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts()}),
 			wantCount: 2,
 		},
 		"api_error": {
@@ -45,7 +46,7 @@ func TestGetCertificates(t *testing.T) {
 }
 
 func TestDoesSelfSignedCertExistForHost(t *testing.T) {
-	handler := jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts})
+	handler := jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts()})
 
 	tests := map[string]struct {
 		host    string
@@ -71,7 +72,7 @@ func TestDoesSelfSignedCertExistForHost(t *testing.T) {
 }
 
 func TestDoesUploadedCertExist(t *testing.T) {
-	handler := jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts})
+	handler := jsonHandler(http.StatusOK, CertsResponse{Objects: testCerts()})
 
 	tests := map[string]struct {
 		host    string

@@ -8,13 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testBundles = []AppBundle{
-	{Name: "bundle-a", UUIDURL: "/appbundle/uuid-a"},
-	{Name: "bundle-b", UUIDURL: "/appbundle/uuid-b"},
+func testBundles() []AppBundle {
+	return []AppBundle{
+		{Name: "bundle-a", UUIDURL: "/appbundle/uuid-a"},
+		{Name: "bundle-b", UUIDURL: "/appbundle/uuid-b"},
+	}
 }
 
 func TestGetAppBundles(t *testing.T) {
-	ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+	ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
 	resp, err := ec.GetAppBundles()
 	require.NoError(t, err)
@@ -35,7 +37,7 @@ func TestGetAppBundleByName(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
 			got, err := ec.GetAppBundleByName(tt.name)
 			if tt.wantErrSubstr != "" {
@@ -61,7 +63,7 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
 			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
 			if tt.wantErrSubstr != "" {
@@ -85,7 +87,7 @@ func TestValidateAppBundleName(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles}))
+			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
 			err := ec.ValidateAppBundleName(tt.name)
 			requireErr(t, err, tt.wantErr)

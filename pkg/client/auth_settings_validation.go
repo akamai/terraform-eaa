@@ -202,9 +202,57 @@ type AuthValidationConfig struct {
 	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
 }
 
-// isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both
+type authSettingsLookup interface {
+	GetOk(key string) (interface{}, bool)
+}
+
+// mapBackedAuthSettingsLookup is a lightweight GetOk() adapter used for unit tests.
+// It mimics Terraform's GetOk behavior by treating common zero values as "not set".
+type mapBackedAuthSettingsLookup map[string]interface{}
+
+func (m mapBackedAuthSettingsLookup) GetOk(key string) (interface{}, bool) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil, false
+	}
+
+	switch val := v.(type) {
+	case bool:
+		if !val {
+			return nil, false
+		}
+	case string:
+		if val == "" {
+			return nil, false
+		}
+	case int:
+		if val == 0 {
+			return nil, false
+		}
+	case int64:
+		if val == 0 {
+			return nil, false
+		}
+	case float64:
+		if val == 0 {
+			return nil, false
+		}
+	case []interface{}:
+		if len(val) == 0 {
+			return nil, false
+		}
+	case map[string]interface{}:
+		if len(val) == 0 {
+			return nil, false
+		}
+	}
+
+	return v, true
+}
+
+// isAuthProtocolEnabledWithLookup checks if an authentication protocol is enabled by checking both
 // the direct flag and app_auth in advanced_settings
-func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, logger hclog.Logger) bool {
+func isAuthProtocolEnabledWithLookup(d authSettingsLookup, config AuthValidationConfig, logger hclog.Logger) bool {
 	// Check direct flag
 	if flag, ok := d.GetOk(config.FlagKey); ok {
 		if flagBool, ok := flag.(bool); ok && flagBool {
@@ -230,9 +278,9 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 	return false
 }
 
-// getFirstSettingsBlock retrieves the first block from a settings list in the schema
+// getFirstSettingsBlockWithLookup retrieves the first block from a settings list in the schema
 // Returns the block map and true if found, or nil and false if not found
-func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
+func getFirstSettingsBlockWithLookup(d authSettingsLookup, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
 	settings, ok := d.GetOk(settingsKey)
 	if !ok {
 		logger.Debug("settings not found", "settings_key", settingsKey)
@@ -273,6 +321,10 @@ func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName str
 
 // ValidateWSFEDNestedBlocks validates WSFED nested blocks configuration.
 func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	return validateWSFEDNestedBlocksWithLookup(ctx, d, m, logger)
+}
+
+func validateWSFEDNestedBlocksWithLookup(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateWSFEDNestedBlocks called")
 
 	config := AuthValidationConfig{
@@ -282,14 +334,14 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 		ProtocolName:  "WSFED",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
+	if !isAuthProtocolEnabledWithLookup(d, config, logger) {
 		logger.Debug("WSFED not enabled, skipping validation")
 		return nil
 	}
 
 	logger.Debug("WSFED is enabled, validating nested blocks")
 
-	wsfedBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	wsfedBlock, ok := getFirstSettingsBlockWithLookup(d, config.SettingsKey, logger)
 	if !ok {
 		return nil
 	}
@@ -309,6 +361,10 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 
 // ValidateSAMLNestedBlocks validates SAML nested blocks configuration.
 func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	return validateSAMLNestedBlocksWithLookup(ctx, d, m, logger)
+}
+
+func validateSAMLNestedBlocksWithLookup(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateSAMLNestedBlocks called")
 
 	config := AuthValidationConfig{
@@ -318,14 +374,14 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 		ProtocolName:  "SAML",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
+	if !isAuthProtocolEnabledWithLookup(d, config, logger) {
 		logger.Debug("SAML not enabled, skipping validation")
 		return nil
 	}
 
 	logger.Debug("SAML is enabled, validating nested blocks")
 
-	samlBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	samlBlock, ok := getFirstSettingsBlockWithLookup(d, config.SettingsKey, logger)
 	if !ok {
 		return nil
 	}
@@ -366,6 +422,10 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 
 // ValidateOIDCNestedBlocks validates OIDC nested blocks configuration.
 func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+	return validateOIDCNestedBlocksWithLookup(ctx, d, m, logger)
+}
+
+func validateOIDCNestedBlocksWithLookup(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateOIDCNestedBlocks called")
 
 	config := AuthValidationConfig{
@@ -375,14 +435,14 @@ func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 		ProtocolName:  "OIDC",
 	}
 
-	if !isAuthProtocolEnabled(d, config, logger) {
+	if !isAuthProtocolEnabledWithLookup(d, config, logger) {
 		logger.Debug("OIDC not enabled, skipping validation")
 		return nil
 	}
 
 	logger.Debug("OIDC is enabled, validating nested blocks")
 
-	oidcBlock, ok := getFirstSettingsBlock(d, config.SettingsKey, logger)
+	oidcBlock, ok := getFirstSettingsBlockWithLookup(d, config.SettingsKey, logger)
 	if !ok {
 		return nil
 	}

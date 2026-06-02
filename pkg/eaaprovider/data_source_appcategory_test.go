@@ -1,6 +1,8 @@
 package eaaprovider
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -39,4 +41,58 @@ func TestDataSourceAppCategories_ElemFields(t *testing.T) {
 			assert.Equal(t, tc.computed, f.Computed, "field %q computed mismatch", fieldName)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// dataSourceAppCategoriesRead — behavioral tests
+// ---------------------------------------------------------------------------
+
+func TestDataSourceAppCategoriesRead_Success(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/appcategories"] = MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":     "Web Applications",
+					"uuid_url": "urn:cat:web-apps",
+				},
+				{
+					"name":     "SaaS",
+					"uuid_url": "urn:cat:saas",
+				},
+			},
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceAppCategories, map[string]any{})
+	diags := dataSourceAppCategoriesRead(context.Background(), d, mockClient)
+
+	assert.Empty(t, diags, "expected no diagnostics")
+	assert.Equal(t, "eaa_appcategories", d.Id())
+
+	cats := d.Get("appcategories").([]interface{})
+	require.Len(t, cats, 2)
+	first := cats[0].(map[string]interface{})
+	assert.Equal(t, "Web Applications", first["name"])
+	assert.Equal(t, "urn:cat:web-apps", first["uuid_url"])
+}
+
+func TestDataSourceAppCategoriesRead_APIError(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/appcategories"] = MockResponse{
+		StatusCode: http.StatusInternalServerError,
+		Body: map[string]interface{}{
+			"type":   "error",
+			"title":  "Internal Server Error",
+			"detail": "something went wrong",
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceAppCategories, map[string]any{})
+	diags := dataSourceAppCategoriesRead(context.Background(), d, mockClient)
+
+	assert.NotEmpty(t, diags, "expected error diagnostics for 500 response")
 }

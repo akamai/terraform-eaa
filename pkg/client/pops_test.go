@@ -7,10 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testPops = []Pop{
-	{Region: "us-east-1", Name: "US East", UUIDURL: "pop-uuid-1", PopType: "shared"},
-	{Region: "eu-west-1", Name: "EU West", UUIDURL: "pop-uuid-2", PopType: "shared"},
-	{Region: "", Name: "", UUIDURL: ""}, // should be filtered out
+func testPops() []Pop {
+	return []Pop{
+		{Region: "us-east-1", Name: "US East", UUIDURL: "pop-uuid-1", PopType: "shared"},
+		{Region: "eu-west-1", Name: "EU West", UUIDURL: "pop-uuid-2", PopType: "shared"},
+		{Region: "", Name: "", UUIDURL: ""}, // should be filtered out
+	}
 }
 
 func TestGetPops(t *testing.T) {
@@ -20,7 +22,7 @@ func TestGetPops(t *testing.T) {
 		wantErr   bool
 	}{
 		"success": {
-			handler:   jsonHandler(http.StatusOK, PopResponse{Pops: testPops}),
+			handler:   jsonHandler(http.StatusOK, PopResponse{Pops: testPops()}),
 			wantCount: 2, // empty pop filtered out
 		},
 		"api_error": {
@@ -42,7 +44,7 @@ func TestGetPops(t *testing.T) {
 }
 
 func TestGetPopUUID(t *testing.T) {
-	handler := jsonHandler(http.StatusOK, PopResponse{Pops: testPops})
+	handler := jsonHandler(http.StatusOK, PopResponse{Pops: testPops()})
 
 	tests := map[string]struct {
 		region   string

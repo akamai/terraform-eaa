@@ -134,7 +134,7 @@ func TestAssignIdpDirectoryGroups(t *testing.T) {
 				map[string]interface{}{"name": "missing-group"},
 			},
 			handler: jsonHandler(http.StatusOK, nil),
-			wantErr: false, // skips not-found groups, ends up empty
+			wantErr: true, // returns error when a requested group is not found in the directory
 		},
 		"api_error": {
 			dirData: &DirectoryData{

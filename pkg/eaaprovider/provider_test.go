@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Retain the existing init block for acceptance tests.
+// testAccProviders and testAccProvider support acceptance tests that run against a live API.
 var testAccProviders map[string]func() (*schema.Provider, error)
 var testAccProvider *schema.Provider
 

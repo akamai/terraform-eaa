@@ -7,7 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAssignIDP(t *testing.T) {
+func TestAssignUnAssignIDP(t *testing.T) {
+	type idpFunc func(*AppIdp, *EaaClient) error
+
+	funcs := map[string]idpFunc{
+		"AssignIDP":   (*AppIdp).AssignIDP,
+		"UnAssignIDP": (*AppIdp).UnAssignIDP,
+	}
+
 	tests := map[string]struct {
 		errIs   error
 		handler http.HandlerFunc
@@ -20,7 +27,7 @@ func TestAssignIDP(t *testing.T) {
 		},
 		"empty_app": {
 			appIdp:  AppIdp{App: "", IDP: "idp-uuid-1"},
-			handler: jsonHandler(http.StatusOK, nil), // shouldn't be called
+			handler: jsonHandler(http.StatusOK, nil),
 			wantErr: true,
 			errIs:   ErrAssignIdpFailure,
 		},
@@ -38,64 +45,26 @@ func TestAssignIDP(t *testing.T) {
 		},
 		"api_error": {
 			appIdp:  AppIdp{App: "app-uuid-1", IDP: "idp-uuid-1"},
-			handler: errorJSONHandler(http.StatusInternalServerError, "assign failed"),
+			handler: errorJSONHandler(http.StatusInternalServerError, "operation failed"),
 			wantErr: true,
 		},
 	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, tt.handler)
 
-			err := tt.appIdp.AssignIDP(ec)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
-				return
-			}
-		})
-	}
-}
+	for funcName, fn := range funcs {
+		t.Run(funcName, func(t *testing.T) {
+			for name, tt := range tests {
+				t.Run(name, func(t *testing.T) {
+					ec := newTestClient(t, tt.handler)
 
-func TestUnAssignIDP(t *testing.T) {
-	tests := map[string]struct {
-		errIs   error
-		handler http.HandlerFunc
-		appIdp  AppIdp
-		wantErr bool
-	}{
-		"success": {
-			appIdp:  AppIdp{App: "app-uuid-1", IDP: "idp-uuid-1"},
-			handler: jsonHandler(http.StatusOK, nil),
-		},
-		"empty_app": {
-			appIdp:  AppIdp{App: "", IDP: "idp-uuid-1"},
-			handler: jsonHandler(http.StatusOK, nil),
-			wantErr: true,
-			errIs:   ErrAssignIdpFailure,
-		},
-		"empty_idp": {
-			appIdp:  AppIdp{App: "app-uuid-1", IDP: ""},
-			handler: jsonHandler(http.StatusOK, nil),
-			wantErr: true,
-			errIs:   ErrAssignIdpFailure,
-		},
-		"api_error": {
-			appIdp:  AppIdp{App: "app-uuid-1", IDP: "idp-uuid-1"},
-			handler: errorJSONHandler(http.StatusInternalServerError, "unassign failed"),
-			wantErr: true,
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			ec := newTestClient(t, tt.handler)
-
-			err := tt.appIdp.UnAssignIDP(ec)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
-				return
+					appIdp := tt.appIdp // copy to avoid mutation
+					err := fn(&appIdp, ec)
+					if requireErr(t, err, tt.wantErr) {
+						if tt.errIs != nil {
+							assert.ErrorIs(t, err, tt.errIs)
+						}
+						return
+					}
+				})
 			}
 		})
 	}

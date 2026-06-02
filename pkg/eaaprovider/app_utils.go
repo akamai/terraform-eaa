@@ -7,15 +7,15 @@ import (
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
 
-// convertStringToInt converts string to int, returns 0 if conversion fails
-func convertStringToInt(value string) int {
+func convertStringToInt(value string) (int, error) {
 	if value == "" {
-		return 0
+		return 0, nil
 	}
-	if i, err := strconv.Atoi(value); err == nil {
-		return i
+	i, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("cannot convert %q to int: %w", value, err)
 	}
-	return 0
+	return i, nil
 }
 
 func stringPointerValue(value *string) interface{} {

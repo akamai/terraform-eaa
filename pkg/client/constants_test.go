@@ -132,7 +132,7 @@ func TestConnPackageStateInt_String(t *testing.T) {
 		"AGENT_STATE_NOT_VERIFIED":   {input: AGENT_STATE_NOT_VERIFIED, expected: "not_verified"},
 		"AGENT_STATE_VERIFIED":       {input: AGENT_STATE_VERIFIED, expected: "verified"},
 		"AGENT_STATE_UNENROLLED":     {input: AGENT_STATE_UNENROLLED, expected: "unenrolled"},
-		"AGENT_STATE_ENROLLED":       {input: AGENT_STATE_ENROLLED, wantErr: true}, // value 6 missing from String() switch — documents source gap
+		"AGENT_STATE_ENROLLED":       {input: AGENT_STATE_ENROLLED, expected: "enrolled"},
 		"AGENT_STATE_NOT_CONFIGURED": {input: AGENT_STATE_NOT_CONFIGURED, expected: "not_configured"},
 		"AGENT_STATE_CONFIGURED":     {input: AGENT_STATE_CONFIGURED, expected: "configured"},
 		"unknown":                    {input: ConnPackageStateInt(99), wantErr: true},
@@ -156,30 +156,31 @@ func TestHealthCheckType_ToNumeric(t *testing.T) {
 	tests := map[string]struct {
 		input    HealthCheckType
 		expected string
+		wantErr  bool
 	}{
-		"default":  {input: HealthCheckTypeDefault, expected: "0"},
-		"http":     {input: HealthCheckTypeHTTP, expected: "1"},
-		"https":    {input: HealthCheckTypeHTTPS, expected: "2"},
-		"tls":      {input: HealthCheckTypeTLS, expected: "3"},
-		"sslv3":    {input: HealthCheckTypeSSLv3, expected: "4"},
-		"tcp":      {input: HealthCheckTypeTCP, expected: "5"},
-		"none":     {input: HealthCheckTypeNone, expected: "6"},
-		"fallback": {input: HealthCheckType("99"), expected: "99"},
+		"default": {input: HealthCheckTypeDefault, expected: "0"},
+		"http":    {input: HealthCheckTypeHTTP, expected: "1"},
+		"https":   {input: HealthCheckTypeHTTPS, expected: "2"},
+		"tls":     {input: HealthCheckTypeTLS, expected: "3"},
+		"sslv3":   {input: HealthCheckTypeSSLv3, expected: "4"},
+		"tcp":     {input: HealthCheckTypeTCP, expected: "5"},
+		"none":    {input: HealthCheckTypeNone, expected: "6"},
+		"unknown": {input: HealthCheckType("99"), wantErr: true},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := tc.input.ToNumeric()
+			result, err := tc.input.ToNumeric()
+			if requireErr(t, err, tc.wantErr) {
+				return
+			}
 			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
 func TestHealthCheckTypeInt_ToDescriptive(t *testing.T) {
-	tests := map[string]struct {
-		expected string
-		input    HealthCheckTypeInt
-	}{
+	testToString(t, HealthCheckTypeInt.ToDescriptive, map[string]toStringCase[HealthCheckTypeInt]{
 		"HEALTH_CHECK_TYPE_DEFAULT": {input: HEALTH_CHECK_TYPE_DEFAULT, expected: "Default"},
 		"HEALTH_CHECK_TYPE_HTTP":    {input: HEALTH_CHECK_TYPE_HTTP, expected: "HTTP"},
 		"HEALTH_CHECK_TYPE_HTTPS":   {input: HEALTH_CHECK_TYPE_HTTPS, expected: "HTTPS"},
@@ -187,15 +188,8 @@ func TestHealthCheckTypeInt_ToDescriptive(t *testing.T) {
 		"HEALTH_CHECK_TYPE_SSLV3":   {input: HEALTH_CHECK_TYPE_SSLV3, expected: "SSLv3"},
 		"HEALTH_CHECK_TYPE_TCP":     {input: HEALTH_CHECK_TYPE_TCP, expected: "TCP"},
 		"HEALTH_CHECK_TYPE_NONE":    {input: HEALTH_CHECK_TYPE_NONE, expected: "None"},
-		"unknown":                   {input: HealthCheckTypeInt(99), expected: ""},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			result := tc.input.ToDescriptive()
-			assert.Equal(t, tc.expected, result)
-		})
-	}
+		"unknown":                   {input: HealthCheckTypeInt(99), wantErr: true},
+	})
 }
 
 func TestMapHealthCheckTypeToDescriptive(t *testing.T) {

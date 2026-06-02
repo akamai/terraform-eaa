@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +41,21 @@ func jsonHandler(statusCode int, body interface{}) http.HandlerFunc {
 	}
 }
 
+func jsonHandlerWithCapture(statusCode int, body interface{}) (http.HandlerFunc, *bytes.Buffer) {
+	captured := &bytes.Buffer{}
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			io.Copy(captured, r.Body) //nolint:errcheck // test helper
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		if body != nil {
+			json.NewEncoder(w).Encode(body) //nolint:errcheck // test helper, encoding errors are not meaningful
+		}
+	}
+	return handler, captured
+}
+
 func errorJSONHandler(statusCode int, detail string) http.HandlerFunc {
 	return jsonHandler(statusCode, ErrorResponse{
 		Type:   "error",
@@ -66,8 +83,7 @@ func (pr *pathRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h(w, r)
 		return
 	}
-	pr.t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-	http.NotFound(w, r)
+	pr.t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 }
 
 func requireErr(t *testing.T, err error, wantErr bool) bool {

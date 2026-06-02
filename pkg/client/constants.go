@@ -739,6 +739,8 @@ func (cat ConnPackageStateInt) String() (string, error) {
 		return string(ConnPackageStateVerified), nil
 	case AGENT_STATE_UNENROLLED:
 		return string(ConnPackageStateUnenrolled), nil
+	case AGENT_STATE_ENROLLED:
+		return string(ConnPackageStateEnrolled), nil
 	case AGENT_STATE_NOT_CONFIGURED:
 		return string(ConnPackageStateNotConfigured), nil
 	case AGENT_STATE_CONFIGURED:
@@ -875,24 +877,24 @@ const (
 	HTTPStatus302 HTTPStatusCode = "302"
 )
 
-func (hct HealthCheckType) ToNumeric() string {
+func (hct HealthCheckType) ToNumeric() (string, error) {
 	switch hct {
 	case HealthCheckTypeDefault:
-		return "0"
+		return "0", nil
 	case HealthCheckTypeHTTP:
-		return "1"
+		return "1", nil
 	case HealthCheckTypeHTTPS:
-		return "2"
+		return "2", nil
 	case HealthCheckTypeTLS:
-		return "3"
+		return "3", nil
 	case HealthCheckTypeSSLv3:
-		return "4"
+		return "4", nil
 	case HealthCheckTypeTCP:
-		return "5"
+		return "5", nil
 	case HealthCheckTypeNone:
-		return "6"
+		return "6", nil
 	default:
-		return string(hct) // fallback to original value (assumes it's already numeric)
+		return "", errors.New("unknown health check type value")
 	}
 }
 
@@ -908,24 +910,24 @@ const (
 	HEALTH_CHECK_TYPE_NONE
 )
 
-func (hct HealthCheckTypeInt) ToDescriptive() string {
+func (hct HealthCheckTypeInt) ToDescriptive() (string, error) {
 	switch hct {
 	case HEALTH_CHECK_TYPE_DEFAULT:
-		return string(HealthCheckTypeDefault)
+		return string(HealthCheckTypeDefault), nil
 	case HEALTH_CHECK_TYPE_HTTP:
-		return string(HealthCheckTypeHTTP)
+		return string(HealthCheckTypeHTTP), nil
 	case HEALTH_CHECK_TYPE_HTTPS:
-		return string(HealthCheckTypeHTTPS)
+		return string(HealthCheckTypeHTTPS), nil
 	case HEALTH_CHECK_TYPE_TLS:
-		return string(HealthCheckTypeTLS)
+		return string(HealthCheckTypeTLS), nil
 	case HEALTH_CHECK_TYPE_SSLV3:
-		return string(HealthCheckTypeSSLv3)
+		return string(HealthCheckTypeSSLv3), nil
 	case HEALTH_CHECK_TYPE_TCP:
-		return string(HealthCheckTypeTCP)
+		return string(HealthCheckTypeTCP), nil
 	case HEALTH_CHECK_TYPE_NONE:
-		return string(HealthCheckTypeNone)
+		return string(HealthCheckTypeNone), nil
 	default:
-		return "" // fallback to empty string
+		return "", errors.New("unknown health check type value")
 	}
 }
 

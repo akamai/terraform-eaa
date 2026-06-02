@@ -1,6 +1,8 @@
 package eaaprovider
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -123,4 +125,70 @@ func TestDataSourceEaaConnectorPools_RegistrationTokenElemFields(t *testing.T) {
 			assert.Equal(t, tc.computed, f.Computed, "field %q computed mismatch", fieldName)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// dataSourceEaaConnectorPoolsRead — behavioral tests
+// ---------------------------------------------------------------------------
+
+func TestDataSourceEaaConnectorPoolsRead_Success(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	// The data source calls SendAPIRequest directly with this path
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/connector-pools"] = MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":           "pool-alpha",
+					"uuid_url":       "urn:pool:alpha",
+					"description":    "Test pool",
+					"created_at":     "2024-01-01T00:00:00Z",
+					"modified_at":    "2024-06-01T00:00:00Z",
+					"is_enabled":     true,
+					"send_alerts":    false,
+					"package_type":   0,
+					"infra_type":     0,
+					"operating_mode": 0,
+				},
+			},
+			"meta": map[string]interface{}{
+				"next":        nil,
+				"limit":       20,
+				"offset":      0,
+				"total_count": 1,
+			},
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceEaaConnectorPools, map[string]any{})
+	diags := dataSourceEaaConnectorPoolsRead(context.Background(), d, mockClient)
+
+	assert.Empty(t, diags, "expected no diagnostics")
+	assert.Equal(t, "eaa_connector_pools", d.Id())
+
+	pools := d.Get("connector_pools").([]interface{})
+	require.Len(t, pools, 1)
+	pool := pools[0].(map[string]interface{})
+	assert.Equal(t, "pool-alpha", pool["name"])
+	assert.Equal(t, "urn:pool:alpha", pool["uuid_url"])
+	assert.Equal(t, true, pool["is_enabled"])
+}
+
+func TestDataSourceEaaConnectorPoolsRead_APIError(t *testing.T) {
+	mockClient, mockTransport := createMockClient(t)
+
+	mockTransport.Responses["GET /crux/v1/mgmt-pop/connector-pools"] = MockResponse{
+		StatusCode: http.StatusInternalServerError,
+		Body: map[string]interface{}{
+			"type":   "error",
+			"title":  "Internal Server Error",
+			"detail": "something went wrong",
+		},
+	}
+
+	d := createTestResourceDataFor(t, dataSourceEaaConnectorPools, map[string]any{})
+	diags := dataSourceEaaConnectorPoolsRead(context.Background(), d, mockClient)
+
+	assert.NotEmpty(t, diags, "expected error diagnostics for 500 response")
 }

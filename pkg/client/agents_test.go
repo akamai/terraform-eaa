@@ -1,4 +1,3 @@
-// pkg/client/agents_test.go
 package client
 
 import (
@@ -9,10 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testConnectors = []Connector{
-	{Name: "conn-1", UUIDURL: "uuid-1"},
-	{Name: "conn-2", UUIDURL: "uuid-2"},
-	{Name: "", UUIDURL: ""}, // filtered
+func testConnectors() []Connector {
+	return []Connector{
+		{Name: "conn-1", UUIDURL: "uuid-1"},
+		{Name: "conn-2", UUIDURL: "uuid-2"},
+		{Name: "", UUIDURL: ""}, // filtered
+	}
 }
 
 func TestGetAgents(t *testing.T) {
@@ -22,7 +23,7 @@ func TestGetAgents(t *testing.T) {
 		wantErr   bool
 	}{
 		"success": {
-			handler:   jsonHandler(http.StatusOK, ConnectorResponse{Connectors: testConnectors}),
+			handler:   jsonHandler(http.StatusOK, ConnectorResponse{Connectors: testConnectors()}),
 			wantCount: 2,
 		},
 		"api_error": {
@@ -44,7 +45,7 @@ func TestGetAgents(t *testing.T) {
 }
 
 func TestGetAgentUUIDs(t *testing.T) {
-	handler := jsonHandler(http.StatusOK, ConnectorResponse{Connectors: testConnectors})
+	handler := jsonHandler(http.StatusOK, ConnectorResponse{Connectors: testConnectors()})
 
 	tests := map[string]struct {
 		names     []string

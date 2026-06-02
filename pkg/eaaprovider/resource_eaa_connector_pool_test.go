@@ -12,14 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestResourceData(t *testing.T, data map[string]interface{}) *schema.ResourceData {
+func createTestResourceData(t *testing.T, data map[string]any) *schema.ResourceData {
 	t.Helper()
-	resource := resourceEaaConnectorPool()
-	d := resource.Data(nil)
-	for key, value := range data {
-		require.NoError(t, d.Set(key, value), "failed to set %q", key)
-	}
-	return d
+	return createTestResourceDataFor(t, resourceEaaConnectorPool, data)
 }
 
 // ===========================================================================
@@ -397,5 +392,3 @@ func TestSetConnectorPoolBasicAttributes(t *testing.T) {
 		})
 	}
 }
-
-// stringPtr is defined in resource_eaa_application_test.go

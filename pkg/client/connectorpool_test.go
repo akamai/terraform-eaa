@@ -1,4 +1,3 @@
-// pkg/client/connectorpool_test.go
 package client
 
 import (

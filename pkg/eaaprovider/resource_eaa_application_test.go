@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"net/url"
+	"reflect"
 	"testing"
+	"unsafe"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -145,16 +148,23 @@ func TestConvertStringToInt(t *testing.T) {
 	tests := map[string]struct {
 		input    string
 		expected int
+		wantErr  bool
 	}{
 		"valid_number":  {input: "123", expected: 123},
 		"zero":          {input: "0", expected: 0},
 		"empty_string":  {input: "", expected: 0},
-		"invalid_input": {input: "invalid", expected: 0},
+		"invalid_input": {input: "invalid", wantErr: true},
+		"float":         {input: "1.5", wantErr: true},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := convertStringToInt(tc.input)
+			result, err := convertStringToInt(tc.input)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -199,11 +209,7 @@ func TestValidateAppAuthValue(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateAppAuthValue(tc.appAuth)
-			if tc.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			requireErr(t, err, tc.wantErr)
 		})
 	}
 }
@@ -227,11 +233,7 @@ func TestValidateWappAuthValue(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateWappAuthValue(tc.wappAuth)
-			if tc.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			requireErr(t, err, tc.wantErr)
 		})
 	}
 }
@@ -268,11 +270,7 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 			})
 
 			err := validateAuthenticationMethodsForAppType(resourceData)
-			if tc.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			requireErr(t, err, tc.wantErr)
 		})
 	}
 }
@@ -305,11 +303,7 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			require.True(t, ok, "app_auth must be a string")
 
 			err = validateAppAuthValue(appAuthStr)
-			if tc.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			requireErr(t, err, tc.wantErr)
 		})
 	}
 }
@@ -427,6 +421,367 @@ func TestResourceEaaApplicationCRUDWithMockedAPI(t *testing.T) {
 
 		assert.False(t, diags.HasError(), "Delete should not have error diagnostics")
 		assert.Equal(t, "", d.Id(), "ID should be cleared after delete")
+	})
+}
+
+// ===========================================================================
+// Update orchestration with mocked API
+// ===========================================================================
+
+func setResourceDataDiff(t *testing.T, d *schema.ResourceData, diff *terraform.InstanceDiff) {
+	t.Helper()
+	v := reflect.ValueOf(d).Elem().FieldByName("diff")
+	reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr())).Elem().Set(reflect.ValueOf(diff))
+}
+
+func buildURL(host, path string, q map[string]string) string {
+	u := url.URL{Scheme: "https", Host: host, Path: path}
+	vals := url.Values{}
+	for k, v := range q {
+		vals.Set(k, v)
+	}
+	u.RawQuery = vals.Encode()
+	return u.String()
+}
+
+func TestResourceEaaApplicationUpdate(t *testing.T) {
+	ctx := context.Background()
+	appID := "test-app-uuid-update-123"
+	svcID := "service-uuid-update-123"
+
+	baseApp := map[string]interface{}{
+		"uuid_url":     appID,
+		"name":         "existing-app",
+		"app_type":     1,
+		"app_profile":  1,
+		"host":         "existing.example.com",
+		"auth_enabled": "false",
+	}
+
+	servicesResp := map[string]interface{}{
+		"objects": []map[string]interface{}{
+			{
+				"service": map[string]interface{}{
+					"service_type": 6,
+					"uuid_url":     svcID,
+					"status":       "disabled",
+				},
+				"status":   1,
+				"uuid_url": "service-data-uuid-123",
+			},
+		},
+	}
+
+	rulesRespWithOne := map[string]interface{}{
+		"objects": []map[string]interface{}{
+			{
+				"name":     "rule-1",
+				"uuid_url": "rule-uuid-1",
+				"status":   1,
+				"settings": []map[string]interface{}{{
+					"operator": "is",
+					"type":     "group",
+					"value":    "grp1",
+				}},
+			},
+		},
+	}
+
+	registerCommonReadRoutes := func(t *testing.T, tr *MockHTTPTransport) {
+		t.Helper()
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: servicesResp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: rulesRespWithOne}
+	}
+
+	t.Run("baseline_success", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":   "updated-app",
+			"domain": "wapp",
+		})
+		d.SetId(appID)
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{}})
+
+		// update flow
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "updated"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "deployed"}}
+
+		// read tail routes
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: servicesResp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: rulesRespWithOne}
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.False(t, diags.HasError(), "diags: %+v", diags)
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)])
+	})
+
+	t.Run("agent_diff_assign_unassign", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":   "updated-agents-app",
+			"domain": "wapp",
+			"agents": []interface{}{"agent-new"},
+		})
+		d.SetId(appID)
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{}})
+
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"agent": map[string]interface{}{"name": "agent-old", "uuid_url": "agent-uuid-old"},
+				},
+			},
+		}}
+
+		// agent lookup for assign/unassign
+		tr.Responses["GET /crux/v1/mgmt-pop/agents"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{"name": "agent-old", "uuid_url": "agent-uuid-old"},
+				{"name": "agent-new", "uuid_url": "agent-uuid-new"},
+			},
+		}}
+
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "assigned"}}
+		unassignAgentsURL := buildURL(mockClient.Host, fmt.Sprintf("/crux/v1/mgmt-pop/apps/%s/agents", appID), map[string]string{"contractId": mockClient.ContractID, "method": "delete"})
+		tr.Responses[unassignAgentsURL] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "unassigned"}}
+
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "updated"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "deployed"}}
+
+		// read tail routes (don't overwrite the agents route; we want update-time agent diff)
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: servicesResp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: rulesRespWithOne}
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.False(t, diags.HasError(), "diags: %+v", diags)
+		assert.Equal(t, 2, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)])
+		assert.Equal(t, 2, tr.Calls["GET /crux/v1/mgmt-pop/agents"])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/agents", appID)])
+		assert.Equal(t, 1, tr.Calls[unassignAgentsURL])
+	})
+
+	t.Run("app_authentication_change_idp_reassign_with_directories_groups", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		oldState := map[string]string{
+			"app_authentication.#":                   "1",
+			"app_authentication.0.app_idp":           "old-idp",
+			"app_authentication.0.app_directories.#": "0",
+		}
+
+		d := resourceEaaApplication().Data(&terraform.InstanceState{ID: appID, Attributes: oldState})
+		require.NoError(t, d.Set("name", "updated-auth-app"))
+		require.NoError(t, d.Set("domain", "wapp"))
+		require.NoError(t, d.Set("auth_enabled", "true"))
+		require.NoError(t, d.Set("app_authentication", []interface{}{map[string]interface{}{
+			"app_idp": "new-idp",
+			"app_directories": []interface{}{map[string]interface{}{
+				"name":       "dir1",
+				"enable_mfa": "inherit",
+				"app_groups": []interface{}{map[string]interface{}{"name": "group1", "enable_mfa": "inherit"}},
+			}},
+		}}))
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+			"app_authentication":           {Old: "old", New: "new"},
+			"app_authentication.#":         {Old: "0", New: "1"},
+			"app_authentication.0.app_idp": {Old: "old-idp", New: "new-idp"},
+		}})
+		prev := hasAppAuthenticationChange
+		hasAppAuthenticationChange = func(*schema.ResourceData) bool { return true }
+		t.Cleanup(func() { hasAppAuthenticationChange = prev })
+
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
+
+		// current membership -> unassign
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/idp_membership", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"uuid_url": "idp-uuid-old",
+					"idp":      map[string]interface{}{"name": "old-idp", "idp_uuid_url": "idp-uuid-old"},
+				},
+			},
+		}}
+		unassignIDPURL := buildURL(mockClient.Host, "/crux/v1/mgmt-pop/appidp", map[string]string{"contractId": mockClient.ContractID, "method": "DELETE"})
+		tr.Responses[unassignIDPURL] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "unassigned"}}
+
+		// lookup + assign
+		tr.Responses["GET /crux/v1/mgmt-pop/idp"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{"name": "new-idp", "uuid_url": "idp-uuid-new"},
+			},
+		}}
+		tr.Responses["GET /crux/v1/mgmt-pop/idp/idp-uuid-new/directories"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":     "dir1",
+					"uuid_url": "dir-uuid-1",
+					"groups": []map[string]interface{}{
+						{"name": "group1", "uuid_url": "group-uuid-1"},
+					},
+				},
+			},
+		}}
+		tr.Responses["POST /crux/v1/mgmt-pop/appidp"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "assigned"}}
+		tr.Responses["POST /crux/v1/mgmt-pop/appdirectories"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "directories-assigned"}}
+		tr.Responses["POST /crux/v1/mgmt-pop/appgroups"] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "groups-assigned"}}
+
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "updated"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "deployed"}}
+
+		// read tail routes
+		registerCommonReadRoutes(t, tr)
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.False(t, diags.HasError(), "diags: %+v", diags)
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/idp_membership", appID)])
+		assert.Equal(t, 1, tr.Calls[unassignIDPURL])
+		assert.Equal(t, 1, tr.Calls["GET /crux/v1/mgmt-pop/idp"])
+		assert.Equal(t, 1, tr.Calls["GET /crux/v1/mgmt-pop/idp/idp-uuid-new/directories"])
+		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appidp"])
+		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appdirectories"])
+		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appgroups"])
+	})
+
+	t.Run("service_reconciliation_status_and_rules", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		oldState := map[string]string{
+			"service.#":                               "1",
+			"service.0.service_type":                  "access",
+			"service.0.status":                        "disabled",
+			"service.0.access_rule.#":                 "1",
+			"service.0.access_rule.0.name":            "rule-a",
+			"service.0.access_rule.0.status":          "on",
+			"service.0.access_rule.0.rule.#":          "1",
+			"service.0.access_rule.0.rule.0.operator": "==",
+			"service.0.access_rule.0.rule.0.type":     "group",
+			"service.0.access_rule.0.rule.0.value":    "old",
+		}
+
+		d := resourceEaaApplication().Data(&terraform.InstanceState{ID: appID, Attributes: oldState})
+		require.NoError(t, d.Set("name", "updated-service-app"))
+		require.NoError(t, d.Set("domain", "wapp"))
+		require.NoError(t, d.Set("service", []interface{}{map[string]interface{}{
+			"service_type": "access",
+			"status":       "enabled",
+			"access_rule": []interface{}{
+				map[string]interface{}{
+					"name":   "rule-a",
+					"status": "on",
+					"rule": []interface{}{map[string]interface{}{
+						"operator": "==",
+						"type":     "group",
+						"value":    "new",
+					}},
+				},
+				map[string]interface{}{
+					"name":   "rule-c",
+					"status": "on",
+					"rule": []interface{}{map[string]interface{}{
+						"operator": "==",
+						"type":     "group",
+						"value":    "c",
+					}},
+				},
+			},
+		}}))
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+			"service":                      {Old: "old", New: "new"},
+			"service.#":                    {Old: "0", New: "1"},
+			"service.0.access_rule":        {Old: "old", New: "new"},
+			"service.0.access_rule.#":      {Old: "1", New: "2"},
+			"service.0.access_rule.0.name": {Old: "rule-a", New: "rule-a"},
+		}})
+		prevService := hasServiceChange
+		prevServiceRules := hasServiceRuleChange
+		hasServiceChange = func(*schema.ResourceData) bool { return true }
+		hasServiceRuleChange = func(*schema.ResourceData) bool { return true }
+		t.Cleanup(func() {
+			hasServiceChange = prevService
+			hasServiceRuleChange = prevServiceRules
+		})
+
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
+
+		// service reconciliation
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: servicesResp}
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s", svcID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "service-updated"}}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"name":     "rule-a",
+					"uuid_url": "uuid-a",
+					"status":   1,
+					"settings": []map[string]interface{}{{"operator": "==", "type": "group", "value": "old"}},
+				},
+				{
+					"name":     "rule-b",
+					"uuid_url": "uuid-b",
+					"status":   1,
+					"settings": []map[string]interface{}{{"operator": "==", "type": "group", "value": "b"}},
+				},
+			},
+		}}
+		tr.Responses[fmt.Sprintf("DELETE /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-b")] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "deleted"}}
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-a")] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "modified"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "created"}}
+
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "updated"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "deployed"}}
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.False(t, diags.HasError(), "diags: %+v", diags)
+		assert.Equal(t, 2, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s", svcID)])
+		assert.Equal(t, 2, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("DELETE /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-b")])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-a")])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/services/%s/rules", svcID)])
+	})
+
+	t.Run("failure_propagation_initial_get_fails", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{"name": "fail-get", "domain": "wapp"})
+		d.SetId(appID)
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+			"name": {Old: "old", New: "fail-get"},
+		}})
+
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 500, Body: map[string]interface{}{"detail": "boom"}}
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.True(t, diags.HasError())
+	})
+
+	t.Run("failure_propagation_deploy_fails", func(t *testing.T) {
+		mockClient, tr := createMockClient(t)
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{"name": "fail-deploy", "domain": "wapp"})
+		d.SetId(appID)
+		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+			"name": {Old: "old", New: "fail-deploy"},
+		}})
+
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
+		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "updated"}}
+		tr.Responses[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)] = MockResponse{StatusCode: 500, Body: map[string]interface{}{"detail": "deploy-fail"}}
+
+		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
+		require.True(t, diags.HasError())
 	})
 }
 
@@ -560,29 +915,31 @@ type MockResponse struct {
 type MockHTTPTransport struct {
 	t         *testing.T
 	Responses map[string]MockResponse
+	Calls     map[string]int
 }
 
 func (m *MockHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	url := req.URL.String()
+	requestURL := req.URL.String()
 	method := req.Method
 
-	if resp, ok := m.Responses[url]; ok {
+	if resp, ok := m.Responses[requestURL]; ok {
+		if m.Calls != nil {
+			m.Calls[requestURL]++
+		}
 		return m.createHTTPResponse(req, resp)
 	}
 
 	methodPattern := fmt.Sprintf("%s %s", method, req.URL.Path)
 	if resp, ok := m.Responses[methodPattern]; ok {
+		if m.Calls != nil {
+			m.Calls[methodPattern]++
+		}
 		return m.createHTTPResponse(req, resp)
 	}
 
-	m.t.Errorf("unregistered mock route: %s %s", method, req.URL)
-	return &http.Response{
-		StatusCode: http.StatusNotFound,
-		Status:     "404 Not Found",
-		Body:       io.NopCloser(strings.NewReader("{}")),
-		Header:     make(http.Header),
-		Request:    req,
-	}, nil
+	m.t.Fatalf("unregistered mock route: %s %s", method, req.URL)
+	// t.Fatalf will fail the test immediately; return nil to satisfy the signature.
+	return nil, nil
 }
 
 func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockResponse) (*http.Response, error) {
@@ -617,6 +974,7 @@ func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
 	mockTransport := &MockHTTPTransport{
 		t:         t,
 		Responses: make(map[string]MockResponse),
+		Calls:     make(map[string]int),
 	}
 
 	mockHTTPClient := &http.Client{
@@ -632,16 +990,592 @@ func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
 	}, mockTransport
 }
 
-func createTestApplicationResourceData(t *testing.T, data map[string]interface{}) *schema.ResourceData {
+func createTestApplicationResourceData(t *testing.T, data map[string]any) *schema.ResourceData {
 	t.Helper()
-	resource := resourceEaaApplication()
-	d := resource.Data(nil)
-	for key, value := range data {
-		require.NoError(t, d.Set(key, value), "failed to set %q", key)
-	}
-	return d
+	return createTestResourceDataFor(t, resourceEaaApplication, data)
 }
 
-func stringPtr(s string) *string {
-	return &s
+// statefulMockTransport is an HTTP transport that delegates to a callback function,
+// allowing stateful behavior (e.g., different responses for the same URL on successive calls).
+type statefulMockTransport struct {
+	t       *testing.T
+	handler func(method, path string) MockResponse
+}
+
+func (s *statefulMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	mockResp := s.handler(req.Method, req.URL.Path)
+
+	var bodyBytes []byte
+	if mockResp.Body != nil {
+		var err error
+		bodyBytes, err = json.Marshal(mockResp.Body)
+		require.NoError(s.t, err, "failed to marshal mock response body")
+	}
+
+	header := mockResp.Header
+	if header == nil {
+		header = make(http.Header)
+	}
+
+	return &http.Response{
+		StatusCode: mockResp.StatusCode,
+		Status:     http.StatusText(mockResp.StatusCode),
+		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
+		Header:     header,
+		Request:    req,
+	}, nil
+}
+
+// ===========================================================================
+// CreateMinimalAppRequestFromSchema
+// ===========================================================================
+
+func TestCreateMinimalAppRequestFromSchema(t *testing.T) {
+	ctx := context.Background()
+
+	tests := map[string]struct {
+		data           map[string]interface{}
+		wantName       string
+		wantAppType    int
+		wantAppProfile int
+		wantClientMode int
+		wantErr        bool
+	}{
+		"enterprise_http_minimal": {
+			data: map[string]interface{}{
+				"name":     "my-enterprise-app",
+				"app_type": "enterprise",
+			},
+			wantName:       "my-enterprise-app",
+			wantAppType:    int(client.APP_TYPE_ENTERPRISE_HOSTED),
+			wantAppProfile: int(client.APP_PROFILE_HTTP),
+			wantClientMode: int(client.CLIENT_APP_MODE_TCP),
+		},
+		"saas_app": {
+			data: map[string]interface{}{
+				"name":        "my-saas-app",
+				"app_type":    "saas",
+				"app_profile": "http",
+			},
+			wantName:       "my-saas-app",
+			wantAppType:    int(client.APP_TYPE_SAAS),
+			wantAppProfile: int(client.APP_PROFILE_HTTP),
+			wantClientMode: int(client.CLIENT_APP_MODE_TCP),
+		},
+		"tunnel_app": {
+			data: map[string]interface{}{
+				"name":            "my-tunnel-app",
+				"app_type":        "tunnel",
+				"app_profile":     "tcp",
+				"client_app_mode": "tunnel",
+			},
+			wantName:       "my-tunnel-app",
+			wantAppType:    int(client.APP_TYPE_TUNNEL),
+			wantAppProfile: int(client.APP_PROFILE_TCP),
+			wantClientMode: int(client.CLIENT_APP_MODE_TUNNEL),
+		},
+		"bookmark_app": {
+			data: map[string]interface{}{
+				"name":     "my-bookmark-app",
+				"app_type": "bookmark",
+			},
+			wantName:       "my-bookmark-app",
+			wantAppType:    int(client.APP_TYPE_BOOKMARK),
+			wantAppProfile: int(client.APP_PROFILE_HTTP),
+			wantClientMode: int(client.CLIENT_APP_MODE_TCP),
+		},
+		"defaults_when_unset": {
+			data: map[string]interface{}{
+				"name": "defaults-app",
+			},
+			wantName:       "defaults-app",
+			wantAppType:    int(client.APP_TYPE_ENTERPRISE_HOSTED),
+			wantAppProfile: int(client.APP_PROFILE_HTTP),
+			wantClientMode: int(client.CLIENT_APP_MODE_TCP),
+		},
+		"missing_name_returns_error": {
+			data:    map[string]interface{}{},
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockClient, _ := createMockClient(t)
+			d := createTestApplicationResourceData(t, tc.data)
+
+			var req client.MinimalCreateAppRequest
+			err := req.CreateMinimalAppRequestFromSchema(ctx, d, mockClient)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantName, req.Name)
+			assert.Equal(t, tc.wantAppType, req.AppType)
+			assert.Equal(t, tc.wantAppProfile, req.AppProfile)
+			assert.Equal(t, tc.wantClientMode, req.ClientAppMode)
+		})
+	}
+}
+
+// ===========================================================================
+// CreateAppRequestFromSchema
+// ===========================================================================
+
+func TestCreateAppRequestFromSchema(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("enterprise_with_saml_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "saml-app",
+			"app_type":    "enterprise",
+			"app_profile": "http",
+			"description": "A SAML-enabled app",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "saml",
+			},
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "saml-app", req.Name)
+		assert.Equal(t, int(client.APP_TYPE_ENTERPRISE_HOSTED), req.AppType)
+		assert.Equal(t, int(client.APP_PROFILE_HTTP), req.AppProfile)
+		assert.True(t, req.SAML)
+		assert.False(t, req.Oidc)
+		assert.False(t, req.WSFED)
+		require.NotNil(t, req.Description)
+		assert.Equal(t, "A SAML-enabled app", *req.Description)
+	})
+
+	t.Run("enterprise_with_oidc_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "oidc-app",
+			"app_type":    "enterprise",
+			"app_profile": "http",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "oidc",
+			},
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "oidc-app", req.Name)
+		assert.False(t, req.SAML)
+		assert.True(t, req.Oidc)
+		assert.False(t, req.WSFED)
+	})
+
+	t.Run("saas_app_no_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "saas-no-auth",
+			"app_type":    "saas",
+			"app_profile": "http",
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "saas-no-auth", req.Name)
+		assert.Equal(t, int(client.APP_TYPE_SAAS), req.AppType)
+		assert.False(t, req.SAML)
+		assert.False(t, req.Oidc)
+		assert.Nil(t, req.OIDCSettings)
+		assert.Empty(t, req.SAMLSettings)
+	})
+
+	t.Run("tls_suite_configuration", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "tls-app",
+			"app_type":    "enterprise",
+			"app_profile": "http",
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "custom",
+				"tls_suite_name": "my-suite",
+			},
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "tls-app", req.Name)
+		require.NotNil(t, req.TLSSuiteType)
+		assert.Equal(t, 2, *req.TLSSuiteType) // "custom" -> 2
+		require.NotNil(t, req.TLSSuiteName)
+		assert.Equal(t, "my-suite", *req.TLSSuiteName)
+	})
+
+	t.Run("tls_suite_default", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "tls-default-app",
+			"app_type":    "enterprise",
+			"app_profile": "http",
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "default",
+			},
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		require.NotNil(t, req.TLSSuiteType)
+		assert.Equal(t, 1, *req.TLSSuiteType) // "default" -> 1
+	})
+
+	t.Run("missing_name_returns_error", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"app_type": "enterprise",
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.Error(t, err)
+	})
+
+	t.Run("app_bundle_validated_via_api", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/appbundle"] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{
+					{
+						"name":     "my-bundle",
+						"uuid_url": "bundle-uuid-123",
+					},
+				},
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":       "bundled-app",
+			"app_type":   "enterprise",
+			"app_bundle": "my-bundle",
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "bundle-uuid-123", req.AppBundle)
+	})
+
+	t.Run("defaults_applied_when_fields_unset", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name": "defaults-app",
+		})
+
+		var req client.CreateAppRequest
+		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, int(client.APP_TYPE_ENTERPRISE_HOSTED), req.AppType)
+		assert.Equal(t, int(client.APP_PROFILE_HTTP), req.AppProfile)
+		assert.Equal(t, int(client.CLIENT_APP_MODE_TCP), req.ClientAppMode)
+	})
+}
+
+// ===========================================================================
+// UpdateAppRequestFromSchema
+// ===========================================================================
+
+func TestUpdateAppRequestFromSchema(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("basic_field_updates", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":        "updated-app",
+			"description": "updated description",
+			"host":        "updated.example.com",
+			"domain":      "wapp",
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "updated-app", req.Name)
+		require.NotNil(t, req.Description)
+		assert.Equal(t, "updated description", *req.Description)
+		require.NotNil(t, req.Host)
+		assert.Equal(t, "updated.example.com", *req.Host)
+	})
+
+	t.Run("saml_auth_enabled_via_app_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "saml-update-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "saml",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.True(t, req.SAML)
+		assert.False(t, req.Oidc)
+		assert.False(t, req.WSFED)
+	})
+
+	t.Run("oidc_auth_enabled_via_app_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "oidc-update-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "oidc",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.False(t, req.SAML)
+		assert.True(t, req.Oidc)
+		assert.False(t, req.WSFED)
+	})
+
+	t.Run("no_auth_clears_settings", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "no-auth-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.False(t, req.SAML)
+		assert.False(t, req.Oidc)
+		assert.False(t, req.WSFED)
+		assert.Nil(t, req.OIDCSettings)
+		assert.Empty(t, req.WSFEDSettings)
+	})
+
+	t.Run("tls_suite_updates", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "tls-update-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "custom",
+				"tls_suite_name": "updated-suite",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		require.NotNil(t, req.TLSSuiteType)
+		assert.Equal(t, 2, *req.TLSSuiteType)
+		require.NotNil(t, req.TLSSuiteName)
+		assert.Equal(t, "updated-suite", *req.TLSSuiteName)
+	})
+
+	t.Run("server_configuration", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "server-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"servers": []interface{}{
+				map[string]interface{}{
+					"origin_host":     "backend.internal",
+					"orig_tls":        true,
+					"origin_port":     8443,
+					"origin_protocol": "https",
+				},
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		require.Len(t, req.Servers, 1)
+		assert.Equal(t, "backend.internal", req.Servers[0].OriginHost)
+		assert.True(t, req.Servers[0].OrigTLS)
+		assert.Equal(t, 8443, req.Servers[0].OriginPort)
+		assert.Equal(t, "https", req.Servers[0].OriginProtocol)
+	})
+
+	t.Run("multiple_servers", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "multi-server-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"servers": []interface{}{
+				map[string]interface{}{
+					"origin_host": "backend1.internal",
+					"origin_port": 8080,
+				},
+				map[string]interface{}{
+					"origin_host": "backend2.internal",
+					"origin_port": 8081,
+				},
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		require.Len(t, req.Servers, 2)
+		assert.Equal(t, "backend1.internal", req.Servers[0].OriginHost)
+		assert.Equal(t, "backend2.internal", req.Servers[1].OriginHost)
+	})
+
+	t.Run("bookmark_url_set", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":         "bookmark-app",
+			"app_type":     "bookmark",
+			"bookmark_url": "https://external.example.com",
+			"domain":       "wapp",
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "https://external.example.com", req.BookmarkURL)
+	})
+
+	t.Run("tunnel_internal_hosts", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "tunnel-update-app",
+			"app_type": "tunnel",
+			"domain":   "wapp",
+			"tunnel_internal_hosts": []interface{}{
+				map[string]interface{}{
+					"host":       "10.0.0.1",
+					"port_range": "22-443",
+					"proto_type": 1,
+				},
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		require.Len(t, req.TunnelInternalHosts, 1)
+		assert.Equal(t, "10.0.0.1", req.TunnelInternalHosts[0].Host)
+		assert.Equal(t, "22-443", req.TunnelInternalHosts[0].PortRange)
+		assert.Equal(t, 1, req.TunnelInternalHosts[0].ProtoType)
+	})
+
+	t.Run("advanced_settings_app_auth_preserved", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "adv-settings-app",
+			"app_type": "enterprise",
+			"saml":     true,
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "none",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		// When SAML is enabled, app_auth should be set to "none"
+		assert.Equal(t, "none", req.AdvancedSettings.AppAuth)
+	})
+
+	t.Run("app_bundle_validated_via_api", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/appbundle"] = MockResponse{
+			StatusCode: 200,
+			Body: map[string]interface{}{
+				"objects": []map[string]interface{}{
+					{
+						"name":     "update-bundle",
+						"uuid_url": "bundle-uuid-456",
+					},
+				},
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":       "bundle-update-app",
+			"app_type":   "enterprise",
+			"app_bundle": "update-bundle",
+			"domain":     "wapp",
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.Equal(t, "bundle-uuid-456", req.AppBundle)
+	})
+
+	t.Run("wsfed_auth_enabled_via_app_auth", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "wsfed-update-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"app_auth": "wsfed",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.NoError(t, err)
+
+		assert.False(t, req.SAML)
+		assert.False(t, req.Oidc)
+		assert.True(t, req.WSFED)
+	})
+
+	t.Run("invalid_tls_suite_type_returns_error", func(t *testing.T) {
+		mockClient, _ := createMockClient(t)
+		d := createTestApplicationResourceData(t, map[string]interface{}{
+			"name":     "bad-tls-app",
+			"app_type": "enterprise",
+			"domain":   "wapp",
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "invalid",
+			},
+		})
+
+		var req client.ApplicationUpdateRequest
+		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tls_suite_type")
+	})
 }

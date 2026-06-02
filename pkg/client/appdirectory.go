@@ -103,7 +103,7 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		}
 		grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)
 		if err != nil {
-			continue
+			return fmt.Errorf("group %q not found in directory %q: %w", gn, dirData.Name, err)
 		}
 		appgroup.UUIDURL = grp.UUID_URL
 

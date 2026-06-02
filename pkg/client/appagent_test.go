@@ -67,7 +67,14 @@ func TestGetAppAgents(t *testing.T) {
 	}
 }
 
-func TestAssignAgents(t *testing.T) {
+func TestAssignUnAssignAgents(t *testing.T) {
+	type agentFunc func(*AssignAgents, context.Context, *EaaClient) error
+
+	funcs := map[string]agentFunc{
+		"AssignAgents":   (*AssignAgents).AssignAgents,
+		"UnAssignAgents": (*AssignAgents).UnAssignAgents,
+	}
+
 	tests := map[string]struct {
 		setupRouter func(pr *pathRouter)
 		agentNames  []string
@@ -81,75 +88,6 @@ func TestAssignAgents(t *testing.T) {
 						{Name: "conn-1", UUIDURL: "uuid-1"},
 					},
 				}))
-				pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-123/agents", jsonHandler(http.StatusOK, nil))
-			},
-		},
-		"empty_agent_names": {
-			agentNames: []string{},
-			setupRouter: func(pr *pathRouter) {
-				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
-					Connectors: []Connector{},
-				}))
-			},
-			wantErr: false, // returns nil when no agents to assign
-		},
-		"agent_not_found": {
-			agentNames: []string{"missing-agent"},
-			setupRouter: func(pr *pathRouter) {
-				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
-					Connectors: []Connector{
-						{Name: "conn-1", UUIDURL: "uuid-1"},
-					},
-				}))
-			},
-			wantErr: true,
-		},
-		"assign_api_error": {
-			agentNames: []string{"conn-1"},
-			setupRouter: func(pr *pathRouter) {
-				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
-					Connectors: []Connector{
-						{Name: "conn-1", UUIDURL: "uuid-1"},
-					},
-				}))
-				pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-123/agents", errorJSONHandler(http.StatusInternalServerError, "assign failed"))
-			},
-			wantErr: true,
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			pr := newPathRouter(t)
-			tt.setupRouter(pr)
-			ec := newTestClient(t, pr)
-
-			aar := &AssignAgents{
-				AppID:      "app-123",
-				AgentNames: tt.agentNames,
-			}
-			err := aar.AssignAgents(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
-				return
-			}
-		})
-	}
-}
-
-func TestUnAssignAgents(t *testing.T) {
-	tests := map[string]struct {
-		setupRouter func(pr *pathRouter)
-		agentNames  []string
-		wantErr     bool
-	}{
-		"success": {
-			agentNames: []string{"conn-1"},
-			setupRouter: func(pr *pathRouter) {
-				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
-					Connectors: []Connector{
-						{Name: "conn-1", UUIDURL: "uuid-1"},
-					},
-				}))
-				// UnAssignAgents uses ?method=delete in URL but the path router matches on path only
 				pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-123/agents", jsonHandler(http.StatusOK, nil))
 			},
 		},
@@ -162,8 +100,8 @@ func TestUnAssignAgents(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		"agent_lookup_fails": {
-			agentNames: []string{"missing"},
+		"agent_not_found": {
+			agentNames: []string{"missing-agent"},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
 					Connectors: []Connector{
@@ -173,7 +111,7 @@ func TestUnAssignAgents(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		"unassign_api_error": {
+		"api_error": {
 			agentNames: []string{"conn-1"},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/agents", jsonHandler(http.StatusOK, ConnectorResponse{
@@ -181,24 +119,29 @@ func TestUnAssignAgents(t *testing.T) {
 						{Name: "conn-1", UUIDURL: "uuid-1"},
 					},
 				}))
-				pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-123/agents", errorJSONHandler(http.StatusInternalServerError, "unassign failed"))
+				pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-123/agents", errorJSONHandler(http.StatusInternalServerError, "operation failed"))
 			},
 			wantErr: true,
 		},
 	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			pr := newPathRouter(t)
-			tt.setupRouter(pr)
-			ec := newTestClient(t, pr)
 
-			aar := &AssignAgents{
-				AppID:      "app-123",
-				AgentNames: tt.agentNames,
-			}
-			err := aar.UnAssignAgents(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
-				return
+	for funcName, fn := range funcs {
+		t.Run(funcName, func(t *testing.T) {
+			for name, tt := range tests {
+				t.Run(name, func(t *testing.T) {
+					pr := newPathRouter(t)
+					tt.setupRouter(pr)
+					ec := newTestClient(t, pr)
+
+					aar := &AssignAgents{
+						AppID:      "app-123",
+						AgentNames: tt.agentNames,
+					}
+					err := fn(aar, context.Background(), ec)
+					if requireErr(t, err, tt.wantErr) {
+						return
+					}
+				})
 			}
 		})
 	}
