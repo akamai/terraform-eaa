@@ -109,6 +109,12 @@ func TestParseAdvancedSettingsWithDefaults_InvalidJSON(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid JSON")
 }
 
+func TestParseAdvancedSettingsWithDefaults_InvalidHealthCheckType(t *testing.T) {
+	_, err := ParseAdvancedSettingsWithDefaults(`{"health_check_type":"99"}`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid health_check_type")
+}
+
 func TestParseAdvancedSettingsWithDefaults_PointerStringFields(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{
 		"external_cookie_domain": "",
@@ -294,6 +300,16 @@ func TestAdvancedSettingsFromBlock_StripsTLSKeys(t *testing.T) {
 		assert.False(t, hasTLSName, "tls_suite_name should not appear in ExtraFields")
 	}
 	assert.Equal(t, "true", got.Acceleration)
+}
+
+func TestAdvancedSettingsFromBlock_InvalidHealthCheckType(t *testing.T) {
+	block := map[string]interface{}{
+		"health_check_type": "99",
+	}
+
+	_, err := advancedSettingsFromBlock(block)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid health_check_type")
 }
 
 // ---------------------------------------------------------------------------

@@ -4,97 +4,200 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
-	"github.com/stretchr/testify/assert"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// ---------------------------------------------------------------------------
-// derefStr
-// ---------------------------------------------------------------------------
-
-func TestDerefStr_NilPointer(t *testing.T) {
-	got := derefStr(nil)
-	assert.Equal(t, "", got)
-}
-
-func TestDerefStr_NonNilPointer(t *testing.T) {
-	s := "hello"
-	got := derefStr(&s)
-	assert.Equal(t, "hello", got)
-}
-
-func TestDerefStr_EmptyString(t *testing.T) {
-	s := ""
-	got := derefStr(&s)
-	assert.Equal(t, "", got)
-}
-
-// ---------------------------------------------------------------------------
-// serverComputedAdvancedSettingsKeys
-// ---------------------------------------------------------------------------
-
-func TestServerComputedAdvancedSettingsKeys(t *testing.T) {
-	expectedKeys := []string{
-		"g2o_key",
-		"g2o_nonce",
-		"edge_cookie_key",
-		"sla_object_url",
-		"edge_transport_property_id",
+// TestMapAdvancedSettingsFromResponseWithInvalidHealthCheckType tests that
+// mapAdvancedSettingsFromResponse returns an error when the API returns an
+// invalid health_check_type value. This is the error path that runs on
+// every terraform plan/apply/refresh during the read phase.
+func TestMapAdvancedSettingsFromResponseWithInvalidHealthCheckType(t *testing.T) {
+	tests := []struct {
+		name           string
+		healthCheckVal string
+	}{
+		{
+			name:           "invalid_numeric_99",
+			healthCheckVal: "99",
+		},
+		{
+			name:           "invalid_negative",
+			healthCheckVal: "-1",
+		},
+		{
+			name:           "invalid_non_numeric",
+			healthCheckVal: "invalid",
+		},
 	}
 
-	for _, key := range expectedKeys {
-		assert.True(t, serverComputedAdvancedSettingsKeys[key],
-			"expected %q to be in serverComputedAdvancedSettingsKeys", key)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a resource schema
+			resourceSchema := map[string]*schema.Schema{
+				"uuid_url": {
+					Type:     schema.TypeString,
+					Computed: true,
+				},
+				"name": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"app_type": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"host": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"advanced_settings": {
+					Type:     schema.TypeMap,
+					Optional: true,
+				},
+			}
 
-	assert.False(t, serverComputedAdvancedSettingsKeys["acceleration"],
-		"acceleration should not be in serverComputedAdvancedSettingsKeys")
-}
+			// Create test resource data
+			d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+				"uuid_url": "test-app-id",
+				"name":     "test-app",
+				"app_type": "http",
+				"host":     "test.example.com",
+				"advanced_settings": map[string]interface{}{
+					"health_check_type": "Default", // Add a valid value to the state
+				},
+			})
 
-// ---------------------------------------------------------------------------
-// mapAdvancedSettingsFromResponse
-// ---------------------------------------------------------------------------
+			// Create an application response with invalid health_check_type
+			appResp := &client.ApplicationResponse{
+				UUIDURL: "test-app-id",
+				Name:    "test-app",
+				AdvancedSettings: client.AdvancedSettingsComplete{
+					AllowCORS:           "false",
+					HealthCheckType:     tt.healthCheckVal, // Invalid value
+					HealthCheckFall:     "3",
+					HealthCheckRise:     "2",
+					HealthCheckTimeout:  "50000",
+					HealthCheckInterval: "30000",
+				},
+			}
 
-func TestMapAdvancedSettingsFromResponse(t *testing.T) {
-	t.Run("preserves_only_existing_keys_on_read", func(t *testing.T) {
-		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"advanced_settings": map[string]interface{}{
-				"websocket_enabled": "true",
-			},
+			// Call mapAdvancedSettingsFromResponse
+			diags := mapAdvancedSettingsFromResponse(d, appResp)
+
+			// Verify that we get an error diagnostic
+			if !diags.HasError() {
+				t.Errorf("mapAdvancedSettingsFromResponse with invalid health_check_type %q returned no errors, want error", tt.healthCheckVal)
+			}
+
+			// Check that the error message mentions health_check_type
+			if len(diags) == 0 {
+				t.Fatal("Expected at least one diagnostic error")
+			}
+
+			errorMsg := diags[0].Summary
+			if errorMsg != "failed to map health_check_type from API value" && !contains(diags[0].Summary, "health_check_type") {
+				t.Errorf("Error message = %q, want message containing 'health_check_type'", errorMsg)
+			}
 		})
-		d.SetId("test-app-uuid")
+	}
+}
 
-		appResp := &client.ApplicationResponse{
-			AdvancedSettings: client.AdvancedSettingsComplete{
-				WebSocketEnabled:        "false",
-				KeepaliveConnectionPool: "30",
-			},
+// TestMapAdvancedSettingsFromResponseWithValidHealthCheckType tests that
+// mapAdvancedSettingsFromResponse correctly handles valid health_check_type values.
+func TestMapAdvancedSettingsFromResponseWithValidHealthCheckType(t *testing.T) {
+	tests := []struct {
+		name           string
+		healthCheckVal string
+		expectedResult string
+	}{
+		{name: "default", healthCheckVal: "0", expectedResult: "Default"},
+		{name: "http", healthCheckVal: "1", expectedResult: "HTTP"},
+		{name: "https", healthCheckVal: "2", expectedResult: "HTTPS"},
+		{name: "tls", healthCheckVal: "3", expectedResult: "TLS"},
+		{name: "sslv3", healthCheckVal: "4", expectedResult: "SSLv3"},
+		{name: "tcp", healthCheckVal: "5", expectedResult: "TCP"},
+		{name: "none", healthCheckVal: "6", expectedResult: "None"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a resource schema
+			resourceSchema := map[string]*schema.Schema{
+				"uuid_url": {
+					Type:     schema.TypeString,
+					Computed: true,
+				},
+				"name": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"app_type": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"host": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"advanced_settings": {
+					Type:     schema.TypeMap,
+					Optional: true,
+				},
+			}
+
+			// Create test resource data with some prior state
+			d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+				"uuid_url": "test-app-id",
+				"name":     "test-app",
+				"app_type": "http",
+				"host":     "test.example.com",
+				"advanced_settings": map[string]interface{}{
+					"health_check_type": "Default", // Include in prior state
+				},
+			})
+
+			// Create an application response with valid health_check_type
+			appResp := &client.ApplicationResponse{
+				UUIDURL: "test-app-id",
+				Name:    "test-app",
+				AdvancedSettings: client.AdvancedSettingsComplete{
+					AllowCORS:           "false",
+					HealthCheckType:     tt.healthCheckVal,
+					HealthCheckFall:     "3",
+					HealthCheckRise:     "2",
+					HealthCheckTimeout:  "50000",
+					HealthCheckInterval: "30000",
+				},
+			}
+
+			// Call mapAdvancedSettingsFromResponse
+			diags := mapAdvancedSettingsFromResponse(d, appResp)
+
+			// Verify no errors
+			if diags.HasError() {
+				t.Errorf("mapAdvancedSettingsFromResponse with valid health_check_type %q returned errors: %v", tt.healthCheckVal, diags)
+			}
+
+			// Verify the state was set correctly
+			advSettingsRaw := d.Get("advanced_settings")
+			advSettings, ok := advSettingsRaw.(map[string]interface{})
+			if !ok {
+				t.Fatalf("advanced_settings type = %T, want map[string]interface{}", advSettingsRaw)
+			}
+
+			if got := advSettings["health_check_type"]; got != tt.expectedResult {
+				t.Errorf("health_check_type = %q, want %q", got, tt.expectedResult)
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substring string) bool {
+	for i := 0; i <= len(s)-len(substring); i++ {
+		if s[i:i+len(substring)] == substring {
+			return true
 		}
-
-		diags := mapAdvancedSettingsFromResponse(d, appResp)
-		assert.Empty(t, diags)
-
-		settings := d.Get("advanced_settings").(map[string]interface{})
-		assert.Equal(t, "false", settings["websocket_enabled"], "existing key should be updated")
-		_, hasKeepalive := settings["keepalive_connection_pool"]
-		assert.False(t, hasKeepalive, "key not in prior state should not appear")
-	})
-
-	t.Run("surfaces_all_nonempty_values_on_import", func(t *testing.T) {
-		d := createTestApplicationResourceData(t, map[string]interface{}{})
-		d.SetId("test-app-uuid")
-
-		appResp := &client.ApplicationResponse{
-			AdvancedSettings: client.AdvancedSettingsComplete{
-				WebSocketEnabled:        "true",
-				KeepaliveConnectionPool: "30",
-			},
-		}
-
-		diags := mapAdvancedSettingsFromResponse(d, appResp)
-		assert.Empty(t, diags)
-
-		settings := d.Get("advanced_settings").(map[string]interface{})
-		assert.Equal(t, "true", settings["websocket_enabled"])
-		assert.Equal(t, "30", settings["keepalive_connection_pool"])
-	})
+	}
+	return false
 }

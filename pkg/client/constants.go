@@ -2,6 +2,8 @@ package client
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 )
 
 const (
@@ -53,7 +55,6 @@ var (
 	ErrAssignDirectoryFailure = errors.New("assigning directory to the app failed")
 	ErrDeploy                 = errors.New("app deploy failed")
 	ErrAssignGroupFailure     = errors.New("assigning groups to the app failed")
-	ErrGetApp                 = errors.New("app deploy failed")
 
 	ErrAgentAssociationCreate = errors.New("associating the connector to the connector pool failed")
 	ErrAgentAssociationDelete = errors.New("disassociating the connector from the connector pool failed")
@@ -932,47 +933,42 @@ func (hct HealthCheckTypeInt) ToDescriptive() (string, error) {
 }
 
 // MapHealthCheckTypeToDescriptive converts numeric health check type values to descriptive values
-func MapHealthCheckTypeToDescriptive(numericValue string) string {
-	switch numericValue {
-	case "0":
-		return string(HealthCheckTypeDefault)
-	case "1":
-		return string(HealthCheckTypeHTTP)
-	case "2":
-		return string(HealthCheckTypeHTTPS)
-	case "3":
-		return string(HealthCheckTypeTLS)
-	case "4":
-		return string(HealthCheckTypeSSLv3)
-	case "5":
-		return string(HealthCheckTypeTCP)
-	case "6":
-		return string(HealthCheckTypeNone)
-	default:
-		return numericValue // fallback to original value
+func MapHealthCheckTypeToDescriptive(numericValue string) (string, error) {
+	if numericValue == "" {
+		return "", nil
 	}
+
+	parsed, err := strconv.Atoi(numericValue)
+	if err != nil {
+		return "", fmt.Errorf("invalid health check type numeric value %q: %w", numericValue, err)
+	}
+
+	descriptive, err := HealthCheckTypeInt(parsed).ToDescriptive()
+	if err != nil {
+		return "", fmt.Errorf("invalid health check type numeric value %q: %w", numericValue, err)
+	}
+
+	return descriptive, nil
 }
 
 // MapHealthCheckTypeToNumeric converts descriptive health check type values to numeric values
-func MapHealthCheckTypeToNumeric(descriptiveValue string) string {
-	switch descriptiveValue {
-	case string(HealthCheckTypeDefault):
-		return "0"
-	case string(HealthCheckTypeHTTP):
-		return "1"
-	case string(HealthCheckTypeHTTPS):
-		return "2"
-	case string(HealthCheckTypeTLS):
-		return "3"
-	case string(HealthCheckTypeSSLv3):
-		return "4"
-	case string(HealthCheckTypeTCP):
-		return "5"
-	case string(HealthCheckTypeNone):
-		return "6"
-	default:
-		return descriptiveValue // fallback to original value (assumes it's already numeric)
+func MapHealthCheckTypeToNumeric(descriptiveValue string) (string, error) {
+	if descriptiveValue == "" {
+		return "", nil
 	}
+
+	if numeric, err := HealthCheckType(descriptiveValue).ToNumeric(); err == nil {
+		return numeric, nil
+	}
+
+	parsed, err := strconv.Atoi(descriptiveValue)
+	if err == nil {
+		if _, mapErr := HealthCheckTypeInt(parsed).ToDescriptive(); mapErr == nil {
+			return strconv.Itoa(parsed), nil
+		}
+	}
+
+	return "", fmt.Errorf("invalid health check type value %q", descriptiveValue)
 }
 
 // Load balancing validation errors

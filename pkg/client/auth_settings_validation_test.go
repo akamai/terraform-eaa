@@ -8,6 +8,50 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// mapBackedAuthSettingsLookup is a lightweight GetOk() adapter used for unit tests.
+// It mimics Terraform's GetOk behavior by treating common zero values as "not set".
+type mapBackedAuthSettingsLookup map[string]interface{}
+
+func (m mapBackedAuthSettingsLookup) GetOk(key string) (interface{}, bool) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil, false
+	}
+
+	switch val := v.(type) {
+	case bool:
+		if !val {
+			return nil, false
+		}
+	case string:
+		if val == "" {
+			return nil, false
+		}
+	case int:
+		if val == 0 {
+			return nil, false
+		}
+	case int64:
+		if val == 0 {
+			return nil, false
+		}
+	case float64:
+		if val == 0 {
+			return nil, false
+		}
+	case []interface{}:
+		if len(val) == 0 {
+			return nil, false
+		}
+	case map[string]interface{}:
+		if len(val) == 0 {
+			return nil, false
+		}
+	}
+
+	return v, true
+}
+
 func TestValidateCustomHeadersConfiguration(t *testing.T) {
 	logger := hclog.NewNullLogger()
 
@@ -299,7 +343,7 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 	}
 }
 
-func TestValidateWSFEDNestedBlocksWithLookup(t *testing.T) {
+func TestValidateWSFEDNestedBlocks(t *testing.T) {
 	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
@@ -370,7 +414,7 @@ func TestValidateWSFEDNestedBlocksWithLookup(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateWSFEDNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			err := ValidateWSFEDNestedBlocks(ctx, tt.lookup, nil, logger)
 			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
@@ -384,7 +428,7 @@ func TestValidateWSFEDNestedBlocksWithLookup(t *testing.T) {
 	}
 }
 
-func TestValidateSAMLNestedBlocksWithLookup(t *testing.T) {
+func TestValidateSAMLNestedBlocks(t *testing.T) {
 	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
@@ -468,7 +512,7 @@ func TestValidateSAMLNestedBlocksWithLookup(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateSAMLNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			err := ValidateSAMLNestedBlocks(ctx, tt.lookup, nil, logger)
 			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
@@ -482,7 +526,7 @@ func TestValidateSAMLNestedBlocksWithLookup(t *testing.T) {
 	}
 }
 
-func TestValidateOIDCNestedBlocksWithLookup(t *testing.T) {
+func TestValidateOIDCNestedBlocks(t *testing.T) {
 	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
@@ -552,13 +596,97 @@ func TestValidateOIDCNestedBlocksWithLookup(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateOIDCNestedBlocksWithLookup(ctx, tt.lookup, nil, logger)
+			err := ValidateOIDCNestedBlocks(ctx, tt.lookup, nil, logger)
 			if requireErr(t, err, tt.wantErr) {
 				if tt.errIs != nil {
 					assert.ErrorIs(t, err, tt.errIs)
 				}
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestValidateOIDCClientNested(t *testing.T) {
+	logger := hclog.NewNullLogger()
+
+	tests := map[string]struct {
+		clientConfig map[string]interface{}
+		errIs        error
+		wantErr      bool
+	}{
+		"redirect_uris_not_array": {
+			clientConfig: map[string]interface{}{"redirect_uris": "https://example.com/callback"},
+			wantErr:      true,
+			errIs:        ErrOIDCRedirectURIsNotArray,
+		},
+		"javascript_origins_not_array": {
+			clientConfig: map[string]interface{}{"javascript_origins": "https://example.com"},
+			wantErr:      true,
+			errIs:        ErrOIDCJavaScriptOriginsNotArray,
+		},
+		"post_logout_redirect_uri_not_array": {
+			clientConfig: map[string]interface{}{"post_logout_redirect_uri": "https://example.com/logout"},
+			wantErr:      true,
+			errIs:        ErrOIDCPostLogoutURIsNotArray,
+		},
+		"claims_not_array": {
+			clientConfig: map[string]interface{}{"claims": "not-a-list"},
+			wantErr:      true,
+			errIs:        ErrOIDCClaimsNotArray,
+		},
+		"claim_not_object": {
+			clientConfig: map[string]interface{}{"claims": []interface{}{"not-an-object"}},
+			wantErr:      true,
+			errIs:        ErrOIDCClaimNotObject,
+		},
+		"empty_claim_object": {
+			clientConfig: map[string]interface{}{"claims": []interface{}{map[string]interface{}{}}},
+			wantErr:      true,
+			errIs:        ErrOIDCClaimValidation,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateOIDCClientNested(tt.clientConfig, 0, logger)
+			if requireErr(t, err, tt.wantErr) {
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestValidateOIDCClaimNested(t *testing.T) {
+	logger := hclog.NewNullLogger()
+
+	tests := map[string]struct {
+		claim   map[string]interface{}
+		errIs   error
+		wantErr bool
+	}{
+		"empty_claim": {
+			claim:   map[string]interface{}{},
+			wantErr: true,
+			errIs:   ErrOIDCClaimEmpty,
+		},
+		"non_empty_claim": {
+			claim: map[string]interface{}{"name": "sub"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateOIDCClaimNested(tt.claim, 0, logger)
+			if requireErr(t, err, tt.wantErr) {
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
 				}
 				return
 			}

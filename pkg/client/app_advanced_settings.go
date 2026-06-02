@@ -158,7 +158,9 @@ func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error
 	}
 
 	// Apply user-specified values, overriding defaults using reflection
-	applyAdvancedSettingsWithReflection(advSettings, userSettings)
+	if err := applyAdvancedSettingsWithReflection(advSettings, userSettings); err != nil {
+		return nil, err
+	}
 
 	return advSettings, nil
 }
@@ -236,7 +238,7 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 
 // applyAdvancedSettingsWithReflection applies user settings to the advanced settings struct using reflection
 // This eliminates the need for the massive switch statement and makes the code much more maintainable
-func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) {
+func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSettings map[string]interface{}) error {
 
 	// Field mapping: JSON key -> struct field name
 	// #nosec G101 -- static field-name mapping includes auth/key labels but does not contain secrets
@@ -428,7 +430,11 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 				if jsonKey == "health_check_type" {
 					if strVal, ok := value.(string); ok {
 						// Convert descriptive values to numeric values for health_check_type
-						value = MapHealthCheckTypeToNumeric(strVal)
+						mappedValue, err := MapHealthCheckTypeToNumeric(strVal)
+						if err != nil {
+							return fmt.Errorf("invalid health_check_type %q: %w", strVal, err)
+						}
+						value = mappedValue
 					}
 				}
 
@@ -604,4 +610,6 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 			advSettings.ExtraFields[jsonKey] = value
 		}
 	}
+
+	return nil
 }

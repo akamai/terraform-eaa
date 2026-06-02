@@ -72,12 +72,6 @@ func getAppError(resp *http.Response) error {
 	return fmt.Errorf("%w: %s", client.ErrGetAppFailed, desc)
 }
 
-var (
-	hasAppAuthenticationChange = func(d *schema.ResourceData) bool { return d.HasChange("app_authentication") }
-	hasServiceChange           = func(d *schema.ResourceData) bool { return d.HasChange("service") }
-	hasServiceRuleChange       = func(d *schema.ResourceData) bool { return d.HasChange("service.0.access_rule") }
-)
-
 func resourceEaaApplication() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceEaaApplicationCreateTwoPhase,
@@ -1189,7 +1183,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 	}
-	if hasAppAuthenticationChange(d) {
+	if _, ok := d.GetOk("app_authentication"); ok {
 		authEnabledValue := "false"
 
 		if aE, ok := d.GetOk("auth_enabled"); ok {
@@ -1280,9 +1274,9 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	// Check if the "service" attribute is present and has changed
-	if hasServiceChange(d) {
+	if servicesRaw, hasService := d.GetOk("service"); hasService {
 		// Get the service attribute as a list (since it is defined as a list in the schema)
-		services, ok := d.Get("service").([]interface{})
+		services, ok := servicesRaw.([]interface{})
 		if !ok {
 			return append(warningDiags, diag.FromErr(ErrInvalidData)...)
 		}
@@ -1305,7 +1299,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 					return append(warningDiags, diag.FromErr(serviceErr)...)
 				}
 			}
-			if hasServiceRuleChange(d) {
+			if len(aclSrv.ACLRules) > 0 {
 				// Fetch existing rules
 				existingACLResponse, rulesErr := client.GetAccessControlRules(eaaclient, appSrv.UUIDURL)
 				if rulesErr != nil {

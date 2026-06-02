@@ -144,32 +144,6 @@ func TestResourceEaaApplication_ProtocolValidation(t *testing.T) {
 // Helper functions
 // ===========================================================================
 
-func TestConvertStringToInt(t *testing.T) {
-	tests := map[string]struct {
-		input    string
-		expected int
-		wantErr  bool
-	}{
-		"valid_number":  {input: "123", expected: 123},
-		"zero":          {input: "0", expected: 0},
-		"empty_string":  {input: "", expected: 0},
-		"invalid_input": {input: "invalid", wantErr: true},
-		"float":         {input: "1.5", wantErr: true},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			result, err := convertStringToInt(tc.input)
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
 func TestStringPointerValue(t *testing.T) {
 	t.Run("non_nil", func(t *testing.T) {
 		s := "test"
@@ -592,13 +566,11 @@ func TestResourceEaaApplicationUpdate(t *testing.T) {
 			}},
 		}}))
 		setResourceDataDiff(t, d, &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
-			"app_authentication":           {Old: "old", New: "new"},
-			"app_authentication.#":         {Old: "0", New: "1"},
-			"app_authentication.0.app_idp": {Old: "old-idp", New: "new-idp"},
+			"app_authentication":                     {Old: "old", New: "new"},
+			"app_authentication.#":                   {Old: "0", New: "1"},
+			"app_authentication.0.app_idp":           {Old: "old-idp", New: "new-idp"},
+			"app_authentication.0.app_directories.#": {Old: "0", New: "1"},
 		}})
-		prev := hasAppAuthenticationChange
-		hasAppAuthenticationChange = func(*schema.ResourceData) bool { return true }
-		t.Cleanup(func() { hasAppAuthenticationChange = prev })
 
 		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
 		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
@@ -703,20 +675,24 @@ func TestResourceEaaApplicationUpdate(t *testing.T) {
 			"service.0.access_rule.#":      {Old: "1", New: "2"},
 			"service.0.access_rule.0.name": {Old: "rule-a", New: "rule-a"},
 		}})
-		prevService := hasServiceChange
-		prevServiceRules := hasServiceRuleChange
-		hasServiceChange = func(*schema.ResourceData) bool { return true }
-		hasServiceRuleChange = func(*schema.ResourceData) bool { return true }
-		t.Cleanup(func() {
-			hasServiceChange = prevService
-			hasServiceRuleChange = prevServiceRules
-		})
 
 		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)] = MockResponse{StatusCode: 200, Body: baseApp}
 		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/agents", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"objects": []map[string]interface{}{}}}
 
 		// service reconciliation
-		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: servicesResp}
+		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
+			"objects": []map[string]interface{}{
+				{
+					"service": map[string]interface{}{
+						"service_type": 6,
+						"uuid_url":     svcID,
+						"status":       "disabled",
+					},
+					"status":   0,
+					"uuid_url": "service-data-uuid-123",
+				},
+			},
+		}}
 		tr.Responses[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s", svcID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{"status": "service-updated"}}
 		tr.Responses[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)] = MockResponse{StatusCode: 200, Body: map[string]interface{}{
 			"objects": []map[string]interface{}{
@@ -995,6 +971,60 @@ func createTestApplicationResourceData(t *testing.T, data map[string]any) *schem
 	return createTestResourceDataFor(t, resourceEaaApplication, data)
 }
 
+func TestGetAppError(t *testing.T) {
+	tests := map[string]struct {
+		resp       *http.Response
+		errorIs    error
+		wantErrStr string
+	}{
+		"nil_response_returns_base_error": {
+			resp:    nil,
+			errorIs: client.ErrGetAppFailed,
+		},
+		"valid_detail_wraps_error_with_detail": {
+			resp: &http.Response{
+				Status: "500 Internal Server Error",
+				Body:   io.NopCloser(bytes.NewBufferString(`{"detail":"backend exploded"}`)),
+			},
+			errorIs:    client.ErrGetAppFailed,
+			wantErrStr: "backend exploded",
+		},
+		"invalid_json_uses_http_status": {
+			resp: &http.Response{
+				Status: "500 Internal Server Error",
+				Body:   io.NopCloser(bytes.NewBufferString("not-json")),
+			},
+			errorIs:    client.ErrGetAppFailed,
+			wantErrStr: "500 Internal Server Error",
+		},
+		"empty_detail_uses_http_status": {
+			resp: &http.Response{
+				Status: "400 Bad Request",
+				Body:   io.NopCloser(bytes.NewBufferString(`{"detail":""}`)),
+			},
+			errorIs:    client.ErrGetAppFailed,
+			wantErrStr: "400 Bad Request",
+		},
+		"decode_failure_without_status_returns_base_error": {
+			resp: &http.Response{
+				Body: io.NopCloser(bytes.NewBufferString("not-json")),
+			},
+			errorIs: client.ErrGetAppFailed,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := getAppError(tt.resp)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.errorIs)
+			if tt.wantErrStr != "" {
+				assert.ErrorContains(t, err, tt.wantErrStr)
+			}
+		})
+	}
+}
+
 // statefulMockTransport is an HTTP transport that delegates to a callback function,
 // allowing stateful behavior (e.g., different responses for the same URL on successive calls).
 type statefulMockTransport struct {
@@ -1004,6 +1034,9 @@ type statefulMockTransport struct {
 
 func (s *statefulMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	mockResp := s.handler(req.Method, req.URL.Path)
+	if mockResp.StatusCode == 0 {
+		s.t.Fatalf("unexpected request: %s %s", req.Method, req.URL.Path)
+	}
 
 	var bodyBytes []byte
 	if mockResp.Body != nil {

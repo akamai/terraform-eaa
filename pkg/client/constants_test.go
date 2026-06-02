@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDomain_ToInt(t *testing.T) {
@@ -196,21 +197,28 @@ func TestMapHealthCheckTypeToDescriptive(t *testing.T) {
 	tests := map[string]struct {
 		input    string
 		expected string
+		errIsNil bool
 	}{
-		"0":       {input: "0", expected: "Default"},
-		"1":       {input: "1", expected: "HTTP"},
-		"2":       {input: "2", expected: "HTTPS"},
-		"3":       {input: "3", expected: "TLS"},
-		"4":       {input: "4", expected: "SSLv3"},
-		"5":       {input: "5", expected: "TCP"},
-		"6":       {input: "6", expected: "None"},
-		"unknown": {input: "unknown", expected: "unknown"},
+		"0":       {input: "0", expected: "Default", errIsNil: true},
+		"1":       {input: "1", expected: "HTTP", errIsNil: true},
+		"2":       {input: "2", expected: "HTTPS", errIsNil: true},
+		"3":       {input: "3", expected: "TLS", errIsNil: true},
+		"4":       {input: "4", expected: "SSLv3", errIsNil: true},
+		"5":       {input: "5", expected: "TCP", errIsNil: true},
+		"6":       {input: "6", expected: "None", errIsNil: true},
+		"empty":   {input: "", expected: "", errIsNil: true},
+		"unknown": {input: "unknown", errIsNil: false},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := MapHealthCheckTypeToDescriptive(tc.input)
-			assert.Equal(t, tc.expected, result)
+			result, err := MapHealthCheckTypeToDescriptive(tc.input)
+			if tc.errIsNil {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+				return
+			}
+			require.Error(t, err)
 		})
 	}
 }
@@ -219,21 +227,29 @@ func TestMapHealthCheckTypeToNumeric(t *testing.T) {
 	tests := map[string]struct {
 		input    string
 		expected string
+		errIsNil bool
 	}{
-		"Default":  {input: "Default", expected: "0"},
-		"HTTP":     {input: "HTTP", expected: "1"},
-		"HTTPS":    {input: "HTTPS", expected: "2"},
-		"TLS":      {input: "TLS", expected: "3"},
-		"SSLv3":    {input: "SSLv3", expected: "4"},
-		"TCP":      {input: "TCP", expected: "5"},
-		"None":     {input: "None", expected: "6"},
-		"fallback": {input: "99", expected: "99"},
+		"Default":       {input: "Default", expected: "0", errIsNil: true},
+		"HTTP":          {input: "HTTP", expected: "1", errIsNil: true},
+		"HTTPS":         {input: "HTTPS", expected: "2", errIsNil: true},
+		"TLS":           {input: "TLS", expected: "3", errIsNil: true},
+		"SSLv3":         {input: "SSLv3", expected: "4", errIsNil: true},
+		"TCP":           {input: "TCP", expected: "5", errIsNil: true},
+		"None":          {input: "None", expected: "6", errIsNil: true},
+		"known_numeric": {input: "6", expected: "6", errIsNil: true},
+		"empty":         {input: "", expected: "", errIsNil: true},
+		"unknown":       {input: "99", errIsNil: false},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := MapHealthCheckTypeToNumeric(tc.input)
-			assert.Equal(t, tc.expected, result)
+			result, err := MapHealthCheckTypeToNumeric(tc.input)
+			if tc.errIsNil {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+				return
+			}
+			require.Error(t, err)
 		})
 	}
 }

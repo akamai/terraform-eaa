@@ -248,7 +248,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"health_check_interval":              appResp.AdvancedSettings.HealthCheckInterval,
 		"health_check_rise":                  appResp.AdvancedSettings.HealthCheckRise,
 		"health_check_timeout":               appResp.AdvancedSettings.HealthCheckTimeout,
-		"health_check_type":                  client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType),
+		"health_check_type":                  "",
 		"hidden_app":                         appResp.AdvancedSettings.HiddenApp,
 		"host_key":                           derefStr(appResp.AdvancedSettings.HostKey),
 		"hsts_age":                           appResp.AdvancedSettings.HSTSage,
@@ -338,6 +338,12 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"x_wapp_pool_timeout":                appResp.AdvancedSettings.XWappPoolTimeout,
 		"x_wapp_read_timeout":                appResp.AdvancedSettings.XWappReadTimeout,
 	}
+
+	healthCheckType, err := client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
+	if err != nil {
+		return diag.Errorf("failed to map health_check_type from API value %q: %v", appResp.AdvancedSettings.HealthCheckType, err)
+	}
+	full["health_check_type"] = healthCheckType
 
 	// tls_suite_type: int -> descriptive string; always set so nil clears state.
 	switch {

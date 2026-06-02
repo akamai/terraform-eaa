@@ -2,21 +2,9 @@ package eaaprovider
 
 import (
 	"fmt"
-	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 )
-
-func convertStringToInt(value string) (int, error) {
-	if value == "" {
-		return 0, nil
-	}
-	i, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, fmt.Errorf("cannot convert %q to int: %w", value, err)
-	}
-	return i, nil
-}
 
 func stringPointerValue(value *string) interface{} {
 	if value == nil {
