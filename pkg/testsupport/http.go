@@ -3,6 +3,7 @@ package testsupport
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -32,10 +33,13 @@ func BuildJSONHTTPResponse(req *http.Request, statusCode int, body interface{}, 
 	if header == nil {
 		header = make(http.Header)
 	}
+	if header.Get("Content-Type") == "" {
+		header.Set("Content-Type", "application/json")
+	}
 
 	return &http.Response{
 		StatusCode: statusCode,
-		Status:     http.StatusText(statusCode),
+		Status:     fmt.Sprintf("%d %s", statusCode, http.StatusText(statusCode)),
 		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
 		Header:     header,
 		Request:    req,

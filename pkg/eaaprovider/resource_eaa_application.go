@@ -1274,13 +1274,13 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("service") {
 		servicesRaw, hasService := d.GetOk("service")
-		if !hasService {
-			return warningDiags
-		}
-		// Get the service attribute as a list (since it is defined as a list in the schema)
-		services, ok := servicesRaw.([]interface{})
-		if !ok {
-			return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+		var services []interface{}
+		if hasService {
+			var ok bool
+			services, ok = servicesRaw.([]interface{})
+			if !ok {
+				return append(warningDiags, diag.FromErr(ErrInvalidData)...)
+			}
 		}
 
 		if len(services) > 0 {
