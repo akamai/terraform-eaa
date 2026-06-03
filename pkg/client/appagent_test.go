@@ -59,7 +59,7 @@ func TestGetAppAgents(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppAgents(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.wantNames, got)
@@ -138,7 +138,7 @@ func TestAssignUnAssignAgents(t *testing.T) {
 						AgentNames: tt.agentNames,
 					}
 					err := fn(aar, context.Background(), ec)
-					if requireErr(t, err, tt.wantErr) {
+					if requireErrIs(t, err, tt.wantErr, nil) {
 						return
 					}
 				})

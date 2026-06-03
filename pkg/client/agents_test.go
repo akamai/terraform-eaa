@@ -36,7 +36,7 @@ func TestGetAgents(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			agents, err := GetAgents(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, agents, tt.wantCount)
@@ -70,7 +70,7 @@ func TestGetAgentUUIDs(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := GetAgentUUIDs(ec, tt.names)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.wantUUIDs, got)
@@ -96,7 +96,7 @@ func TestDeleteConnector(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := DeleteConnector(ec, "test-uuid")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 		})
@@ -128,7 +128,7 @@ func TestCreateConnector(t *testing.T) {
 				Status:  STATE_ENABLED,
 			}
 			got, err := req.CreateConnector(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "new-conn", got.Name)

@@ -354,7 +354,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 	case *appResp.AdvancedSettings.TLSSuiteType == 2:
 		full["tls_suite_type"] = "custom"
 	default:
-		full["tls_suite_type"] = ""
+		return diag.Errorf("failed to map tls_suite_type from API value %d: must be one of [1, 2]", *appResp.AdvancedSettings.TLSSuiteType)
 	}
 
 	// form_post_attributes: []string -> JSON string.

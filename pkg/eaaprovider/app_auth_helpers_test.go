@@ -43,7 +43,7 @@ func TestValidateAuthenticationMethodsForAppType_Bookmark(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			d := createTestApplicationResourceData(t, tc.data)
 			err := validateAuthenticationMethodsForAppType(d)
-			requireErr(t, err, tc.wantErr)
+			requireErrIs(t, err, tc.wantErr, nil)
 		})
 	}
 }

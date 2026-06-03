@@ -1,4 +1,3 @@
-// pkg/client/appservices_test.go
 package client
 
 import (
@@ -35,7 +34,7 @@ func TestACLSetting_Validate(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := tt.setting.Validate()
-			requireErr(t, err, tt.wantErr)
+			requireErrIs(t, err, tt.wantErr, nil)
 		})
 	}
 }

@@ -1,4 +1,3 @@
-// pkg/client/idp_test.go
 package client
 
 import (
@@ -53,7 +52,7 @@ func TestGetIdpWithName(t *testing.T) {
 			ec := newTestClient(t, idpRouter(t))
 
 			got, err := GetIdpWithName(context.Background(), ec, tt.name)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.name, got.Name)
@@ -92,7 +91,7 @@ func TestIDPData_GetIdpDirectory(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := idpData.GetIdpDirectory(context.Background(), ec, tt.dirName)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.dirName, got.Name)

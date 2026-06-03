@@ -3,8 +3,6 @@ package client
 import (
 	"net/http"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAssignUnAssignIDP(t *testing.T) {
@@ -58,10 +56,7 @@ func TestAssignUnAssignIDP(t *testing.T) {
 
 					appIdp := tt.appIdp // copy to avoid mutation
 					err := fn(&appIdp, ec)
-					if requireErr(t, err, tt.wantErr) {
-						if tt.errIs != nil {
-							assert.ErrorIs(t, err, tt.errIs)
-						}
+					if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 						return
 					}
 				})

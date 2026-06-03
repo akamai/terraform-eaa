@@ -2,12 +2,12 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,11 +33,7 @@ func newTestClient(t *testing.T, handler http.Handler) *EaaClient {
 
 func jsonHandler(statusCode int, body interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		if body != nil {
-			json.NewEncoder(w).Encode(body) //nolint:errcheck // test helper, encoding errors are not meaningful
-		}
+		testsupport.WriteJSONResponse(w, statusCode, body)
 	}
 }
 
@@ -47,11 +43,7 @@ func jsonHandlerWithCapture(statusCode int, body interface{}) (http.HandlerFunc,
 		if r.Body != nil {
 			io.Copy(captured, r.Body) //nolint:errcheck // test helper
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		if body != nil {
-			json.NewEncoder(w).Encode(body) //nolint:errcheck // test helper, encoding errors are not meaningful
-		}
+		testsupport.WriteJSONResponse(w, statusCode, body)
 	}
 	return handler, captured
 }
@@ -86,14 +78,9 @@ func (pr *pathRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pr.t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 }
 
-func requireErr(t *testing.T, err error, wantErr bool) bool {
+func requireErrIs(t *testing.T, err error, wantErr bool, errIs error) bool {
 	t.Helper()
-	if wantErr {
-		require.Error(t, err)
-		return true
-	}
-	require.NoError(t, err)
-	return false
+	return testsupport.RequireErrIs(t, err, wantErr, errIs)
 }
 
 // toIntCase holds a single test case for string-to-int conversion tests.

@@ -67,17 +67,12 @@ func TestCreateMinimalApplication(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 			got, err := tt.mcar.CreateMinimalApplication(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
 				}
 				return
 			}
-			require.NoError(t, err)
 			if tt.check != nil {
 				tt.check(t, got)
 			}
@@ -136,14 +131,9 @@ func TestDeployApplication(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			err := app.DeployApplication(ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
-			assert.NoError(t, err)
 		})
 	}
 }
@@ -175,14 +165,9 @@ func TestDeleteApplication(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-2"}
 			err := app.DeleteApplication(ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
-			assert.NoError(t, err)
 		})
 	}
 }
@@ -223,14 +208,9 @@ func TestUpdateApplication(t *testing.T) {
 			updateReq.UUIDURL = "app-uuid-3"
 			updateReq.Name = tt.name
 			err := updateReq.UpdateApplication(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
-			assert.NoError(t, err)
 		})
 	}
 }
@@ -277,17 +257,12 @@ func TestUpdateG2O(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-4"}
 			got, err := app.UpdateG2O(ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
 				}
 				return
 			}
-			require.NoError(t, err)
 			if tt.check != nil {
 				tt.check(t, got)
 			}
@@ -336,17 +311,12 @@ func TestUpdateEdgeAuthentication(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-5"}
 			got, err := app.UpdateEdgeAuthentication(ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
 				}
 				return
 			}
-			require.NoError(t, err)
 			if tt.check != nil {
 				tt.check(t, got)
 			}
@@ -404,17 +374,12 @@ func TestCreateApplication(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 			got, err := tt.car.CreateApplication(context.Background(), ec)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
 				}
 				return
 			}
-			require.NoError(t, err)
 			if tt.check != nil {
 				tt.check(t, got)
 			}
@@ -979,6 +944,135 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// CreateAppRequestFromSchema / UpdateAppRequestFromSchema (direct unit tests)
+// ---------------------------------------------------------------------------
+
+func TestCreateAppRequestFromSchema_Direct(t *testing.T) {
+	createSchema := map[string]*schema.Schema{
+		"name":              {Type: schema.TypeString, Optional: true},
+		"description":       {Type: schema.TypeString, Optional: true},
+		"app_type":          {Type: schema.TypeString, Optional: true},
+		"app_profile":       {Type: schema.TypeString, Optional: true},
+		"client_app_mode":   {Type: schema.TypeString, Optional: true},
+		"advanced_settings": {Type: schema.TypeMap, Optional: true},
+	}
+
+	ec := &EaaClient{Logger: hclog.NewNullLogger()}
+
+	t.Run("success_with_tls_suite_fields", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
+			"name":            "create-app",
+			"description":     "desc",
+			"app_type":        "enterprise",
+			"app_profile":     "http",
+			"client_app_mode": "tcp",
+			"advanced_settings": map[string]interface{}{
+				"app_auth":       "none",
+				"tls_suite_type": "custom",
+				"tls_suite_name": "my-suite",
+			},
+		})
+
+		req := &CreateAppRequest{}
+		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
+		requireErrIs(t, err, false, nil)
+		require.Equal(t, "create-app", req.Name)
+		require.NotNil(t, req.Description)
+		assert.Equal(t, "desc", *req.Description)
+		require.NotNil(t, req.TLSSuiteType)
+		assert.Equal(t, 2, *req.TLSSuiteType)
+		require.NotNil(t, req.TLSSuiteName)
+		assert.Equal(t, "my-suite", *req.TLSSuiteName)
+	})
+
+	t.Run("missing_name_fails", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{})
+		req := &CreateAppRequest{}
+		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
+		requireErrIs(t, err, true, ErrInvalidValue)
+	})
+
+	t.Run("invalid_tls_suite_type_fails", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
+			"name": "create-app",
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "invalid",
+			},
+		})
+		req := &CreateAppRequest{}
+		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tls_suite_type value")
+	})
+}
+
+func TestUpdateAppRequestFromSchema_Direct(t *testing.T) {
+	updateSchema := map[string]*schema.Schema{
+		"name":        {Type: schema.TypeString, Optional: true},
+		"description": {Type: schema.TypeString, Optional: true},
+		"host":        {Type: schema.TypeString, Optional: true},
+		"domain":      {Type: schema.TypeString, Optional: true},
+		"tunnel_internal_hosts": {
+			Type:     schema.TypeList,
+			Optional: true,
+			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+				"host":       {Type: schema.TypeString, Optional: true},
+				"port_range": {Type: schema.TypeString, Optional: true},
+				"proto_type": {Type: schema.TypeInt, Optional: true},
+			}},
+		},
+		"advanced_settings": {Type: schema.TypeMap, Optional: true},
+	}
+
+	ec := &EaaClient{Logger: hclog.NewNullLogger()}
+
+	t.Run("success_maps_basic_and_tls_fields", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, updateSchema, map[string]interface{}{
+			"name":        "updated-app",
+			"description": "updated-desc",
+			"host":        "updated.example.com",
+			"domain":      "wapp",
+			"tunnel_internal_hosts": []interface{}{
+				map[string]interface{}{"host": "10.0.0.2", "port_range": "22", "proto_type": 6},
+			},
+			"advanced_settings": map[string]interface{}{
+				"app_auth":       "none",
+				"tls_suite_type": "default",
+				"tls_suite_name": "default-suite",
+			},
+		})
+
+		req := &ApplicationUpdateRequest{}
+		err := req.UpdateAppRequestFromSchema(context.Background(), d, ec)
+		requireErrIs(t, err, false, nil)
+		assert.Equal(t, "updated-app", req.Name)
+		require.NotNil(t, req.Description)
+		assert.Equal(t, "updated-desc", *req.Description)
+		require.NotNil(t, req.Host)
+		assert.Equal(t, "updated.example.com", *req.Host)
+		assert.Equal(t, "2", req.Domain)
+		require.Len(t, req.TunnelInternalHosts, 1)
+		assert.Equal(t, "10.0.0.2", req.TunnelInternalHosts[0].Host)
+		require.NotNil(t, req.TLSSuiteType)
+		assert.Equal(t, 1, *req.TLSSuiteType)
+		require.NotNil(t, req.TLSSuiteName)
+		assert.Equal(t, "default-suite", *req.TLSSuiteName)
+	})
+
+	t.Run("invalid_tls_suite_type_fails", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, updateSchema, map[string]interface{}{
+			"advanced_settings": map[string]interface{}{
+				"tls_suite_type": "invalid",
+			},
+		})
+		req := &ApplicationUpdateRequest{}
+		err := req.UpdateAppRequestFromSchema(context.Background(), d, ec)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tls_suite_type value")
+	})
 }
 
 // ---------------------------------------------------------------------------

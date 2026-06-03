@@ -37,7 +37,7 @@ func TestGetCertificates(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			certs, err := GetCertificates(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, certs, tt.wantCount)
@@ -87,7 +87,7 @@ func TestDoesUploadedCertExist(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			cert, err := DoesUploadedCertExist(ec, tt.host)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.NotNil(t, cert)
@@ -124,7 +124,7 @@ func TestCreateSelfSignedCertificate(t *testing.T) {
 
 			req := &CreateSelfSignedCertRequest{HostName: tt.hostname}
 			got, err := req.CreateSelfSignedCertificate(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "test.example.com", got.HostName)
@@ -152,7 +152,7 @@ func TestGetCertificate(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			got, err := GetCertificate(ec, "cert-uuid-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "test.example.com", got.HostName)

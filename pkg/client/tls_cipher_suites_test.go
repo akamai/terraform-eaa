@@ -33,7 +33,7 @@ func TestGetTLSCipherSuites(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			resp, err := GetTLSCipherSuites(ec, "test-app-uuid")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "default", resp.TLSSuiteName)

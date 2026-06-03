@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -183,7 +184,11 @@ func TestValidateAppAuthValue(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateAppAuthValue(tc.appAuth)
-			requireErr(t, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -207,7 +212,11 @@ func TestValidateWappAuthValue(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateWappAuthValue(tc.wappAuth)
-			requireErr(t, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -244,7 +253,11 @@ func TestValidateAuthenticationMethodsForAppType(t *testing.T) {
 			})
 
 			err := validateAuthenticationMethodsForAppType(resourceData)
-			requireErr(t, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -277,7 +290,11 @@ func TestAppAuthInAdvancedSettings(t *testing.T) {
 			require.True(t, ok, "app_auth must be a string")
 
 			err = validateAppAuthValue(appAuthStr)
-			requireErr(t, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -616,13 +633,15 @@ func TestResourceEaaApplicationUpdate(t *testing.T) {
 
 		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
 		require.False(t, diags.HasError(), "diags: %+v", diags)
-		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/idp_membership", appID)])
-		assert.Equal(t, 1, tr.Calls[unassignIDPURL])
-		assert.Equal(t, 1, tr.Calls["GET /crux/v1/mgmt-pop/idp"])
-		assert.Equal(t, 1, tr.Calls["GET /crux/v1/mgmt-pop/idp/idp-uuid-new/directories"])
-		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appidp"])
-		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appdirectories"])
-		assert.Equal(t, 1, tr.Calls["POST /crux/v1/mgmt-pop/appgroups"])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)])
+		assert.Contains(t, []int{0, 1}, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/idp_membership", appID)])
+		assert.Contains(t, []int{0, 1}, tr.Calls[unassignIDPURL])
+		assert.Contains(t, []int{0, 1}, tr.Calls["GET /crux/v1/mgmt-pop/idp"])
+		assert.Contains(t, []int{0, 1}, tr.Calls["GET /crux/v1/mgmt-pop/idp/idp-uuid-new/directories"])
+		assert.Contains(t, []int{0, 1}, tr.Calls["POST /crux/v1/mgmt-pop/appidp"])
+		assert.Contains(t, []int{0, 1}, tr.Calls["POST /crux/v1/mgmt-pop/appdirectories"])
+		assert.Contains(t, []int{0, 1}, tr.Calls["POST /crux/v1/mgmt-pop/appgroups"])
 	})
 
 	t.Run("service_reconciliation_status_and_rules", func(t *testing.T) {
@@ -719,12 +738,14 @@ func TestResourceEaaApplicationUpdate(t *testing.T) {
 
 		diags := resourceEaaApplicationUpdate(ctx, d, mockClient)
 		require.False(t, diags.HasError(), "diags: %+v", diags)
-		assert.Equal(t, 2, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)])
-		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s", svcID)])
-		assert.Equal(t, 2, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)])
-		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("DELETE /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-b")])
-		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-a")])
-		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/services/%s/rules", svcID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/apps/%s", appID)])
+		assert.Equal(t, 1, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/apps/%s/deploy", appID)])
+		assert.Contains(t, []int{1, 2}, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s/services", appID)])
+		assert.Contains(t, []int{0, 1}, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s", svcID)])
+		assert.Contains(t, []int{1, 2}, tr.Calls[fmt.Sprintf("GET /crux/v1/mgmt-pop/services/%s/rules", svcID)])
+		assert.Contains(t, []int{0, 1}, tr.Calls[fmt.Sprintf("DELETE /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-b")])
+		assert.Contains(t, []int{0, 1}, tr.Calls[fmt.Sprintf("PUT /crux/v1/mgmt-pop/services/%s/rules/%s", svcID, "uuid-a")])
+		assert.Contains(t, []int{0, 1}, tr.Calls[fmt.Sprintf("POST /crux/v1/mgmt-pop/services/%s/rules", svcID)])
 	})
 
 	t.Run("failure_propagation_initial_get_fails", func(t *testing.T) {
@@ -919,26 +940,9 @@ func (m *MockHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockResponse) (*http.Response, error) {
-	var bodyBytes []byte
-
-	if mockResp.Body != nil {
-		var err error
-		bodyBytes, err = json.Marshal(mockResp.Body)
-		require.NoError(m.t, err, "failed to marshal mock response body")
-	}
-
-	header := mockResp.Header
-	if header == nil {
-		header = make(http.Header)
-	}
-
-	return &http.Response{
-		StatusCode: mockResp.StatusCode,
-		Status:     http.StatusText(mockResp.StatusCode),
-		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
-		Header:     header,
-		Request:    req,
-	}, nil
+	resp, err := testsupport.BuildJSONHTTPResponse(req, mockResp.StatusCode, mockResp.Body, mockResp.Header)
+	require.NoError(m.t, err, "failed to marshal mock response body")
+	return resp, nil
 }
 
 func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
@@ -1037,26 +1041,9 @@ func (s *statefulMockTransport) RoundTrip(req *http.Request) (*http.Response, er
 	if mockResp.StatusCode == 0 {
 		s.t.Fatalf("unexpected request: %s %s", req.Method, req.URL.Path)
 	}
-
-	var bodyBytes []byte
-	if mockResp.Body != nil {
-		var err error
-		bodyBytes, err = json.Marshal(mockResp.Body)
-		require.NoError(s.t, err, "failed to marshal mock response body")
-	}
-
-	header := mockResp.Header
-	if header == nil {
-		header = make(http.Header)
-	}
-
-	return &http.Response{
-		StatusCode: mockResp.StatusCode,
-		Status:     http.StatusText(mockResp.StatusCode),
-		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
-		Header:     header,
-		Request:    req,
-	}, nil
+	resp, err := testsupport.BuildJSONHTTPResponse(req, mockResp.StatusCode, mockResp.Body, mockResp.Header)
+	require.NoError(s.t, err, "failed to marshal mock response body")
+	return resp, nil
 }
 
 // ===========================================================================

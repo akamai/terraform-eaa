@@ -35,7 +35,7 @@ func TestGetPops(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			pops, err := GetPops(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, pops, tt.wantCount)
@@ -60,7 +60,7 @@ func TestGetPopUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			gotName, gotUUID, err := GetPopUUID(ec, tt.region)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.wantName, gotName)

@@ -35,7 +35,7 @@ func TestGetAppCategories(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			cats, err := GetAppCategories(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, cats, tt.wantCount)
@@ -59,7 +59,7 @@ func TestGetAppCategoryUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := GetAppCategoryUUID(ec, tt.name)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.wantUUID, got)

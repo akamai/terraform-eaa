@@ -94,7 +94,7 @@ func TestSendAPIRequest(t *testing.T) {
 				"https://"+ec.Host+"/crux/v1/mgmt-pop/test",
 				tt.method, tt.in, &out, tt.global,
 			)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				if tt.wantErrIs != nil {
 					assert.True(t, errors.Is(err, tt.wantErrIs))
 				}
@@ -194,7 +194,7 @@ func TestFormatErrorResponse(t *testing.T) {
 				Body: io.NopCloser(strings.NewReader(tc.body)),
 			}
 			detail, err := FormatErrorResponse(resp)
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tc.wantDetail, detail)

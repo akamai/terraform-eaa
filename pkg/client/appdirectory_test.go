@@ -43,10 +43,7 @@ func TestAssignIdpDirectory(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.appDir.AssignIdpDirectory(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})
@@ -83,7 +80,7 @@ func TestGetIdpDirectoryGroup(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
 
 			got, err := dirData.GetIdpDirectoryGroup(context.Background(), ec, tt.groupName)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.wantGroup, got)
@@ -156,7 +153,7 @@ func TestAssignIdpDirectoryGroups(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignIdpDirectoryGroups(context.Background(), ec, "app-uuid-1", tt.appGroupsList)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 		})
@@ -206,7 +203,7 @@ func TestAssignAllDirectoryGroups(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := tt.dirData.AssignAllDirectoryGroups(context.Background(), ec, "app-uuid-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 		})

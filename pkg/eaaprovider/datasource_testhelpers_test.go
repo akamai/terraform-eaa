@@ -3,6 +3,7 @@ package eaaprovider
 import (
 	"testing"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,14 +18,9 @@ func assertDataSourceBasics(t *testing.T, ds *schema.Resource, fieldName string,
 	assert.Equal(t, fieldType, f.Type, "field %q type mismatch", fieldName)
 }
 
-func requireErr(t *testing.T, err error, wantErr bool) bool {
+func requireErrIs(t *testing.T, err error, wantErr bool, errIs error) bool {
 	t.Helper()
-	if wantErr {
-		require.Error(t, err)
-		return true
-	}
-	require.NoError(t, err)
-	return false
+	return testsupport.RequireErrIs(t, err, wantErr, errIs)
 }
 
 func createTestResourceDataFor(t *testing.T, resourceFunc func() *schema.Resource, data map[string]any) *schema.ResourceData {

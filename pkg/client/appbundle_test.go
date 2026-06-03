@@ -90,7 +90,7 @@ func TestValidateAppBundleName(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
 			err := ec.ValidateAppBundleName(tt.name)
-			requireErr(t, err, tt.wantErr)
+			requireErrIs(t, err, tt.wantErr, nil)
 		})
 	}
 }

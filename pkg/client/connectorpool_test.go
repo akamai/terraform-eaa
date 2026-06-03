@@ -25,7 +25,7 @@ func TestConvertPackageType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertPackageType(tt.input, ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
@@ -51,7 +51,7 @@ func TestConvertInfraType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertInfraType(tt.input, ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
@@ -79,7 +79,7 @@ func TestConvertOperatingMode(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := convertOperatingMode(tt.input, ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
@@ -116,7 +116,7 @@ func TestCreateConnectorPool(t *testing.T) {
 			}
 			// CreateConnectorPool is a method on *CreateConnectorPoolRequest
 			got, err := req.CreateConnectorPool(context.Background(), ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "pool-uuid-1", got.UUIDURL)
@@ -143,7 +143,7 @@ func TestDeleteConnectorPool(t *testing.T) {
 
 			// DeleteConnectorPool is a standalone function: (ctx, ec, uuid)
 			err := DeleteConnectorPool(context.Background(), ec, "pool-uuid-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 		})
@@ -174,7 +174,7 @@ func TestGetConnectorPool(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			got, err := GetConnectorPool(context.Background(), ec, "pool-uuid-123")
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, "test-pool", got.Name)
@@ -204,7 +204,7 @@ func TestAssignConnectorsToPool(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			err := AssignConnectorsToPool(ec, "pool-uuid", []string{"conn-1", "conn-2"})
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 		})
@@ -232,7 +232,7 @@ func TestUnassignConnectorsFromPool(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			err := UnassignConnectorsFromPool(ec, "pool-uuid", []string{"conn-1"})
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 		})
@@ -268,7 +268,7 @@ func TestGetConnectorsInPool(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			got, err := GetConnectorsInPool(ec, "pool-uuid")
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tc.want, got)
@@ -305,7 +305,7 @@ func TestGetAppsAssignedToPool(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			got, err := GetAppsAssignedToPool(ec, "pool-uuid")
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tc.want, got)
@@ -339,7 +339,7 @@ func TestAssignConnectorPoolsToApp(t *testing.T) {
 				},
 			}
 			err := AssignConnectorPoolsToApp(ec, "app-uuid", req)
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 		})

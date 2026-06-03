@@ -44,7 +44,7 @@ func TestGetAppIdpMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppIdpMembership(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			if tt.wantNil {
@@ -95,7 +95,7 @@ func TestGetAppDirectoryMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppDirectoryMembership(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, got, tt.wantCount)
@@ -137,7 +137,7 @@ func TestGetAppGroupMembership(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.GetAppGroupMembership(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, got, tt.wantCount)
@@ -206,7 +206,7 @@ func TestCreateAppAuthenticationStruct(t *testing.T) {
 
 			app := &Application{UUIDURL: "app-uuid-1"}
 			got, err := app.CreateAppAuthenticationStruct(ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			require.Len(t, got, 1)

@@ -26,7 +26,7 @@ func TestValidateAppBundle(t *testing.T) {
 			val:     nil,
 			wantErr: true,
 		},
-		"invalid_whitespace": {
+		"whitespace_passes_current_validation": {
 			// whitespace is a non-empty string, so it passes the current validation
 			val: "   ",
 		},

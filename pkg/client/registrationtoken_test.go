@@ -1,4 +1,3 @@
-// pkg/client/registrationtoken_test.go
 package client
 
 import (
@@ -40,7 +39,7 @@ func TestFormatExpiresAt(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := FormatExpiresAt(tt.input)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
@@ -114,7 +113,7 @@ func TestRegistrationTokenWriteRequest_Validate(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := tt.req.Validate()
-			requireErr(t, err, tt.wantErr)
+			requireErrIs(t, err, tt.wantErr, nil)
 		})
 	}
 }
@@ -145,7 +144,7 @@ func TestGetRegistrationTokens(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			got, err := ec.GetRegistrationTokens("pool-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Len(t, got, tt.wantLen)
@@ -173,7 +172,7 @@ func TestGetRegistrationTokenByUUID(t *testing.T) {
 			ec := newTestClient(t, handler)
 
 			got, err := ec.GetRegistrationTokenByUUID(tt.uuid, "pool-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.uuid, got.UUIDURL)
@@ -195,7 +194,7 @@ func TestDeleteRegistrationTokenByUUID(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			err := DeleteRegistrationTokenByUUID(context.Background(), ec, "tok-uuid-1")
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 		})
@@ -262,7 +261,7 @@ func TestUpdateRegistrationToken(t *testing.T) {
 			}
 
 			err := UpdateRegistrationToken(context.Background(), ec, tc.tokenUUID, tc.req)
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 		})

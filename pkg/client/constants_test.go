@@ -172,7 +172,7 @@ func TestHealthCheckType_ToNumeric(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result, err := tc.input.ToNumeric()
-			if requireErr(t, err, tc.wantErr) {
+			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tc.expected, result)

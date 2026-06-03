@@ -1,6 +1,7 @@
 package eaaprovider
 
 import (
+	"strings"
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -95,7 +96,7 @@ func TestMapAdvancedSettingsFromResponseWithInvalidHealthCheckType(t *testing.T)
 			}
 
 			errorMsg := diags[0].Summary
-			if errorMsg != "failed to map health_check_type from API value" && !contains(diags[0].Summary, "health_check_type") {
+			if errorMsg != "failed to map health_check_type from API value" && !strings.Contains(diags[0].Summary, "health_check_type") {
 				t.Errorf("Error message = %q, want message containing 'health_check_type'", errorMsg)
 			}
 		})
@@ -192,12 +193,133 @@ func TestMapAdvancedSettingsFromResponseWithValidHealthCheckType(t *testing.T) {
 	}
 }
 
-// Helper function to check if a string contains a substring
-func contains(s, substring string) bool {
-	for i := 0; i <= len(s)-len(substring); i++ {
-		if s[i:i+len(substring)] == substring {
-			return true
-		}
+func TestMapAdvancedSettingsFromResponseWithInvalidTLSSuiteType(t *testing.T) {
+	invalidTLSSuiteType := 99
+
+	resourceSchema := map[string]*schema.Schema{
+		"uuid_url": {
+			Type:     schema.TypeString,
+			Computed: true,
+		},
+		"name": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"app_type": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"host": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+		},
 	}
-	return false
+
+	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+		"uuid_url": "test-app-id",
+		"name":     "test-app",
+		"app_type": "http",
+		"host":     "test.example.com",
+		"advanced_settings": map[string]interface{}{
+			"tls_suite_type": "default",
+		},
+	})
+
+	appResp := &client.ApplicationResponse{
+		UUIDURL: "test-app-id",
+		Name:    "test-app",
+		AdvancedSettings: client.AdvancedSettingsComplete{
+			HealthCheckType: "0",
+			TLSSuiteType:    &invalidTLSSuiteType,
+		},
+	}
+
+	diags := mapAdvancedSettingsFromResponse(d, appResp)
+	if !diags.HasError() {
+		t.Fatalf("mapAdvancedSettingsFromResponse with invalid tls_suite_type returned no errors")
+	}
+	if len(diags) == 0 || !strings.Contains(diags[0].Summary, "tls_suite_type") {
+		t.Fatalf("expected diagnostic mentioning tls_suite_type, got: %+v", diags)
+	}
+}
+
+func TestMapAdvancedSettingsFromResponseWithValidTLSSuiteType(t *testing.T) {
+	tests := []struct {
+		name           string
+		tlsSuiteVal    *int
+		expectedResult string
+	}{
+		{name: "nil", tlsSuiteVal: nil, expectedResult: ""},
+		{name: "default", tlsSuiteVal: intPtr(1), expectedResult: "default"},
+		{name: "custom", tlsSuiteVal: intPtr(2), expectedResult: "custom"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resourceSchema := map[string]*schema.Schema{
+				"uuid_url": {
+					Type:     schema.TypeString,
+					Computed: true,
+				},
+				"name": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"app_type": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"host": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"advanced_settings": {
+					Type:     schema.TypeMap,
+					Optional: true,
+				},
+			}
+
+			d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+				"uuid_url": "test-app-id",
+				"name":     "test-app",
+				"app_type": "http",
+				"host":     "test.example.com",
+				"advanced_settings": map[string]interface{}{
+					"tls_suite_type": "default",
+				},
+			})
+
+			appResp := &client.ApplicationResponse{
+				UUIDURL: "test-app-id",
+				Name:    "test-app",
+				AdvancedSettings: client.AdvancedSettingsComplete{
+					HealthCheckType: "0",
+					TLSSuiteType:    tt.tlsSuiteVal,
+				},
+			}
+
+			diags := mapAdvancedSettingsFromResponse(d, appResp)
+			if diags.HasError() {
+				t.Fatalf("mapAdvancedSettingsFromResponse returned errors: %v", diags)
+			}
+
+			advSettingsRaw := d.Get("advanced_settings")
+			advSettings, ok := advSettingsRaw.(map[string]interface{})
+			if !ok {
+				t.Fatalf("advanced_settings type = %T, want map[string]interface{}", advSettingsRaw)
+			}
+
+			if got := advSettings["tls_suite_type"]; got != tt.expectedResult {
+				t.Fatalf("tls_suite_type = %q, want %q", got, tt.expectedResult)
+			}
+		})
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
 }

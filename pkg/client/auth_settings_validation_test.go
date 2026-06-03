@@ -166,10 +166,7 @@ func TestValidateCustomHeadersConfiguration(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := ValidateCustomHeadersConfiguration(tt.settings, tt.appType, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})
@@ -281,10 +278,7 @@ func TestValidateCustomHeader(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateCustomHeader(tt.header, 0, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})
@@ -333,10 +327,7 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateIDPSelfSignedCert(tt.idpBlock, "SAML", testError, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})
@@ -415,10 +406,7 @@ func TestValidateWSFEDNestedBlocks(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := ValidateWSFEDNestedBlocks(ctx, tt.lookup, nil, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
 				}
@@ -513,10 +501,7 @@ func TestValidateSAMLNestedBlocks(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := ValidateSAMLNestedBlocks(ctx, tt.lookup, nil, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
 				}
@@ -597,10 +582,7 @@ func TestValidateOIDCNestedBlocks(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := ValidateOIDCNestedBlocks(ctx, tt.lookup, nil, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
 				}
@@ -653,10 +635,7 @@ func TestValidateOIDCClientNested(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateOIDCClientNested(tt.clientConfig, 0, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})
@@ -684,10 +663,7 @@ func TestValidateOIDCClaimNested(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateOIDCClaimNested(tt.claim, 0, logger)
-			if requireErr(t, err, tt.wantErr) {
-				if tt.errIs != nil {
-					assert.ErrorIs(t, err, tt.errIs)
-				}
+			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
 		})

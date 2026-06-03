@@ -177,7 +177,7 @@ func TestValidateIntegerField(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := ValidateIntegerField(tt.value, "test_field", tt.min, tt.max, ec)
-			if requireErr(t, err, tt.wantErr) {
+			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
