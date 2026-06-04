@@ -103,7 +103,9 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		}
 		grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)
 		if err != nil {
-			continue
+			// Fail closed: return an error when a referenced group cannot be resolved.
+			// This avoids silently dropping intended assignments.
+			return fmt.Errorf("group %q not found in directory %q: %w", gn, dirData.Name, err)
 		}
 		appgroup.UUIDURL = grp.UUID_URL
 

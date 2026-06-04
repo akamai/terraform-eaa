@@ -2,1464 +2,392 @@ package eaaprovider
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func createTestResourceData(data map[string]interface{}) *schema.ResourceData {
-	resource := resourceEaaConnectorPool()
-	d := resource.Data(nil)
-	for key, value := range data {
-		d.Set(key, value)
-	}
-	return d
+func createTestResourceData(t *testing.T, data map[string]any) *schema.ResourceData {
+	t.Helper()
+	return createTestResourceDataFor(t, resourceEaaConnectorPool, data)
 }
+
+// ===========================================================================
+// validatePackageType
+// ===========================================================================
 
 func TestValidatePackageType(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "valid_vmware",
-			value:         "vmware",
-			expectedError: false,
-		},
-		{
-			name:          "valid_aws",
-			value:         "aws",
-			expectedError: false,
-		},
-		{
-			name:          "valid_aws_classic",
-			value:         "aws_classic",
-			expectedError: false,
-		},
-		{
-			name:          "valid_docker",
-			value:         "docker",
-			expectedError: false,
-		},
-		{
-			name:          "valid_azure",
-			value:         "azure",
-			expectedError: false,
-		},
-		{
-			name:          "valid_google",
-			value:         "google",
-			expectedError: false,
-		},
-		{
-			name:          "invalid_type",
-			value:         "invalid",
-			expectedError: true,
-		},
-		{
-			name:          "invalid_aws_classic_casing",
-			value:         "AWS_Classic",
-			expectedError: true,
-		},
-		{
-			name:          "non_string_value",
-			value:         123,
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validatePackageType(tt.value, "package_type")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
-		})
-	}
+	testValidateFunc(t, validatePackageType, "package_type", map[string]validateFuncCase{
+		"valid_vmware":      {val: string(client.ConnPackageTypeVmware)},
+		"valid_vbox":        {val: string(client.ConnPackageTypeVbox)},
+		"valid_aws":         {val: string(client.ConnPackageTypeAWS)},
+		"valid_aws_classic": {val: string(client.ConnPackageTypeAWSClassic)},
+		"valid_kvm":         {val: string(client.ConnPackageTypeKVM)},
+		"valid_hyperv":      {val: string(client.ConnPackageTypeHyperv)},
+		"valid_docker":      {val: string(client.ConnPackageTypeDocker)},
+		"valid_azure":       {val: string(client.ConnPackageTypeAzure)},
+		"valid_google":      {val: string(client.ConnPackageTypeGoogle)},
+		"valid_softlayer":   {val: string(client.ConnPackageTypeSoftLayer)},
+		"valid_fujitsu_k5":  {val: string(client.ConnPackageTypeFujitsu_k5)},
+		"invalid_type":      {val: "invalid", wantErr: true},
+		"invalid_casing":    {val: "VMware", wantErr: true},
+		"empty_string":      {val: "", wantErr: true},
+		"non_string":        {val: 123, wantErr: true},
+		"nil_value":         {val: nil, wantErr: true},
+	})
 }
+
+// ===========================================================================
+// validateInfraType
+// ===========================================================================
 
 func TestValidateInfraType(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "valid_eaa",
-			value:         "eaa",
-			expectedError: false,
-		},
-		{
-			name:          "valid_unified",
-			value:         "unified",
-			expectedError: false,
-		},
-		{
-			name:          "valid_broker",
-			value:         "broker",
-			expectedError: false,
-		},
-		{
-			name:          "valid_cpag",
-			value:         "cpag",
-			expectedError: false,
-		},
-		{
-			name:          "invalid_type",
-			value:         "invalid",
-			expectedError: true,
-		},
-		{
-			name:          "non_string_value",
-			value:         123,
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validateInfraType(tt.value, "infra_type")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			// Warnings should be empty for this validator
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
-		})
-	}
+	testValidateFunc(t, validateInfraType, "infra_type", map[string]validateFuncCase{
+		"valid_eaa":      {val: string(client.InfraTypeEAA)},
+		"valid_unified":  {val: string(client.InfraTypeUnified)},
+		"valid_broker":   {val: string(client.InfraTypeBroker)},
+		"valid_cpag":     {val: string(client.InfraTypeCPAG)},
+		"invalid_type":   {val: "invalid", wantErr: true},
+		"invalid_casing": {val: "EAA", wantErr: true},
+		"empty_string":   {val: "", wantErr: true},
+		"whitespace":     {val: " eaa ", wantErr: true},
+		"non_string":     {val: 123, wantErr: true},
+		"nil_value":      {val: nil, wantErr: true},
+	})
 }
+
+// ===========================================================================
+// validateOperatingMode
+// ===========================================================================
 
 func TestValidateOperatingMode(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
+	testValidateFunc(t, validateOperatingMode, "operating_mode", map[string]validateFuncCase{
+		"valid_connector":                  {val: string(client.OperatingModeConnector)},
+		"valid_peb":                        {val: string(client.OperatingModePEB)},
+		"valid_combined":                   {val: string(client.OperatingModeCombined)},
+		"valid_cpag_public":                {val: string(client.OperatingModeCPAGPublic)},
+		"valid_cpag_private":               {val: string(client.OperatingModeCPAGPrivate)},
+		"valid_connector_with_china_accel": {val: string(client.OperatingModeConnectorWithChinaAccel)},
+		"invalid_mode":                     {val: "invalid", wantErr: true},
+		"invalid_casing":                   {val: "Connector", wantErr: true},
+		"empty_string":                     {val: "", wantErr: true},
+		"whitespace":                       {val: " connector ", wantErr: true},
+		"non_string":                       {val: 123, wantErr: true},
+		"nil_value":                        {val: nil, wantErr: true},
+	})
+}
+
+// ===========================================================================
+// validateRFC3339Timestamp
+// ===========================================================================
+
+func TestValidateRFC3339Timestamp(t *testing.T) {
+	testValidateFunc(t, validateRFC3339Timestamp, "expires_at", map[string]validateFuncCase{
+		"valid_utc":             {val: "2026-01-02T15:04:05Z"},
+		"valid_offset":          {val: "2026-01-02T15:04:05+05:30"},
+		"valid_fractional_secs": {val: "2026-01-02T15:04:05.123Z"},
+		"invalid_date_only":     {val: "2026-01-02", wantErr: true},
+		"invalid_format":        {val: "2026-01-02 15:04:05", wantErr: true},
+		"empty_string":          {val: "", wantErr: true},
+		"non_string":            {val: 12345, wantErr: true},
+	})
+}
+
+// ===========================================================================
+// suppressRFC3339Diff
+// ===========================================================================
+
+func TestSuppressRFC3339Diff(t *testing.T) {
+	tests := map[string]struct {
+		oldVal string
+		newVal string
+		want   bool
 	}{
-		{
-			name:          "valid_connector",
-			value:         "connector",
-			expectedError: false,
+		"same_instant_different_tz": {
+			oldVal: "2026-05-20T10:00:00Z",
+			newVal: "2026-05-20T12:00:00+02:00",
+			want:   true,
 		},
-		{
-			name:          "valid_peb",
-			value:         "peb",
-			expectedError: false,
+		"different_times": {
+			oldVal: "2026-05-20T10:00:01Z",
+			newVal: "2026-05-20T10:00:02Z",
+			want:   false,
 		},
-		{
-			name:          "valid_combined",
-			value:         "combined",
-			expectedError: false,
+		"zero_seconds_suppressed": {
+			oldVal: "2026-05-20T10:00:01Z",
+			newVal: "2026-05-20T10:00:00Z",
+			want:   true,
 		},
-		{
-			name:          "valid_cpag_public",
-			value:         "cpag_public",
-			expectedError: false,
+		"malformed_input": {
+			oldVal: "not-a-time",
+			newVal: "2026-05-20T10:00:00Z",
+			want:   false,
 		},
-		{
-			name:          "valid_cpag_private",
-			value:         "cpag_private",
-			expectedError: false,
-		},
-		{
-			name:          "valid_connector_with_china_acceleration",
-			value:         "connector_with_china_acceleration",
-			expectedError: false,
-		},
-		{
-			name:          "invalid_mode",
-			value:         "invalid",
-			expectedError: true,
-		},
-		{
-			name:          "non_string_value",
-			value:         123,
-			expectedError: true,
+		"fractional_seconds_equal": {
+			oldVal: "2026-05-20T10:00:00.123Z",
+			newVal: "2026-05-20T10:00:00.123+00:00",
+			want:   true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validateOperatingMode(tt.value, "operating_mode")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			// Warnings should be empty for this validator
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := suppressRFC3339Diff("expires_at", tc.oldVal, tc.newVal, nil)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestResourceEaaConnectorPoolSchema(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that the resource has the expected schema fields
-	expectedFields := []string{
-		"name", "package_type", "description", "infra_type", "operating_mode",
-		"uuid_url", "connectors", "registration_tokens",
-	}
-
-	for _, field := range expectedFields {
-		if _, exists := resource.Schema[field]; !exists {
-			t.Errorf("Expected schema field '%s' not found", field)
-		}
-	}
-
-	// Test that required fields are marked as required
-	if !resource.Schema["name"].Required {
-		t.Error("Expected 'name' field to be required")
-	}
-	if !resource.Schema["package_type"].Required {
-		t.Error("Expected 'package_type' field to be required")
-	}
-}
+// ===========================================================================
+// hasDuplicateTokenNames
+// ===========================================================================
 
 func TestHasDuplicateTokenNames(t *testing.T) {
-	tests := []struct {
-		resourceData  map[string]interface{}
-		name          string
-		expectedError bool
+	tests := map[string]struct {
+		data    map[string]interface{}
+		wantErr bool
 	}{
-		{
-			name: "no_duplicates",
-			resourceData: map[string]interface{}{
+		"no_duplicates": {
+			data: map[string]interface{}{
 				"registration_tokens": []map[string]interface{}{
 					{"name": "token1"},
 					{"name": "token2"},
 					{"name": "token3"},
 				},
 			},
-			expectedError: false,
+			wantErr: false,
 		},
-		{
-			name: "with_duplicates",
-			resourceData: map[string]interface{}{
+		"with_duplicates": {
+			data: map[string]interface{}{
 				"registration_tokens": []map[string]interface{}{
 					{"name": "token1"},
-					{"name": "token1"}, // duplicate
-					{"name": "token2"},
+					{"name": "token1"},
 				},
 			},
-			expectedError: true,
+			wantErr: true,
 		},
-		{
-			name: "no_tokens",
-			resourceData: map[string]interface{}{
+		"empty_tokens": {
+			data: map[string]interface{}{
 				"registration_tokens": []map[string]interface{}{},
 			},
-			expectedError: false,
+			wantErr: false,
 		},
-		{
-			name: "single_token",
-			resourceData: map[string]interface{}{
+		"single_token": {
+			data: map[string]interface{}{
 				"registration_tokens": []map[string]interface{}{
+					{"name": "only-one"},
+				},
+			},
+			wantErr: false,
+		},
+		"case_sensitive": {
+			data: map[string]interface{}{
+				"registration_tokens": []map[string]interface{}{
+					{"name": "Token1"},
 					{"name": "token1"},
 				},
 			},
-			expectedError: false,
+			wantErr: false, // different case => not duplicate
+		},
+		"empty_names_are_duplicates": {
+			data: map[string]interface{}{
+				"registration_tokens": []map[string]interface{}{
+					{"name": ""},
+					{"name": ""},
+				},
+			},
+			wantErr: true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := createTestResourceData(tt.resourceData)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := createTestResourceData(t, tc.data)
 			err := hasDuplicateTokenNames(d)
-
-			if tt.expectedError {
-				if err == nil {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "duplicate registration token name found")
 			} else {
-				if err != nil {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, err)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
+// ===========================================================================
+// Schema structure
+// ===========================================================================
+
+func TestResourceEaaConnectorPoolSchema(t *testing.T) {
+	resource := resourceEaaConnectorPool()
+
+	expectedFields := []string{
+		"name", "package_type", "description", "infra_type",
+		"operating_mode", "uuid_url", "connectors",
+		"registration_tokens", "apps", "cidrs",
+	}
+	for _, field := range expectedFields {
+		_, ok := resource.Schema[field]
+		assert.True(t, ok, "expected schema field %q to exist", field)
+	}
+
+	// Required fields
+	assert.True(t, resource.Schema["name"].Required)
+	assert.True(t, resource.Schema["package_type"].Required)
+
+	// Optional/computed fields
+	assert.False(t, resource.Schema["description"].Required)
+	assert.False(t, resource.Schema["infra_type"].Required)
+	assert.True(t, resource.Schema["infra_type"].Computed)
+	assert.False(t, resource.Schema["operating_mode"].Required)
+	assert.True(t, resource.Schema["operating_mode"].Computed)
+
+	// Validation funcs
+	assert.NotNil(t, resource.Schema["package_type"].ValidateFunc)
+	assert.NotNil(t, resource.Schema["infra_type"].ValidateFunc)
+	assert.NotNil(t, resource.Schema["operating_mode"].ValidateFunc)
+
+	// CRUD operations
+	assert.NotNil(t, resource.CreateContext)
+	assert.NotNil(t, resource.ReadContext)
+	assert.NotNil(t, resource.UpdateContext)
+	assert.NotNil(t, resource.DeleteContext)
+
+	// Importer
+	require.NotNil(t, resource.Importer)
+	assert.NotNil(t, resource.Importer.StateContext)
+}
+
+// ===========================================================================
+// CRUD error paths (client creation fails)
+// ===========================================================================
+
+func TestResourceEaaConnectorPoolCreate_InvalidClient(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{
+		"name":         "pool",
+		"package_type": "vmware",
+	})
+	diags := resourceEaaConnectorPoolCreate(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaConnectorPoolCreate_AWSClassicBlocked(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{
+		"name":         "pool",
+		"package_type": "aws_classic",
+	})
+	diags := resourceEaaConnectorPoolCreate(context.Background(), d, "invalid")
+	require.NotEmpty(t, diags)
+	found := false
+	for _, diag := range diags {
+		if strings.Contains(diag.Summary, "aws_classic") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected aws_classic rejection diagnostic")
+}
+
+func TestResourceEaaConnectorPoolCreate_DuplicateTokensBlocked(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{
+		"name":         "pool",
+		"package_type": "vmware",
+		"registration_tokens": []map[string]interface{}{
+			{"name": "dup"},
+			{"name": "dup"},
+		},
+	})
+	diags := resourceEaaConnectorPoolCreate(context.Background(), d, "invalid")
+	require.NotEmpty(t, diags)
+	found := false
+	for _, diag := range diags {
+		if strings.Contains(diag.Summary, "duplicate") || strings.Contains(diag.Detail, "duplicate") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected duplicate token name diagnostic")
+}
+
+func TestResourceEaaConnectorPoolRead_InvalidClient(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{})
+	diags := resourceEaaConnectorPoolRead(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaConnectorPoolUpdate_InvalidClient(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{
+		"name":         "pool",
+		"package_type": "vmware",
+	})
+	diags := resourceEaaConnectorPoolUpdate(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaConnectorPoolDelete_InvalidClient(t *testing.T) {
+	d := createTestResourceData(t, map[string]interface{}{})
+	diags := resourceEaaConnectorPoolDelete(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+// ===========================================================================
+// setConnectorPoolBasicAttributes
+// ===========================================================================
+
 func TestSetConnectorPoolBasicAttributes(t *testing.T) {
-	tests := []struct {
+	tests := map[string]struct {
 		connPool    *client.ConnectorPool
 		expectedMap map[string]interface{}
-		name        string
 	}{
-		{
-			name: "basic_connector_pool",
+		"full_pool": {
 			connPool: &client.ConnectorPool{
 				Name:          "test-pool",
-				Description:   stringPtr("Test pool description"),
+				Description:   stringPtr("desc"),
 				PackageType:   1,
 				InfraType:     1,
 				OperatingMode: 1,
-				UUIDURL:       "test-uuid-123",
+				UUIDURL:       "uuid-123",
 				CIDRs:         []string{"10.0.0.0/8"},
 			},
 			expectedMap: map[string]interface{}{
 				"name":           "test-pool",
-				"description":    "Test pool description",
+				"description":    "desc",
 				"package_type":   "vmware",
 				"infra_type":     "eaa",
 				"operating_mode": "connector",
-				"uuid_url":       "test-uuid-123",
+				"uuid_url":       "uuid-123",
 			},
 		},
-		{
-			name: "connector_pool_with_nil_description",
+		"nil_description": {
 			connPool: &client.ConnectorPool{
-				Name:          "test-pool-2",
+				Name:          "pool-2",
 				Description:   nil,
 				PackageType:   2,
 				InfraType:     1,
 				OperatingMode: 1,
-				UUIDURL:       "test-uuid-456",
-				CIDRs:         []string{"192.168.0.0/16"},
+				UUIDURL:       "uuid-456",
 			},
 			expectedMap: map[string]interface{}{
-				"name":           "test-pool-2",
+				"name":           "pool-2",
 				"description":    "",
 				"package_type":   "vbox",
 				"infra_type":     "eaa",
 				"operating_mode": "connector",
-				"uuid_url":       "test-uuid-456",
+				"uuid_url":       "uuid-456",
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := createTestResourceData(map[string]interface{}{})
-			setConnectorPoolBasicAttributes(d, tt.connPool)
-
-			for key, expectedValue := range tt.expectedMap {
-				actualValue := d.Get(key)
-				if actualValue != expectedValue {
-					t.Errorf("Expected %s to be %v, got %v", key, expectedValue, actualValue)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolCreate(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "successful_creation_with_minimal_data",
-			resourceData: map[string]interface{}{
-				"name":         "test-pool",
-				"package_type": "vmware",
-			},
-			expectedError:    true, // Will fail due to invalid client
-			expectedErrorMsg: "invalid client",
-		},
-		{
-			name: "creation_with_all_fields",
-			resourceData: map[string]interface{}{
-				"name":           "test-pool-complete",
-				"package_type":   "aws",
-				"description":    "Complete test pool",
-				"infra_type":     "eaa",
-				"operating_mode": "connector",
-				"connectors":     []string{"connector1", "connector2"},
-				"registration_tokens": []map[string]interface{}{
-					{
-						"name":       "token1",
-						"max_use":    5,
-						"expires_at": "2030-01-01T00:00:00Z",
-					},
-				},
-			},
-			expectedError:    true, // Will fail due to invalid client
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Create function
-			diags := resourceEaaConnectorPoolCreate(context.TODO(), d, nil)
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolRead(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "read_with_valid_ID",
-			resourceData: map[string]interface{}{
-				"uuid_url": "test-pool-uuid-123",
-			},
-			expectedError:    true, // Will fail due to invalid client
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Read function
-			diags := resourceEaaConnectorPoolRead(context.TODO(), d, nil)
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolUpdate(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "update_with_valid_data",
-			resourceData: map[string]interface{}{
-				"uuid_url":     "test-pool-uuid-123",
-				"name":         "updated-pool",
-				"package_type": "aws",
-			},
-			expectedError:    true, // Will fail due to invalid client
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Update function
-			diags := resourceEaaConnectorPoolUpdate(context.TODO(), d, nil)
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolDelete(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "deletion_with_valid_ID",
-			resourceData: map[string]interface{}{
-				"uuid_url": "test-pool-uuid-123",
-			},
-			expectedError:    true, // Will fail due to invalid client
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Delete function
-			diags := resourceEaaConnectorPoolDelete(context.TODO(), d, nil)
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestValidatePackageTypeEdgeCases(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "empty_string",
-			value:         "",
-			expectedError: true,
-		},
-		{
-			name:          "nil_value",
-			value:         nil,
-			expectedError: true,
-		},
-		{
-			name:          "valid_vbox",
-			value:         "vbox",
-			expectedError: false,
-		},
-		{
-			name:          "valid_kvm",
-			value:         "kvm",
-			expectedError: false,
-		},
-		{
-			name:          "valid_hyperv",
-			value:         "hyperv",
-			expectedError: false,
-		},
-		{
-			name:          "valid_aws",
-			value:         "aws",
-			expectedError: false,
-		},
-		{
-			name:          "valid_aws_classic",
-			value:         "aws_classic",
-			expectedError: false,
-		},
-		{
-			name:          "valid_softlayer",
-			value:         "softlayer",
-			expectedError: false,
-		},
-		{
-			name:          "valid_fujitsu_k5",
-			value:         "fujitsu_k5",
-			expectedError: false,
-		},
-		{
-			name:          "case_sensitive_invalid",
-			value:         "VMware", // Should be lowercase
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validatePackageType(tt.value, "package_type")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
-		})
-	}
-}
-
-func TestValidateInfraTypeEdgeCases(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "empty_string",
-			value:         "",
-			expectedError: true,
-		},
-		{
-			name:          "nil_value",
-			value:         nil,
-			expectedError: true,
-		},
-		{
-			name:          "case_sensitive_invalid",
-			value:         "EAA", // Should be lowercase
-			expectedError: true,
-		},
-		{
-			name:          "whitespace_string",
-			value:         " eaa ",
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validateInfraType(tt.value, "infra_type")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			// Warnings should be empty for this validator
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
-		})
-	}
-}
-
-func TestValidateOperatingModeEdgeCases(t *testing.T) {
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "empty_string",
-			value:         "",
-			expectedError: true,
-		},
-		{
-			name:          "nil_value",
-			value:         nil,
-			expectedError: true,
-		},
-		{
-			name:          "case_sensitive_invalid",
-			value:         "Connector", // Should be lowercase
-			expectedError: true,
-		},
-		{
-			name:          "whitespace_string",
-			value:         " connector ",
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			warns, errs := validateOperatingMode(tt.value, "operating_mode")
-
-			if tt.expectedError {
-				if len(errs) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if len(errs) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-				}
-			}
-
-			// Warnings should be empty for this validator
-			if len(warns) > 0 {
-				t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-			}
-		})
-	}
-}
-
-func TestHasDuplicateTokenNamesEdgeCases(t *testing.T) {
-	tests := []struct {
-		resourceData  map[string]interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name: "nil_tokens",
-			resourceData: map[string]interface{}{
-				"registration_tokens": nil,
-			},
-			expectedError: false,
-		},
-		{
-			name: "tokens_with_empty_names",
-			resourceData: map[string]interface{}{
-				"registration_tokens": []map[string]interface{}{
-					{"name": ""},
-					{"name": ""},
-				},
-			},
-			expectedError: true, // Empty names are considered duplicates
-		},
-		{
-			name: "tokens_with_mixed_empty_and_valid_names",
-			resourceData: map[string]interface{}{
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token1"},
-					{"name": ""},
-					{"name": "token2"},
-				},
-			},
-			expectedError: false,
-		},
-		{
-			name: "tokens_with_special_characters",
-			resourceData: map[string]interface{}{
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token-1"},
-					{"name": "token_2"},
-					{"name": "token.3"},
-				},
-			},
-			expectedError: false,
-		},
-		{
-			name: "tokens_with_case_sensitivity",
-			resourceData: map[string]interface{}{
-				"registration_tokens": []map[string]interface{}{
-					{"name": "Token1"},
-					{"name": "token1"}, // Different case, should not be considered duplicate
-				},
-			},
-			expectedError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := createTestResourceData(tt.resourceData)
-			err := hasDuplicateTokenNames(d)
-
-			if tt.expectedError {
-				if err == nil {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, err)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolSchemaComprehensive(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test name field
-	if nameSchema, exists := resource.Schema["name"]; exists {
-		if !nameSchema.Required {
-			t.Error("Expected 'name' field to be required")
-		}
-		if nameSchema.Type != schema.TypeString {
-			t.Error("Expected 'name' field to be of type String")
-		}
-	} else {
-		t.Error("Expected 'name' field to exist in schema")
-	}
-
-	// Test package_type field
-	if packageTypeSchema, exists := resource.Schema["package_type"]; exists {
-		if !packageTypeSchema.Required {
-			t.Error("Expected 'package_type' field to be required")
-		}
-		if packageTypeSchema.Type != schema.TypeString {
-			t.Error("Expected 'package_type' field to be of type String")
-		}
-		if packageTypeSchema.ValidateFunc == nil {
-			t.Error("Expected 'package_type' field to have validation function")
-		}
-	} else {
-		t.Error("Expected 'package_type' field to exist in schema")
-	}
-
-	// Test description field
-	if descSchema, exists := resource.Schema["description"]; exists {
-		if descSchema.Required {
-			t.Error("Expected 'description' field to be optional")
-		}
-		if descSchema.Type != schema.TypeString {
-			t.Error("Expected 'description' field to be of type String")
-		}
-	} else {
-		t.Error("Expected 'description' field to exist in schema")
-	}
-
-	// Test infra_type field
-	if infraTypeSchema, exists := resource.Schema["infra_type"]; exists {
-		if infraTypeSchema.Required {
-			t.Error("Expected 'infra_type' field to be optional")
-		}
-		if infraTypeSchema.Type != schema.TypeString {
-			t.Error("Expected 'infra_type' field to be of type String")
-		}
-		if infraTypeSchema.ValidateFunc == nil {
-			t.Error("Expected 'infra_type' field to have validation function")
-		}
-	} else {
-		t.Error("Expected 'infra_type' field to exist in schema")
-	}
-
-	// Test operating_mode field
-	if operatingModeSchema, exists := resource.Schema["operating_mode"]; exists {
-		if operatingModeSchema.Required {
-			t.Error("Expected 'operating_mode' field to be optional")
-		}
-		if operatingModeSchema.Type != schema.TypeString {
-			t.Error("Expected 'operating_mode' field to be of type String")
-		}
-		if operatingModeSchema.ValidateFunc == nil {
-			t.Error("Expected 'operating_mode' field to have validation function")
-		}
-	} else {
-		t.Error("Expected 'operating_mode' field to exist in schema")
-	}
-
-	// Test uuid_url field
-	if uuidURLSchema, exists := resource.Schema["uuid_url"]; exists {
-		if uuidURLSchema.Required {
-			t.Error("Expected 'uuid_url' field to be optional")
-		}
-		if uuidURLSchema.Type != schema.TypeString {
-			t.Error("Expected 'uuid_url' field to be of type String")
-		}
-	} else {
-		t.Error("Expected 'uuid_url' field to exist in schema")
-	}
-
-	// Test connectors field
-	if connectorsSchema, exists := resource.Schema["connectors"]; exists {
-		if connectorsSchema.Required {
-			t.Error("Expected 'connectors' field to be optional")
-		}
-		if connectorsSchema.Type != schema.TypeList {
-			t.Error("Expected 'connectors' field to be of type List")
-		}
-	} else {
-		t.Error("Expected 'connectors' field to exist in schema")
-	}
-
-	// Test registration_tokens field
-	if tokensSchema, exists := resource.Schema["registration_tokens"]; exists {
-		if tokensSchema.Required {
-			t.Error("Expected 'registration_tokens' field to be optional")
-		}
-		if tokensSchema.Type != schema.TypeList {
-			t.Error("Expected 'registration_tokens' field to be of type List")
-		}
-		if tokensSchema.Elem == nil {
-			t.Error("Expected 'registration_tokens' field to have element schema")
-		}
-	} else {
-		t.Error("Expected 'registration_tokens' field to exist in schema")
-	}
-
-	// Test cidrs field
-	if cidrsSchema, exists := resource.Schema["cidrs"]; exists {
-		if cidrsSchema.Required {
-			t.Error("Expected 'cidrs' field to be optional/computed")
-		}
-		if cidrsSchema.Type != schema.TypeList {
-			t.Error("Expected 'cidrs' field to be of type List")
-		}
-	} else {
-		t.Error("Expected 'cidrs' field to exist in schema")
-	}
-}
-
-func TestRegistrationTokenValidation(t *testing.T) {
-	// Test max_use validation
-	tests := []struct {
-		value         interface{}
-		name          string
-		expectedError bool
-	}{
-		{
-			name:          "valid_max_use",
-			value:         5,
-			expectedError: false,
-		},
-		{
-			name:          "max_use_too_low",
-			value:         0,
-			expectedError: true,
-		},
-		{
-			name:          "max_use_too_high",
-			value:         1001,
-			expectedError: true,
-		},
-		{
-			name:          "valid_expires_at",
-			value:         "2030-01-01T00:00:00Z",
-			expectedError: false,
-		},
-		{
-			name:          "expires_at_invalid_format",
-			value:         "2030-01-01 00:00:00",
-			expectedError: true,
-		},
-		{
-			name:          "expires_at_empty",
-			value:         "",
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test max_use validation
-			if tt.name == "valid_max_use" || tt.name == "max_use_too_low" || tt.name == "max_use_too_high" {
-				// Convert int to string for validation
-				valueStr := ""
-				if intVal, ok := tt.value.(int); ok {
-					valueStr = fmt.Sprintf("%d", intVal)
-				}
-				warns, errs := client.ValidateStringInSlice(valueStr, "max_use", []string{"1", "2", "3", "4", "5", "10", "20", "50", "100", "200", "500", "1000"})
-				if tt.expectedError {
-					if len(errs) == 0 {
-						t.Errorf("Expected error but got none for test case: %s", tt.name)
-					}
-				} else {
-					if len(errs) > 0 {
-						t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-					}
-				}
-				if len(warns) > 0 {
-					t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-				}
-			}
-
-			// Test expires_at validation
-			if tt.name == "valid_expires_at" || tt.name == "expires_at_invalid_format" || tt.name == "expires_at_empty" {
-				warns, errs := validateRFC3339Timestamp(tt.value, "expires_at")
-				if tt.expectedError {
-					if len(errs) == 0 {
-						t.Errorf("Expected error but got none for test case: %s", tt.name)
-					}
-				} else {
-					if len(errs) > 0 {
-						t.Errorf("Unexpected error for test case %s: %v", tt.name, errs)
-					}
-				}
-				if len(warns) > 0 {
-					t.Errorf("Unexpected warnings for test case %s: %v", tt.name, warns)
-				}
-			}
-		})
-	}
-}
-
-func TestSuppressRFC3339Diff(t *testing.T) {
-	tests := []struct {
-		name     string
-		oldValue string
-		newValue string
-		want     bool
-	}{
-		{
-			name:     "same_instant_different_timezone",
-			oldValue: "2026-05-20T10:00:00Z",
-			newValue: "2026-05-20T12:00:00+02:00",
-			want:     true,
-		},
-		{
-			name:     "different_times",
-			oldValue: "2026-05-20T10:00:01Z",
-			newValue: "2026-05-20T10:00:02Z",
-			want:     false,
-		},
-		{
-			name:     "zero_seconds_suppressed",
-			oldValue: "2026-05-20T10:00:01Z", // stored in state after API bump
-			newValue: "2026-05-20T10:00:00Z", // what user wrote in config
-			want:     true,
-		},
-		{
-			name:     "malformed_input",
-			oldValue: "not-a-time",
-			newValue: "2026-05-20T10:00:00Z",
-			want:     false,
-		},
-		{
-			name:     "fractional_seconds_equal",
-			oldValue: "2026-05-20T10:00:00.123Z",
-			newValue: "2026-05-20T10:00:00.123+00:00",
-			want:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := suppressRFC3339Diff("expires_at", tt.oldValue, tt.newValue, nil)
-			if got != tt.want {
-				t.Fatalf("suppressRFC3339Diff() = %v, want %v (old=%q, new=%q)", got, tt.want, tt.oldValue, tt.newValue)
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolImporter(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that the resource has an importer configured
-	if resource.Importer == nil {
-		t.Error("Expected resource to have an importer configured")
-	}
-
-	// Test that the importer uses ImportStatePassthroughContext
-	if resource.Importer.StateContext == nil {
-		t.Error("Expected importer to have StateContext configured")
-	}
-}
-
-func TestResourceEaaConnectorPoolSchemaVersion(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that the resource has the correct schema version
-	if resource.SchemaVersion != 0 {
-		t.Error("Expected resource schema version to be 0")
-	}
-}
-
-func TestResourceEaaConnectorPoolCRUDOperations(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that the resource has all CRUD operations configured
-	if resource.CreateContext == nil {
-		t.Error("Expected resource to have CreateContext configured")
-	}
-	if resource.ReadContext == nil {
-		t.Error("Expected resource to have ReadContext configured")
-	}
-	if resource.UpdateContext == nil {
-		t.Error("Expected resource to have UpdateContext configured")
-	}
-	if resource.DeleteContext == nil {
-		t.Error("Expected resource to have DeleteContext configured")
-	}
-}
-
-func TestResourceEaaConnectorPoolDescription(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that deprecation message is not set (resource is not deprecated)
-	if resource.DeprecationMessage != "" {
-		t.Error("Expected resource to not have a deprecation message")
-	}
-}
-
-func TestResourceEaaConnectorPoolTimeouts(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that timeouts are not configured (resource doesn't have timeouts)
-	if resource.Timeouts != nil {
-		t.Error("Expected resource to not have timeouts configured")
-	}
-}
-
-func TestResourceEaaConnectorPoolDeprecationMessage(t *testing.T) {
-	resource := resourceEaaConnectorPool()
-
-	// Test that deprecation message is not set (resource is not deprecated)
-	if resource.DeprecationMessage != "" {
-		t.Error("Expected resource to not have a deprecation message")
-	}
-}
-
-// Since we can't easily mock the client due to type assertions,
-// let's focus on testing the parts we can test without a real client
-
-// Enhanced CRUD tests focusing on testable parts
-func TestResourceEaaConnectorPoolCreateValidationPaths(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "creation_with_duplicate_tokens_validation",
-			resourceData: map[string]interface{}{
-				"name":         "test-pool-duplicates",
-				"package_type": "vmware",
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token1"},
-					{"name": "token1"}, // duplicate
-				},
-			},
-			expectedError:    true,
-			expectedErrorMsg: "duplicate registration token name found",
-		},
-		{
-			name: "creation_with_valid_tokens_validation",
-			resourceData: map[string]interface{}{
-				"name":         "test-pool-valid",
-				"package_type": "vmware",
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token1"},
-					{"name": "token2"},
-				},
-			},
-			expectedError: false,
-		},
-		{
-			name: "creation_with_empty_tokens_validation",
-			resourceData: map[string]interface{}{
-				"name":                "test-pool-empty",
-				"package_type":        "vmware",
-				"registration_tokens": []map[string]interface{}{},
-			},
-			expectedError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Create function - it will fail at client creation but we can test validation
-			diags := resourceEaaConnectorPoolCreate(context.Background(), d, "invalid-client")
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content (partial match)
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg ||
-							strings.Contains(diag.Summary, tt.expectedErrorMsg) ||
-							strings.Contains(diag.Detail, tt.expectedErrorMsg) {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				// For non-error cases, we expect client error but not validation error
-				// We should only get "invalid client" error, not validation errors
-				validationErrorFound := false
-				for _, diag := range diags {
-					if strings.Contains(diag.Summary, "duplicate registration token name found") ||
-						strings.Contains(diag.Detail, "duplicate registration token name found") {
-						validationErrorFound = true
-						break
-					}
-				}
-				if validationErrorFound {
-					t.Errorf("Unexpected validation error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolReadValidationPaths(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "read_with_empty_id",
-			resourceData: map[string]interface{}{
-				"uuid_url": "",
-			},
-			expectedError:    true,
-			expectedErrorMsg: "invalid client",
-		},
-		{
-			name: "read_with_valid_id",
-			resourceData: map[string]interface{}{
-				"uuid_url": "test-uuid-123",
-			},
-			expectedError:    true, // Will fail at client creation
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Read function - it will fail at client creation
-			diags := resourceEaaConnectorPoolRead(context.Background(), d, "invalid-client")
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolUpdateValidationPaths(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "update_with_duplicate_tokens_validation",
-			resourceData: map[string]interface{}{
-				"uuid_url":     "test-uuid-123",
-				"name":         "updated-pool-duplicates",
-				"package_type": "aws",
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token1"},
-					{"name": "token1"}, // duplicate
-				},
-			},
-			expectedError:    true,
-			expectedErrorMsg: "duplicate registration token name found",
-		},
-		{
-			name: "update_with_valid_tokens_validation",
-			resourceData: map[string]interface{}{
-				"uuid_url":     "test-uuid-123",
-				"name":         "updated-pool-valid",
-				"package_type": "aws",
-				"registration_tokens": []map[string]interface{}{
-					{"name": "token1"},
-					{"name": "token2"},
-				},
-			},
-			expectedError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Update function - it will fail at client creation but we can test validation
-			diags := resourceEaaConnectorPoolUpdate(context.Background(), d, "invalid-client")
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content (partial match)
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg ||
-							strings.Contains(diag.Summary, tt.expectedErrorMsg) ||
-							strings.Contains(diag.Detail, tt.expectedErrorMsg) {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				// For non-error cases, we expect client error but not validation error
-				// We should only get "invalid client" error, not validation errors
-				validationErrorFound := false
-				for _, diag := range diags {
-					if strings.Contains(diag.Summary, "duplicate registration token name found") ||
-						strings.Contains(diag.Detail, "duplicate registration token name found") {
-						validationErrorFound = true
-						break
-					}
-				}
-				if validationErrorFound {
-					t.Errorf("Unexpected validation error for test case %s: %v", tt.name, diags)
-				}
-			}
-		})
-	}
-}
-
-func TestResourceEaaConnectorPoolDeleteValidationPaths(t *testing.T) {
-	tests := []struct {
-		resourceData     map[string]interface{}
-		name             string
-		expectedErrorMsg string
-		expectedError    bool
-	}{
-		{
-			name: "delete_with_empty_id",
-			resourceData: map[string]interface{}{
-				"uuid_url": "",
-			},
-			expectedError:    true,
-			expectedErrorMsg: "invalid client",
-		},
-		{
-			name: "delete_with_valid_id",
-			resourceData: map[string]interface{}{
-				"uuid_url": "test-uuid-123",
-			},
-			expectedError:    true, // Will fail at client creation
-			expectedErrorMsg: "invalid client",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create resource data
-			d := createTestResourceData(tt.resourceData)
-
-			// Test the Delete function - it will fail at client creation
-			diags := resourceEaaConnectorPoolDelete(context.Background(), d, "invalid-client")
-
-			if tt.expectedError {
-				if len(diags) == 0 {
-					t.Errorf("Expected error but got none for test case: %s", tt.name)
-				} else {
-					// Check if the error message contains expected content
-					errorFound := false
-					for _, diag := range diags {
-						if diag.Summary == tt.expectedErrorMsg || diag.Detail == tt.expectedErrorMsg {
-							errorFound = true
-							break
-						}
-					}
-					if !errorFound {
-						t.Logf("Expected error message '%s' not found in diagnostics: %v", tt.expectedErrorMsg, diags)
-					}
-				}
-			} else {
-				if len(diags) > 0 {
-					t.Errorf("Unexpected error for test case %s: %v", tt.name, diags)
-				}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := createTestResourceData(t, map[string]interface{}{})
+			setConnectorPoolBasicAttributes(d, tc.connPool)
+
+			for key, expected := range tc.expectedMap {
+				assert.Equal(t, expected, d.Get(key), "mismatch for key %s", key)
 			}
 		})
 	}

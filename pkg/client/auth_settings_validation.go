@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 // ValidateCustomHeadersConfiguration validates custom headers configuration.
@@ -202,9 +201,13 @@ type AuthValidationConfig struct {
 	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
 }
 
+type authSettingsLookup interface {
+	GetOk(key string) (interface{}, bool)
+}
+
 // isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both
 // the direct flag and app_auth in advanced_settings
-func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, logger hclog.Logger) bool {
+func isAuthProtocolEnabled(d authSettingsLookup, config AuthValidationConfig, logger hclog.Logger) bool {
 	// Check direct flag
 	if flag, ok := d.GetOk(config.FlagKey); ok {
 		if flagBool, ok := flag.(bool); ok && flagBool {
@@ -232,7 +235,7 @@ func isAuthProtocolEnabled(d *schema.ResourceDiff, config AuthValidationConfig, 
 
 // getFirstSettingsBlock retrieves the first block from a settings list in the schema
 // Returns the block map and true if found, or nil and false if not found
-func getFirstSettingsBlock(d *schema.ResourceDiff, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
+func getFirstSettingsBlock(d authSettingsLookup, settingsKey string, logger hclog.Logger) (map[string]interface{}, bool) {
 	settings, ok := d.GetOk(settingsKey)
 	if !ok {
 		logger.Debug("settings not found", "settings_key", settingsKey)
@@ -272,7 +275,7 @@ func validateIDPSelfSignedCert(idpBlock map[string]interface{}, protocolName str
 }
 
 // ValidateWSFEDNestedBlocks validates WSFED nested blocks configuration.
-func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+func ValidateWSFEDNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateWSFEDNestedBlocks called")
 
 	config := AuthValidationConfig{
@@ -308,7 +311,7 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 }
 
 // ValidateSAMLNestedBlocks validates SAML nested blocks configuration.
-func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+func ValidateSAMLNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateSAMLNestedBlocks called")
 
 	config := AuthValidationConfig{
@@ -365,7 +368,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 }
 
 // ValidateOIDCNestedBlocks validates OIDC nested blocks configuration.
-func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}, logger hclog.Logger) error {
+func ValidateOIDCNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}, logger hclog.Logger) error {
 	logger.Debug("validateOIDCNestedBlocks called")
 
 	config := AuthValidationConfig{
