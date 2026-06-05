@@ -42,6 +42,15 @@ func TestDiagError_WithWrappedEAAError(t *testing.T) {
 	assert.Equal(t, "connection refused", diags[0].Detail)
 }
 
+func TestDiagError_EAAErrorWithoutTags_NoLeadingSpace(t *testing.T) {
+	err := Errorf(nil, "request failed")
+	diags := DiagError(err)
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.Error, diags[0].Severity)
+	assert.Equal(t, "request failed", diags[0].Summary)
+}
+
 func TestDiagError_Nil(t *testing.T) {
 	diags := DiagError(nil)
 	assert.Nil(t, diags)
@@ -66,6 +75,15 @@ func TestDiagWarning_WithWrappedEAAError(t *testing.T) {
 	assert.Equal(t, diag.Warning, diags[0].Severity)
 	assert.Equal(t, "[PROVIDER] deprecated field", diags[0].Summary)
 	assert.Equal(t, "deprecated detail", diags[0].Detail)
+}
+
+func TestDiagWarning_EAAErrorWithoutTags_NoLeadingSpace(t *testing.T) {
+	err := Errorf(nil, "deprecated field")
+	diags := DiagWarning(err)
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.Warning, diags[0].Severity)
+	assert.Equal(t, "deprecated field", diags[0].Summary)
 }
 
 func TestDiagWarning_Nil(t *testing.T) {

@@ -17,7 +17,7 @@ func DiagError(err error) diag.Diagnostics {
 		Severity: diag.Error,
 	}
 	if eaaErr, ok := errors.AsType[*EAAError](err); ok {
-		d.Summary = FormatTags(eaaErr.tags) + " " + eaaErr.Message()
+		d.Summary = formatLogMessage(eaaErr.Message(), eaaErr.tags)
 		if inner := eaaErr.Unwrap(); inner != nil {
 			d.Detail = inner.Error()
 		}
@@ -43,7 +43,7 @@ func DiagWarning(err error) diag.Diagnostics {
 		Severity: diag.Warning,
 	}
 	if eaaErr, ok := errors.AsType[*EAAError](err); ok {
-		d.Summary = FormatTags(eaaErr.tags) + " " + eaaErr.Message()
+		d.Summary = formatLogMessage(eaaErr.Message(), eaaErr.tags)
 		if inner := eaaErr.Unwrap(); inner != nil {
 			d.Detail = inner.Error()
 		}
