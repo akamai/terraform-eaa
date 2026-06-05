@@ -1221,9 +1221,12 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 
 					if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
 						idpData, getIDPErr := client.GetIdpWithName(ctx, eaaclient, appIDPName)
-						if getIDPErr != nil || idpData == nil {
-							logging.Warn(ctx, "get IDP with name error", tags, map[string]any{"error": fmt.Sprintf("%v", getIDPErr)})
+						if getIDPErr != nil {
+							logging.Warn(ctx, "get IDP with name error", tags, map[string]any{"error": getIDPErr.Error()})
 							return append(warningDiags, logging.DiagFromErr(getIDPErr, tags, "failed to get IDP with name")...)
+						}
+						if idpData == nil {
+							return append(warningDiags, logging.DiagErrorf(tags, "IDP '%s' not found", appIDPName)...)
 						}
 
 						logging.Debug(ctx, "assigning IDP to application in UPDATE", tags, map[string]any{

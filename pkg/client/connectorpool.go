@@ -654,6 +654,7 @@ func GetApps(ctx context.Context, ec *EaaClient) ([]App, error) {
 
 		// Safety check to prevent infinite loops
 		if offset > 10000 {
+			logging.Warn(ctx, "reached maximum offset limit (10000), stopping pagination", tags)
 			break
 		}
 

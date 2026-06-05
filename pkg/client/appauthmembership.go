@@ -40,20 +40,17 @@ func (app *Application) GetAppIdpMembership(ctx context.Context, ec *EaaClient) 
 
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appidpMembershipResponse, false)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "failed to get app IDP membership")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
 		return nil, logging.Errorf(tags, "unable to get app idp membership: %s", desc)
 	}
-	if len(appidpMembershipResponse.AppIdpMemberships) > 0 {
-		appIdpmem := appidpMembershipResponse.AppIdpMemberships[0]
-		return &appIdpmem, nil
-	}
 	if len(appidpMembershipResponse.AppIdpMemberships) == 0 {
 		return nil, nil
 	}
-	return nil, logging.Errorf(tags, "unable to get app idp membership")
+	appIdpmem := appidpMembershipResponse.AppIdpMemberships[0]
+	return &appIdpmem, nil
 }
 
 type DirectoryMembership struct {
@@ -82,7 +79,7 @@ func (app *Application) GetAppDirectoryMembership(ctx context.Context, ec *EaaCl
 
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appdirectoryMembershipResponse, false)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "failed to get app directory membership")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
@@ -119,7 +116,7 @@ func (app *Application) GetAppGroupMembership(ctx context.Context, ec *EaaClient
 
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appgroupMembershipResponse, false)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "failed to get app group membership")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
@@ -177,6 +174,7 @@ func (app *Application) CreateAppAuthenticationStruct(ctx context.Context, ec *E
 			groupInfo["name"] = groupName
 			appGroups, ok := dir["app_groups"].([]map[string]interface{})
 			if !ok {
+				logging.Warn(ctx, "app_groups has unexpected type, skipping directory", tags, map[string]any{"directory": dirName})
 				continue
 			}
 			dir["app_groups"] = append(appGroups, groupInfo)

@@ -98,7 +98,7 @@ func TestAssignUnAssignAgents(t *testing.T) {
 					Connectors: []Connector{},
 				}))
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		"agent_not_found": {
 			agentNames: []string{"missing-agent"},

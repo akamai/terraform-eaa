@@ -177,7 +177,6 @@ func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceDat
 	createRequest := CreateConnectorRequest{}
 	err := createRequest.CreateConnectorRequestFromSchema(ctx, d, ec)
 	if err != nil {
-		logging.Warn(ctx, "create connector request from schema failed", tags, map[string]any{"error": err.Error()})
 		return nil, err
 	}
 	cur.Name = createRequest.Name
@@ -189,13 +188,11 @@ func (cur *Connector) UpdateConnector(ctx context.Context, d *schema.ResourceDat
 	var connResp Connector
 	updateConnResp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", cur, &connResp, false)
 	if err != nil {
-		logging.Warn(ctx, "update connector API request failed", tags, map[string]any{"error": err.Error()})
 		return nil, logging.Wrapf(err, tags, "update connector API request failed")
 	}
 
 	if updateConnResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(updateConnResp)
-		logging.Warn(ctx, "update connector failed", tags, map[string]any{"status": updateConnResp.StatusCode, "description": desc})
 		return nil, logging.Errorf(tags, "update connector failed: %s", desc)
 	}
 
@@ -212,13 +209,11 @@ func (ccr *CreateConnectorRequest) CreateConnector(ctx context.Context, ec *EaaC
 	var connResp Connector
 	createConnResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", ccr, &connResp, false)
 	if err != nil {
-		logging.Warn(ctx, "create connector API request failed", tags, map[string]any{"error": err.Error()})
 		return nil, logging.Wrapf(err, tags, "create connector API request failed")
 	}
 
 	if createConnResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(createConnResp)
-		logging.Warn(ctx, "create connector failed", tags, map[string]any{"status": createConnResp.StatusCode, "description": desc})
 		return nil, logging.Errorf(tags, "create connector failed: %s", desc)
 	}
 
@@ -307,7 +302,8 @@ func DeleteConnector(ctx context.Context, ec *EaaClient, connUUIDURL string) err
 	}
 
 	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
-		return logging.Errorf(tags, "delete connector failed with status %d", deleteResp.StatusCode)
+		desc := FormatErrorDescription(deleteResp)
+		return logging.Errorf(tags, "delete connector failed: %s", desc)
 	}
 
 	logging.Info(ctx, "delete connector succeeded", tags, map[string]any{"uuid": connUUIDURL})

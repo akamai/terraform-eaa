@@ -41,7 +41,6 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 	var agents AssignAgentsRequest
 	agentUUIDs, err := GetAgentUUIDs(ctx, ec, aar.AgentNames)
 	if err != nil {
-		logging.Warn(ctx, "unable to lookup uuids from agent names", tags)
 		return err
 	}
 	for _, uuid := range agentUUIDs {
@@ -53,21 +52,18 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 	}
 
 	if len(agents.Agents) == 0 {
-		logging.Warn(ctx, "no connectors to assign", tags)
-		return nil
+		return logging.Errorf(tags, "no agents resolved from the provided agent names")
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
 	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		logging.Error(ctx, "assign agents failed", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "assign agents failed")
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
-		logging.Warn(ctx, "assign agents failed", tags, map[string]any{"status": agentsResp.StatusCode, "description": desc})
-		return logging.Errorf(tags, "connectors assign failed: %s", desc)
+		return logging.Errorf(tags, "agents assign failed: %s", desc)
 	}
 	return nil
 }
@@ -81,11 +77,11 @@ func (app *Application) GetAppAgents(ctx context.Context, ec *EaaClient) ([]stri
 
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &agentsResponse, false)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "failed to get app agents")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		return nil, logging.Errorf(tags, "connectors get failed: %s", desc)
+		return nil, logging.Errorf(tags, "agents get failed: %s", desc)
 	}
 
 	agentNames := make([]string, 0, len(agentsResponse.Agents))
@@ -108,7 +104,6 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 	var agents UnAssignAgentsRequest
 	agentUUIDs, err := GetAgentUUIDs(ctx, ec, aar.AgentNames)
 	if err != nil {
-		logging.Warn(ctx, "unable to lookup uuids from agent names", tags)
 		return err
 	}
 	for _, uuid := range agentUUIDs {
@@ -116,21 +111,18 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 		logging.Debug(ctx, "agent uuid", tags, map[string]any{"uuid": uuid})
 	}
 	if len(agents.Agents) == 0 {
-		logging.Warn(ctx, "no connectors to unassign", tags)
-		return nil
+		return logging.Errorf(tags, "no agents resolved from the provided agent names")
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents?method=delete", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
 	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		logging.Error(ctx, "unassign agents failed", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "unassign agents failed")
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
-		logging.Warn(ctx, "unassign agents failed", tags, map[string]any{"status": agentsResp.StatusCode, "description": desc})
-		return logging.Errorf(tags, "connectors unassign failed: %s", desc)
+		return logging.Errorf(tags, "agents unassign failed: %s", desc)
 	}
 	return nil
 }

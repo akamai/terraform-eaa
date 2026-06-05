@@ -62,11 +62,11 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 		if ok && nameStr != "" {
 			mcar.Name = nameStr
 		} else {
-			logging.Warn(ctx, "create Application failed: name is invalid", tags)
+			logging.Error(ctx, "create Application failed: name is invalid", tags)
 			return ErrInvalidValue
 		}
 	} else {
-		logging.Warn(ctx, "create Application failed: name is required", tags)
+		logging.Error(ctx, "create Application failed: name is required", tags)
 		return ErrInvalidValue
 	}
 
@@ -74,13 +74,13 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 	if appType, ok := d.GetOk("app_type"); ok {
 		strAppType, ok := appType.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: app_type is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_type is invalid", tags)
 			return ErrInvalidType
 		}
 		atype := AppType(strAppType)
 		value, err := atype.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: app_type is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_type is invalid", tags)
 			return ErrInvalidValue
 		}
 		mcar.AppType = value
@@ -95,13 +95,13 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 	if appProfile, ok := d.GetOk("app_profile"); ok {
 		strappProfile, ok := appProfile.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: app_profile is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_profile is invalid", tags)
 			return ErrInvalidType
 		}
 		aProfile := AppProfile(strappProfile)
 		value, err := aProfile.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: app_profile is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_profile is invalid", tags)
 			return ErrInvalidValue
 		}
 		mcar.AppProfile = value
@@ -116,13 +116,13 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalAppRequestFromSchema(ctx conte
 	if clientAppMode, ok := d.GetOk("client_app_mode"); ok {
 		appMode, ok := clientAppMode.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: clientAppMode is invalid", tags)
+			logging.Error(ctx, "create Application failed: clientAppMode is invalid", tags)
 			return ErrInvalidType
 		}
 		aMode := AppMode(appMode)
 		value, err := aMode.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: clientAppMode is invalid", tags)
+			logging.Error(ctx, "create Application failed: clientAppMode is invalid", tags)
 			return ErrInvalidValue
 		}
 		mcar.ClientAppMode = value
@@ -144,9 +144,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		nameStr, ok := name.(string)
 		if ok && nameStr != "" {
 			car.Name = nameStr
+		} else {
+			logging.Error(ctx, "create Application failed: name must be a non-empty string", tags)
+			return ErrInvalidValue
 		}
 	} else {
-		logging.Warn(ctx, "create Application failed: name is invalid", tags)
+		logging.Error(ctx, "create Application failed: name is invalid", tags)
 		return ErrInvalidValue
 	}
 
@@ -160,13 +163,13 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	if appType, ok := d.GetOk("app_type"); ok {
 		strAppType, ok := appType.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: app_type is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_type is invalid", tags)
 			return ErrInvalidType
 		}
 		atype := AppType(strAppType)
 		value, err := atype.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: app_type is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_type is invalid", tags)
 			return ErrInvalidValue
 		}
 		car.AppType = value
@@ -180,13 +183,13 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	if appProfile, ok := d.GetOk("app_profile"); ok {
 		strappProfile, ok := appProfile.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: app_profile is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_profile is invalid", tags)
 			return ErrInvalidType
 		}
 		aProfile := AppProfile(strappProfile)
 		value, err := aProfile.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: app_profile is invalid", tags)
+			logging.Error(ctx, "create Application failed: app_profile is invalid", tags)
 			return ErrInvalidValue
 		}
 		car.AppProfile = value
@@ -200,13 +203,13 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 	if clientAppMode, ok := d.GetOk("client_app_mode"); ok {
 		appMode, ok := clientAppMode.(string)
 		if !ok {
-			logging.Warn(ctx, "create Application failed: clientAppMode is invalid", tags)
+			logging.Error(ctx, "create Application failed: clientAppMode is invalid", tags)
 			return ErrInvalidType
 		}
 		aMode := AppMode(appMode)
 		value, err := aMode.ToInt()
 		if err != nil {
-			logging.Warn(ctx, "create Application failed: clientAppMode is invalid", tags)
+			logging.Error(ctx, "create Application failed: clientAppMode is invalid", tags)
 			return ErrInvalidValue
 		}
 		car.ClientAppMode = value
@@ -226,7 +229,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			// Validate app bundle name and get UUID
 			appBundleUUID, err := ec.GetAppBundleByName(ctx, appBundleStr)
 			if err != nil {
-				logging.Warn(ctx, "CREATE FLOW: failed to validate app_bundle name", tags, map[string]any{"app_bundle": appBundleStr, "error": err})
+				logging.Error(ctx, "CREATE FLOW: failed to validate app_bundle name", tags, map[string]any{"app_bundle": appBundleStr, "error": err.Error()})
 				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
 			}
 
@@ -267,7 +270,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		case "custom":
 			tlsSuiteTypeInt = 2
 		default:
-			logging.Warn(ctx, "CREATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
+			logging.Error(ctx, "CREATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
 			return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
 		}
 		car.TLSSuiteType = &tlsSuiteTypeInt
@@ -316,12 +319,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Convert nested blocks to SAMLConfig
 				samlBlock, err := firstMapBlock(samlSettingsList, "saml_settings")
 				if err != nil {
-					logging.Warn(ctx, "failed to read nested SAML block", tags, map[string]any{"error": err})
+					logging.Error(ctx, "failed to read nested SAML block", tags, map[string]any{"error": err.Error()})
 					return err
 				}
 				samlConfig, err := convertNestedBlocksToSAMLConfig(samlBlock)
 				if err != nil {
-					logging.Warn(ctx, "failed to convert nested SAML blocks", tags, map[string]any{"error": err})
+					logging.Error(ctx, "failed to convert nested SAML blocks", tags, map[string]any{"error": err.Error()})
 					return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 				}
 				car.SAMLSettings = []SAMLConfig{samlConfig}
@@ -345,12 +348,12 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Convert nested blocks to OIDCConfig
 				oidcBlock, err := firstMapBlock(oidcSettingsList, "oidc_settings")
 				if err != nil {
-					logging.Warn(ctx, "CREATE FLOW: failed to read nested OIDC block", tags, map[string]any{"error": err})
+					logging.Error(ctx, "CREATE FLOW: failed to read nested OIDC block", tags, map[string]any{"error": err.Error()})
 					return err
 				}
 				oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 				if err != nil {
-					logging.Warn(ctx, "CREATE FLOW: failed to convert nested OIDC blocks", tags, map[string]any{"error": err})
+					logging.Error(ctx, "CREATE FLOW: failed to convert nested OIDC blocks", tags, map[string]any{"error": err.Error()})
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
 				car.OIDCSettings = oidcConfig
@@ -383,7 +386,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				// Get the first (and only) wsfed_settings block
 				wsfedBlock, err := firstMapBlock(wsfedSettingsList, "wsfed_settings")
 				if err != nil {
-					logging.Warn(ctx, "CREATE FLOW: failed to read nested WSFED block", tags, map[string]any{"error": err})
+					logging.Error(ctx, "CREATE FLOW: failed to read nested WSFED block", tags, map[string]any{"error": err.Error()})
 					return err
 				}
 
@@ -394,7 +397,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
 					spBlock, err := firstMapBlock(spBlocks, "wsfed_settings.sp")
 					if err != nil {
-						logging.Warn(ctx, "CREATE FLOW: failed to read nested WSFED SP block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "CREATE FLOW: failed to read nested WSFED SP block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -422,7 +425,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
 					idpBlock, err := firstMapBlock(idpBlocks, "wsfed_settings.idp")
 					if err != nil {
-						logging.Warn(ctx, "CREATE FLOW: failed to read nested WSFED IDP block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "CREATE FLOW: failed to read nested WSFED IDP block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -447,7 +450,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
 					subjectBlock, err := firstMapBlock(subjectBlocks, "wsfed_settings.subject")
 					if err != nil {
-						logging.Warn(ctx, "CREATE FLOW: failed to read nested WSFED subject block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "CREATE FLOW: failed to read nested WSFED subject block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -474,6 +477,7 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 					for _, attrBlock := range attrmapBlocks {
 						attrMap, ok := attrBlock.(map[string]interface{})
 						if !ok {
+							logging.Warn(ctx, "skipping malformed WSFED attrmap entry", tags)
 							continue
 						}
 						attr := WSFEDAttrMapping{}
@@ -533,7 +537,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 	if payloadBytes, err := json.MarshalIndent(mcar, "", "  "); err == nil {
 		logging.Trace(ctx, "minimal API payload being sent", tags, map[string]any{"payload": string(payloadBytes)})
 	} else {
-		logging.Warn(ctx, "failed to marshal minimal application payload for logging", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to marshal minimal application payload for logging", tags, map[string]any{"error": err.Error()})
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
@@ -541,15 +545,12 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 	createAppResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", mcar, &appResp, false)
 
 	if err != nil {
-		logging.Warn(ctx, "create minimal Application failed", tags, map[string]any{"error": err})
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "create minimal Application failed")
 	}
 
 	if createAppResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(createAppResp)
-		createErrMsg := logging.Wrapf(ErrAppCreate, tags, "%s", desc)
-		logging.Warn(ctx, "create minimal Application failed", tags, map[string]any{"status": createAppResp.StatusCode, "description": desc})
-		return nil, createErrMsg
+		return nil, logging.Wrapf(ErrAppCreate, tags, "%s", desc)
 	}
 	logging.Info(ctx, "create minimal Application succeeded", tags, map[string]any{"name": mcar.Name})
 	return &appResp, nil
@@ -563,7 +564,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	if payloadBytes, err := json.MarshalIndent(car, "", "  "); err == nil {
 		logging.Trace(ctx, "complete API payload being sent", tags, map[string]any{"payload": string(payloadBytes)})
 	} else {
-		logging.Warn(ctx, "failed to marshal application payload for logging", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to marshal application payload for logging", tags, map[string]any{"error": err.Error()})
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, APPS_URL)
@@ -571,15 +572,12 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 	createAppResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", car, &appResp, false)
 
 	if err != nil {
-		logging.Warn(ctx, "create Application failed", tags, map[string]any{"error": err})
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "create Application failed")
 	}
 
 	if createAppResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(createAppResp)
-		createErrMsg := logging.Wrapf(ErrAppCreate, tags, "%s", desc)
-		logging.Warn(ctx, "create Application failed", tags, map[string]any{"status": createAppResp.StatusCode, "description": desc})
-		return nil, createErrMsg
+		return nil, logging.Wrapf(ErrAppCreate, tags, "%s", desc)
 	}
 	logging.Info(ctx, "create Application succeeded", tags, map[string]any{"name": car.Name})
 	return &appResp, nil
@@ -594,7 +592,7 @@ func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, 
 	if agentsRaw, ok := d.GetOk("agents"); ok {
 		agentsList, ok := agentsRaw.([]interface{})
 		if !ok {
-			logging.Warn(ctx, "configure agents failed: agents is invalid", tags)
+			logging.Error(ctx, "configure agents failed: agents is invalid", tags)
 			return ErrInvalidType
 		}
 		var agents AssignAgents
@@ -606,8 +604,7 @@ func ConfigureAgents(ctx context.Context, appID string, d *schema.ResourceData, 
 		}
 		err := agents.AssignAgents(ctx, ec)
 		if err != nil {
-			logging.Warn(ctx, "configure agents failed", tags, map[string]any{"error": err})
-			return err
+			return logging.Wrapf(err, tags, "configure agents failed")
 		}
 		logging.Debug(ctx, "configure agents succeeded", tags)
 	}
@@ -622,7 +619,7 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 	if aE, ok := d.GetOk("auth_enabled"); ok {
 		authEnabledValue, ok := aE.(string)
 		if !ok {
-			logging.Warn(ctx, "configure authentication failed: auth_enabled is invalid", tags)
+			logging.Error(ctx, "configure authentication failed: auth_enabled is invalid", tags)
 			return ErrInvalidType
 		}
 		authEnabled = authEnabledValue
@@ -632,20 +629,21 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 		if appAuth, ok := d.GetOk("app_authentication"); ok {
 			appAuthList, ok := appAuth.([]interface{})
 			if !ok {
-				logging.Warn(ctx, "invalid authentication list", tags)
+				logging.Error(ctx, "invalid authentication list", tags)
 				return ErrInvalidType
 			}
 			if appAuthList == nil {
-				return ErrInvalidValue
+				logging.Error(ctx, "app_authentication list is nil", tags)
+				return logging.Wrapf(ErrInvalidValue, tags, "app_authentication list is nil")
 			}
 			if len(appAuthList) > 0 {
 				appAuthenticationMap, ok := appAuthList[0].(map[string]interface{})
 				if !ok {
-					logging.Warn(ctx, "invalid authentication data", tags)
+					logging.Error(ctx, "invalid authentication data", tags)
 					return ErrInvalidType
 				}
 				if appAuthenticationMap == nil {
-					logging.Warn(ctx, "invalid authentication data", tags)
+					logging.Error(ctx, "invalid authentication data", tags)
 					return ErrInvalidValue
 				}
 
@@ -653,7 +651,6 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 				if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
 					idpData, err := GetIdpWithName(ctx, ec, appIDPName)
 					if err != nil {
-						logging.Error(ctx, "get idp by name failed", tags, map[string]any{"error": err})
 						return err
 					}
 					if idpData == nil {
@@ -668,8 +665,7 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 					}
 					err = appIdp.AssignIDP(ctx, ec)
 					if err != nil {
-						logging.Warn(ctx, "IDP assign failed", tags, map[string]any{"error": err})
-						return fmt.Errorf("assigning IDP to the app failed: %v", err)
+						return logging.Wrapf(err, tags, "assigning IDP to the app failed")
 					}
 					logging.Debug(ctx, "IDP assigned successfully", tags, map[string]any{"appID": appID, "idp": appIDPName})
 
@@ -678,8 +674,7 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 						logging.Debug(ctx, "starting directory assignment", tags)
 						err := idpData.AssignIdpDirectories(ctx, appDirs, appID, ec)
 						if err != nil {
-							logging.Warn(ctx, "directory assignment failed", tags, map[string]any{"error": err})
-							return fmt.Errorf("assigning directories to the app failed: %v", err)
+							return logging.Wrapf(err, tags, "assigning directories to the app failed")
 						}
 						logging.Debug(ctx, "directory assignment succeeded", tags)
 					}
@@ -702,13 +697,11 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		logging.Warn(ctx, "failed to get app for advanced settings configuration", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "failed to get app for advanced settings configuration")
 	}
 	if getResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(getResp)
-		logging.Warn(ctx, "failed to get app for advanced settings configuration", tags, map[string]any{"status": getResp.StatusCode, "description": desc})
-		return fmt.Errorf("failed to get app: %s", desc)
+		return logging.Errorf(tags, "failed to get app: %s", desc)
 	}
 
 	// Convert response to Application struct
@@ -719,8 +712,7 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	// Update the request with advanced settings from schema
 	err = updateRequest.UpdateAppRequestFromSchema(ctx, d, ec)
 	if err != nil {
-		logging.Warn(ctx, "failed to prepare advanced settings update request", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "failed to prepare advanced settings update request")
 	}
 
 	// Apply authentication transformation logic using centralized helper
@@ -738,8 +730,7 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 	// Apply the update
 	err = updateRequest.UpdateApplication(ctx, ec)
 	if err != nil {
-		logging.Warn(ctx, "failed to apply advanced settings", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "failed to apply advanced settings")
 	}
 
 	logging.Debug(ctx, "configure advanced settings succeeded", tags)
@@ -762,20 +753,17 @@ func ConfigureService(ctx context.Context, appID string, d *schema.ResourceData,
 
 	appSrv, err := GetACLService(ctx, ec, appID)
 	if err != nil {
-		logging.Warn(ctx, "configure service: get ACL service failed", tags, map[string]any{"error": err})
 		return err
 	}
 
 	aclSrv, err := ExtractACLService(ctx, d, ec)
 	if err != nil {
-		logging.Warn(ctx, "configure service: extract ACL service failed", tags, map[string]any{"error": err})
 		return err
 	}
 
 	if appSrv.Status != aclSrv.Status {
 		appSrv.Status = aclSrv.Status
 		if err := appSrv.EnableService(ctx, ec); err != nil {
-			logging.Warn(ctx, "configure service: enable service failed", tags, map[string]any{"error": err})
 			return err
 		}
 	}
@@ -799,13 +787,11 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		logging.Warn(ctx, "failed to get app for deployment", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "failed to get app for deployment")
 	}
 	if getResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(getResp)
-		logging.Warn(ctx, "failed to get app for deployment", tags, map[string]any{"status": getResp.StatusCode, "description": desc})
-		return fmt.Errorf("failed to get app: %s", desc)
+		return logging.Errorf(tags, "failed to get app: %s", desc)
 	}
 
 	// Convert response to Application struct
@@ -815,8 +801,7 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 	// Deploy the application
 	err = app.DeployApplication(ctx, ec)
 	if err != nil {
-		logging.Warn(ctx, "deploy application failed", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "deploy application failed")
 	}
 
 	logging.Debug(ctx, "deploy application succeeded", tags)
@@ -937,12 +922,10 @@ func (app *Application) UpdateG2O(ctx context.Context, ec *EaaClient) (*G2ORespo
 	var g2oResp G2OResponse
 	g2ohttpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", nil, &g2oResp, false)
 	if err != nil {
-		logging.Warn(ctx, "g2o request failed", tags, map[string]any{"error": err})
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "g2o request failed")
 	}
 	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(g2ohttpResp)
-		logging.Warn(ctx, "g2o request failed", tags, map[string]any{"status": g2ohttpResp.StatusCode, "description": desc})
 		return nil, logging.Wrapf(ErrAppUpdate, tags, "%s", desc)
 	}
 	return &g2oResp, nil
@@ -956,12 +939,10 @@ func (app *Application) UpdateEdgeAuthentication(ctx context.Context, ec *EaaCli
 	var edgeAuthResp EdgeAuthResponse
 	edgeAuthhttpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", nil, &edgeAuthResp, false)
 	if err != nil {
-		logging.Warn(ctx, "edge auth request failed", tags, map[string]any{"error": err})
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "edge auth request failed")
 	}
 	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(edgeAuthhttpResp)
-		logging.Warn(ctx, "edge authentication cookie request failed", tags, map[string]any{"status": edgeAuthhttpResp.StatusCode, "description": desc})
 		return nil, logging.Wrapf(ErrAppUpdate, tags, "%s", desc)
 	}
 	return &edgeAuthResp, nil
@@ -976,7 +957,7 @@ func (app *Application) DeployApplication(ctx context.Context, ec *EaaClient) er
 	}
 	deployResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", data, nil, false)
 	if err != nil {
-		return err
+		return logging.Wrapf(err, tags, "failed to deploy application")
 	}
 
 	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
@@ -993,7 +974,7 @@ func (app *Application) DeleteApplication(ctx context.Context, ec *EaaClient) er
 
 	deleteResp, err := ec.SendAPIRequest(ctx, apiURL, http.MethodDelete, nil, nil, false)
 	if err != nil {
-		return err
+		return logging.Wrapf(err, tags, "failed to delete application")
 	}
 
 	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
@@ -1054,7 +1035,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			// Validate app bundle name and get UUID
 			appBundleUUID, err := ec.GetAppBundleByName(ctx, appBundleStr)
 			if err != nil {
-				logging.Warn(ctx, "UPDATE FLOW: failed to validate app_bundle name", tags, map[string]any{"app_bundle": appBundleStr, "error": err})
+				logging.Error(ctx, "UPDATE FLOW: failed to validate app_bundle name", tags, map[string]any{"app_bundle": appBundleStr, "error": err.Error()})
 				return fmt.Errorf("invalid app_bundle name '%s': %w", appBundleStr, err)
 			}
 
@@ -1069,6 +1050,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			for _, th := range tunnelInternalHostsList {
 				thData, ok := th.(map[string]interface{})
 				if !ok {
+					logging.Warn(ctx, "skipping malformed tunnel_internal_hosts entry", tags)
 					continue
 				}
 				tunnelInternalHost := TunnelInternalHost{}
@@ -1130,7 +1112,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			case "custom":
 				tlsSuiteTypeInt = 2
 			default:
-				logging.Warn(ctx, "UPDATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
+				logging.Error(ctx, "UPDATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
 				return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
 			}
 			appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
@@ -1153,7 +1135,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if advSettings.G2OEnabled == STR_TRUE {
 			g2oResp, err := appUpdateReq.UpdateG2O(ctx, ec)
 			if err != nil {
-				logging.Warn(ctx, "g2o request failed", tags, map[string]any{"error": err})
+				logging.Error(ctx, "g2o request failed", tags, map[string]any{"error": err.Error()})
 				return err
 			}
 			advSettings.G2OKey = &g2oResp.G2OKey
@@ -1163,7 +1145,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
 			edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ctx, ec)
 			if err != nil {
-				logging.Warn(ctx, "edge auth cookie request failed", tags, map[string]any{"error": err})
+				logging.Error(ctx, "edge auth cookie request failed", tags, map[string]any{"error": err.Error()})
 				return err
 			}
 			advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
@@ -1220,13 +1202,13 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					// Convert nested blocks to SAMLConfig
 					samlConfig, err := convertNestedBlocksToSAMLConfig(samlBlock)
 					if err != nil {
-						logging.Warn(ctx, "UPDATE FLOW: Failed to convert nested blocks to SAML config", tags, map[string]any{"error": err})
+						logging.Error(ctx, "UPDATE FLOW: Failed to convert nested blocks to SAML config", tags, map[string]any{"error": err.Error()})
 						return fmt.Errorf("failed to convert nested blocks to SAML config: %w", err)
 					}
 					appUpdateReq.SAMLSettings = []SAMLConfig{samlConfig}
 					logging.Debug(ctx, "UPDATE FLOW: Successfully converted nested blocks to SAML config", tags)
 				} else {
-					logging.Warn(ctx, "UPDATE FLOW: saml_settings[0] is not a map[string]interface{}", tags)
+					logging.Error(ctx, "UPDATE FLOW: saml_settings[0] is not a map[string]interface{}", tags)
 					return fmt.Errorf("invalid saml_settings format: expected map[string]interface{}")
 				}
 			} else {
@@ -1257,13 +1239,13 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 						// Convert nested blocks to OIDCConfig
 						oidcConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 						if err != nil {
-							logging.Warn(ctx, "UPDATE FLOW: Failed to convert nested blocks to OIDC config", tags, map[string]any{"error": err})
+							logging.Error(ctx, "UPDATE FLOW: Failed to convert nested blocks to OIDC config", tags, map[string]any{"error": err.Error()})
 							return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 						}
 						appUpdateReq.OIDCSettings = oidcConfig
 						logging.Debug(ctx, "UPDATE FLOW: Successfully converted nested blocks to OIDC config", tags)
 					} else {
-						logging.Warn(ctx, "UPDATE FLOW: oidc_settings[0] is not a map[string]interface{}", tags)
+						logging.Error(ctx, "UPDATE FLOW: oidc_settings[0] is not a map[string]interface{}", tags)
 						return fmt.Errorf("invalid oidc_settings format: expected map[string]interface{}")
 					}
 				} else {
@@ -1321,7 +1303,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				// Defensively check type of first element before asserting
 				wsfedBlock, ok := wsfedSettingsList[0].(map[string]interface{})
 				if !ok {
-					logging.Warn(ctx, "UPDATE FLOW: wsfed_settings[0] is not a map[string]interface{}", tags)
+					logging.Error(ctx, "UPDATE FLOW: wsfed_settings[0] is not a map[string]interface{}", tags)
 					return fmt.Errorf("invalid wsfed_settings format: expected map[string]interface{}")
 				}
 
@@ -1332,7 +1314,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				if spBlocks, ok := wsfedBlock["sp"].([]interface{}); ok && len(spBlocks) > 0 {
 					spBlock, err := firstMapBlock(spBlocks, "wsfed_settings.sp")
 					if err != nil {
-						logging.Warn(ctx, "UPDATE FLOW: Failed to read nested WSFED SP block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "UPDATE FLOW: Failed to read nested WSFED SP block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -1360,7 +1342,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				if idpBlocks, ok := wsfedBlock["idp"].([]interface{}); ok && len(idpBlocks) > 0 {
 					idpBlock, err := firstMapBlock(idpBlocks, "wsfed_settings.idp")
 					if err != nil {
-						logging.Warn(ctx, "UPDATE FLOW: Failed to read nested WSFED IDP block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "UPDATE FLOW: Failed to read nested WSFED IDP block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -1385,7 +1367,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				if subjectBlocks, ok := wsfedBlock["subject"].([]interface{}); ok && len(subjectBlocks) > 0 {
 					subjectBlock, err := firstMapBlock(subjectBlocks, "wsfed_settings.subject")
 					if err != nil {
-						logging.Warn(ctx, "UPDATE FLOW: Failed to read nested WSFED subject block", tags, map[string]any{"error": err})
+						logging.Error(ctx, "UPDATE FLOW: Failed to read nested WSFED subject block", tags, map[string]any{"error": err.Error()})
 						return err
 					}
 
@@ -1412,6 +1394,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 					for _, attrBlock := range attrmapBlocks {
 						attrMap, ok := attrBlock.(map[string]interface{})
 						if !ok {
+							logging.Warn(ctx, "skipping malformed WSFED attrmap entry", tags)
 							continue
 						}
 						attr := WSFEDAttrMapping{}
@@ -1461,12 +1444,12 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 				// Convert nested blocks to OIDCConfig (consistent with CREATE flow)
 				oidcBlock, err := firstMapBlock(oidcSettingsList, "oidc_settings")
 				if err != nil {
-					logging.Warn(ctx, "UPDATE FLOW: Failed to read nested OIDC block", tags, map[string]any{"error": err})
+					logging.Error(ctx, "UPDATE FLOW: Failed to read nested OIDC block", tags, map[string]any{"error": err.Error()})
 					return err
 				}
 				convertedConfig, err := convertNestedBlocksToOIDCConfig(oidcBlock)
 				if err != nil {
-					logging.Warn(ctx, "UPDATE FLOW: Failed to convert nested blocks to OIDC config", tags, map[string]any{"error": err})
+					logging.Error(ctx, "UPDATE FLOW: Failed to convert nested blocks to OIDC config", tags, map[string]any{"error": err.Error()})
 					return fmt.Errorf("failed to convert nested blocks to OIDC config: %w", err)
 				}
 				oidcConfig = convertedConfig
@@ -1504,6 +1487,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			for _, s := range serversList {
 				sData, ok := s.(map[string]interface{})
 				if !ok {
+					logging.Warn(ctx, "skipping malformed server entry", tags)
 					continue
 				}
 				server := Server{}
@@ -1548,7 +1532,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			if popregionstr != "" {
 				popname, uuid, err := GetPopUUID(ctx, ec, popregionstr)
 				if err != nil {
-					logging.Error(ctx, "POP region lookup failed", tags, map[string]any{"popregion": popregionstr, "error": err})
+					logging.Error(ctx, "POP region lookup failed", tags, map[string]any{"popregion": popregionstr, "error": err.Error()})
 					return logging.Wrapf(err, tags, "failed to resolve POP region '%s'", popregionstr)
 				}
 				appUpdateReq.POPName = popname
@@ -1562,14 +1546,14 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 			appDomain := Domain(strDomain)
 			value, err := appDomain.ToInt()
 			if err != nil {
-				logging.Warn(ctx, "Update Application failed. Domain is invalid", tags)
+				logging.Error(ctx, "Update Application failed. Domain is invalid", tags)
 				return ErrInvalidValue
 			}
 			appUpdateReq.Domain = strconv.Itoa(value)
 
 			if appDomain == AppDomainCustom {
 				if err := processCustomDomain(ctx, ec, appUpdateReq, d); err != nil {
-					logging.Warn(ctx, "custom domain processing failed", tags, map[string]any{"error": err})
+					logging.Error(ctx, "custom domain processing failed", tags, map[string]any{"error": err.Error()})
 					return err
 				}
 			}
@@ -1647,8 +1631,11 @@ func processCustomDomain(ctx context.Context, ec *EaaClient, appUpdateReq *Appli
 
 		// Check if the uploaded certificate exists for the given certname
 		certObj, err := DoesUploadedCertExist(ctx, ec, certStr)
-		if err != nil || certObj == nil {
-			return fmt.Errorf("the uploaded cert does not exist: %w", err)
+		if err != nil {
+			return logging.Wrapf(err, tags, "failed to check uploaded certificate '%s'", certStr)
+		}
+		if certObj == nil {
+			return logging.Errorf(tags, "uploaded certificate '%s' not found", certStr)
 		}
 
 		// Use existing self-signed certificate
@@ -1671,37 +1658,35 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	if payloadJSON, err := json.MarshalIndent(appUpdateReq, "", "  "); err == nil {
 		logging.Debug(ctx, "complete request payload", tags, map[string]any{"payload": string(payloadJSON)})
 	} else {
-		logging.Warn(ctx, "failed to marshal application update payload for logging", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to marshal application update payload for logging", tags, map[string]any{"error": err.Error()})
 	}
 
 	appUpdResp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", appUpdateReq, nil, false)
 	if err != nil {
-		logging.Warn(ctx, "update application failed", tags, map[string]any{"error": err})
-		return err
+		return logging.Wrapf(err, tags, "update application failed")
 	}
 
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appUpdResp)
-		logging.Error(ctx, "update application failed", tags, map[string]any{"status": appUpdResp.StatusCode, "description": desc})
 		return logging.Wrapf(ErrAppUpdate, tags, "HTTP %d: %s", appUpdResp.StatusCode, desc)
 	}
 
 	// Post-success: log response for diagnostics (non-fatal if this fails)
 	responseBody, err := io.ReadAll(appUpdResp.Body)
 	if err != nil {
-		logging.Warn(ctx, "failed to read application update response body for logging", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to read application update response body for logging", tags, map[string]any{"error": err.Error()})
 		return nil
 	}
 	var responseData map[string]interface{}
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
-		logging.Warn(ctx, "failed to unmarshal application update response for diagnostics", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to unmarshal application update response for diagnostics", tags, map[string]any{"error": err.Error()})
 		return nil
 	}
 	logging.Debug(ctx, "API RESPONSE", tags)
 	if responseJSON, err := json.MarshalIndent(responseData, "", "  "); err == nil {
 		logging.Debug(ctx, string(responseJSON), tags)
 	} else {
-		logging.Warn(ctx, "failed to marshal application update response for logging", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to marshal application update response for logging", tags, map[string]any{"error": err.Error()})
 	}
 
 	// Show specific advanced settings from response
@@ -2539,7 +2524,7 @@ func convertNestedBlocksToSAMLConfig(nestedData map[string]interface{}) (SAMLCon
 		for _, attrmapData := range attrmapBlocks {
 			attrmapMap, ok := attrmapData.(map[string]interface{})
 			if !ok {
-				continue
+				continue // SAML attrmap entries come from Terraform schema; type assertion failure here is unexpected
 			}
 			attrMapping := AttrMapping{}
 			if name, ok := attrmapMap["name"].(string); ok {
@@ -2580,7 +2565,7 @@ func convertNestedBlocksToOIDCConfig(nestedData map[string]interface{}) (*OIDCCo
 		for _, clientData := range oidcClients {
 			clientMap, ok := clientData.(map[string]interface{})
 			if !ok {
-				continue
+				continue // OIDC client entries come from Terraform schema; type assertion failure here is unexpected
 			}
 			client := OIDCClient{}
 			if clientName, ok := clientMap["client_name"].(string); ok {
@@ -2624,7 +2609,7 @@ func convertNestedBlocksToOIDCConfig(nestedData map[string]interface{}) (*OIDCCo
 				for _, claimData := range claims {
 					claimMap, ok := claimData.(map[string]interface{})
 					if !ok {
-						continue
+						continue // OIDC claim entries come from Terraform schema; type assertion failure here is unexpected
 					}
 					claim := OIDCClaim{}
 					if name, ok := claimMap["name"].(string); ok {

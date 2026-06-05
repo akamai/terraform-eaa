@@ -133,14 +133,16 @@ func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, 
 func FormatErrorResponse(errResp *http.Response) (string, error) {
 	var errResponse ErrorResponse
 	data, err := io.ReadAll(errResp.Body)
-
-	if err == nil {
-		if unmarshalErr := json.Unmarshal(data, &errResponse); unmarshalErr != nil {
-			return "", logging.Wrapf(unmarshalErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to unmarshal error response")
-		}
-		return errResponse.Detail, nil
+	if err != nil {
+		return "", logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to read error response body")
 	}
-	return "", logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to read error response body")
+	// Reset the body so it can be read again if needed
+	errResp.Body = io.NopCloser(bytes.NewBuffer(data))
+
+	if unmarshalErr := json.Unmarshal(data, &errResponse); unmarshalErr != nil {
+		return "", logging.Wrapf(unmarshalErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to unmarshal error response")
+	}
+	return errResponse.Detail, nil
 }
 
 func FormatErrorDescription(errResp *http.Response) string {

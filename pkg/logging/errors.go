@@ -7,17 +7,16 @@ import (
 	"strings"
 )
 
+// Tag classifies a log or error entry by source, operation, or resource.
 type Tag string
 
 const (
-	// TagAPI indicates the error originated from an API call.
+	// TagAPI indicates the operation involves an API call.
 	TagAPI Tag = "API"
-	// TagProvider indicates the error originated from the Terraform provider.
+	// TagProvider indicates the operation involves the Terraform provider.
 	TagProvider Tag = "PROVIDER"
-	// TagConfig indicates a configuration error.
+	// TagConfig indicates a configuration-related operation.
 	TagConfig Tag = "CONFIG"
-	// TagAuth identifies authentication-related operations.
-	TagAuth Tag = "AUTH"
 
 	// TagApp identifies the application resource.
 	TagApp Tag = "APP"
@@ -60,32 +59,46 @@ const (
 	TagList Tag = "LIST"
 	// TagMarshal identifies a marshaling operation.
 	TagMarshal Tag = "MARSHAL"
+	// TagAuth identifies an authentication-related operation.
+	TagAuth Tag = "AUTH"
 )
 
+// EAAError is a tagged error that carries structured context for logging and diagnostic classification.
 type EAAError struct {
-	Wrapped error
-	Message string
-	Tags    []Tag
+	wrapped error
+	message string
+	tags    []Tag
 }
 
 func (e *EAAError) Error() string {
-	prefix := FormatTags(e.Tags)
-	msg := e.Message
+	prefix := FormatTags(e.tags)
+	msg := e.message
 	if prefix != "" {
 		msg = prefix + " " + msg
 	}
-	if e.Wrapped != nil {
-		msg += ": " + e.Wrapped.Error()
+	if e.wrapped != nil {
+		msg += ": " + e.wrapped.Error()
 	}
 	return msg
 }
 
-func (e *EAAError) Unwrap() error { return e.Wrapped }
+// Unwrap returns the underlying wrapped error, if any.
+func (e *EAAError) Unwrap() error { return e.wrapped }
 
+// Message returns just the outer message without the wrapped error.
+func (e *EAAError) Message() string { return e.message }
+
+// HasTag reports whether this error contains the given tag.
 func (e *EAAError) HasTag(t Tag) bool {
-	return slices.Contains(e.Tags, t)
+	return slices.Contains(e.tags, t)
 }
 
+// Tags returns the tags associated with this error.
+func (e *EAAError) Tags() []Tag {
+	return slices.Clone(e.tags)
+}
+
+// FormatTags formats a slice of tags as bracket-delimited prefixes, e.g. "[API][APP]".
 func FormatTags(tags []Tag) string {
 	var b strings.Builder
 	for _, t := range tags {
@@ -96,21 +109,28 @@ func FormatTags(tags []Tag) string {
 	return b.String()
 }
 
+// Errorf creates a new EAAError with the given tags and formatted message.
 func Errorf(tags []Tag, format string, args ...any) *EAAError {
 	return &EAAError{
-		Tags:    tags,
-		Message: fmt.Sprintf(format, args...),
+		tags:    slices.Clone(tags),
+		message: fmt.Sprintf(format, args...),
 	}
 }
 
+// Wrapf wraps an existing error in an EAAError, adding tags and a formatted message.
+// If err is nil, it delegates to Errorf (no wrapped cause to preserve).
 func Wrapf(err error, tags []Tag, format string, args ...any) *EAAError {
+	if err == nil {
+		return Errorf(tags, format, args...)
+	}
 	return &EAAError{
-		Tags:    tags,
-		Message: fmt.Sprintf(format, args...),
-		Wrapped: err,
+		tags:    slices.Clone(tags),
+		message: fmt.Sprintf(format, args...),
+		wrapped: err,
 	}
 }
 
+// HasTag reports whether err (or any error in its chain) is an *EAAError containing the given tag.
 func HasTag(err error, t Tag) bool {
 	if eaaErr, ok := errors.AsType[*EAAError](err); ok {
 		return eaaErr.HasTag(t)

@@ -503,7 +503,7 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			desc := client.FormatErrorDescription(resp)
-			return logging.DiagFromErrf(nil, tags, "connector pool update rejected (HTTP %d): %s", resp.StatusCode, desc)
+			return logging.DiagErrorf(tags, "connector pool update rejected (HTTP %d): %s", resp.StatusCode, desc)
 		}
 	}
 
@@ -703,11 +703,11 @@ func resourceEaaConnectorPoolUpdate(ctx context.Context, d *schema.ResourceData,
 
 // resourceEaaConnectorPoolDelete deletes an existing EAA connector pool.
 func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	tags := []logging.Tag{logging.TagProvider, logging.TagConnPool, logging.TagDelete}
 	eaaclient, err := Client(m)
 	if err != nil {
-		return diag.FromErr(err)
+		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
-	tags := []logging.Tag{logging.TagProvider, logging.TagConnPool, logging.TagDelete}
 
 	id := d.Id()
 	logging.Info(ctx, "deleting connector pool", tags, map[string]any{"id": id})
@@ -717,7 +717,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	currentApps, err := client.GetAppNamesAssignedToPool(ctx, eaaclient, id)
 	switch {
 	case err != nil:
-		return diag.Errorf("cannot destroy connector pool: failed to get assigned apps: %v", err)
+		return logging.DiagFromErrf(err, tags, "cannot destroy connector pool: failed to get assigned apps")
 	case len(currentApps) == 0:
 		logging.Debug(ctx, "no apps currently assigned to pool", tags)
 	default:
@@ -725,7 +725,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 
 		err = client.UnassignConnectorPoolFromApps(ctx, eaaclient, id, currentApps)
 		if err != nil {
-			return diag.Errorf("cannot destroy connector pool: failed to disassociate apps: %v", err)
+			return logging.DiagFromErrf(err, tags, "cannot destroy connector pool: failed to disassociate apps")
 		}
 	}
 
@@ -734,7 +734,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	currentConnectors, err := client.GetConnectorNamesInPool(ctx, eaaclient, id)
 	switch {
 	case err != nil:
-		return diag.Errorf("cannot destroy connector pool: failed to get connectors: %v", err)
+		return logging.DiagFromErrf(err, tags, "cannot destroy connector pool: failed to get connectors")
 	case len(currentConnectors) == 0:
 		logging.Debug(ctx, "no connectors currently in pool", tags)
 	default:
@@ -742,7 +742,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 
 		err = client.UnassignConnectorsFromPoolByName(ctx, eaaclient, id, currentConnectors)
 		if err != nil {
-			return diag.Errorf("cannot destroy connector pool: connectors cannot be disassociated due to EAA business rules: %v", err)
+			return logging.DiagFromErrf(err, tags, "cannot destroy connector pool: connectors cannot be disassociated due to EAA business rules")
 		}
 	}
 
@@ -758,7 +758,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	case err != nil:
 		logging.Warn(ctx, "could not verify app disassociation", tags, map[string]any{"error": err.Error()})
 	case len(currentAppsAfter) > 0:
-		return diag.Errorf("cannot destroy connector pool %s: apps still assigned after disassociation: %v", id, currentAppsAfter)
+		return logging.DiagErrorf(tags, "cannot destroy connector pool %s: apps still assigned after disassociation: %v", id, currentAppsAfter)
 	}
 
 	// Verify connectors are disassociated
@@ -767,7 +767,7 @@ func resourceEaaConnectorPoolDelete(ctx context.Context, d *schema.ResourceData,
 	case err != nil:
 		logging.Warn(ctx, "could not verify connector disassociation", tags, map[string]any{"error": err.Error()})
 	case len(currentConnectorsAfter) > 0:
-		return diag.Errorf("cannot destroy connector pool %s: connectors still in pool after disassociation: %v", id, currentConnectorsAfter)
+		return logging.DiagErrorf(tags, "cannot destroy connector pool %s: connectors still in pool after disassociation: %v", id, currentConnectorsAfter)
 	}
 
 	// STEP 4: Now delete the empty connector pool
