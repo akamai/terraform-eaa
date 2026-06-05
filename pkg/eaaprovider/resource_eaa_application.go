@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	ErrGetApp      = errors.New("app get failed")
 	ErrInvalidData = errors.New("invalid data in schema")
 )
 
@@ -1262,12 +1261,15 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	// Check if the "service" attribute is present and has changed
 	if d.HasChange("service") {
-		// Get the service attribute as a list (since it is defined as a list in the schema)
-		services, ok := d.Get("service").([]interface{})
-		if !ok {
-			return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid service data")...)
+		servicesRaw, hasService := d.GetOk("service")
+		var services []interface{}
+		if hasService {
+			var ok bool
+			services, ok = servicesRaw.([]interface{})
+			if !ok {
+				return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid service data")...)
+			}
 		}
 
 		if len(services) > 0 {

@@ -547,7 +547,7 @@ func (mcar *MinimalCreateAppRequest) CreateMinimalApplication(ctx context.Contex
 
 	if createAppResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(createAppResp)
-		createErrMsg := logging.Errorf(tags, "app creation failed: %s", desc)
+		createErrMsg := logging.Wrapf(ErrAppCreate, tags, "%s", desc)
 		logging.Warn(ctx, "create minimal Application failed", tags, map[string]any{"status": createAppResp.StatusCode, "description": desc})
 		return nil, createErrMsg
 	}
@@ -577,7 +577,7 @@ func (car *CreateAppRequest) CreateApplication(ctx context.Context, ec *EaaClien
 
 	if createAppResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(createAppResp)
-		createErrMsg := logging.Errorf(tags, "app creation failed: %s", desc)
+		createErrMsg := logging.Wrapf(ErrAppCreate, tags, "%s", desc)
 		logging.Warn(ctx, "create Application failed", tags, map[string]any{"status": createAppResp.StatusCode, "description": desc})
 		return nil, createErrMsg
 	}
@@ -943,7 +943,7 @@ func (app *Application) UpdateG2O(ctx context.Context, ec *EaaClient) (*G2ORespo
 	if g2ohttpResp.StatusCode < http.StatusOK || g2ohttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(g2ohttpResp)
 		logging.Warn(ctx, "g2o request failed", tags, map[string]any{"status": g2ohttpResp.StatusCode, "description": desc})
-		return nil, logging.Errorf(tags, "app update failed: %s", desc)
+		return nil, logging.Wrapf(ErrAppUpdate, tags, "%s", desc)
 	}
 	return &g2oResp, nil
 }
@@ -962,7 +962,7 @@ func (app *Application) UpdateEdgeAuthentication(ctx context.Context, ec *EaaCli
 	if edgeAuthhttpResp.StatusCode < http.StatusOK || edgeAuthhttpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(edgeAuthhttpResp)
 		logging.Warn(ctx, "edge authentication cookie request failed", tags, map[string]any{"status": edgeAuthhttpResp.StatusCode, "description": desc})
-		return nil, logging.Errorf(tags, "app update failed: %s", desc)
+		return nil, logging.Wrapf(ErrAppUpdate, tags, "%s", desc)
 	}
 	return &edgeAuthResp, nil
 }
@@ -981,7 +981,7 @@ func (app *Application) DeployApplication(ctx context.Context, ec *EaaClient) er
 
 	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(deployResp)
-		return logging.Errorf(tags, "app deploy failed (HTTP %d): %s", deployResp.StatusCode, desc)
+		return logging.Wrapf(ErrDeploy, tags, "HTTP %d: %s", deployResp.StatusCode, desc)
 	}
 	return nil
 }
@@ -998,7 +998,7 @@ func (app *Application) DeleteApplication(ctx context.Context, ec *EaaClient) er
 
 	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(deleteResp)
-		return logging.Errorf(tags, "app delete failed (HTTP %d): %s", deleteResp.StatusCode, desc)
+		return logging.Wrapf(ErrAppDelete, tags, "HTTP %d: %s", deleteResp.StatusCode, desc)
 	}
 	return nil
 }
@@ -1683,7 +1683,7 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appUpdResp)
 		logging.Error(ctx, "update application failed", tags, map[string]any{"status": appUpdResp.StatusCode, "description": desc})
-		return logging.Errorf(tags, "app update failed (HTTP %d): %s", appUpdResp.StatusCode, desc)
+		return logging.Wrapf(ErrAppUpdate, tags, "HTTP %d: %s", appUpdResp.StatusCode, desc)
 	}
 
 	// Post-success: log response for diagnostics (non-fatal if this fails)

@@ -43,7 +43,7 @@ type GetRequestOptions struct {
 // are Expand=true and Limit=0 when opts are not provided.
 func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, in, out interface{}, global bool, opts ...GetRequestOptions) (*http.Response, error) {
 	if len(opts) > 1 {
-		return nil, logging.Errorf([]logging.Tag{logging.TagAPI, logging.TagValidate}, "expected at most one GetRequestOptions, got %d", len(opts))
+		return nil, logging.Wrapf(ErrInvalidArgument, []logging.Tag{logging.TagAPI, logging.TagValidate}, "expected at most one GetRequestOptions, got %d", len(opts))
 	}
 
 	defaultExpand := true
@@ -104,7 +104,7 @@ func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close on HTTP response body
 
 	// Read the response body
 	responseBody, err := io.ReadAll(resp.Body)

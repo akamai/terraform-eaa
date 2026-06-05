@@ -20,7 +20,7 @@ func (ai *AppIdp) AssignIDP(ctx context.Context, ec *EaaClient) error {
 
 	if ai.App == "" || ai.IDP == "" {
 		logging.Warn(ctx, "assigning IDP to Application failed: app or idp is empty", tags)
-		return logging.Errorf(tags, "assigning IDP to application failed: app or idp is empty")
+		return logging.Wrapf(ErrAssignIdpFailure, tags, "app or idp is empty")
 	}
 	apiURL := fmt.Sprintf("%s://%s/%s/appidp", URL_SCHEME, ec.Host, MGMT_POP_URL)
 	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
@@ -33,7 +33,7 @@ func (ai *AppIdp) AssignIDP(ctx context.Context, ec *EaaClient) error {
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
 		logging.Warn(ctx, "assigning IDP to Application failed", tags, map[string]any{"status": appIdpResp.StatusCode})
-		return logging.Errorf(tags, "assigning IDP to application failed: %s", desc)
+		return logging.Wrapf(ErrAssignIdpFailure, tags, "%s", desc)
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func (ai *AppIdp) UnAssignIDP(ctx context.Context, ec *EaaClient) error {
 
 	if ai.App == "" || ai.IDP == "" {
 		logging.Warn(ctx, "unassigning IDP from Application failed: app or idp is empty", tags)
-		return logging.Errorf(tags, "unassigning IDP from application failed: app or idp is empty")
+		return logging.Wrapf(ErrAssignIdpFailure, tags, "app or idp is empty")
 	}
 	var unassignIdp UnAssignIDPRequest
 
@@ -65,7 +65,7 @@ func (ai *AppIdp) UnAssignIDP(ctx context.Context, ec *EaaClient) error {
 	if appIdpResp.StatusCode < http.StatusOK || appIdpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appIdpResp)
 		logging.Warn(ctx, "unassigning IDP from Application failed", tags, map[string]any{"status": appIdpResp.StatusCode})
-		return logging.Errorf(tags, "unassigning IDP from application failed: %s", desc)
+		return logging.Wrapf(ErrAssignIdpFailure, tags, "%s", desc)
 	}
 	return nil
 }

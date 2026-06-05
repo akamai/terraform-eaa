@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 // ValidateCustomHeadersConfiguration validates custom headers configuration.
@@ -205,9 +204,13 @@ type AuthValidationConfig struct {
 	AppAuthValues []string // Valid app_auth values for this protocol (e.g., ["saml", "SAML2.0"])
 }
 
+type authSettingsLookup interface {
+	GetOk(key string) (interface{}, bool)
+}
+
 // isAuthProtocolEnabled checks if an authentication protocol is enabled by checking both
 // the direct flag and app_auth in advanced_settings
-func isAuthProtocolEnabled(ctx context.Context, d *schema.ResourceDiff, config AuthValidationConfig) bool {
+func isAuthProtocolEnabled(ctx context.Context, d authSettingsLookup, config AuthValidationConfig) bool {
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
 
 	// Check direct flag
@@ -237,7 +240,7 @@ func isAuthProtocolEnabled(ctx context.Context, d *schema.ResourceDiff, config A
 
 // getFirstSettingsBlock retrieves the first block from a settings list in the schema
 // Returns the block map and true if found, or nil and false if not found
-func getFirstSettingsBlock(ctx context.Context, d *schema.ResourceDiff, settingsKey string) (map[string]interface{}, bool) {
+func getFirstSettingsBlock(ctx context.Context, d authSettingsLookup, settingsKey string) (map[string]interface{}, bool) {
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
 
 	settings, ok := d.GetOk(settingsKey)
@@ -281,7 +284,7 @@ func validateIDPSelfSignedCert(ctx context.Context, idpBlock map[string]interfac
 }
 
 // ValidateWSFEDNestedBlocks validates WSFED nested blocks configuration.
-func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+func ValidateWSFEDNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}) error {
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
 	logging.Debug(ctx, "validateWSFEDNestedBlocks called", tags)
 
@@ -318,7 +321,7 @@ func ValidateWSFEDNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m in
 }
 
 // ValidateSAMLNestedBlocks validates SAML nested blocks configuration.
-func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+func ValidateSAMLNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}) error {
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
 	logging.Debug(ctx, "validateSAMLNestedBlocks called", tags)
 
@@ -376,7 +379,7 @@ func ValidateSAMLNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m int
 }
 
 // ValidateOIDCNestedBlocks validates OIDC nested blocks configuration.
-func ValidateOIDCNestedBlocks(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+func ValidateOIDCNestedBlocks(ctx context.Context, d authSettingsLookup, m interface{}) error {
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagValidate}
 	logging.Debug(ctx, "validateOIDCNestedBlocks called", tags)
 

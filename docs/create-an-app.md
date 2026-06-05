@@ -43,7 +43,7 @@ This resource supports the following arguments:
   * app_idp - Name of the application IDP
     * app_directories - List of application directories
       * name - Name of the dictionary
-      * app_groups - list of subset of directory's groups that are assigned to the application.
+      * app_groups - list of subset of directory's groups that are assigned to the application. Every group name must exist; unmatched names now fail validation instead of being skipped.
 * ```app_auth``` - (Optional) Application-to-origin authentication method (configured in `advanced_settings`). See [Authentication Parameters](./authentication_advsettings.md). Default "none"
 * ```wapp_auth``` - (Optional) User-facing authentication at the access page (configured in `advanced_settings`). See [Authentication Parameters](./authentication_advsettings.md). Default "form"
 * ```protocol``` - (Optional, for SaaS apps) Authentication protocol. Allowed values: "SAML", "SAML2.0", "OpenID Connect 1.0", "OIDC", "WSFed", "WS-Federation". Note: For WS-Federation, both "WSFed" and "WS-Federation" are supported (lowercase "wsfed" is NOT supported). See [Application Type Configurations](./app-type-configurations.md) for settings, limitations, and restrictions, and [Authentication Parameters](./authentication_advsettings.md) for details.

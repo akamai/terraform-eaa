@@ -1,0 +1,60 @@
+package eaaprovider
+
+import (
+	"testing"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func assertDataSourceBasics(t *testing.T, ds *schema.Resource, fieldName string, fieldType schema.ValueType) {
+	t.Helper()
+	require.NotNil(t, ds)
+	assert.NotNil(t, ds.ReadContext, "ReadContext must be set")
+	f, ok := ds.Schema[fieldName]
+	require.True(t, ok, "schema must contain %q field", fieldName)
+	assert.Equal(t, fieldType, f.Type, "field %q type mismatch", fieldName)
+}
+
+func requireErrIs(t *testing.T, err error, wantErr bool, errIs error) bool {
+	t.Helper()
+	return testsupport.RequireErrIs(t, err, wantErr, errIs)
+}
+
+func createTestResourceDataFor(t *testing.T, resourceFunc func() *schema.Resource, data map[string]any) *schema.ResourceData {
+	t.Helper()
+	resource := resourceFunc()
+	d := resource.Data(nil)
+	for key, value := range data {
+		require.NoError(t, d.Set(key, value), "failed to set %q", key)
+	}
+	return d
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+// validateFuncCase holds a single test case for schema.SchemaValidateFunc tests.
+type validateFuncCase struct {
+	val     any
+	wantErr bool
+}
+
+// testValidateFunc runs table-driven tests for a schema.SchemaValidateFunc.
+func testValidateFunc(t *testing.T, vf schema.SchemaValidateFunc, fieldName string, tests map[string]validateFuncCase) {
+	t.Helper()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			warns, errs := vf(tc.val, fieldName)
+			assert.Empty(t, warns)
+			if tc.wantErr {
+				assert.NotEmpty(t, errs, "expected validation error")
+			} else {
+				assert.Empty(t, errs, "expected no validation errors")
+			}
+		})
+	}
+}

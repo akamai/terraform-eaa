@@ -37,7 +37,7 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 
 	if dirData.APP_ID == "" || dirData.UUID == "" {
 		logging.Warn(ctx, "assign directories to application failed: app or dir is empty", tags)
-		return logging.Errorf(tags, "assigning directory to the app failed: app or dir is empty")
+		return logging.Wrapf(ErrAssignDirectoryFailure, tags, "app or dir is empty")
 	}
 	var directories []map[string]interface{}
 
@@ -70,7 +70,7 @@ func (dirData *AppDirectory) AssignIdpDirectory(ctx context.Context, ec *EaaClie
 	if appDirResp.StatusCode < http.StatusOK || appDirResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appDirResp)
 		logging.Warn(ctx, "assign directories to application failed", tags, map[string]any{"status": appDirResp.StatusCode})
-		return logging.Errorf(tags, "assigning directory to the app failed: %s", desc)
+		return logging.Wrapf(ErrAssignDirectoryFailure, tags, "%s", desc)
 	}
 	return nil
 }
@@ -107,7 +107,9 @@ func (dirData *DirectoryData) AssignIdpDirectoryGroups(ctx context.Context, ec *
 		}
 		grp, err := dirData.GetIdpDirectoryGroup(ctx, ec, gn)
 		if err != nil {
-			continue
+			// Fail closed: return an error when a referenced group cannot be resolved.
+			// This avoids silently dropping intended assignments.
+			return fmt.Errorf("group %q not found in directory %q: %w", gn, dirData.Name, err)
 		}
 		appgroup.UUIDURL = grp.UUID_URL
 

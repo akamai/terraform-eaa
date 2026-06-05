@@ -3,22 +3,10 @@ package eaaprovider
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
-
-// convertStringToInt converts string to int, returns 0 if conversion fails
-func convertStringToInt(value string) int {
-	if value == "" {
-		return 0
-	}
-	if i, err := strconv.Atoi(value); err == nil {
-		return i
-	}
-	return 0
-}
 
 func stringPointerValue(value *string) interface{} {
 	if value == nil {
