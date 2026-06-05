@@ -16,7 +16,7 @@ const (
 	TagProvider Tag = "PROVIDER"
 	// TagConfig indicates a configuration error.
 	TagConfig Tag = "CONFIG"
-	// TagAuth indicates an authentication error.
+	// TagAuth identifies authentication-related operations.
 	TagAuth Tag = "AUTH"
 
 	// TagApp identifies the application resource.
@@ -70,7 +70,10 @@ type EAAError struct {
 
 func (e *EAAError) Error() string {
 	prefix := FormatTags(e.Tags)
-	msg := prefix + " " + e.Message
+	msg := e.Message
+	if prefix != "" {
+		msg = prefix + " " + msg
+	}
 	if e.Wrapped != nil {
 		msg += ": " + e.Wrapped.Error()
 	}

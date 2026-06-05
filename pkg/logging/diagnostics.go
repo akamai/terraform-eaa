@@ -1,8 +1,6 @@
 package logging
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
@@ -37,5 +35,5 @@ func DiagFromErr(err error, tags []Tag, msg string) diag.Diagnostics {
 }
 
 func DiagFromErrf(err error, tags []Tag, format string, args ...any) diag.Diagnostics {
-	return DiagError(Wrapf(err, tags, "%s", fmt.Sprintf(format, args...)))
+	return DiagError(Wrapf(err, tags, format, args...))
 }

@@ -7,6 +7,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
+var resourceTags = map[Tag]bool{
+	TagApp: true, TagConnector: true, TagConnPool: true, TagIDP: true,
+	TagCert: true, TagAppService: true, TagAgent: true, TagDirectory: true,
+	TagAppBundle: true, TagCipher: true, TagPopTraffic: true,
+}
+
 func mergeFields(tags []Tag, extra ...map[string]any) map[string]any {
 	fields := make(map[string]any, len(extra)+2)
 	for _, m := range extra {
@@ -21,6 +27,9 @@ func mergeFields(tags []Tag, extra ...map[string]any) map[string]any {
 			fields["operation"] = string(t)
 		default:
 			fields["resource"] = string(t)
+			if !resourceTags[t] {
+				fields["unknown_tag"] = string(t)
+			}
 		}
 	}
 	return fields
@@ -40,4 +49,8 @@ func Trace(ctx context.Context, msg string, tags []Tag, extra ...map[string]any)
 
 func Warn(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
 	tflog.Warn(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+}
+
+func Error(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
+	tflog.Error(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
 }

@@ -116,7 +116,7 @@ func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema
 	}
 
 	// Validate and set the token name
-	tokenName, err := ValidateRequiredString(d, "registration_tokens.0.name", ctx)
+	tokenName, err := ValidateRequiredString(ctx, d, "registration_tokens.0.name")
 	if err != nil {
 		return logging.Wrapf(err, tags, "failed to validate token name")
 	}
@@ -124,7 +124,7 @@ func (r *RegistrationTokenWriteRequest) CreateRegistrationTokenRequestFromSchema
 
 	// Set max_use (optional, default to 1 if not specified)
 	if maxUseRaw, exists := tokenData["max_use"]; exists {
-		maxUseValue, validateErr := ValidateIntegerField(maxUseRaw, "max_use", 1, 1000, ctx)
+		maxUseValue, validateErr := ValidateIntegerField(ctx, maxUseRaw, "max_use", 1, 1000)
 		if validateErr != nil {
 			return validateErr
 		}
@@ -430,7 +430,7 @@ func CreateRegistrationTokensFromSchema(ctx context.Context, d *schema.ResourceD
 		}
 
 		// Validate max_use and expires_at fields
-		maxUse, err := ValidateIntegerField(tokenData["max_use"], "max_use", 1, 1000, ctx)
+		maxUse, err := ValidateIntegerField(ctx, tokenData["max_use"], "max_use", 1, 1000)
 		if err != nil {
 			return err
 		}

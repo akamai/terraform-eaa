@@ -314,8 +314,8 @@ func GetACLService(ctx context.Context, ec *EaaClient, appUUIDURL string) (*AppS
 	logging.Info(ctx, "GetACLService", tags)
 
 	if appUUIDURL == "" {
-		logging.Warn(ctx, "get access service failed: empty uuid_url", tags)
-		return nil, logging.Errorf(tags, "enable service failed: empty uuid_url")
+		logging.Warn(ctx, "get ACL service failed: empty uuid_url", tags)
+		return nil, logging.Errorf(tags, "get ACL service failed: empty uuid_url")
 	}
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/services", URL_SCHEME, ec.Host, APPS_URL, appUUIDURL)
 	asResponse := AppServicesResponse{}
@@ -469,7 +469,7 @@ func GetAccessControlRules(ctx context.Context, ec *EaaClient, serviceUUIDURL st
 
 	if serviceUUIDURL == "" {
 		logging.Warn(ctx, "get access control rules failed: empty uuid_url", tags)
-		return nil, logging.Errorf(tags, "enable service failed: empty uuid_url")
+		return nil, logging.Errorf(tags, "get access control rules failed: empty uuid_url")
 	}
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/rules", URL_SCHEME, ec.Host, SERVICES_URL, serviceUUIDURL)
 	asResponse := ACLRulesResponse{}

@@ -104,6 +104,7 @@ func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, 
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	// Read the response body
 	responseBody, err := io.ReadAll(resp.Body)

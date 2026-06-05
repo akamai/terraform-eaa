@@ -66,7 +66,7 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 		}
 		directoryList, err := GetIDPDirectories(ctx, ec, idp.UUIDURL)
 		if err != nil {
-			return nil, logging.Errorf(tags, "idps get failed")
+			return nil, logging.Wrapf(err, tags, "failed to get directories for IDP '%s'", idp.Name)
 		}
 		idpData := IDPData{
 			Name:        idp.Name,
@@ -100,7 +100,7 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 		if idp.Name == idpName {
 			directoryList, err := GetIDPDirectories(ctx, ec, idp.UUIDURL)
 			if err != nil {
-				return nil, logging.Errorf(tags, "idps get failed")
+				return nil, logging.Wrapf(err, tags, "failed to get directories for IDP '%s'", idpName)
 			}
 			idpData := IDPData{
 				Name:        idp.Name,
@@ -185,8 +185,8 @@ func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interf
 					}
 					dirData, err := idpData.GetIdpDirectory(ctx, ec, dirName)
 					if err != nil {
-						logging.Info(ctx, "directory with name does not exist", tags)
-						continue
+						logging.Error(ctx, "directory not found", tags, map[string]any{"name": dirName, "error": err})
+						return logging.Wrapf(err, tags, "directory '%s' not found in IDP", dirName)
 					}
 					appdir.UUID = dirData.UUID
 					appdir.APP_ID = appUUIDURL

@@ -253,7 +253,7 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 // ============================================================================
 
 // ValidateRequiredString validates that a required string field is present and non-empty
-func ValidateRequiredString(d *schema.ResourceData, fieldName string, ctx context.Context) (string, error) {
+func ValidateRequiredString(ctx context.Context, d *schema.ResourceData, fieldName string) (string, error) {
 	value, ok := d.GetOk(fieldName)
 	if !ok {
 		return "", logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "'%s' is required but missing", fieldName)
@@ -268,7 +268,7 @@ func ValidateRequiredString(d *schema.ResourceData, fieldName string, ctx contex
 }
 
 // ValidateOptionalString validates that an optional string field is a string if present
-func ValidateOptionalString(d *schema.ResourceData, fieldName string, ctx context.Context) (string, error) {
+func ValidateOptionalString(ctx context.Context, d *schema.ResourceData, fieldName string) (string, error) {
 	if value, ok := d.GetOk(fieldName); ok {
 		valueStr, ok := value.(string)
 		if !ok {
@@ -297,7 +297,7 @@ func ValidateStringInSlice(val, key string, validValues []string) (warns []strin
 }
 
 // ValidateIntegerField validates an integer field with type checking and range validation
-func ValidateIntegerField(value interface{}, fieldName string, minValue, maxValue int, ctx context.Context) (int, error) {
+func ValidateIntegerField(ctx context.Context, value interface{}, fieldName string, minValue, maxValue int) (int, error) {
 	// Type checking
 	intValue, ok := value.(int)
 	if !ok {

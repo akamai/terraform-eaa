@@ -170,8 +170,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppType = value
-		logging.Info(ctx, "appType", tags, map[string]any{"appType": appType})
-		logging.Info(ctx, "car.AppType", tags, map[string]any{"car.AppType": car.AppType})
+		logging.Debug(ctx, "appType", tags, map[string]any{"appType": appType})
+		logging.Debug(ctx, "car.AppType", tags, map[string]any{"car.AppType": car.AppType})
 	} else {
 		logging.Debug(ctx, "appType is not present, defaulting to enterprise", tags)
 		car.AppType = int(APP_TYPE_ENTERPRISE_HOSTED)
@@ -190,8 +190,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.AppProfile = value
-		logging.Info(ctx, "appProfile", tags, map[string]any{"appProfile": appProfile})
-		logging.Info(ctx, "car.AppProfile", tags, map[string]any{"car.AppProfile": car.AppProfile})
+		logging.Debug(ctx, "appProfile", tags, map[string]any{"appProfile": appProfile})
+		logging.Debug(ctx, "car.AppProfile", tags, map[string]any{"car.AppProfile": car.AppProfile})
 	} else {
 		logging.Debug(ctx, "appProfile is not present, defaulting to http", tags)
 		car.AppProfile = int(APP_PROFILE_HTTP)
@@ -210,8 +210,8 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 			return ErrInvalidValue
 		}
 		car.ClientAppMode = value
-		logging.Info(ctx, "appMode", tags, map[string]any{"appMode": clientAppMode})
-		logging.Info(ctx, "car.ClientAppMode", tags, map[string]any{"car.ClientAppMode": car.ClientAppMode})
+		logging.Debug(ctx, "appMode", tags, map[string]any{"appMode": clientAppMode})
+		logging.Debug(ctx, "car.ClientAppMode", tags, map[string]any{"car.ClientAppMode": car.ClientAppMode})
 	} else {
 		logging.Debug(ctx, "appMode is not present, defaulting to tcp", tags)
 		car.ClientAppMode = int(CLIENT_APP_MODE_TCP)
@@ -652,9 +652,12 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 				// Check if app_idp key is present
 				if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
 					idpData, err := GetIdpWithName(ctx, ec, appIDPName)
-					if err != nil || idpData == nil {
-						logging.Warn(ctx, "get idp by name failed", tags, map[string]any{"error": err})
+					if err != nil {
+						logging.Error(ctx, "get idp by name failed", tags, map[string]any{"error": err})
 						return err
+					}
+					if idpData == nil {
+						return logging.Errorf(tags, "IDP '%s' not found", appIDPName)
 					}
 					logging.Debug(ctx, "IDP assignment context", tags, map[string]any{"appID": appID, "app_idp_name": appIDPName, "idp_uuid_url": idpData.UUIDURL})
 					logging.Debug(ctx, "assigning IDP to application", tags)
@@ -977,7 +980,8 @@ func (app *Application) DeployApplication(ctx context.Context, ec *EaaClient) er
 	}
 
 	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
-		return logging.Errorf(tags, "app deploy failed")
+		desc := FormatErrorDescription(deployResp)
+		return logging.Errorf(tags, "app deploy failed (HTTP %d): %s", deployResp.StatusCode, desc)
 	}
 	return nil
 }
@@ -993,7 +997,8 @@ func (app *Application) DeleteApplication(ctx context.Context, ec *EaaClient) er
 	}
 
 	if deleteResp.StatusCode < http.StatusOK || deleteResp.StatusCode >= http.StatusMultipleChoices {
-		return logging.Errorf(tags, "app delete failed")
+		desc := FormatErrorDescription(deleteResp)
+		return logging.Errorf(tags, "app delete failed (HTTP %d): %s", deleteResp.StatusCode, desc)
 	}
 	return nil
 }
@@ -1540,12 +1545,14 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 	if popRegion, ok := d.GetOk("popregion"); ok {
 		if popregionstr, ok := popRegion.(string); ok {
 			appUpdateReq.POPRegion = popregionstr
-			if popRegion != "" {
+			if popregionstr != "" {
 				popname, uuid, err := GetPopUUID(ctx, ec, popregionstr)
-				if err == nil {
-					appUpdateReq.POPName = popname
-					appUpdateReq.POP = uuid
+				if err != nil {
+					logging.Error(ctx, "POP region lookup failed", tags, map[string]any{"popregion": popregionstr, "error": err})
+					return logging.Wrapf(err, tags, "failed to resolve POP region '%s'", popregionstr)
 				}
+				appUpdateReq.POPName = popname
+				appUpdateReq.POP = uuid
 			}
 		}
 	}
@@ -1675,45 +1682,45 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateApplication(ctx context.Cont
 
 	if appUpdResp.StatusCode < http.StatusOK || appUpdResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(appUpdResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
-
-		logging.Warn(ctx, "update application failed", tags, map[string]any{"status": appUpdResp.StatusCode, "description": desc})
-		return updErrMsg
+		logging.Error(ctx, "update application failed", tags, map[string]any{"status": appUpdResp.StatusCode, "description": desc})
+		return logging.Errorf(tags, "app update failed (HTTP %d): %s", appUpdResp.StatusCode, desc)
 	}
 
-	// Parse the response to show the returned values
+	// Post-success: log response for diagnostics (non-fatal if this fails)
 	responseBody, err := io.ReadAll(appUpdResp.Body)
 	if err != nil {
-		logging.Warn(ctx, "failed to read application update response body", tags, map[string]any{"error": err})
+		logging.Warn(ctx, "failed to read application update response body for logging", tags, map[string]any{"error": err})
 		return nil
 	}
 	var responseData map[string]interface{}
-	if err := json.Unmarshal(responseBody, &responseData); err == nil {
-		logging.Debug(ctx, "API RESPONSE", tags)
-		if responseJSON, err := json.MarshalIndent(responseData, "", "  "); err == nil {
-			logging.Debug(ctx, string(responseJSON), tags)
-		} else {
-			logging.Warn(ctx, "failed to marshal application update response for logging", tags, map[string]any{"error": err})
-		}
+	if err := json.Unmarshal(responseBody, &responseData); err != nil {
+		logging.Warn(ctx, "failed to unmarshal application update response for diagnostics", tags, map[string]any{"error": err})
+		return nil
+	}
+	logging.Debug(ctx, "API RESPONSE", tags)
+	if responseJSON, err := json.MarshalIndent(responseData, "", "  "); err == nil {
+		logging.Debug(ctx, string(responseJSON), tags)
+	} else {
+		logging.Warn(ctx, "failed to marshal application update response for logging", tags, map[string]any{"error": err})
+	}
 
-		// Show specific advanced settings from response
-		if advancedSettings, ok := responseData["advanced_settings"].(map[string]interface{}); ok {
-			logging.Debug(ctx, "ADVANCED SETTINGS FROM RESPONSE", tags)
-			if appAuthDomain, exists := advancedSettings["app_auth_domain"]; exists {
-				logging.Debug(ctx, fmt.Sprintf("app_auth_domain: %v (type: %T)", appAuthDomain, appAuthDomain), tags)
-			} else {
-				logging.Debug(ctx, "app_auth_domain: not present in response", tags)
-			}
-			if appClientCertAuth, exists := advancedSettings["app_client_cert_auth"]; exists {
-				logging.Debug(ctx, fmt.Sprintf("app_client_cert_auth: %v (type: %T)", appClientCertAuth, appClientCertAuth), tags)
-			} else {
-				logging.Debug(ctx, "app_client_cert_auth: not present in response", tags)
-			}
-			if acceleration, exists := advancedSettings["acceleration"]; exists {
-				logging.Debug(ctx, fmt.Sprintf("acceleration: %v (type: %T)", acceleration, acceleration), tags)
-			} else {
-				logging.Debug(ctx, "acceleration: not present in response", tags)
-			}
+	// Show specific advanced settings from response
+	if advancedSettings, ok := responseData["advanced_settings"].(map[string]interface{}); ok {
+		logging.Debug(ctx, "ADVANCED SETTINGS FROM RESPONSE", tags)
+		if appAuthDomain, exists := advancedSettings["app_auth_domain"]; exists {
+			logging.Debug(ctx, fmt.Sprintf("app_auth_domain: %v (type: %T)", appAuthDomain, appAuthDomain), tags)
+		} else {
+			logging.Debug(ctx, "app_auth_domain: not present in response", tags)
+		}
+		if appClientCertAuth, exists := advancedSettings["app_client_cert_auth"]; exists {
+			logging.Debug(ctx, fmt.Sprintf("app_client_cert_auth: %v (type: %T)", appClientCertAuth, appClientCertAuth), tags)
+		} else {
+			logging.Debug(ctx, "app_client_cert_auth: not present in response", tags)
+		}
+		if acceleration, exists := advancedSettings["acceleration"]; exists {
+			logging.Debug(ctx, fmt.Sprintf("acceleration: %v (type: %T)", acceleration, acceleration), tags)
+		} else {
+			logging.Debug(ctx, "acceleration: not present in response", tags)
 		}
 	}
 

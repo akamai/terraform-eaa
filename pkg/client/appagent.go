@@ -61,7 +61,7 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		logging.Warn(ctx, "assign agents failed", tags, map[string]any{"status": agentsResp.StatusCode})
+		logging.Error(ctx, "assign agents failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
@@ -124,7 +124,7 @@ func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) erro
 	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		logging.Warn(ctx, "unassign agents failed", tags, map[string]any{"status": agentsResp.StatusCode})
+		logging.Error(ctx, "unassign agents failed", tags, map[string]any{"error": err})
 		return err
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {

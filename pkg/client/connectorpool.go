@@ -17,7 +17,7 @@ import (
 // ============================================================================
 
 // convertPackageType converts package_type string to integer using the type system
-func convertPackageType(packageTypeStr string, ctx context.Context) (int, error) {
+func convertPackageType(ctx context.Context, packageTypeStr string) (int, error) {
 	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if packageTypeStr == "" {
 		return 0, logging.Errorf(tags, "package_type cannot be empty")
@@ -33,7 +33,7 @@ func convertPackageType(packageTypeStr string, ctx context.Context) (int, error)
 }
 
 // convertInfraType converts infra_type string to integer using the type system
-func convertInfraType(infraTypeStr string, ctx context.Context) (int, error) {
+func convertInfraType(ctx context.Context, infraTypeStr string) (int, error) {
 	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if infraTypeStr == "" {
 		return 0, logging.Errorf(tags, "infra_type cannot be empty if provided")
@@ -49,7 +49,7 @@ func convertInfraType(infraTypeStr string, ctx context.Context) (int, error) {
 }
 
 // convertOperatingMode converts operating_mode string to integer using the type system
-func convertOperatingMode(operatingModeStr string, ctx context.Context) (int, error) {
+func convertOperatingMode(ctx context.Context, operatingModeStr string) (int, error) {
 	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if operatingModeStr == "" {
 		return 0, logging.Errorf(tags, "operating_mode cannot be empty if provided")
@@ -65,7 +65,7 @@ func convertOperatingMode(operatingModeStr string, ctx context.Context) (int, er
 }
 
 // validateAndConvertEnumField validates and converts an enum field from string to int
-func validateAndConvertEnumField(d *schema.ResourceData, fieldName string, converter func(string, context.Context) (int, error), ctx context.Context) (*int, error) {
+func validateAndConvertEnumField(ctx context.Context, d *schema.ResourceData, fieldName string, converter func(context.Context, string) (int, error)) (*int, error) {
 	tags := []logging.Tag{logging.TagConnPool, logging.TagValidate}
 	if value, ok := d.GetOk(fieldName); ok {
 		valueStr, ok := value.(string)
@@ -73,7 +73,7 @@ func validateAndConvertEnumField(d *schema.ResourceData, fieldName string, conve
 			return nil, logging.Errorf(tags, "%s must be a string, got %T", fieldName, value)
 		}
 
-		valueInt, err := converter(valueStr, ctx)
+		valueInt, err := converter(ctx, valueStr)
 		if err != nil {
 			return nil, err
 		}
@@ -133,26 +133,26 @@ type CreateConnectorPoolResponse struct {
 // CreateConnectorPoolRequestFromSchema creates a CreateConnectorPoolRequest from the schema
 func (ccpr *CreateConnectorPoolRequest) CreateConnectorPoolRequestFromSchema(ctx context.Context, d *schema.ResourceData, ec *EaaClient) error {
 	// Validate and set required fields
-	name, err := ValidateRequiredString(d, "name", ctx)
+	name, err := ValidateRequiredString(ctx, d, "name")
 	if err != nil {
 		return err
 	}
 	ccpr.Name = name
 
 	// Validate and set optional description
-	description, err := ValidateOptionalString(d, "description", ctx)
+	description, err := ValidateOptionalString(ctx, d, "description")
 	if err != nil {
 		return err
 	}
 	ccpr.Description = description
 
 	// Validate and convert package_type
-	packageTypeStr, err := ValidateRequiredString(d, "package_type", ctx)
+	packageTypeStr, err := ValidateRequiredString(ctx, d, "package_type")
 	if err != nil {
 		return err
 	}
 
-	packageTypeInt, err := convertPackageType(packageTypeStr, ctx)
+	packageTypeInt, err := convertPackageType(ctx, packageTypeStr)
 	if err != nil {
 		return err
 	}
@@ -163,12 +163,12 @@ func (ccpr *CreateConnectorPoolRequest) CreateConnectorPoolRequestFromSchema(ctx
 	ccpr.OperatingMode = nil
 
 	// Validate and convert optional enum fields
-	ccpr.InfraType, err = validateAndConvertEnumField(d, "infra_type", convertInfraType, ctx)
+	ccpr.InfraType, err = validateAndConvertEnumField(ctx, d, "infra_type", convertInfraType)
 	if err != nil {
 		return err
 	}
 
-	ccpr.OperatingMode, err = validateAndConvertEnumField(d, "operating_mode", convertOperatingMode, ctx)
+	ccpr.OperatingMode, err = validateAndConvertEnumField(ctx, d, "operating_mode", convertOperatingMode)
 	if err != nil {
 		return err
 	}
@@ -378,6 +378,7 @@ func GetConnectorsInPool(ctx context.Context, ec *EaaClient, poolUUID string) ([
 
 // GetConnectorNamesInPool retrieves the list of connector names currently in a connector pool
 func GetConnectorNamesInPool(ctx context.Context, ec *EaaClient, poolUUID string) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	connectorUUIDs, err := GetConnectorsInPool(ctx, ec, poolUUID)
 	if err != nil {
 		return nil, err
@@ -401,6 +402,8 @@ func GetConnectorNamesInPool(ctx context.Context, ec *EaaClient, poolUUID string
 	for _, uuid := range connectorUUIDs {
 		if name, exists := uuidToName[uuid]; exists {
 			connectorNames = append(connectorNames, name)
+		} else {
+			logging.Warn(ctx, "connector UUID could not be resolved to a name", tags, map[string]any{"uuid": uuid})
 		}
 	}
 
@@ -775,11 +778,6 @@ func GetAppsAssignedToPool(ctx context.Context, ec *EaaClient, poolUUID string) 
 	if err != nil {
 		return nil, logging.Wrapf(err, tags, "failed to get connector pool")
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logging.Warn(ctx, "failed to close connector pool response body", tags, map[string]any{"error": closeErr.Error()})
-		}
-	}()
 
 	if err := handleConnectorPoolAPIResponse(resp, "get connector pool", tags); err != nil {
 		return nil, err
@@ -790,14 +788,13 @@ func GetAppsAssignedToPool(ctx context.Context, ec *EaaClient, poolUUID string) 
 	if connectorPool.Applications != nil {
 		// Parse the applications JSON to extract UUIDs
 		var appData []map[string]interface{}
-		if err := json.Unmarshal(connectorPool.Applications, &appData); err == nil {
-			for _, app := range appData {
-				if uuid, ok := app["uuid_url"].(string); ok {
-					assignedAppUUIDs = append(assignedAppUUIDs, uuid)
-				}
+		if err := json.Unmarshal(connectorPool.Applications, &appData); err != nil {
+			return nil, logging.Wrapf(err, tags, "failed to parse applications JSON for pool %s", poolUUID)
+		}
+		for _, app := range appData {
+			if uuid, ok := app["uuid_url"].(string); ok {
+				assignedAppUUIDs = append(assignedAppUUIDs, uuid)
 			}
-		} else {
-			logging.Warn(ctx, "failed to parse applications JSON", tags, map[string]any{"error": err.Error()})
 		}
 	}
 
@@ -825,10 +822,13 @@ func GetAppNamesAssignedToPool(ctx context.Context, ec *EaaClient, poolUUID stri
 	}
 
 	// Map UUIDs back to names
+	tags := []logging.Tag{logging.TagAPI, logging.TagConnPool, logging.TagRead}
 	var appNames []string
 	for _, uuid := range appUUIDs {
 		if name, exists := uuidToName[uuid]; exists {
 			appNames = append(appNames, name)
+		} else {
+			logging.Warn(ctx, "app UUID could not be resolved to a name", tags, map[string]any{"uuid": uuid})
 		}
 	}
 

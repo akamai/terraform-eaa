@@ -1136,40 +1136,41 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	currAgents, err := appResp.GetAppAgents(ctx, eaaclient)
-	if err == nil {
-		if agentsRaw, ok := d.GetOk("agents"); ok {
-			agentList, ok := agentsRaw.([]interface{})
-			if !ok {
-				return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid agent data in schema")...)
+	if err != nil {
+		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to get current agents")...)
+	}
+	if agentsRaw, ok := d.GetOk("agents"); ok {
+		agentList, ok := agentsRaw.([]interface{})
+		if !ok {
+			return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid agent data in schema")...)
+		}
+		var desiredAgents []string
+		for _, agent := range agentList {
+			if str, ok := agent.(string); ok {
+				desiredAgents = append(desiredAgents, str)
 			}
-			var desiredAgents []string
-			for _, agent := range agentList {
-				if str, ok := agent.(string); ok {
-					desiredAgents = append(desiredAgents, str)
-				}
+		}
+
+		agentsToAssign := client.DifferenceIgnoreCase(desiredAgents, currAgents)
+		agentsToUnassign := client.DifferenceIgnoreCase(currAgents, desiredAgents)
+
+		if len(agentsToAssign) > 0 {
+			var agents client.AssignAgents
+			agents.AppID = id
+			agents.AgentNames = append(agents.AgentNames, agentsToAssign...)
+			assignErr := agents.AssignAgents(ctx, eaaclient)
+			if assignErr != nil {
+				return append(warningDiags, logging.DiagFromErr(assignErr, tags, "failed to assign agents")...)
 			}
+		}
+		if len(agentsToUnassign) > 0 {
+			var agents client.AssignAgents
+			agents.AppID = id
+			agents.AgentNames = append(agents.AgentNames, agentsToUnassign...)
 
-			agentsToAssign := client.DifferenceIgnoreCase(desiredAgents, currAgents)
-			agentsToUnassign := client.DifferenceIgnoreCase(currAgents, desiredAgents)
-
-			if len(agentsToAssign) > 0 {
-				var agents client.AssignAgents
-				agents.AppID = id
-				agents.AgentNames = append(agents.AgentNames, agentsToAssign...)
-				assignErr := agents.AssignAgents(ctx, eaaclient)
-				if assignErr != nil {
-					return append(warningDiags, logging.DiagFromErr(assignErr, tags, "failed to assign agents")...)
-				}
-			}
-			if len(agentsToUnassign) > 0 {
-				var agents client.AssignAgents
-				agents.AppID = id
-				agents.AgentNames = append(agents.AgentNames, agentsToUnassign...)
-
-				unassignErr := agents.UnAssignAgents(ctx, eaaclient)
-				if unassignErr != nil {
-					return append(warningDiags, logging.DiagFromErr(unassignErr, tags, "failed to unassign agents")...)
-				}
+			unassignErr := agents.UnAssignAgents(ctx, eaaclient)
+			if unassignErr != nil {
+				return append(warningDiags, logging.DiagFromErr(unassignErr, tags, "failed to unassign agents")...)
 			}
 		}
 	}

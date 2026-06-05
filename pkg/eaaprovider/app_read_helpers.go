@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
@@ -21,24 +22,29 @@ func mapBasicAttributesFromResponse(ctx context.Context, d *schema.ResourceData,
 		attrs["description"] = *appResp.Description
 	}
 
+	tags := []logging.Tag{logging.TagApp, logging.TagRead}
+
 	aProfile := client.AppProfileInt(appResp.AppProfile)
 	profileString, err := aProfile.String()
 	if err != nil {
-		logging.Warn(ctx, "error converting app_profile", []logging.Tag{logging.TagApp, logging.TagRead})
+		logging.Warn(ctx, "error converting app_profile, falling back to integer", tags, map[string]any{"value": appResp.AppProfile, "error": err})
+		profileString = strconv.Itoa(appResp.AppProfile)
 	}
 	attrs["app_profile"] = profileString
 
 	aType := client.AppTypeInt(appResp.AppType)
 	typeString, err := aType.String()
 	if err != nil {
-		logging.Warn(ctx, "error converting app_type", []logging.Tag{logging.TagApp, logging.TagRead})
+		logging.Warn(ctx, "error converting app_type, falling back to integer", tags, map[string]any{"value": appResp.AppType, "error": err})
+		typeString = strconv.Itoa(appResp.AppType)
 	}
 	attrs["app_type"] = typeString
 
 	aMode := client.AppModeInt(appResp.ClientAppMode)
 	modeString, err := aMode.String()
 	if err != nil {
-		logging.Warn(ctx, "error converting client_app_mode", []logging.Tag{logging.TagApp, logging.TagRead})
+		logging.Warn(ctx, "error converting client_app_mode, falling back to integer", tags, map[string]any{"value": appResp.ClientAppMode, "error": err})
+		modeString = strconv.Itoa(appResp.ClientAppMode)
 	}
 	attrs["client_app_mode"] = modeString
 

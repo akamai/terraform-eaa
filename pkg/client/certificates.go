@@ -2,16 +2,10 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
-)
-
-var (
-	ErrCertificatesGet = errors.New("certificates get failed")
-	ErrCertNotExist    = errors.New("certificate does not exist ")
 )
 
 type CreateSelfSignedCertRequest struct {
@@ -37,10 +31,8 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 	}
 	if ssCertHTTPResp.StatusCode < http.StatusOK || ssCertHTTPResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(ssCertHTTPResp)
-		ssCertErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
-
-		logging.Warn(ctx, fmt.Sprintf("self signed certificate generation failed: status=%d description=%s", ssCertHTTPResp.StatusCode, desc), tags)
-		return nil, ssCertErrMsg
+		logging.Error(ctx, "self signed certificate generation failed", tags, map[string]any{"status": ssCertHTTPResp.StatusCode, "description": desc})
+		return nil, logging.Errorf(tags, "self signed certificate generation failed: %s", desc)
 	}
 	return &ssCertResp, nil
 }
@@ -89,9 +81,9 @@ func GetCertificates(ctx context.Context, ec *EaaClient) ([]CertObject, error) {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+		tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
 		desc := FormatErrorDescription(getResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
-		return nil, updErrMsg
+		return nil, logging.Errorf(tags, "certificates get failed: %s", desc)
 	}
 
 	var certs []CertObject
@@ -126,9 +118,9 @@ func GetCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) (*Ce
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+		tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
 		desc := FormatErrorDescription(getResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
-		return nil, updErrMsg
+		return nil, logging.Errorf(tags, "certificate get failed: %s", desc)
 	}
 	return &certResponse, nil
 }
@@ -143,5 +135,5 @@ func DoesUploadedCertExist(ctx context.Context, ec *EaaClient, host string) (*Ce
 			return &cert, nil
 		}
 	}
-	return nil, ErrCertNotExist
+	return nil, logging.Errorf([]logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}, "uploaded certificate for host '%s' not found", host)
 }
