@@ -116,3 +116,12 @@ func TestMergeFields_DuplicateOperationLastWins(t *testing.T) {
 	fields := mergeFields([]Tag{TagCreate, TagUpdate})
 	assert.Equal(t, "UPDATE", fields["operation"], "last operation tag should win")
 }
+
+func TestFormatLogMessage_WithoutTags(t *testing.T) {
+	assert.Equal(t, "hello", formatLogMessage("hello", nil))
+	assert.Equal(t, "hello", formatLogMessage("hello", []Tag{}))
+}
+
+func TestFormatLogMessage_WithTags(t *testing.T) {
+	assert.Equal(t, "[API][READ] hello", formatLogMessage("hello", []Tag{TagAPI, TagRead}))
+}

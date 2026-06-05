@@ -30,6 +30,18 @@ func TestDiagError_WithWrapped(t *testing.T) {
 	assert.Equal(t, "connection refused", diags[0].Detail)
 }
 
+func TestDiagError_WithWrappedEAAError(t *testing.T) {
+	inner := fmt.Errorf("connection refused")
+	eaaErr := Wrapf(inner, []Tag{TagAPI}, "request failed")
+	err := fmt.Errorf("outer context: %w", eaaErr)
+	diags := DiagError(err)
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.Error, diags[0].Severity)
+	assert.Equal(t, "[API] request failed", diags[0].Summary)
+	assert.Equal(t, "connection refused", diags[0].Detail)
+}
+
 func TestDiagError_Nil(t *testing.T) {
 	diags := DiagError(nil)
 	assert.Nil(t, diags)
@@ -42,6 +54,18 @@ func TestDiagWarning(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.Warning, diags[0].Severity)
 	assert.Contains(t, diags[0].Summary, "deprecated field")
+}
+
+func TestDiagWarning_WithWrappedEAAError(t *testing.T) {
+	inner := fmt.Errorf("deprecated detail")
+	eaaErr := Wrapf(inner, []Tag{TagProvider}, "deprecated field")
+	err := fmt.Errorf("outer context: %w", eaaErr)
+	diags := DiagWarning(err)
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.Warning, diags[0].Severity)
+	assert.Equal(t, "[PROVIDER] deprecated field", diags[0].Summary)
+	assert.Equal(t, "deprecated detail", diags[0].Detail)
 }
 
 func TestDiagWarning_Nil(t *testing.T) {

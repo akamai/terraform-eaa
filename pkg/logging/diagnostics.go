@@ -1,6 +1,8 @@
 package logging
 
 import (
+	"errors"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
@@ -14,7 +16,7 @@ func DiagError(err error) diag.Diagnostics {
 	d := diag.Diagnostic{
 		Severity: diag.Error,
 	}
-	if eaaErr, ok := err.(*EAAError); ok {
+	if eaaErr, ok := errors.AsType[*EAAError](err); ok {
 		d.Summary = FormatTags(eaaErr.tags) + " " + eaaErr.Message()
 		if inner := eaaErr.Unwrap(); inner != nil {
 			d.Detail = inner.Error()
@@ -40,7 +42,7 @@ func DiagWarning(err error) diag.Diagnostics {
 	d := diag.Diagnostic{
 		Severity: diag.Warning,
 	}
-	if eaaErr, ok := err.(*EAAError); ok {
+	if eaaErr, ok := errors.AsType[*EAAError](err); ok {
 		d.Summary = FormatTags(eaaErr.tags) + " " + eaaErr.Message()
 		if inner := eaaErr.Unwrap(); inner != nil {
 			d.Detail = inner.Error()

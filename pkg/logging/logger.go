@@ -40,28 +40,36 @@ func mergeFields(tags []Tag, extra ...map[string]any) map[string]any {
 	return fields
 }
 
+func formatLogMessage(msg string, tags []Tag) string {
+	prefix := FormatTags(tags)
+	if prefix == "" {
+		return msg
+	}
+	return prefix + " " + msg
+}
+
 // Info logs at INFO level via tflog. Tags are formatted as a bracket-delimited prefix
 // and also injected as structured fields. Extra maps are merged into the structured fields.
 func Info(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
-	tflog.Info(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+	tflog.Info(ctx, formatLogMessage(msg, tags), mergeFields(tags, extra...))
 }
 
 // Debug logs at DEBUG level via tflog.
 func Debug(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
-	tflog.Debug(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+	tflog.Debug(ctx, formatLogMessage(msg, tags), mergeFields(tags, extra...))
 }
 
 // Trace logs at TRACE level via tflog.
 func Trace(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
-	tflog.Trace(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+	tflog.Trace(ctx, formatLogMessage(msg, tags), mergeFields(tags, extra...))
 }
 
 // Warn logs at WARN level via tflog.
 func Warn(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
-	tflog.Warn(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+	tflog.Warn(ctx, formatLogMessage(msg, tags), mergeFields(tags, extra...))
 }
 
 // Error logs at ERROR level via tflog.
 func Error(ctx context.Context, msg string, tags []Tag, extra ...map[string]any) {
-	tflog.Error(ctx, FormatTags(tags)+" "+msg, mergeFields(tags, extra...))
+	tflog.Error(ctx, formatLogMessage(msg, tags), mergeFields(tags, extra...))
 }
