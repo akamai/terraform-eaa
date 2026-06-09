@@ -165,8 +165,6 @@ var (
 	ErrXWappReadTimeoutInvalidNumber           = errors.New("x_wapp_read_timeout must be a valid numeric string")
 	ErrXWappReadTimeoutNotString               = errors.New("x_wapp_read_timeout must be a string")
 	ErrXWappReadTimeoutOnlyForTunnel           = errors.New("x_wapp_read_timeout is only available for tunnel applications")
-	ErrDynamicIpNotBoolean                     = errors.New("dynamic_ip must be a boolean")
-	ErrStickyCookiesNotBoolean                 = errors.New("sticky_cookies must be a boolean")
 	ErrOffloadOnpremiseTrafficNotBoolean       = errors.New("offload_onpremise_traffic must be a boolean")
 
 	// Related Applications validation errors
@@ -1303,8 +1301,6 @@ const (
 	DefaultXWappPoolSize                   = 20
 	DefaultXWappPoolTimeout                = 120
 	DefaultXWappReadTimeout                = "900"
-	DefaultDynamicIP                       = STR_FALSE
-	DefaultStickyCookies                   = STR_FALSE
 	DefaultRDPLegacyMode                   = STR_FALSE
 	DefaultRDPTLS1                         = STR_FALSE
 	DefaultIgnoreCNameResolution           = STR_FALSE
@@ -1315,6 +1311,11 @@ const (
 	DefaultLoginTimeout                    = "5"
 	DefaultKeepAliveTimeout                = "3"
 	DefaultKeepAliveConnectionPool         = "50"
+	DefaultProxyBufferSizeKB               = "4"
+	DefaultKeyedKeepaliveEnable            = STR_FALSE
+	DefaultKerberosNegotiateOnce           = CORSValueOff
+	DefaultProxyDisableClipboard           = STR_FALSE
+	DefaultRateLimit                       = CORSValueOn
 	DefaultAnonymousServerConnLimit        = "50"
 	DefaultAnonymousServerRequestLimit     = "100"
 	DefaultAuthenticatedServerConnLimit    = "50"

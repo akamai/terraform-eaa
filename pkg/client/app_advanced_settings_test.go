@@ -345,3 +345,76 @@ func TestAdvancedSettings_MarshalJSON_NoExtraFields(t *testing.T) {
 	assert.True(t, strings.Contains(payloadStr, `"acceleration"`))
 	// Ensure it doesn't error without ExtraFields
 }
+
+func TestAdvancedSettingsFromBlock_ProxyAndKerberosFieldsRoundTrip(t *testing.T) {
+	block := map[string]interface{}{
+		"proxy_buffer_size_kb":    "256",
+		"keyed_keepalive_enable":  "true",
+		"kerberos_negotiate_once": "on",
+		"proxy_disable_clipboard": "true",
+		"rate_limit":              "off",
+	}
+
+	advSettings, err := advancedSettingsFromBlock(block)
+	require.NoError(t, err)
+
+	assert.Equal(t, "256", advSettings.ProxyBufferSizeKB)
+	assert.Equal(t, "true", advSettings.KeyedKeepaliveEnable)
+	assert.Equal(t, "on", advSettings.KerberosNegotiateOnce)
+	assert.Equal(t, "true", advSettings.ProxyDisableClipboard)
+	assert.Equal(t, "off", advSettings.RateLimit)
+
+	var complete AdvancedSettingsComplete
+	UpdateAdvancedSettings(&complete, advSettings)
+
+	assert.Equal(t, "256", complete.ProxyBufferSizeKB)
+	assert.Equal(t, "true", complete.KeyedKeepaliveEnable)
+	assert.Equal(t, "on", complete.KerberosNegotiateOnce)
+	assert.Equal(t, "true", complete.ProxyDisableClipboard)
+	assert.Equal(t, "off", complete.RateLimit)
+}
+
+func TestAdvancedSettingsFromBlock_OffloadOnpremiseTrafficRoundTrip(t *testing.T) {
+	block := map[string]interface{}{
+		"offload_onpremise_traffic": "true",
+	}
+
+	advSettings, err := advancedSettingsFromBlock(block)
+	require.NoError(t, err)
+
+	assert.Equal(t, "true", advSettings.OffloadOnPremiseTraffic)
+
+	var complete AdvancedSettingsComplete
+	UpdateAdvancedSettings(&complete, advSettings)
+
+	assert.Equal(t, "true", complete.OffloadOnPremiseTraffic)
+}
+
+func TestAdvancedSettingsFromBlock_DeadFieldsDropped(t *testing.T) {
+	block := map[string]interface{}{
+		"dynamic_ip":     "true",
+		"sticky_cookies": "true",
+		"acceleration":   "true",
+	}
+
+	advSettings, err := advancedSettingsFromBlock(block)
+	require.NoError(t, err)
+
+	// dynamic_ip and sticky_cookies should land in ExtraFields, not struct fields
+	assert.Equal(t, "true", advSettings.ExtraFields["dynamic_ip"])
+	assert.Equal(t, "true", advSettings.ExtraFields["sticky_cookies"])
+
+	// A real field should still work
+	assert.Equal(t, "true", advSettings.Acceleration)
+}
+
+func TestParseAdvancedSettingsWithDefaults_NewFieldDefaults(t *testing.T) {
+	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
+	require.NoError(t, err)
+
+	assert.Equal(t, "4", advSettings.ProxyBufferSizeKB)
+	assert.Equal(t, "false", advSettings.KeyedKeepaliveEnable)
+	assert.Equal(t, "off", advSettings.KerberosNegotiateOnce)
+	assert.Equal(t, "false", advSettings.ProxyDisableClipboard)
+	assert.Equal(t, "on", advSettings.RateLimit)
+}
