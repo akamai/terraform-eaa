@@ -2,10 +2,11 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type AppAgentResponse struct {
@@ -19,11 +20,6 @@ type AppAgentResponse struct {
 		} `json:"resource_uri,omitempty"`
 	} `json:"objects,omitempty"`
 }
-
-var (
-	ErrAgentsAssign   = errors.New("connectors assign failed")
-	ErrAgentsUnAssign = errors.New("connectors unassign failed")
-)
 
 type AssignAgents struct {
 	AppID      string   `json:"app_id"`
@@ -39,11 +35,12 @@ type AssignAgentsRequest struct {
 }
 
 func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error {
-	ec.Logger.Info("AssignAgents")
+	tags := []logging.Tag{logging.TagAPI, logging.TagAgent, logging.TagAssign}
+	logging.Info(ctx, "AssignAgents", tags)
+
 	var agents AssignAgentsRequest
-	agentUUIDs, err := GetAgentUUIDs(ec, aar.AgentNames)
+	agentUUIDs, err := GetAgentUUIDs(ctx, ec, aar.AgentNames)
 	if err != nil {
-		ec.Logger.Error("unable to lookup uuids from agent names")
 		return err
 	}
 	for _, uuid := range agentUUIDs {
@@ -51,44 +48,40 @@ func (aar *AssignAgents) AssignAgents(ctx context.Context, ec *EaaClient) error 
 			UUIDURL: uuid,
 		}
 		agents.Agents = append(agents.Agents, agent)
-		ec.Logger.Info("agent uuid", "uuid", uuid)
+		logging.Debug(ctx, "agent uuid", tags, map[string]any{"uuid": uuid})
 	}
 
 	if len(agents.Agents) == 0 {
-		ec.Logger.Error("no connectors to assign")
-		return nil
+		return logging.Errorf(tags, "no agents resolved from the provided agent names")
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
-	ec.Logger.Info("api URL", "url", apiURL)
-	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
+	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		ec.Logger.Error("assign agents failed", "status", agentsResp.StatusCode)
-		return err
+		return logging.Wrapf(err, tags, "assign agents failed")
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
-		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsAssign, desc)
-		ec.Logger.Error("assign agents failed", "status", agentsResp.StatusCode, "description", desc)
-		return assignErrMsg
+		return logging.Errorf(tags, "agents assign failed: %s", desc)
 	}
 	return nil
 }
 
-func (app *Application) GetAppAgents(ec *EaaClient) ([]string, error) {
-	ec.Logger.Info("GetAppAgents")
+func (app *Application) GetAppAgents(ctx context.Context, ec *EaaClient) ([]string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagAgent, logging.TagRead}
+	logging.Info(ctx, "GetAppAgents", tags)
+
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	agentsResponse := AppAgentResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &agentsResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &agentsResponse, false)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "failed to get app agents")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrAgentsGet, desc)
-
-		return nil, updErrMsg
+		return nil, logging.Errorf(tags, "agents get failed: %s", desc)
 	}
 
 	agentNames := make([]string, 0, len(agentsResponse.Agents))
@@ -105,34 +98,31 @@ type UnAssignAgentsRequest struct {
 }
 
 func (aar *AssignAgents) UnAssignAgents(ctx context.Context, ec *EaaClient) error {
-	ec.Logger.Info("UnAssignAgents")
+	tags := []logging.Tag{logging.TagAPI, logging.TagAgent, logging.TagAssign}
+	logging.Info(ctx, "UnAssignAgents", tags)
+
 	var agents UnAssignAgentsRequest
-	agentUUIDs, err := GetAgentUUIDs(ec, aar.AgentNames)
+	agentUUIDs, err := GetAgentUUIDs(ctx, ec, aar.AgentNames)
 	if err != nil {
-		ec.Logger.Error("unable to lookup uuids from agent names")
 		return err
 	}
 	for _, uuid := range agentUUIDs {
 		agents.Agents = append(agents.Agents, uuid)
-		ec.Logger.Info("agent uuid", "uuid", uuid)
+		logging.Debug(ctx, "agent uuid", tags, map[string]any{"uuid": uuid})
 	}
 	if len(agents.Agents) == 0 {
-		ec.Logger.Error("no connectors to unassign")
-		return nil
+		return logging.Errorf(tags, "no agents resolved from the provided agent names")
 	}
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/agents?method=delete", URL_SCHEME, ec.Host, APPS_URL, aar.AppID)
-	ec.Logger.Info("api URL", "url", apiURL)
-	agentsResp, err := ec.SendAPIRequest(apiURL, "POST", agents, nil, false)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
+	agentsResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", agents, nil, false)
 	if err != nil {
-		ec.Logger.Error("unassign agents failed", "status", agentsResp.StatusCode)
-		return err
+		return logging.Wrapf(err, tags, "unassign agents failed")
 	}
 	if agentsResp.StatusCode < http.StatusOK || agentsResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(agentsResp)
-		assignErrMsg := fmt.Errorf("%w: %s", ErrAgentsUnAssign, desc)
-		ec.Logger.Error("unassign agents failed", "status", agentsResp.StatusCode, "description", desc)
-		return assignErrMsg
+		return logging.Errorf(tags, "agents unassign failed: %s", desc)
 	}
 	return nil
 }

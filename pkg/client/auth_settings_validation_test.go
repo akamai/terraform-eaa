@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,8 +52,6 @@ func (m mapBackedAuthSettingsLookup) GetOk(key string) (interface{}, bool) {
 }
 
 func TestValidateCustomHeadersConfiguration(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
 	tests := map[string]struct {
 		errIs    error
 		settings map[string]interface{}
@@ -165,7 +162,7 @@ func TestValidateCustomHeadersConfiguration(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidateCustomHeadersConfiguration(tt.settings, tt.appType, logger)
+			err := ValidateCustomHeadersConfiguration(context.Background(), tt.settings, tt.appType)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -174,8 +171,6 @@ func TestValidateCustomHeadersConfiguration(t *testing.T) {
 }
 
 func TestValidateCustomHeader(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
 	tests := map[string]struct {
 		errIs   error
 		header  map[string]interface{}
@@ -277,7 +272,7 @@ func TestValidateCustomHeader(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateCustomHeader(tt.header, 0, logger)
+			err := validateCustomHeader(context.Background(), tt.header, 0)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -286,7 +281,6 @@ func TestValidateCustomHeader(t *testing.T) {
 }
 
 func TestValidateIDPSelfSignedCert(t *testing.T) {
-	logger := hclog.NewNullLogger()
 	testError := ErrSAMLSignCertRequired
 
 	tests := map[string]struct {
@@ -326,7 +320,7 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateIDPSelfSignedCert(tt.idpBlock, "SAML", testError, logger)
+			err := validateIDPSelfSignedCert(context.Background(), tt.idpBlock, "SAML", testError)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -335,7 +329,6 @@ func TestValidateIDPSelfSignedCert(t *testing.T) {
 }
 
 func TestValidateWSFEDNestedBlocks(t *testing.T) {
-	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
 	tests := map[string]struct {
@@ -405,7 +398,7 @@ func TestValidateWSFEDNestedBlocks(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidateWSFEDNestedBlocks(ctx, tt.lookup, nil, logger)
+			err := ValidateWSFEDNestedBlocks(ctx, tt.lookup, nil)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
@@ -417,7 +410,6 @@ func TestValidateWSFEDNestedBlocks(t *testing.T) {
 }
 
 func TestValidateSAMLNestedBlocks(t *testing.T) {
-	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
 	tests := map[string]struct {
@@ -500,7 +492,7 @@ func TestValidateSAMLNestedBlocks(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidateSAMLNestedBlocks(ctx, tt.lookup, nil, logger)
+			err := ValidateSAMLNestedBlocks(ctx, tt.lookup, nil)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
@@ -512,7 +504,6 @@ func TestValidateSAMLNestedBlocks(t *testing.T) {
 }
 
 func TestValidateOIDCNestedBlocks(t *testing.T) {
-	logger := hclog.NewNullLogger()
 	ctx := context.Background()
 
 	tests := map[string]struct {
@@ -581,7 +572,7 @@ func TestValidateOIDCNestedBlocks(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidateOIDCNestedBlocks(ctx, tt.lookup, nil, logger)
+			err := ValidateOIDCNestedBlocks(ctx, tt.lookup, nil)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.errContain != "" {
 					assert.ErrorContains(t, err, tt.errContain)
@@ -593,8 +584,6 @@ func TestValidateOIDCNestedBlocks(t *testing.T) {
 }
 
 func TestValidateOIDCClientNested(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
 	tests := map[string]struct {
 		clientConfig map[string]interface{}
 		errIs        error
@@ -634,7 +623,7 @@ func TestValidateOIDCClientNested(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateOIDCClientNested(tt.clientConfig, 0, logger)
+			err := validateOIDCClientNested(context.Background(), tt.clientConfig, 0)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -643,8 +632,6 @@ func TestValidateOIDCClientNested(t *testing.T) {
 }
 
 func TestValidateOIDCClaimNested(t *testing.T) {
-	logger := hclog.NewNullLogger()
-
 	tests := map[string]struct {
 		claim   map[string]interface{}
 		errIs   error
@@ -662,7 +649,7 @@ func TestValidateOIDCClaimNested(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateOIDCClaimNested(tt.claim, 0, logger)
+			err := validateOIDCClaimNested(context.Background(), tt.claim, 0)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}

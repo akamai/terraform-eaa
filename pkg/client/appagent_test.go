@@ -58,7 +58,7 @@ func TestGetAppAgents(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			got, err := app.GetAppAgents(ec)
+			got, err := app.GetAppAgents(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -98,7 +98,7 @@ func TestAssignUnAssignAgents(t *testing.T) {
 					Connectors: []Connector{},
 				}))
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		"agent_not_found": {
 			agentNames: []string{"missing-agent"},

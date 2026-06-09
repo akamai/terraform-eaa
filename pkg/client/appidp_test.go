@@ -1,12 +1,13 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 )
 
 func TestAssignUnAssignIDP(t *testing.T) {
-	type idpFunc func(*AppIdp, *EaaClient) error
+	type idpFunc func(*AppIdp, context.Context, *EaaClient) error
 
 	funcs := map[string]idpFunc{
 		"AssignIDP":   (*AppIdp).AssignIDP,
@@ -55,7 +56,7 @@ func TestAssignUnAssignIDP(t *testing.T) {
 					ec := newTestClient(t, tt.handler)
 
 					appIdp := tt.appIdp // copy to avoid mutation
-					err := fn(&appIdp, ec)
+					err := fn(&appIdp, context.Background(), ec)
 					if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 						return
 					}

@@ -2,14 +2,10 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-)
 
-var (
-	ErrIDPGet            = errors.New("idps get failed")
-	ErrIDPDirectoriesGet = errors.New("idp directories get failed")
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type IDPData struct {
@@ -46,20 +42,20 @@ type Meta struct {
 }
 
 func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
-	ec.Logger.Info("getIDPs call")
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagList}
+	logging.Info(ctx, "getIDPs call", tags)
 
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, IDP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
 	idpResponse := IDPResponse{}
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &idpResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &idpResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
-		return nil, getIdpErrMsg
+		return nil, logging.Errorf(tags, "idps get failed: %s", desc)
 	}
 
 	idpList := IDPList{}
@@ -68,9 +64,9 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 		if idp.Name == "" || idp.UUIDURL == "" {
 			continue
 		}
-		directoryList, err := GetIDPDirectories(ec, idp.UUIDURL)
+		directoryList, err := GetIDPDirectories(ctx, ec, idp.UUIDURL)
 		if err != nil {
-			return nil, ErrIDPGet
+			return nil, logging.Wrapf(err, tags, "failed to get directories for IDP '%s'", idp.Name)
 		}
 		idpData := IDPData{
 			Name:        idp.Name,
@@ -84,26 +80,27 @@ func GetIDPS(ctx context.Context, ec *EaaClient) (*IDPList, error) {
 }
 
 func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPData, error) {
-	ec.Logger.Info("GetIdpWithName", "idp_name", idpName)
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagRead}
+	logging.Info(ctx, "GetIdpWithName", tags, map[string]any{"idp_name": idpName})
+
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, IDP_URL)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 
 	idpResponse := IDPResponse{}
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &idpResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &idpResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		getIdpErrMsg := fmt.Errorf("%w: %s", ErrIDPGet, desc)
-		return nil, getIdpErrMsg
+		return nil, logging.Errorf(tags, "idps get failed: %s", desc)
 	}
 
 	for _, idp := range idpResponse.IDPS {
 		if idp.Name == idpName {
-			directoryList, err := GetIDPDirectories(ec, idp.UUIDURL)
+			directoryList, err := GetIDPDirectories(ctx, ec, idp.UUIDURL)
 			if err != nil {
-				return nil, (ErrIDPGet)
+				return nil, logging.Wrapf(err, tags, "failed to get directories for IDP '%s'", idpName)
 			}
 			idpData := IDPData{
 				Name:        idp.Name,
@@ -114,35 +111,36 @@ func GetIdpWithName(ctx context.Context, ec *EaaClient, idpName string) (*IDPDat
 		}
 	}
 
-	return nil, fmt.Errorf("IDP with name '%s' not found", idpName)
+	return nil, logging.Errorf(tags, "IDP with name '%s' not found", idpName)
 }
 
 func (idpData *IDPData) GetIdpDirectory(ctx context.Context, ec *EaaClient, dirName string) (*DirectoryData, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagRead}
 
 	for _, directory := range idpData.Directories {
 		if dirName == directory.Name {
-			ec.Logger.Info("directory found", "name", directory.Name)
+			logging.Info(ctx, "directory found", tags, map[string]any{"name": directory.Name})
 			return &directory, nil
 		}
 	}
 
-	return nil, fmt.Errorf("IDP Directory with name '%s' not found", dirName)
+	return nil, logging.Errorf(tags, "IDP Directory with name '%s' not found", dirName)
 }
 
-func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
+func GetIDPDirectories(ctx context.Context, ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagList}
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories", URL_SCHEME, ec.Host, IDP_URL, idpUUID)
-	ec.Logger.Info("getIDPDirectories", "idp_uuid", idpUUID)
-	ec.Logger.Info("api URL", "url", apiURL)
+	logging.Info(ctx, "getIDPDirectories", tags, map[string]any{"idp_uuid": idpUUID})
+	logging.Debug(ctx, "api URL", tags, map[string]any{"url": apiURL})
 	directoryResponse := DirectoryResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &directoryResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &directoryResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		getIdpDirsErrMsg := fmt.Errorf("%w: %s", ErrIDPDirectoriesGet, desc)
-		return nil, getIdpDirsErrMsg
+		return nil, logging.Errorf(tags, "idp directories get failed: %s", desc)
 	}
 
 	directoryList := []DirectoryData{}
@@ -173,26 +171,28 @@ func GetIDPDirectories(ec *EaaClient, idpUUID string) ([]DirectoryData, error) {
 }
 
 func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interface{}, appUUIDURL string, ec *EaaClient) error {
-	ec.Logger.Info("assigning directories to application")
+	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagAssign}
+	logging.Info(ctx, "assigning directories to application", tags)
+
 	if appDirsList, ok := appDirs.([]interface{}); ok {
 		for _, s := range appDirsList {
 			if sData, ok := s.(map[string]interface{}); ok {
 				appdir := AppDirectory{}
 				if dirName, ok := sData["name"].(string); ok {
-					ec.Logger.Info(dirName)
+					logging.Info(ctx, dirName, tags)
 					if em, ok := sData["enable_mfa"].(bool); ok {
 						appdir.EnableMFA = &em
 					}
 					dirData, err := idpData.GetIdpDirectory(ctx, ec, dirName)
 					if err != nil {
-						ec.Logger.Info("directory with name does not exist")
-						continue
+						logging.Error(ctx, "directory not found", tags, map[string]any{"name": dirName, "error": err})
+						return logging.Wrapf(err, tags, "directory '%s' not found in IDP", dirName)
 					}
 					appdir.UUID = dirData.UUID
 					appdir.APP_ID = appUUIDURL
 					err = appdir.AssignIdpDirectory(ctx, ec)
 					if err != nil {
-						ec.Logger.Info("directory assignment failed")
+						logging.Info(ctx, "directory assignment failed", tags)
 						return err
 					}
 
@@ -203,7 +203,7 @@ func (idpData *IDPData) AssignIdpDirectories(ctx context.Context, appDirs interf
 							err = dirData.AssignAllDirectoryGroups(ctx, ec, appUUIDURL)
 						}
 						if err != nil {
-							ec.Logger.Info("directory groups assignment failed")
+							logging.Info(ctx, "directory groups assignment failed", tags)
 							return err
 						}
 					}

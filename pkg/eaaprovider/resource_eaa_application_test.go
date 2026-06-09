@@ -14,7 +14,6 @@ import (
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/assert"
@@ -946,11 +945,6 @@ func (m *MockHTTPTransport) createHTTPResponse(req *http.Request, mockResp MockR
 }
 
 func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Level:  hclog.Info,
-		Output: io.Discard,
-	})
-
 	mockTransport := &MockHTTPTransport{
 		t:         t,
 		Responses: make(map[string]MockResponse),
@@ -966,7 +960,6 @@ func createMockClient(t *testing.T) (*client.EaaClient, *MockHTTPTransport) {
 		Client:     mockHTTPClient,
 		Signer:     &MockSigner{},
 		Host:       "test.example.com",
-		Logger:     logger,
 	}, mockTransport
 }
 

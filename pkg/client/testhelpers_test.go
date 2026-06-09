@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +23,6 @@ func newTestClient(t *testing.T, handler http.Handler) *EaaClient {
 	t.Cleanup(ts.Close)
 	return &EaaClient{
 		Signer:     noopSigner{},
-		Logger:     hclog.NewNullLogger(),
 		Client:     ts.Client(),
 		Host:       ts.Listener.Addr().String(),
 		ContractID: "test-contract",

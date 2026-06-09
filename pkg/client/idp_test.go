@@ -63,7 +63,7 @@ func TestGetIdpWithName(t *testing.T) {
 func TestGetIDPDirectories(t *testing.T) {
 	ec := newTestClient(t, idpRouter(t))
 
-	dirs, err := GetIDPDirectories(ec, "idp-uuid-1")
+	dirs, err := GetIDPDirectories(context.Background(), ec, "idp-uuid-1")
 	require.NoError(t, err)
 	assert.Len(t, dirs, 1)
 	assert.Equal(t, "dir-1", dirs[0].Name)

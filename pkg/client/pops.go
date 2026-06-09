@@ -1,13 +1,11 @@
 package client
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net/http"
-)
 
-var (
-	ErrPopsGet = errors.New("pops get failed")
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type Pop struct {
@@ -40,18 +38,18 @@ type PopResponse struct {
 	} `json:"meta,omitempty"`
 }
 
-func GetPops(ec *EaaClient) ([]Pop, error) {
+func GetPops(ctx context.Context, ec *EaaClient) ([]Pop, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagPopTraffic, logging.TagList}
 	apiURL := fmt.Sprintf("%s://%s/%s?shared=true", URL_SCHEME, ec.Host, POPS_URL)
 	popsResponse := PopResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &popsResponse, true)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &popsResponse, true)
 	if err != nil {
-		return nil, err
+		return nil, logging.Wrapf(err, tags, "get pops API request failed")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
-		getPopsErrMsg := fmt.Errorf("%w: %s", ErrPopsGet, desc)
-		return nil, getPopsErrMsg
+		return nil, logging.Errorf(tags, "pops get failed: %s", desc)
 	}
 
 	var pops []Pop
@@ -77,11 +75,12 @@ func GetPops(ec *EaaClient) ([]Pop, error) {
 	return pops, nil
 }
 
-func GetPopUUID(ec *EaaClient, popregion string) (name, uuidURL string, err error) {
+func GetPopUUID(ctx context.Context, ec *EaaClient, popregion string) (name, uuidURL string, err error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagPopTraffic, logging.TagRead}
 
-	pops, err := GetPops(ec)
+	pops, err := GetPops(ctx, ec)
 	if err != nil {
-		return "", "", ErrPopsGet
+		return "", "", logging.Wrapf(err, tags, "failed to get pops")
 	}
 	for i := range pops {
 		pop := &pops[i]
@@ -92,5 +91,5 @@ func GetPopUUID(ec *EaaClient, popregion string) (name, uuidURL string, err erro
 
 	}
 
-	return "", "", ErrPopsGet
+	return "", "", logging.Errorf(tags, "pop not found for region: %s", popregion)
 }

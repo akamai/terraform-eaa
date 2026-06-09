@@ -36,7 +36,7 @@ func TestGetCertificates(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			certs, err := GetCertificates(ec)
+			certs, err := GetCertificates(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -60,7 +60,7 @@ func TestDoesSelfSignedCertExistForHost(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			cert, err := DoesSelfSignedCertExistForHost(ec, tt.host)
+			cert, err := DoesSelfSignedCertExistForHost(context.Background(), ec, tt.host)
 			require.NoError(t, err)
 			if tt.wantNil {
 				assert.Nil(t, cert)
@@ -86,7 +86,7 @@ func TestDoesUploadedCertExist(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			cert, err := DoesUploadedCertExist(ec, tt.host)
+			cert, err := DoesUploadedCertExist(context.Background(), ec, tt.host)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -151,7 +151,7 @@ func TestGetCertificate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			got, err := GetCertificate(ec, "cert-uuid-1")
+			got, err := GetCertificate(context.Background(), ec, "cert-uuid-1")
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

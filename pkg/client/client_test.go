@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,6 +91,7 @@ func TestSendAPIRequest(t *testing.T) {
 
 			var out map[string]string
 			resp, err := ec.SendAPIRequest(
+				context.Background(),
 				"https://"+ec.Host+"/crux/v1/mgmt-pop/test",
 				tt.method, tt.in, &out, tt.global,
 			)
@@ -122,12 +123,12 @@ func TestSendAPIRequest_ExpandFalseOverride(t *testing.T) {
 	expand := false
 	ec := &EaaClient{
 		Signer: noopSigner{},
-		Logger: hclog.NewNullLogger(),
 		Client: ts.Client(),
 		Host:   ts.Listener.Addr().String(),
 	}
 
 	_, err := ec.SendAPIRequest(
+		context.Background(),
 		"https://"+ec.Host+"/crux/v1/mgmt-pop/appbundle",
 		http.MethodGet, nil, nil, false,
 		GetRequestOptions{Expand: &expand},
@@ -139,6 +140,7 @@ func TestSendAPIRequest_ExpandFalseOverride(t *testing.T) {
 func TestSendAPIRequest_RejectsMultipleOptions(t *testing.T) {
 	ec := &EaaClient{}
 	_, err := ec.SendAPIRequest(
+		context.Background(),
 		"https://example.com/test", http.MethodGet,
 		nil, nil, false,
 		GetRequestOptions{}, GetRequestOptions{},
@@ -157,6 +159,7 @@ func TestSendAPIRequest_AccountSwitchKey(t *testing.T) {
 	ec.AccountSwitchKey = "test-switch-key"
 
 	_, err := ec.SendAPIRequest(
+		context.Background(),
 		"https://"+ec.Host+"/crux/v1/test",
 		http.MethodGet, nil, nil, false,
 	)

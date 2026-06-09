@@ -1,8 +1,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/url"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 // AppBundle represents an application bundle
@@ -46,25 +49,29 @@ const (
 
 // GetAppBundles fetches app bundles from the API, applying optional query filters
 // (e.g. url.Values{"name__icontains": {"my-bundle"}} or url.Values{"uuid_url__in": {"uuid1,uuid2"}}).
-func (ec *EaaClient) GetAppBundles(filters ...url.Values) (*AppBundleResponse, error) {
+func (ec *EaaClient) GetAppBundles(ctx context.Context, filters ...url.Values) (*AppBundleResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagAppBundle, logging.TagList}
 	apiURL := fmt.Sprintf("%s://%s%s", URL_SCHEME, ec.Host, APPBUNDLE_URL)
 	if len(filters) > 0 && len(filters[0]) > 0 {
 		apiURL = fmt.Sprintf("%s?%s", apiURL, filters[0].Encode())
 	}
 
+	logging.Debug(ctx, "fetching app bundles", tags, map[string]any{"url": apiURL})
+
 	var appBundleResp AppBundleResponse
 	expand := false
-	_, err := ec.SendAPIRequest(apiURL, "GET", nil, &appBundleResp, false, GetRequestOptions{Expand: &expand})
+	_, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appBundleResp, false, GetRequestOptions{Expand: &expand})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch app bundles: %w", err)
+		return nil, logging.Wrapf(err, tags, "failed to fetch app bundles")
 	}
 
 	return &appBundleResp, nil
 }
 
 // GetAppBundleByName fetches app bundles filtered by name and returns the UUID for an exact name match.
-func (ec *EaaClient) GetAppBundleByName(name string) (string, error) {
-	appBundles, err := ec.GetAppBundles(url.Values{"name__icontains": {name}})
+func (ec *EaaClient) GetAppBundleByName(ctx context.Context, name string) (string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagAppBundle, logging.TagRead}
+	appBundles, err := ec.GetAppBundles(ctx, url.Values{"name__icontains": {name}})
 	if err != nil {
 		return "", err
 	}
@@ -75,12 +82,13 @@ func (ec *EaaClient) GetAppBundleByName(name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("app bundle with name '%s' not found", name)
+	return "", logging.Errorf(tags, "app bundle with name '%s' not found", name)
 }
 
 // GetAppBundleNameByUUID fetches app bundles filtered by UUID and returns the name for an exact UUID match.
-func (ec *EaaClient) GetAppBundleNameByUUID(uuid string) (string, error) {
-	appBundles, err := ec.GetAppBundles(url.Values{"uuid_url__in": {uuid}})
+func (ec *EaaClient) GetAppBundleNameByUUID(ctx context.Context, uuid string) (string, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagAppBundle, logging.TagRead}
+	appBundles, err := ec.GetAppBundles(ctx, url.Values{"uuid_url__in": {uuid}})
 	if err != nil {
 		return "", err
 	}
@@ -91,11 +99,11 @@ func (ec *EaaClient) GetAppBundleNameByUUID(uuid string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("app bundle with UUID '%s' not found", uuid)
+	return "", logging.Errorf(tags, "app bundle with UUID '%s' not found", uuid)
 }
 
 // ValidateAppBundleName validates that the app bundle name exists
-func (ec *EaaClient) ValidateAppBundleName(name string) error {
-	_, err := ec.GetAppBundleByName(name)
+func (ec *EaaClient) ValidateAppBundleName(ctx context.Context, name string) error {
+	_, err := ec.GetAppBundleByName(ctx, name)
 	return err
 }

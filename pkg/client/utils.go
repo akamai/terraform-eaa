@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 var (
@@ -250,29 +253,26 @@ func ConvertConnectorStrings(connectors json.RawMessage) []string {
 // ============================================================================
 
 // ValidateRequiredString validates that a required string field is present and non-empty
-func ValidateRequiredString(d *schema.ResourceData, fieldName string, ec *EaaClient) (string, error) {
+func ValidateRequiredString(ctx context.Context, d *schema.ResourceData, fieldName string) (string, error) {
 	value, ok := d.GetOk(fieldName)
 	if !ok {
-		ec.Logger.Error(fmt.Sprintf("'%s' is required but missing", fieldName))
-		return "", fmt.Errorf("'%s' is required but missing", fieldName)
+		return "", logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "'%s' is required but missing", fieldName)
 	}
 
 	valueStr, ok := value.(string)
 	if !ok || valueStr == "" {
-		ec.Logger.Error(fmt.Sprintf("'%s' must be a non-empty string", fieldName))
-		return "", fmt.Errorf("'%s' must be a non-empty string", fieldName)
+		return "", logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "'%s' must be a non-empty string", fieldName)
 	}
 
 	return valueStr, nil
 }
 
 // ValidateOptionalString validates that an optional string field is a string if present
-func ValidateOptionalString(d *schema.ResourceData, fieldName string, ec *EaaClient) (string, error) {
+func ValidateOptionalString(ctx context.Context, d *schema.ResourceData, fieldName string) (string, error) {
 	if value, ok := d.GetOk(fieldName); ok {
 		valueStr, ok := value.(string)
 		if !ok {
-			ec.Logger.Error(fmt.Sprintf("%s must be a string", fieldName))
-			return "", fmt.Errorf("%s must be a string, got %T", fieldName, value)
+			return "", logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "%s must be a string, got %T", fieldName, value)
 		}
 		return valueStr, nil
 	}
@@ -297,18 +297,16 @@ func ValidateStringInSlice(val, key string, validValues []string) (warns []strin
 }
 
 // ValidateIntegerField validates an integer field with type checking and range validation
-func ValidateIntegerField(value interface{}, fieldName string, minValue, maxValue int, client *EaaClient) (int, error) {
+func ValidateIntegerField(ctx context.Context, value interface{}, fieldName string, minValue, maxValue int) (int, error) {
 	// Type checking
 	intValue, ok := value.(int)
 	if !ok {
-		client.Logger.Error(fmt.Sprintf("%s must be an integer", fieldName))
-		return 0, fmt.Errorf("%s must be an integer, got %T", fieldName, value)
+		return 0, logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "%s must be an integer, got %T", fieldName, value)
 	}
 
 	// Range validation
 	if intValue < minValue || intValue > maxValue {
-		client.Logger.Error(fmt.Sprintf("%s must be in the range of %d to %d", fieldName, minValue, maxValue))
-		return 0, fmt.Errorf("%s must be in the range of %d to %d, got %d", fieldName, minValue, maxValue, intValue)
+		return 0, logging.Errorf([]logging.Tag{logging.TagProvider, logging.TagValidate}, "%s must be in the range of %d to %d, got %d", fieldName, minValue, maxValue, intValue)
 	}
 
 	return intValue, nil

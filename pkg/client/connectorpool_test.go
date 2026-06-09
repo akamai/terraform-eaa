@@ -10,8 +10,6 @@ import (
 )
 
 func TestConvertPackageType(t *testing.T) {
-	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
-
 	tests := map[string]struct {
 		input   string
 		want    int
@@ -24,7 +22,7 @@ func TestConvertPackageType(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := convertPackageType(tt.input, ec)
+			got, err := convertPackageType(context.Background(), tt.input)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -34,8 +32,6 @@ func TestConvertPackageType(t *testing.T) {
 }
 
 func TestConvertInfraType(t *testing.T) {
-	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
-
 	tests := map[string]struct {
 		input   string
 		want    int
@@ -50,7 +46,7 @@ func TestConvertInfraType(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := convertInfraType(tt.input, ec)
+			got, err := convertInfraType(context.Background(), tt.input)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -60,8 +56,6 @@ func TestConvertInfraType(t *testing.T) {
 }
 
 func TestConvertOperatingMode(t *testing.T) {
-	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
-
 	tests := map[string]struct {
 		input   string
 		want    int
@@ -78,7 +72,7 @@ func TestConvertOperatingMode(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := convertOperatingMode(tt.input, ec)
+			got, err := convertOperatingMode(context.Background(), tt.input)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -203,7 +197,7 @@ func TestAssignConnectorsToPool(t *testing.T) {
 			router.Handle("PUT", "/crux/v1/zt/connector-pools/pool-uuid/agents/associate", tc.handler)
 			ec := newTestClient(t, router)
 
-			err := AssignConnectorsToPool(ec, "pool-uuid", []string{"conn-1", "conn-2"})
+			err := AssignConnectorsToPool(context.Background(), ec, "pool-uuid", []string{"conn-1", "conn-2"})
 			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
@@ -231,7 +225,7 @@ func TestUnassignConnectorsFromPool(t *testing.T) {
 			router.Handle("PUT", "/crux/v1/zt/connector-pools/pool-uuid/agents/disassociate", tc.handler)
 			ec := newTestClient(t, router)
 
-			err := UnassignConnectorsFromPool(ec, "pool-uuid", []string{"conn-1"})
+			err := UnassignConnectorsFromPool(context.Background(), ec, "pool-uuid", []string{"conn-1"})
 			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
@@ -267,7 +261,7 @@ func TestGetConnectorsInPool(t *testing.T) {
 			router.Handle("GET", "/crux/v1/mgmt-pop/connector-pools/pool-uuid", tc.handler)
 			ec := newTestClient(t, router)
 
-			got, err := GetConnectorsInPool(ec, "pool-uuid")
+			got, err := GetConnectorsInPool(context.Background(), ec, "pool-uuid")
 			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
@@ -304,7 +298,7 @@ func TestGetAppsAssignedToPool(t *testing.T) {
 			router.Handle("GET", "/crux/v1/mgmt-pop/connector-pools/pool-uuid", tc.handler)
 			ec := newTestClient(t, router)
 
-			got, err := GetAppsAssignedToPool(ec, "pool-uuid")
+			got, err := GetAppsAssignedToPool(context.Background(), ec, "pool-uuid")
 			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}
@@ -338,7 +332,7 @@ func TestAssignConnectorPoolsToApp(t *testing.T) {
 					Active: []string{"pool-1"},
 				},
 			}
-			err := AssignConnectorPoolsToApp(ec, "app-uuid", req)
+			err := AssignConnectorPoolsToApp(context.Background(), ec, "app-uuid", req)
 			if requireErrIs(t, err, tc.wantErr, nil) {
 				return
 			}

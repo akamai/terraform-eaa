@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestGetAppCategories(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			cats, err := GetAppCategories(ec)
+			cats, err := GetAppCategories(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -58,7 +59,7 @@ func TestGetAppCategoryUUID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			got, err := GetAppCategoryUUID(ec, tt.name)
+			got, err := GetAppCategoryUUID(context.Background(), ec, tt.name)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

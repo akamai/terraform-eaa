@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestGetPops(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			pops, err := GetPops(ec)
+			pops, err := GetPops(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -59,7 +60,7 @@ func TestGetPopUUID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			gotName, gotUUID, err := GetPopUUID(ec, tt.region)
+			gotName, gotUUID, err := GetPopUUID(context.Background(), ec, tt.region)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

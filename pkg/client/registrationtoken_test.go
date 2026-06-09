@@ -139,11 +139,12 @@ func TestGetRegistrationTokens(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			got, err := ec.GetRegistrationTokens("pool-1")
+			got, err := ec.GetRegistrationTokens(context.Background(), "pool-1")
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -171,7 +172,7 @@ func TestGetRegistrationTokenByUUID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			got, err := ec.GetRegistrationTokenByUUID(tt.uuid, "pool-1")
+			got, err := ec.GetRegistrationTokenByUUID(context.Background(), tt.uuid, "pool-1")
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

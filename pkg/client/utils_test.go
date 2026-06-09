@@ -1,8 +1,8 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,8 +158,6 @@ func TestConvertConnectorStrings(t *testing.T) {
 }
 
 func TestValidateIntegerField(t *testing.T) {
-	ec := newTestClient(t, jsonHandler(http.StatusOK, nil))
-
 	tests := map[string]struct {
 		value   interface{}
 		min     int
@@ -176,7 +174,7 @@ func TestValidateIntegerField(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := ValidateIntegerField(tt.value, "test_field", tt.min, tt.max, ec)
+			got, err := ValidateIntegerField(context.Background(), tt.value, "test_field", tt.min, tt.max)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

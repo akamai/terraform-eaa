@@ -1,10 +1,10 @@
 package eaaprovider
 
 import (
+	"context"
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,8 +47,8 @@ func TestMapBasicAttributesFromResponse(t *testing.T) {
 		},
 	}
 
-	ec := &client.EaaClient{Logger: hclog.NewNullLogger()}
-	diags := mapBasicAttributesFromResponse(d, appResp, ec)
+	ec := &client.EaaClient{}
+	diags := mapBasicAttributesFromResponse(context.Background(), d, appResp, ec)
 	require.False(t, diags.HasError())
 
 	assert.Equal(t, "test-app", d.Get("name"))

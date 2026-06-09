@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestGetAppIdpMembership(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			got, err := app.GetAppIdpMembership(ec)
+			got, err := app.GetAppIdpMembership(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -94,7 +95,7 @@ func TestGetAppDirectoryMembership(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			got, err := app.GetAppDirectoryMembership(ec)
+			got, err := app.GetAppDirectoryMembership(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -136,7 +137,7 @@ func TestGetAppGroupMembership(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			got, err := app.GetAppGroupMembership(ec)
+			got, err := app.GetAppGroupMembership(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -205,7 +206,7 @@ func TestCreateAppAuthenticationStruct(t *testing.T) {
 			ec := newTestClient(t, pr)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			got, err := app.CreateAppAuthenticationStruct(ec)
+			got, err := app.CreateAppAuthenticationStruct(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

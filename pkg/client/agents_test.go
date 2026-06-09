@@ -35,7 +35,7 @@ func TestGetAgents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			agents, err := GetAgents(ec)
+			agents, err := GetAgents(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -69,7 +69,7 @@ func TestGetAgentUUIDs(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, handler)
 
-			got, err := GetAgentUUIDs(ec, tt.names)
+			got, err := GetAgentUUIDs(context.Background(), ec, tt.names)
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}
@@ -95,7 +95,7 @@ func TestDeleteConnector(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			err := DeleteConnector(ec, "test-uuid")
+			err := DeleteConnector(context.Background(), ec, "test-uuid")
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

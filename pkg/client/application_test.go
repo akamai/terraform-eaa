@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,7 +129,7 @@ func TestDeployApplication(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			err := app.DeployApplication(ec)
+			err := app.DeployApplication(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -164,7 +163,7 @@ func TestDeleteApplication(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-2"}
-			err := app.DeleteApplication(ec)
+			err := app.DeleteApplication(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -256,7 +255,7 @@ func TestUpdateG2O(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-4"}
-			got, err := app.UpdateG2O(ec)
+			got, err := app.UpdateG2O(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
@@ -310,7 +309,7 @@ func TestUpdateEdgeAuthentication(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-5"}
-			got, err := app.UpdateEdgeAuthentication(ec)
+			got, err := app.UpdateEdgeAuthentication(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				if tt.check != nil {
 					tt.check(t, got)
@@ -457,10 +456,10 @@ func TestProcessCustomDomainSkipsWhenHostMissing(t *testing.T) {
 	}
 
 	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{})
-	ec := &EaaClient{Logger: hclog.NewNullLogger()}
+	ec := &EaaClient{}
 	appUpdateReq := &ApplicationUpdateRequest{}
 
-	err := processCustomDomain(ec, appUpdateReq, d, context.Background())
+	err := processCustomDomain(context.Background(), ec, appUpdateReq, d)
 	assert.NoError(t, err, "expected nil error when host is missing")
 }
 
@@ -534,13 +533,11 @@ func TestConfigureAgents(t *testing.T) {
 		"empty_agents": {
 			agents: []interface{}{},
 			setupRouter: func(pr *pathRouter) {
-				// No routes needed: no agents => no API calls
 			},
 		},
 		"no_agents_key": {
-			agents: nil, // will not set "agents" key at all
+			agents: nil,
 			setupRouter: func(pr *pathRouter) {
-				// No routes needed: agents key absent => early return
 			},
 		},
 		"api_error_on_assign": {
@@ -673,13 +670,11 @@ func TestConfigureAuthentication(t *testing.T) {
 				},
 			},
 			setupRouter: func(pr *pathRouter) {
-				// 1. GetIdpWithName: GET /crux/v1/mgmt-pop/idp
 				pr.Handle("GET", "/crux/v1/mgmt-pop/idp", jsonHandler(http.StatusOK, IDPResponse{
 					IDPS: []IDPResponseData{
 						{Name: "my-idp", UUIDURL: "idp-uuid-1"},
 					},
 				}))
-				// GetIDPDirectories: GET /crux/v1/mgmt-pop/idp/{uuid}/directories
 				pr.Handle("GET", "/crux/v1/mgmt-pop/idp/idp-uuid-1/directories", jsonHandler(http.StatusOK, DirectoryResponse{
 					DirectoryList: []DirectoryData{
 						{Name: "my-dir", UUID: "dir-uuid-1", Groups: []GroupData{
@@ -687,11 +682,8 @@ func TestConfigureAuthentication(t *testing.T) {
 						}},
 					},
 				}))
-				// 2. AssignIDP: POST /crux/v1/mgmt-pop/appidp
 				pr.Handle("POST", "/crux/v1/mgmt-pop/appidp", jsonHandler(http.StatusOK, nil))
-				// 3. AssignIdpDirectory: POST /crux/v1/mgmt-pop/appdirectories
 				pr.Handle("POST", "/crux/v1/mgmt-pop/appdirectories", jsonHandler(http.StatusOK, nil))
-				// 4. AssignAllDirectoryGroups: POST /crux/v1/mgmt-pop/appgroups
 				pr.Handle("POST", "/crux/v1/mgmt-pop/appgroups", jsonHandler(http.StatusOK, nil))
 			},
 		},
@@ -839,8 +831,6 @@ func TestConfigureAuthentication(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConfigureAdvancedSettings(t *testing.T) {
-	// Minimal schema needed: the function calls GET app, UpdateAppRequestFromSchema, applyAuthTransformation, then PUT.
-	// UpdateAppRequestFromSchema reads many fields from schema; we supply the minimum set.
 	advancedSchema := map[string]*schema.Schema{
 		"name": {
 			Type:     schema.TypeString,
@@ -960,7 +950,7 @@ func TestCreateAppRequestFromSchema_Direct(t *testing.T) {
 		"advanced_settings": {Type: schema.TypeMap, Optional: true},
 	}
 
-	ec := &EaaClient{Logger: hclog.NewNullLogger()}
+	ec := &EaaClient{}
 
 	t.Run("success_with_tls_suite_fields", func(t *testing.T) {
 		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
@@ -1027,7 +1017,7 @@ func TestUpdateAppRequestFromSchema_Direct(t *testing.T) {
 		"advanced_settings": {Type: schema.TypeMap, Optional: true},
 	}
 
-	ec := &EaaClient{Logger: hclog.NewNullLogger()}
+	ec := &EaaClient{}
 
 	t.Run("success_maps_basic_and_tls_fields", func(t *testing.T) {
 		d := schema.TestResourceDataRaw(t, updateSchema, map[string]interface{}{
@@ -1183,11 +1173,8 @@ func TestConfigureService(t *testing.T) {
 				},
 			},
 			setupRouter: func(pr *pathRouter) {
-				// GetACLService
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42/services", jsonHandler(http.StatusOK, appServiceResp))
-				// EnableService (status differs: "off" vs "on")
 				pr.Handle("PUT", "/crux/v1/mgmt-pop/services/svc-uuid-1", jsonHandler(http.StatusOK, nil))
-				// CreateAccessRule
 				pr.Handle("POST", "/crux/v1/mgmt-pop/services/svc-uuid-1/rules", jsonHandler(http.StatusOK, nil))
 			},
 		},
@@ -1215,7 +1202,6 @@ func TestConfigureService(t *testing.T) {
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42/services", jsonHandler(http.StatusOK, appServiceResp))
-				// No EnableService call since status matches ("off" == "off")
 				pr.Handle("POST", "/crux/v1/mgmt-pop/services/svc-uuid-1/rules", jsonHandler(http.StatusOK, nil))
 			},
 		},

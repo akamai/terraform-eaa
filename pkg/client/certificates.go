@@ -2,14 +2,10 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-)
 
-var (
-	ErrCertificatesGet = errors.New("certificates get failed")
-	ErrCertNotExist    = errors.New("certificate does not exist ")
+	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
 
 type CreateSelfSignedCertRequest struct {
@@ -18,9 +14,10 @@ type CreateSelfSignedCertRequest struct {
 }
 
 func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx context.Context, ec *EaaClient) (*CertificateResponse, error) {
-	logger := ec.Logger
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagCreate}
+
 	if sscert.HostName == "" {
-		logger.Error("create self signed cert failed. hostname is invalid")
+		logging.Warn(ctx, "create self signed cert failed: hostname is invalid", tags)
 		return nil, ErrInvalidType
 	}
 	sscert.CertType = CERT_TYPE_APP_SSC
@@ -28,17 +25,14 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL)
 
 	var ssCertResp CertificateResponse
-	ssCertHTTPResp, err := ec.SendAPIRequest(apiURL, "POST", sscert, &ssCertResp, false)
+	ssCertHTTPResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", sscert, &ssCertResp, false)
 	if err != nil {
-		ec.Logger.Error("self certificate generation request failed", "error", err)
 		return nil, err
 	}
 	if ssCertHTTPResp.StatusCode < http.StatusOK || ssCertHTTPResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(ssCertHTTPResp)
-		ssCertErrMsg := fmt.Errorf("%w: %s", ErrAppUpdate, desc)
-
-		ec.Logger.Error("self signed certificate generation failed", "status", ssCertHTTPResp.StatusCode, "description", desc)
-		return nil, ssCertErrMsg
+		logging.Error(ctx, "self signed certificate generation failed", tags, map[string]any{"status": ssCertHTTPResp.StatusCode, "description": desc})
+		return nil, logging.Errorf(tags, "self signed certificate generation failed: %s", desc)
 	}
 	return &ssCertResp, nil
 }
@@ -78,18 +72,18 @@ type CertsResponse struct {
 	Objects []CertObject `json:"objects"`
 }
 
-func GetCertificates(ec *EaaClient) ([]CertObject, error) {
+func GetCertificates(ctx context.Context, ec *EaaClient) ([]CertObject, error) {
 	apiURL := fmt.Sprintf("%s://%s/%s/thin", URL_SCHEME, ec.Host, CERTIFICATES_URL)
 	certsResponse := CertsResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &certsResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &certsResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+		tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
 		desc := FormatErrorDescription(getResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
-		return nil, updErrMsg
+		return nil, logging.Errorf(tags, "certificates get failed: %s", desc)
 	}
 
 	var certs []CertObject
@@ -102,8 +96,8 @@ func GetCertificates(ec *EaaClient) ([]CertObject, error) {
 	return certs, nil
 }
 
-func DoesSelfSignedCertExistForHost(ec *EaaClient, host string) (*CertObject, error) {
-	certs, err := GetCertificates(ec)
+func DoesSelfSignedCertExistForHost(ctx context.Context, ec *EaaClient, host string) (*CertObject, error) {
+	certs, err := GetCertificates(ctx, ec)
 	if err != nil {
 		return nil, err
 	}
@@ -115,24 +109,24 @@ func DoesSelfSignedCertExistForHost(ec *EaaClient, host string) (*CertObject, er
 	return nil, nil
 }
 
-func GetCertificate(ec *EaaClient, certUUIDURL string) (*CertificateResponse, error) {
+func GetCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) (*CertificateResponse, error) {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
 	certResponse := CertificateResponse{}
 
-	getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &certResponse, false)
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &certResponse, false)
 	if err != nil {
 		return nil, err
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+		tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
 		desc := FormatErrorDescription(getResp)
-		updErrMsg := fmt.Errorf("%w: %s", ErrCertificatesGet, desc)
-		return nil, updErrMsg
+		return nil, logging.Errorf(tags, "certificate get failed: %s", desc)
 	}
 	return &certResponse, nil
 }
 
-func DoesUploadedCertExist(ec *EaaClient, host string) (*CertObject, error) {
-	certs, err := GetCertificates(ec)
+func DoesUploadedCertExist(ctx context.Context, ec *EaaClient, host string) (*CertObject, error) {
+	certs, err := GetCertificates(ctx, ec)
 	if err != nil {
 		return nil, err
 	}
@@ -141,5 +135,5 @@ func DoesUploadedCertExist(ec *EaaClient, host string) (*CertObject, error) {
 			return &cert, nil
 		}
 	}
-	return nil, ErrCertNotExist
+	return nil, logging.Errorf([]logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}, "uploaded certificate for host '%s' not found", host)
 }

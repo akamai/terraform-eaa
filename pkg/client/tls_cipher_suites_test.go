@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestGetTLSCipherSuites(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 
-			resp, err := GetTLSCipherSuites(ec, "test-app-uuid")
+			resp, err := GetTLSCipherSuites(context.Background(), ec, "test-app-uuid")
 			if requireErrIs(t, err, tt.wantErr, nil) {
 				return
 			}

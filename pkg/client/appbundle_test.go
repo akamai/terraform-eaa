@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -18,7 +19,7 @@ func testBundles() []AppBundle {
 func TestGetAppBundles(t *testing.T) {
 	ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
-	resp, err := ec.GetAppBundles()
+	resp, err := ec.GetAppBundles(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, resp.Objects, 2)
 	assert.Equal(t, "bundle-a", resp.Objects[0].Name)
@@ -39,7 +40,7 @@ func TestGetAppBundleByName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
-			got, err := ec.GetAppBundleByName(tt.name)
+			got, err := ec.GetAppBundleByName(context.Background(), tt.name)
 			if tt.wantErrSubstr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrSubstr)
@@ -65,7 +66,7 @@ func TestGetAppBundleNameByUUID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
-			got, err := ec.GetAppBundleNameByUUID(tt.uuid)
+			got, err := ec.GetAppBundleNameByUUID(context.Background(), tt.uuid)
 			if tt.wantErrSubstr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrSubstr)
@@ -89,7 +90,7 @@ func TestValidateAppBundleName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, jsonHandler(http.StatusOK, AppBundleResponse{Objects: testBundles()}))
 
-			err := ec.ValidateAppBundleName(tt.name)
+			err := ec.ValidateAppBundleName(context.Background(), tt.name)
 			requireErrIs(t, err, tt.wantErr, nil)
 		})
 	}

@@ -1,6 +1,7 @@
 package eaaprovider
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -19,8 +20,21 @@ func TestCleanupOrphanedApp(t *testing.T) {
 			Body:       map[string]interface{}{"detail": "not found"},
 		}
 
-		result := cleanupOrphanedApp(mockClient, appID)
+		result := cleanupOrphanedApp(context.Background(), mockClient, appID)
 		assert.True(t, result, "should return true when app not found")
+	})
+
+	t.Run("app_check_failure_returns_false", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+
+		getPattern := fmt.Sprintf("GET /crux/v1/mgmt-pop/apps/%s", appID)
+		mockTransport.Responses[getPattern] = MockResponse{
+			StatusCode: 500,
+			Body:       map[string]interface{}{"detail": "internal error"},
+		}
+
+		result := cleanupOrphanedApp(context.Background(), mockClient, appID)
+		assert.False(t, result, "should return false when app existence check fails")
 	})
 
 	t.Run("app_found_delete_succeeds_verify_confirms", func(t *testing.T) {
@@ -59,7 +73,7 @@ func TestCleanupOrphanedApp(t *testing.T) {
 		}
 		mockClient.Client.Transport = statefulTransport
 
-		result := cleanupOrphanedApp(mockClient, appID)
+		result := cleanupOrphanedApp(context.Background(), mockClient, appID)
 		assert.True(t, result, "should return true when app deleted and verified")
 	})
 
@@ -92,7 +106,7 @@ func TestCleanupOrphanedApp(t *testing.T) {
 		}
 		mockClient.Client.Transport = statefulTransport
 
-		result := cleanupOrphanedApp(mockClient, appID)
+		result := cleanupOrphanedApp(context.Background(), mockClient, appID)
 		assert.False(t, result, "should return false when delete fails")
 	})
 
@@ -126,7 +140,7 @@ func TestCleanupOrphanedApp(t *testing.T) {
 		}
 		mockClient.Client.Transport = statefulTransport
 
-		result := cleanupOrphanedApp(mockClient, appID)
+		result := cleanupOrphanedApp(context.Background(), mockClient, appID)
 		assert.False(t, result, "should return false when app still exists after deletion")
 	})
 }
