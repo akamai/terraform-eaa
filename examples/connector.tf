@@ -23,7 +23,7 @@ resource "eaa_connector" "dc1_connector" {
 
   advanced_settings {
     # Network ranges the connector can reach. Use CIDR notation (e.g., "10.0.0.0/16").
-    # Defaults to "0.0.0.0/0" (all networks) if omitted.
+    # Use ["0.0.0.0/0"] to allow all networks.
     network_info = ["10.0.0.0/16"]
   }
 }

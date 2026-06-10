@@ -17,7 +17,7 @@ Manages the lifecycle of an EAA application.
 * `popregion` - (Optional/Computed) Target region for deployment.
 * `app_category` - (Optional) Application category name.
 * `agents` - (Optional) List of connector names to assign.
-* `auth_enabled` - (Optional) Enable application authentication. Default `false`.
+* `auth_enabled` - (Optional) Enable application authentication. Default `"false"` (string; use `"true"`/`"false"`).
 * `protocol` - (Optional, SaaS only) Auth protocol. Values: `SAML`, `SAML2.0`, `OIDC`, `OpenID Connect 1.0`, `WSFed`, `WS-Federation`. Note: lowercase `wsfed` is NOT valid.
 * `app_bundle` - (Optional) Application bundle name for grouping related apps.
 
@@ -34,7 +34,7 @@ Manages the lifecycle of an EAA application.
 * `tunnel_internal_hosts` - (Optional) For tunnel apps:
   * `host` - IP or FQDN.
   * `port_range` - Port range (e.g. `3200-6000`).
-  * `proto_type` - `1` (TCP) or `2` (UDP).
+  * `proto_type` - `1` (TCP), `2` (UDP), or `3` (ALL).
 
 ### Certificates
 

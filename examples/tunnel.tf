@@ -29,7 +29,7 @@ resource "eaa_application" "sap_tunnel" {
   popregion       = "us-west-1"
   agents          = ["EAA_DC1_US1_TCP_01"]
 
-  # proto_type: 1 = TCP, 2 = UDP (per EAA API)
+  # proto_type: 1 = TCP, 2 = UDP, 3 = ALL (per EAA API)
   tunnel_internal_hosts {
     proto_type = 1
     port_range = "3200-6000"
