@@ -10,6 +10,7 @@ type FlexString string
 
 func (f *FlexString) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
+		*f = ""
 		return nil
 	}
 	var s string
