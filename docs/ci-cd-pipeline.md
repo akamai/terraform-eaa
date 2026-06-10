@@ -1,180 +1,58 @@
-# CI/CD Pipeline Documentation
+# CI/CD Pipeline
 
-This document describes the CI/CD pipeline setup for the terraform-eaa provider.
+## GitHub Actions (`.github/workflows/ci.yml`)
 
-## GitHub Actions Workflows
+Runs on every push and PR to main branches:
 
-### CI Pipeline (`.github/workflows/ci.yml`)
-
-The main CI pipeline runs on every push and pull request to the main branches. It includes:
-
-#### 1. **Format Check**
-- Verifies that all Go code is properly formatted using `gofmt`
-- Fails if any files are not formatted correctly
-- Run locally: `make fmt-check`
-
-#### 2. **Linting**
-- Uses `golangci-lint` for comprehensive static analysis
-- Configuration: `.golangci.yml`
-- Checks for:
-  - Code style issues
-  - Potential bugs
-  - Performance problems
-  - Best practices violations
-- Run locally: `make lint`
-
-#### 3. **Security Scanning**
-- **Gosec**: Scans for common security issues in Go code
-- **Govulncheck**: Checks for known vulnerabilities in dependencies
-- Uploads SARIF results to the GitHub Security tab
-- Fails the CI job when `gosec` or `govulncheck` reports findings
-- Run locally: `make security` and `make vuln-check`
-
-#### 4. **Testing**
-- Runs on multiple platforms: Ubuntu, macOS, and Windows
-- Executes all unit tests with race detection
-- Generates coverage reports on Ubuntu only
-- Run locally: `make test` or `make test-coverage`
-
-#### 5. **Build Verification**
-- Ensures the provider builds successfully on all platforms
-- Verifies both provider and tools can be built
-- Run locally: `make build` and `make buildtool`
+| Stage | What it does | Run locally |
+|---|---|---|
+| Format | Verifies `gofmt` compliance | `make fmt-check` |
+| Lint | `golangci-lint` static analysis (config: `.golangci.yml`) | `make lint` |
+| Security | `gosec` + `govulncheck` | `make security && make vuln-check` |
+| Test | Unit tests with race detection (Ubuntu, macOS, Windows) | `make test` |
+| Build | Provider + import tool build verification | `make build && make buildtool` |
 
 ## Makefile Targets
 
-### Development Targets
-```bash
-make build              # Build the provider binary
-make buildtool          # Build the import tool binary
-make install            # Install provider to local Terraform plugins
-```
+```sh
+# Build
+make build              # Provider binary
+make buildtool          # Import tool binary
+make install            # Install to local Terraform plugins
 
-### Testing Targets
-```bash
-make test               # Run all tests with race detection
-make test-coverage      # Run tests and generate coverage report
-make test-short         # Run only short tests
-```
+# Test
+make test               # All tests with race detection
+make test-coverage      # Tests + coverage report
+make test-short         # Short tests only
 
-### Code Quality Targets
-```bash
-make fmt                # Format all Go code
-make fmt-check          # Check if code is formatted (CI)
-make lint               # Run golangci-lint
-```
+# Quality
+make fmt                # Format Go code
+make fmt-check          # Check formatting (CI)
+make lint               # golangci-lint
 
-### Security Targets
-```bash
-make security           # Run gosec security scanner
-make vuln-check         # Check for known vulnerabilities
-```
+# Security
+make security           # gosec scanner
+make vuln-check         # Known vulnerability check
 
-### Utility Targets
-```bash
-make tidy               # Tidy and verify Go modules
+# Misc
+make tidy               # Tidy Go modules
 make vendor             # Vendor dependencies
 make clean              # Remove build artifacts
-make help               # Show all available targets
 ```
 
-## Local Development Setup
+## Pre-Push Checklist
 
-### Prerequisites
-1. Go 1.26.2 or later
-2. golangci-lint (optional, but recommended)
-   ```bash
-   go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-   ```
-3. gosec (optional, for security scanning)
-   ```bash
-   go install github.com/securego/gosec/v2/cmd/gosec@latest
-   ```
-4. govulncheck (optional, for vulnerability scanning)
-   ```bash
-   go install golang.org/x/vuln/cmd/govulncheck@latest
-   ```
-
-### Running CI Checks Locally
-
-Before pushing code, run these commands to ensure CI will pass:
-
-```bash
-# Format check
-make fmt-check
-
-# Lint
-make lint
-
-# Security scan
-make security
-make vuln-check
-
-# Tests
-make test
-
-# Build
-make build
-```
-
-Or run the complete CI suite:
-```bash
+```sh
 make fmt-check && make lint && make test && make build
 ```
 
 ## Dependabot
 
-Dependabot is configured (`.github/dependabot.yml`) to automatically:
-- Update Go module dependencies weekly
-- Update GitHub Actions versions weekly
-- Create pull requests with dependency updates
+Configured (`.github/dependabot.yml`) to update Go modules and GitHub Actions weekly.
 
-## Coverage Reports
+## Coverage
 
-Coverage reports are:
-- Generated in CI on the Ubuntu test job with `make test-coverage`
-- Saved as `coverage.out` (machine-readable) and `coverage.html` (human-readable)
-
-View coverage locally:
-```bash
+```sh
 make test-coverage
-open coverage.html  # macOS
-xdg-open coverage.html  # Linux
-start coverage.html  # Windows
+open coverage.html      # macOS
 ```
-
-## Troubleshooting
-
-### CI Fails on Format Check
-Run `make fmt` to auto-format code, then commit the changes.
-
-### Linter Errors
-Review the linter output and fix issues. Some common fixes:
-- Add error handling
-- Remove unused variables/imports
-- Fix code style issues
-
-### Security Warnings
-Review gosec output carefully:
-- Some warnings may be false positives (suppress specific cases with targeted `#nosec` annotations or by adjusting the security job)
-- Address genuine security concerns before merging
-
-### Test Failures
-- Run tests locally: `make test`
-- Check for race conditions: `go test -race ./...`
-- Review test logs for specific failures
-
-## CI Badge
-
-Add this badge to your README.md to show CI status:
-
-```markdown
-[![CI](https://github.com/akamai/terraform-eaa/actions/workflows/ci.yml/badge.svg)](https://github.com/akamai/terraform-eaa/actions/workflows/ci.yml)
-```
-
-## Additional Resources
-
-- [golangci-lint documentation](https://golangci-lint.run/)
-- [gosec documentation](https://github.com/securego/gosec)
-- [GitHub Actions documentation](https://docs.github.com/en/actions)
-- [Terraform Provider development guide](https://www.terraform.io/docs/extend/writing-custom-providers.html)

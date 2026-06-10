@@ -1,3 +1,6 @@
+# OpenID Connect Authentication
+# Enterprise OIDC and SaaS OIDC.
+
 terraform {
   required_providers {
     eaa = {
@@ -12,32 +15,28 @@ provider "eaa" {
   edgerc     = ".edgerc"
 }
 
-# OpenID Connect Application Example
-# This example demonstrates how to create an EAA application with OIDC authentication
-
-
-
-# Basic OIDC Application with Default Settings
-resource "eaa_application" "oidc_basic" {
-  name            = "oidc-basic-app"
-  description     = "OIDC application with default settings-update"
+# --- Enterprise OIDC ---
+# For enterprise apps: set app_auth="OpenID Connect 1.0" in advanced_settings.
+# The oidc_settings block is optional. If omitted, the API uses its defaults.
+resource "eaa_application" "oidc_enterprise" {
+  name            = "OIDC Enterprise App"
+  description     = "Enterprise app with OpenID Connect authentication"
   host            = "oidc-basic.example.com"
   app_profile     = "http"
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
-
+  popregion       = "us-east-1"
+  agents          = ["EAA_DC1_US1_Access_01"]
 
   servers {
-    orig_tls        = true
     origin_protocol = "https"
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
 
-  popregion    = "us-east-1"
-  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+
   app_authentication {
     app_idp = "employees-idp"
 
@@ -54,23 +53,16 @@ resource "eaa_application" "oidc_basic" {
 
   advanced_settings = {
     app_auth = "OpenID Connect 1.0"
-    # No oidc_settings needed - defaults will be applied
   }
-
-  # No app_authentication block needed for first-time creation
-  # API will automatically assign default IDP and create default OIDC settings
 }
 
-# OIDC Application with Custom Settings
-
-# SaaS Application with OIDC Authentication (OpenID Connect 1.0)
+# --- SaaS OIDC ---
+# SaaS apps use the top-level "protocol" field instead of advanced_settings.app_auth.
 resource "eaa_application" "saas_oidc" {
-  name        = "saas-oidc-example"
-  description = "SaaS application with OIDC authentication"
+  name        = "SaaS OIDC App"
+  description = "SaaS application with OpenID Connect authentication"
   host        = "saas-oidc.example.com"
   app_profile = "http"
   app_type    = "saas"
-
-  # Protocol determines authentication method for SaaS apps
-  protocol = "OpenID Connect 1.0"
+  protocol    = "OpenID Connect 1.0"
 }

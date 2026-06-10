@@ -1,5 +1,5 @@
-# Kerberos Authentication Application Example
-# This example demonstrates how to create an EAA application with Kerberos authentication
+# Kerberos Authentication
+# Basic Kerberos and Kerberos with client certificate and TGT forwarding.
 
 terraform {
   required_providers {
@@ -11,31 +11,30 @@ terraform {
 }
 
 provider "eaa" {
-  # Configuration options
   contractid = "XXXXXXX"
   edgerc     = ".edgerc"
 }
 
-# Basic Kerberos Authentication Application
+# --- Basic Kerberos ---
 resource "eaa_application" "kerberos_basic" {
-  name            = "kerberos-basic-app"
-  description     = "Kerberos authentication application"
+  name            = "Kerberos Basic App"
+  description     = "Enterprise app with Kerberos authentication"
   host            = "kerberos-basic.example.com"
   app_profile     = "http"
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
+  popregion       = "us-east-1"
+  agents          = ["EAA_DC1_US1_Access_01"]
 
   servers {
-    orig_tls        = true
     origin_protocol = "https"
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
 
-  popregion    = "us-east-1"
-  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+
   app_authentication {
     app_idp = "employees-idp"
 
@@ -44,15 +43,12 @@ resource "eaa_application" "kerberos_basic" {
       app_groups {
         name = "Engineering"
       }
-      app_groups {
-        name = "SQA"
-      }
     }
   }
 
   advanced_settings = {
     app_auth                       = "kerberos"
-    app_auth_domain                = "EXAMPLE.COM"
+    app_auth_domain                = "EXAMPLE.COM" # Must be uppercase (Kerberos realm convention)
     app_client_cert_auth           = "false"
     forward_ticket_granting_ticket = "false"
     keytab                         = ""
@@ -60,46 +56,44 @@ resource "eaa_application" "kerberos_basic" {
   }
 }
 
-# Kerberos Authentication Application with Client Certificate Auth
-resource "eaa_application" "kerberos_client_cert" {
-  name            = "kerberos-client-cert-app"
-  description     = "Kerberos authentication application with client certificate auth"
-  host            = "kerberos-client-cert.example.com"
+# --- Kerberos with client certificate and TGT forwarding ---
+resource "eaa_application" "kerberos_delegated" {
+  name            = "Kerberos Delegated App"
+  description     = "Kerberos with client cert auth and TGT forwarding"
+  host            = "kerberos-delegated.example.com"
   app_profile     = "http"
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
+  popregion       = "us-east-1"
+  agents          = ["EAA_DC1_US1_Access_01"]
 
   servers {
-    orig_tls        = true
     origin_protocol = "https"
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
 
-  popregion    = "us-east-1"
-  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+
   app_authentication {
-    app_idp = "employees-id"
+    app_idp = "employees-idp"
 
     app_directories {
       name = "Cloud Directory"
       app_groups {
         name = "Engineering"
       }
-      app_groups {
-        name = "SQA"
-      }
     }
   }
 
   advanced_settings = {
-    app_auth                       = "kerberos"
-    app_auth_domain                = "EXAMPLE.COM"
-    app_client_cert_auth           = "true"
+    app_auth             = "kerberos"
+    app_auth_domain      = "EXAMPLE.COM"
+    app_client_cert_auth = "true"
+    # When true, the user's TGT is forwarded to the connector for Kerberos delegation.
     forward_ticket_granting_ticket = "true"
     keytab                         = ""
-    service_principle_name         = "HTTP/kerberos-client-cert.example.com"
+    service_principle_name         = "HTTP/kerberos-delegated.example.com"
   }
 }

@@ -1,3 +1,6 @@
+# WS-Federation Authentication
+# Enterprise WS-Fed (basic and custom) and SaaS WS-Fed.
+
 terraform {
   required_providers {
     eaa = {
@@ -12,33 +15,27 @@ provider "eaa" {
   edgerc     = ".edgerc"
 }
 
-# WS-Federation Authentication Application Example
-# This example demonstrates how to create an EAA application with WS-Federation authentication
-
-
-# Basic WS-Federation Application with Default Settings
+# --- Enterprise WS-Fed with minimal settings ---
+# app_auth accepts "WS-Federation" or "wsfed" (both case-sensitive).
 resource "eaa_application" "wsfed_basic" {
-  name            = "wsfed-basic-app"
-  description     = "WS-Federation application with default settings"
+  name            = "WS-Fed Basic App"
+  description     = "Enterprise app with default WS-Federation settings"
   host            = "wsfed-basic.example.com"
   app_profile     = "http"
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
+  popregion       = "us-east-1"
+  agents          = ["EAA_DC1_US1_Access_01"]
 
-  advanced_settings = {
-    app_auth = "WS-Federation"
-  }
   servers {
-    orig_tls        = true
     origin_protocol = "https"
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
 
-  popregion    = "us-east-1"
-  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+
   app_authentication {
     app_idp = "employees-idp"
 
@@ -47,47 +44,40 @@ resource "eaa_application" "wsfed_basic" {
       app_groups {
         name = "Engineering"
       }
-      app_groups {
-        name = "SQA"
-      }
     }
   }
+
+  advanced_settings = {
+    app_auth = "WS-Federation"
+  }
+
   wsfed_settings {
     idp {
       self_signed = true
     }
-
-
   }
-
-
-  # No app_authentication block needed for first-time creation
-  # API will automatically assign default IDP and create default WS-Federation settings
 }
 
-# WS-Federation Application with Custom Settings
+# --- Enterprise WS-Fed with full custom settings ---
 resource "eaa_application" "wsfed_custom" {
-  name            = "wsfed-custom-apps"
-  description     = "WS-Federation application with custom settings"
+  name            = "WS-Fed Custom App"
+  description     = "Enterprise app with fully customized WS-Federation"
   host            = "wsfed-custom.example.com"
   app_profile     = "http"
   app_type        = "enterprise"
   domain          = "wapp"
   client_app_mode = "tcp"
-  advanced_settings = {
-    app_auth = "WS-Federation"
-  }
+  popregion       = "us-east-1"
+  agents          = ["EAA_DC1_US1_Access_01"]
 
   servers {
-    orig_tls        = true
     origin_protocol = "https"
     origin_port     = 443
     origin_host     = "backend.example.com"
   }
 
-  popregion    = "us-east-1"
-  agents       = ["EAA_DC1_US1_Access_01"]
   auth_enabled = "true"
+
   app_authentication {
     app_idp = "employees-idp"
 
@@ -96,14 +86,13 @@ resource "eaa_application" "wsfed_custom" {
       app_groups {
         name = "Engineering"
       }
-      app_groups {
-        name = "SQA"
-      }
     }
   }
 
+  advanced_settings = {
+    app_auth = "WS-Federation"
+  }
 
-  # WS-Federation settings using Terraform resource schema
   wsfed_settings {
     sp {
       entity_id  = "https://wsfed-custom.example.com"
@@ -115,7 +104,7 @@ resource "eaa_application" "wsfed_custom" {
     }
 
     idp {
-      entity_id   = "https://test-idp.example.com/wsfed/idp/sso"
+      entity_id   = "https://idp.example.com/wsfed/idp/sso"
       sign_algo   = "SHA1"
       sign_key    = ""
       self_signed = true
@@ -158,18 +147,16 @@ resource "eaa_application" "wsfed_custom" {
   }
 }
 
-# SaaS Application with WS-Federation Authentication
+# --- SaaS WS-Fed ---
+# SaaS apps use the top-level "protocol" field instead of advanced_settings.app_auth.
 resource "eaa_application" "saas_wsfed" {
-  name        = "saas-wsfed-test"
+  name        = "SaaS WS-Fed App"
   description = "SaaS application with WS-Federation authentication"
   host        = "saas-wsfed.example.com"
   app_profile = "http"
   app_type    = "saas"
+  protocol    = "WS-Federation"
 
-  # Protocol determines authentication method for SaaS apps
-  protocol = "WS-Federation"
-
-  # WS-Federation Settings (from saas.tf)
   wsfed_settings {
     sp {
       entity_id  = "https://saas-wsfed.example.com"
@@ -181,7 +168,7 @@ resource "eaa_application" "saas_wsfed" {
     }
 
     idp {
-      entity_id   = "https://test-idp.example.com/wsfed/idp/sso"
+      entity_id   = "https://idp.example.com/wsfed/idp/sso"
       sign_algo   = "SHA1"
       sign_key    = ""
       self_signed = true
