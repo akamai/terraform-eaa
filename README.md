@@ -5,7 +5,7 @@ Terraform provider for [Akamai Enterprise Application Access (EAA)](https://tech
 ## Install
 
 ```sh
-cd eaa_terraform
+# From the repository root
 make
 ```
 
@@ -13,7 +13,7 @@ Outputs:
 - `bin/terraform-provider-eaa` — provider binary
 - `bin/import-config` — bulk import tool
 
-Platform support: macOS (darwin_amd64), Linux, Windows.
+Platform support: macOS (darwin_amd64, darwin_arm64), Linux (linux_amd64, linux_arm64), Windows (windows_amd64, windows_arm64).
 
 ## Provider Configuration
 
@@ -108,4 +108,4 @@ See [docs/troubleshooting.md](docs/troubleshooting.md) for logging setup, log ta
 
 ## Support
 
-EAA Terraform provider is provided as-is and not supported by Akamai Support. Report issues at the [GitHub Issues page](https://github.com/akamai/cli-eaa/issues).
+EAA Terraform provider is provided as-is and not supported by Akamai Support. Report issues at the [GitHub Issues page](https://github.com/akamai/terraform-eaa/issues).

@@ -6,10 +6,10 @@ Manages the lifecycle of an EAA application.
 
 * `name` - (Required) Application name.
 * `description` - (Optional) Application description.
-* `app_profile` - (Optional) Access profile. Values: `http`, `tcp`, `rdp`, `ssh`, `vnc`, `smb`. Default `http`.
+* `app_profile` - (Optional) Access profile. Values: `http`, `tcp`, `rdp`, `ssh`, `vnc`, `smb`, `sharepoint`, `jira`, `jenkins`, `confluence`. Default `http`.
 * `app_type` - (Optional) Application type. Values: `enterprise`, `tunnel`, `bookmark`, `saas`. Default `enterprise`.
 * `client_app_mode` - (Optional) Client app mode. Values: `tcp`, `tunnel`. Default `tcp`.
-* `domain` - (Optional) Domain type. Values: `custom`, `wapp`. Default `custom`.
+* `domain` - (Optional) Domain type. Values: `custom`, `wapp`. Default `wapp`.
 * `host` - (Optional) External hostname for the application.
 * `bookmark_url` - (Optional) URL for bookmark applications.
 * `pop` - (Optional/Computed) PoP identifier.
@@ -26,7 +26,7 @@ Manages the lifecycle of an EAA application.
 * `servers` - (Optional) List of origin servers:
   * `origin_host` - Origin server IP or FQDN.
   * `origin_port` - Origin server port.
-  * `origin_protocol` - `http` or `https`.
+  * `origin_protocol` - Protocol: `http`, `https`, `tcp`, `rdp`.
   * `orig_tls` - (Deprecated) Computed by the API based on `origin_protocol`. Do not set directly.
 
 ### Tunnel Internal Hosts
@@ -93,7 +93,7 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 * `health_check_type` - Type. Values: `Default`, `HTTP`, `HTTPS`, `TLS`, `SSLv3`, `TCP`, `None`.
 * `health_check_interval` - Interval in milliseconds. Default `30000`.
 * `health_check_http_url` - (Required for HTTP/HTTPS) Health check URL.
-* `health_check_http_version` - (Required for HTTP/HTTPS) HTTP version: `1.0`, `1.1`, `2.0`.
+* `health_check_http_version` - (Required for HTTP/HTTPS) HTTP version: `1.0`, `1.1`.
 * `health_check_http_host_header` - (Required for HTTP/HTTPS) Host header.
 * `health_check_fall` - Failures before marking unhealthy. Default `3`.
 * `health_check_rise` - Successes before marking healthy. Default `2`.
@@ -129,7 +129,7 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 * `sentry_redirect_401` - Redirect 401 for session validation.
 
 **App-to-origin (`app_auth`):**
-* `app_auth` - Auth to origin: `none`, `kerberos`, `basic`, `NTLMv1`, `NTLMv2`, `SAML2.0` (or `saml`), `WS-Federation` (or `wsfed`), `OpenID Connect 1.0` (or `oidc`).
+* `app_auth` - Auth to origin: `none`, `kerberos`, `basic`, `NTLMv1`, `NTLMv2`, `SAML2.0` (or `saml`), `WS-Federation` (or `wsfed`), `OpenID Connect 1.0` (or `oidc`), `auto`, `service account`.
 
 **Kerberos fields:**
 * `app_auth_domain` - Kerberos domain.
