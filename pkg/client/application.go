@@ -1915,11 +1915,16 @@ type AdvancedSettings struct {
 	InternalHostPort             string                 `json:"internal_host_port,omitempty"`
 	MDCEnable                    string                 `json:"mdc_enable,omitempty"`
 	MFA                          string                 `json:"mfa,omitempty"`
-	OffloadOnpremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
+	OffloadOnPremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
 	Onramp                       string                 `json:"onramp,omitempty"`
 	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
 	PreauthConsent               string                 `json:"preauth_consent,omitempty"`
 	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
+	ProxyBufferSizeKB            string                 `json:"proxy_buffer_size_kb,omitempty"`
+	ProxyDisableClipboard        string                 `json:"proxy_disable_clipboard,omitempty"`
+	RateLimit                    string                 `json:"rate_limit,omitempty"`
+	KerberosNegotiateOnce        string                 `json:"kerberos_negotiate_once,omitempty"`
+	KeyedKeepaliveEnable         string                 `json:"keyed_keepalive_enable,omitempty"`
 	G2OEnabled                   string                 `json:"g2o_enabled,omitempty"`
 	RemoteSparkAudio             string                 `json:"remote_spark_audio,omitempty"`
 	RemoteSparkDisk              string                 `json:"remote_spark_disk,omitempty"`
@@ -1955,8 +1960,6 @@ type AdvancedSettings struct {
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
 	RDPWindowWidth               string                 `json:"rdp_window_width,omitempty"`
 	RefreshStickyCookie          string                 `json:"refresh_sticky_cookie,omitempty"`
-	DynamicIP                    string                 `json:"dynamic_ip,omitempty"`
-	StickyCookies                string                 `json:"sticky_cookies,omitempty"`
 	RDPInitialProgram            string                 `json:"rdp_initial_program,omitempty"`
 	RDPRemoteApps                []RemoteApp            `json:"rdp_remote_apps,omitempty"`
 	FormPostAttributes           []string               `json:"form_post_attributes,omitempty"`
