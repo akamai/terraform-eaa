@@ -1,125 +1,111 @@
-# EAA Provider for Terraform
+# EAA Terraform Provider
 
-## Table of contents<!-- omit in toc -->
+Terraform provider for [Akamai Enterprise Application Access (EAA)](https://techdocs.akamai.com/eaa/docs).
 
-- [Introduction](#introduction)
-- [Key features](#key-features)
-- [Installation](#installation)
-- [Examples](#examples)
-  - [Create a new application](#create-a-new-application-using-terraform)
-  - [Import all applications into Terraform](#import-applications-created-outside-terraform)
-- [Scope and Limitations](#scope-and-limitations)
-- [Troubleshooting and Support](#troubleshooting-and-support)
-  - [Self-troubleshooting](#self-troubleshooting)
-  - [Support](#support)
-- [References](#references)
+## Install
 
-## Introduction
-
-[Enterprise Application Access (EAA)](https://www.akamai.com/us/en/products/security/enterprise-application-access.jsp) comes with a full suite of APIs.
-Yet you need to write scripts or use [Postman](https://developer.akamai.com/authenticate-with-postman) to be able to interact with the service.
-
-With EAA Terraform provider, you can run some common operations directly from the command line, no coding required.
-
-## Key features
-
-- Application
-  - Create/modify an application
-  - Import operations
-  - Certain advanced settings
-
-## Installation
-
-See [install.md](docs/install.md)
-
-
-## Examples
-
-## Create a new application using Terraform:
-
-1. Export the API client `.edgerc` to a location where `.tf` files are also located.
-
-2. `.tf` must contain the following sections:
-    - `required_providers` [required_providers](docs/eaa-provider-configuration.md)
-    - `"eaa" provider details`
-    - `resource config for your application`[app_config](docs/create-an-app.md)
-    - `connector pool management`[connector_pool](docs/connector-pool.md)
-
-    * Refer to the [Examples](examples), for sample tf files.
-
-3. To create multiple apps using Terraform, either multiple `.tf` files (for example, one for each app) could be created or one `.tf` file could contain configurations of all apps.
-
-4. Run the following terraform commands:
 ```sh
-  terraform init
-  terraform plan
-  terraform apply
-```
-5. All the app configuration is now pushed to EAA and the app deployments would start.
-
-6. If you are deploying multiple apps at once, the deployment could take a while. It’s recommended to deploy in batches.
-
-## Import applications created outside Terraform
-
-EAA Terraform provider comes with an import tool that can be used to import all or a subset of applications that are created outside Terraform and manage them using Terraform infrastructure.
-The import tool relies on the `.edgerc` configuration to access the tenant details and prompts for a comma-separated application names.
-
-```'sh
-./bin/import-config
-terraform init
-terraform plan -generate-config-out=generated.tf /* Terraform can generate code for the resources you define in import blocks that do not already exist in your configuration. */
-cat import_existing_apps.tf
-terraform plan
-
-# \⚠️ Warning:
-# Before running `terraform apply`, carefully review the output of `terraform plan` and `terraform apply`.
-# If either command indicates any application will be modified in-place (lines starting with `~`), review the changes carefully before proceeding.
-# In-place modifications will change the applications in current infrastructure.
-
-terraform apply
+# From the repository root
+make
 ```
 
-## Scope and Limitations
+Outputs:
+- `bin/terraform-provider-eaa` — provider binary
+- `bin/import-config` — bulk import tool
 
-### The EAA Terraform provider currently supports:
+Platform support: macOS (darwin_amd64, darwin_arm64), Linux (linux_amd64, linux_arm64), Windows (windows_amd64, windows_arm64).
 
-- Create and deploy an application
-- Update the application
-- Apps with Akamai domain and custom domain
-- Self signed certificate for custom domain
-- Uploaded certicate for custom domain
-- Assigning pops to the application
-- Assigning App categories to the application
-- Assigning connectors to the application
-- Assigning IDP to the application
-- Assigning directories to the application
-- Assigning groups to the application
-- Enabling Access service
-- Creating access control rule(s) to block or deny access to an application, based on User/Group criteria
-- updating G2O
-- comprehensive advanced_settings support
-- updating connectors, IDPs, directories and groups assigned to application
-- data sources for app_categories, pops, agents, idps, directories and groups
-- Supports only Mac darwin_amd64
+## Provider Configuration
 
-## Troubleshooting and Support
+```hcl
+terraform {
+  required_providers {
+    eaa = {
+      source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
+      version = "2.0.0"
+    }
+  }
+}
 
-### Self-troubleshooting
-To enable verbose logging of Terraform operations, set `export TF_LOG=[Info/Error/Debug/Warn]` prior to running any Terraform commands.
-The messages are printed on the console.
+provider "eaa" {
+  contractid       = "contract-id"
+  accountswitchkey = "account-switch-key"  # optional
+  edgerc           = ".edgerc"             # optional, defaults to ~/.edgerc
+}
+```
 
-### Support
+| Argument | Required | Description |
+|---|---|---|
+| `contractid` | Yes | Akamai contract ID for EAA |
+| `accountswitchkey` | No | Run operations from another account |
+| `edgerc` | No | Path to `.edgerc` file (default `~/.edgerc`) |
 
-EAA Terraform provider is provided as-is and it is not supported by Akamai Support.
-To report any issue, feature request or bug, please open a new issue into the [GitHub Issues page](https://github.com/akamai/cli-eaa/issues)
+Authentication can also use [environment variables](https://techdocs.akamai.com/terraform/docs/environment-variables).
 
-We are strongly encouraging developer to create a pull request.
+### .edgerc Setup
 
-## References:
-For more information about using EAA in Akamai Control Center, refer to [Enterprise Application Access](https://techdocs.akamai.com/eaa/docs)
+Create an API client in Akamai Control Center with READ-WRITE permission to *Enterprise Application Access*. For legacy API keys: EAA > System > Settings > Generate new API Key.
 
-To learn the basics of Terraform using this provider, follow the hands-on [get started tutorials](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/infrastructure-as-code?utm_medium=WEB_IO&in=terraform%2Faws-get-started&utm_content=DOCS&utm_source=WEBSITE&utm_offer=ARTICLE_PAGE).
+```ini
+[default]
+host = akaa-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx.luna.akamaiapis.net
+client_token = akab-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx
+client_secret = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+access_token = akab-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx
+```
 
-[Managing infrstructure with Terraform](https://developer.hashicorp.com/terraform/tutorials/cli/plan)
+## Quick Start
 
-[Enterprise Application Access API](https://techdocs.akamai.com/eaa-api/reference/api)
+```hcl
+resource "eaa_application" "my_app" {
+  name        = "My App"
+  app_profile = "http"
+  app_type    = "enterprise"
+  domain      = "wapp"
+  host        = "my-app"
+  popregion   = "us-east-1"
+  agents      = ["my-connector"]
+
+  servers {
+    origin_host     = "app.internal.example.com"
+    origin_port     = 443
+    origin_protocol = "https"
+  }
+
+  auth_enabled = "true"
+}
+```
+
+```sh
+terraform init && terraform plan && terraform apply
+```
+
+## Documentation
+
+### Resources
+
+| Resource | Description | Doc | Examples |
+|---|---|---|---|
+| `eaa_application` | Application lifecycle, advanced settings, auth, ACL rules | [docs/eaa_application.md](docs/eaa_application.md) | [enterprise_http](examples/enterprise_http.tf), [enterprise_rdp](examples/enterprise_rdp.tf), [tunnel](examples/tunnel.tf), [auth_*](examples/) |
+| `eaa_connector` | Connector VM provisioning | [docs/eaa_connector.md](docs/eaa_connector.md) | [connector](examples/connector.tf) |
+| `eaa_connector_pool` | Pool management, registration tokens, app/connector assignment | [docs/eaa_connector_pool.md](docs/eaa_connector_pool.md) | [connector_pool](examples/connector_pool.tf) |
+
+### Data Sources
+
+`eaa_data_source_pops`, `eaa_data_source_appcategories`, `eaa_data_source_agents`, `eaa_data_source_idps`, `eaa_data_source_tls_cipher_suites`, `eaa_connector_pools`, `eaa_data_source_apps` — see [docs/data-sources.md](docs/data-sources.md).
+
+### Other
+
+| Topic | Doc |
+|---|---|
+| Importing existing resources | [docs/import.md](docs/import.md) |
+| Troubleshooting & log tags | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| CI/CD pipeline & Makefile targets | [docs/ci-cd-pipeline.md](docs/ci-cd-pipeline.md) |
+
+## Troubleshooting
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for logging setup, log tag format, and a full reference of all `[SOURCE][RESOURCE][OPERATION]` log tags.
+
+## Support
+
+EAA Terraform provider is provided as-is and not supported by Akamai Support. Report issues at the [GitHub Issues page](https://github.com/akamai/terraform-eaa/issues).
