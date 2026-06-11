@@ -89,3 +89,37 @@ func TestFlexString_UnmarshalJSON_InvalidInput(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "FlexString: cannot unmarshal")
 }
+
+func TestFlexString_UnmarshalJSON_EmptyString(t *testing.T) {
+	var f FlexString
+	err := json.Unmarshal([]byte(`""`), &f)
+	require.NoError(t, err)
+	assert.Equal(t, FlexString(""), f)
+}
+
+func TestFlexString_OmitemptyBehavior(t *testing.T) {
+	type example struct {
+		Value FlexString `json:"value,omitempty"`
+	}
+
+	t.Run("zero_value_not_dropped", func(t *testing.T) {
+		e := example{Value: FlexString("0")}
+		data, err := json.Marshal(e)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"value"`)
+	})
+
+	t.Run("negative_value_not_dropped", func(t *testing.T) {
+		var f FlexString
+		err := json.Unmarshal([]byte(`-1`), &f)
+		require.NoError(t, err)
+		assert.Equal(t, FlexString("-1"), f)
+	})
+
+	t.Run("empty_string_dropped", func(t *testing.T) {
+		e := example{Value: FlexString("")}
+		data, err := json.Marshal(e)
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), `"value"`)
+	})
+}

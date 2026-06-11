@@ -6,6 +6,7 @@ import (
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestMapAdvancedSettingsFromResponseWithInvalidHealthCheckType tests that
@@ -318,6 +319,62 @@ func TestMapAdvancedSettingsFromResponseWithValidTLSSuiteType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMapAdvancedSettingsFromResponse_FlexStringFields(t *testing.T) {
+	resourceSchema := map[string]*schema.Schema{
+		"uuid_url": {
+			Type:     schema.TypeString,
+			Computed: true,
+		},
+		"name": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"app_type": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"host": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+		},
+	}
+
+	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+		"uuid_url":          "test-app-id",
+		"name":              "test-app",
+		"app_type":          "http",
+		"host":              "test.example.com",
+		"advanced_settings": map[string]interface{}{},
+	})
+
+	appResp := &client.ApplicationResponse{
+		UUIDURL: "test-app-id",
+		Name:    "test-app",
+		AdvancedSettings: client.AdvancedSettingsComplete{
+			HealthCheckType:      "0",
+			AppServerReadTimeout: client.FlexString("60"),
+			XWappPoolSize:        client.FlexString("20"),
+			XWappPoolTimeout:     client.FlexString("120"),
+			XWappReadTimeout:     client.FlexString("900"),
+		},
+	}
+
+	diags := mapAdvancedSettingsFromResponse(d, appResp)
+	if diags.HasError() {
+		t.Fatalf("mapAdvancedSettingsFromResponse returned errors: %v", diags)
+	}
+
+	advSettings := d.Get("advanced_settings").(map[string]interface{})
+	assert.Equal(t, "60", advSettings["app_server_read_timeout"])
+	assert.Equal(t, "20", advSettings["x_wapp_pool_size"])
+	assert.Equal(t, "120", advSettings["x_wapp_pool_timeout"])
+	assert.Equal(t, "900", advSettings["x_wapp_read_timeout"])
 }
 
 func intPtr(v int) *int {

@@ -76,6 +76,10 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 		}
 	})
 
+	t.Run("cert_body is sensitive", func(t *testing.T) {
+		assert.True(t, r.Schema["cert_body"].Sensitive, "cert_body must be sensitive")
+	})
+
 	t.Run("saml computed", func(t *testing.T) {
 		assert.True(t, r.Schema["saml"].Computed)
 	})

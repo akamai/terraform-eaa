@@ -424,6 +424,35 @@ func TestAdvancedSettings_UnmarshalJSON_NumericFlexFields(t *testing.T) {
 	assert.Equal(t, FlexString("900"), as.XWappReadTimeout)
 }
 
+func TestAdvancedSettingsComplete_UnmarshalJSON_NumericFlexFields(t *testing.T) {
+	jsonStr := `{
+		"app_server_read_timeout": 60,
+		"x_wapp_pool_size": 20,
+		"x_wapp_pool_timeout": 120,
+		"x_wapp_read_timeout": 900
+	}`
+	var asc AdvancedSettingsComplete
+	err := json.Unmarshal([]byte(jsonStr), &asc)
+	require.NoError(t, err)
+	assert.Equal(t, FlexString("60"), asc.AppServerReadTimeout)
+	assert.Equal(t, FlexString("20"), asc.XWappPoolSize)
+	assert.Equal(t, FlexString("120"), asc.XWappPoolTimeout)
+	assert.Equal(t, FlexString("900"), asc.XWappReadTimeout)
+}
+
+func TestUpdateAdvancedSettings_CopiesFlexStringFields(t *testing.T) {
+	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
+	require.NoError(t, err)
+
+	var complete AdvancedSettingsComplete
+	UpdateAdvancedSettings(&complete, advSettings)
+
+	assert.Equal(t, FlexString("60"), complete.AppServerReadTimeout)
+	assert.Equal(t, FlexString("20"), complete.XWappPoolSize)
+	assert.Equal(t, FlexString("120"), complete.XWappPoolTimeout)
+	assert.Equal(t, FlexString("900"), complete.XWappReadTimeout)
+}
+
 func TestParseAdvancedSettingsWithDefaults_NewFieldDefaults(t *testing.T) {
 	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
 	require.NoError(t, err)

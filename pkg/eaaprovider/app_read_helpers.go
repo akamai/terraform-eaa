@@ -474,11 +474,20 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 		if certErr != nil {
 			logging.Warn(ctx, fmt.Sprintf("failed to fetch certificate details for %s: %s; cert_body will be empty", *appResp.Cert, certErr.Error()),
 				[]logging.Tag{logging.TagApp, logging.TagCert, logging.TagRead})
+			err = d.Set("cert_body", "")
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
+			}
 		} else {
 			err = d.Set("cert_body", appCertData.Cert)
 			if err != nil {
 				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_body")
 			}
+		}
+	} else {
+		err = d.Set("cert_body", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
 		}
 	}
 
