@@ -471,10 +471,13 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 
 	if appResp.Cert != nil {
 		appCertData, certErr := client.GetCertificate(ctx, eaaclient, *appResp.Cert)
-		if certErr == nil {
-			err = d.Set("cert", appCertData.Cert)
+		if certErr != nil {
+			logging.Warn(ctx, fmt.Sprintf("failed to fetch certificate details for %s: %s; cert_body will be empty", *appResp.Cert, certErr.Error()),
+				[]logging.Tag{logging.TagApp, logging.TagCert, logging.TagRead})
+		} else {
+			err = d.Set("cert_body", appCertData.Cert)
 			if err != nil {
-				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert")
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_body")
 			}
 		}
 	}
