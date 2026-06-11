@@ -114,3 +114,80 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 		assert.Equal(t, 6, mapped["proto_type"])
 	})
 }
+
+func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
+	certUUID := "cert-uuid-123"
+	pemBody := "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----"
+
+	appUUID := "test-app-uuid"
+	svcUUID := "acl-svc-uuid"
+
+	baseRoutes := func(mockTransport *MockHTTPTransport) {
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/apps/"+appUUID+"/agents"] = MockResponse{
+			StatusCode: 200,
+			Body:       client.AppAgentResponse{},
+		}
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/apps/"+appUUID+"/services"] = MockResponse{
+			StatusCode: 200,
+			Body: client.AppServicesResponse{
+				AppServices: []client.AppServiceData{{
+					Service: client.AppService{
+						UUIDURL:     svcUUID,
+						ServiceType: int(client.SERVICE_TYPE_ACCESS_CTRL),
+					},
+				}},
+			},
+		}
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/services/"+svcUUID+"/rules"] = MockResponse{
+			StatusCode: 200,
+			Body:       client.ACLRulesResponse{},
+		}
+	}
+
+	t.Run("cert_body_set_on_successful_fetch", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		baseRoutes(mockTransport)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
+			StatusCode: 200,
+			Body: client.CertificateResponse{
+				UUIDURL: certUUID,
+				Cert:    pemBody,
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		appResp := &client.ApplicationResponse{Cert: &certUUID, UUIDURL: appUUID}
+
+		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
+		require.False(t, diags.HasError())
+		assert.Equal(t, pemBody, d.Get("cert_body"))
+	})
+
+	t.Run("cert_body_cleared_when_cert_is_nil", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		baseRoutes(mockTransport)
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		appResp := &client.ApplicationResponse{Cert: nil, UUIDURL: appUUID}
+
+		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
+		require.False(t, diags.HasError())
+		assert.Equal(t, "", d.Get("cert_body"))
+	})
+
+	t.Run("cert_body_cleared_on_fetch_error", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		baseRoutes(mockTransport)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
+			StatusCode: 500,
+			Body:       map[string]string{"detail": "internal error"},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		appResp := &client.ApplicationResponse{Cert: &certUUID, UUIDURL: appUUID}
+
+		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
+		require.False(t, diags.HasError())
+		assert.Equal(t, "", d.Get("cert_body"))
+	})
+}

@@ -38,9 +38,9 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 			"description", "app_profile", "app_type", "protocol",
 			"host", "bookmark_url", "domain", "origin_host",
 			"orig_tls", "origin_port", "tunnel_internal_hosts",
-			"servers", "pop", "popname", "popregion",
+			"servers", "popregion",
 			"auth_enabled", "agents", "app_category",
-			"cert_name", "cert_type", "cert",
+			"cert_name", "cert_type",
 			"generate_self_signed_cert", "advanced_settings",
 			"app_bundle", "service", "client_app_mode",
 			"app_operational", "app_status", "app_deployed",
@@ -59,7 +59,7 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 			"origin_host", "orig_tls", "origin_port",
 			"pop", "popname", "popregion",
 			"app_operational", "app_status", "app_deployed",
-			"cname", "uuid_url", "cert",
+			"cname", "uuid_url", "cert", "cert_body",
 			"advanced_settings",
 		}
 		for _, field := range computedFields {
@@ -70,8 +70,14 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 	})
 
 	t.Run("computed-only fields", func(t *testing.T) {
-		assert.True(t, r.Schema["domain_suffix"].Computed)
-		assert.False(t, r.Schema["domain_suffix"].Optional)
+		for _, field := range []string{"domain_suffix", "pop", "popname", "cert", "cert_body"} {
+			assert.True(t, r.Schema[field].Computed, "field %q must be computed", field)
+			assert.False(t, r.Schema[field].Optional, "field %q must not be optional", field)
+		}
+	})
+
+	t.Run("cert_body is sensitive", func(t *testing.T) {
+		assert.True(t, r.Schema["cert_body"].Sensitive, "cert_body must be sensitive")
 	})
 
 	t.Run("saml computed", func(t *testing.T) {

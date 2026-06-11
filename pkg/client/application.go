@@ -1867,7 +1867,7 @@ type AdvancedSettings struct {
 	AnonymousServerConnLimit     string                 `json:"anonymous_server_conn_limit,omitempty"`
 	AnonymousServerReqLimit      string                 `json:"anonymous_server_request_limit,omitempty"`
 	WebSocketEnabled             string                 `json:"websocket_enabled,omitempty"`
-	AppServerReadTimeout         string                 `json:"app_server_read_timeout,omitempty"`
+	AppServerReadTimeout         FlexString             `json:"app_server_read_timeout,omitempty"`
 	AuthenticatedServerConnLimit string                 `json:"authenticated_server_conn_limit,omitempty"`
 	AuthenticatedServerReqLimit  string                 `json:"authenticated_server_request_limit,omitempty"`
 	ClientCertAuth               string                 `json:"client_cert_auth,omitempty"`
@@ -1917,7 +1917,7 @@ type AdvancedSettings struct {
 	MFA                          string                 `json:"mfa,omitempty"`
 	OffloadOnPremiseTraffic      string                 `json:"offload_onpremise_traffic,omitempty"`
 	Onramp                       string                 `json:"onramp,omitempty"`
-	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
+	XWappReadTimeout             FlexString             `json:"x_wapp_read_timeout,omitempty"`
 	PreauthConsent               string                 `json:"preauth_consent,omitempty"`
 	PreauthEnforceURL            string                 `json:"preauth_enforce_url,omitempty"`
 	ProxyBufferSizeKB            string                 `json:"proxy_buffer_size_kb,omitempty"`
@@ -1953,8 +1953,8 @@ type AdvancedSettings struct {
 	SSO                          string                 `json:"sso,omitempty"`
 	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
 	XWappPoolEnabled             string                 `json:"x_wapp_pool_enabled,omitempty"`
-	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
-	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
+	XWappPoolSize                FlexString             `json:"x_wapp_pool_size,omitempty"`
+	XWappPoolTimeout             FlexString             `json:"x_wapp_pool_timeout,omitempty"`
 	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
 	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`
@@ -2041,7 +2041,7 @@ type AdvancedSettingsComplete struct {
 	SSHAuditEnabled              string                 `json:"ssh_audit_enabled,omitempty"`
 	MFA                          string                 `json:"mfa,omitempty"`
 	RefreshStickyCookie          string                 `json:"refresh_sticky_cookie,omitempty"`
-	AppServerReadTimeout         string                 `json:"app_server_read_timeout,omitempty"`
+	AppServerReadTimeout         FlexString             `json:"app_server_read_timeout,omitempty"`
 	IdleConnFloor                string                 `json:"idle_conn_floor,omitempty"`
 	IdleConnCeil                 string                 `json:"idle_conn_ceil,omitempty"`
 	IdleConnStep                 string                 `json:"idle_conn_step,omitempty"`
@@ -2120,10 +2120,10 @@ type AdvancedSettingsComplete struct {
 	SingleHostContentRW          string                 `json:"single_host_content_rw,omitempty"`
 	IsSSLVerificationEnabled     string                 `json:"is_ssl_verification_enabled,omitempty"`
 	SingleHostCookieDomain       string                 `json:"single_host_cookie_domain,omitempty"`
-	XWappReadTimeout             string                 `json:"x_wapp_read_timeout,omitempty"`
+	XWappReadTimeout             FlexString             `json:"x_wapp_read_timeout,omitempty"`
 	XWappPoolEnabled             string                 `json:"x_wapp_pool_enabled,omitempty"`
-	XWappPoolSize                string                 `json:"x_wapp_pool_size,omitempty"`
-	XWappPoolTimeout             string                 `json:"x_wapp_pool_timeout,omitempty"`
+	XWappPoolSize                FlexString             `json:"x_wapp_pool_size,omitempty"`
+	XWappPoolTimeout             FlexString             `json:"x_wapp_pool_timeout,omitempty"`
 	RDPKeyboardLang              string                 `json:"rdp_keyboard_lang,omitempty"`
 	RDPWindowColorDepth          string                 `json:"rdp_window_color_depth,omitempty"`
 	RDPWindowHeight              string                 `json:"rdp_window_height,omitempty"`

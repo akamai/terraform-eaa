@@ -47,7 +47,7 @@ func TestParseAdvancedSettingsWithDefaults_EmptyJSON(t *testing.T) {
 	assert.Equal(t, "round-robin", advSettings.LoadBalancingMetric)
 	assert.Equal(t, "50", advSettings.AnonymousServerConnLimit)
 	assert.Equal(t, "100", advSettings.AnonymousServerReqLimit)
-	assert.Equal(t, "60", advSettings.AppServerReadTimeout)
+	assert.Equal(t, FlexString("60"), advSettings.AppServerReadTimeout)
 }
 
 func TestParseAdvancedSettingsWithDefaults_EnterpriseHTTPApp(t *testing.T) {
@@ -406,6 +406,51 @@ func TestAdvancedSettingsFromBlock_DeadFieldsDropped(t *testing.T) {
 
 	// A real field should still work
 	assert.Equal(t, "true", advSettings.Acceleration)
+}
+
+func TestAdvancedSettings_UnmarshalJSON_NumericFlexFields(t *testing.T) {
+	jsonStr := `{
+		"app_server_read_timeout": 60,
+		"x_wapp_pool_size": 20,
+		"x_wapp_pool_timeout": 120,
+		"x_wapp_read_timeout": 900
+	}`
+	var as AdvancedSettings
+	err := json.Unmarshal([]byte(jsonStr), &as)
+	require.NoError(t, err)
+	assert.Equal(t, FlexString("60"), as.AppServerReadTimeout)
+	assert.Equal(t, FlexString("20"), as.XWappPoolSize)
+	assert.Equal(t, FlexString("120"), as.XWappPoolTimeout)
+	assert.Equal(t, FlexString("900"), as.XWappReadTimeout)
+}
+
+func TestAdvancedSettingsComplete_UnmarshalJSON_NumericFlexFields(t *testing.T) {
+	jsonStr := `{
+		"app_server_read_timeout": 60,
+		"x_wapp_pool_size": 20,
+		"x_wapp_pool_timeout": 120,
+		"x_wapp_read_timeout": 900
+	}`
+	var asc AdvancedSettingsComplete
+	err := json.Unmarshal([]byte(jsonStr), &asc)
+	require.NoError(t, err)
+	assert.Equal(t, FlexString("60"), asc.AppServerReadTimeout)
+	assert.Equal(t, FlexString("20"), asc.XWappPoolSize)
+	assert.Equal(t, FlexString("120"), asc.XWappPoolTimeout)
+	assert.Equal(t, FlexString("900"), asc.XWappReadTimeout)
+}
+
+func TestUpdateAdvancedSettings_CopiesFlexStringFields(t *testing.T) {
+	advSettings, err := ParseAdvancedSettingsWithDefaults(`{}`)
+	require.NoError(t, err)
+
+	var complete AdvancedSettingsComplete
+	UpdateAdvancedSettings(&complete, advSettings)
+
+	assert.Equal(t, FlexString("60"), complete.AppServerReadTimeout)
+	assert.Equal(t, FlexString("20"), complete.XWappPoolSize)
+	assert.Equal(t, FlexString("120"), complete.XWappPoolTimeout)
+	assert.Equal(t, FlexString("900"), complete.XWappReadTimeout)
 }
 
 func TestParseAdvancedSettingsWithDefaults_NewFieldDefaults(t *testing.T) {

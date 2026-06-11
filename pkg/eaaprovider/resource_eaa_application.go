@@ -213,12 +213,10 @@ func resourceEaaApplication() *schema.Resource {
 			},
 			"pop": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 			"popname": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 			"popregion": {
@@ -806,8 +804,12 @@ func resourceEaaApplication() *schema.Resource {
 			},
 			"cert": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
+			},
+			"cert_body": {
+				Type:      schema.TypeString,
+				Computed:  true,
+				Sensitive: true,
 			},
 			"generate_self_signed_cert": {
 				Type:     schema.TypeBool,

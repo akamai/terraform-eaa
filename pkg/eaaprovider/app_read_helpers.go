@@ -223,7 +223,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"app_client_cert_auth":               appResp.AdvancedSettings.AppClientCertAuth,
 		"app_cookie_domain":                  derefStr(appResp.AdvancedSettings.AppCookieDomain),
 		"app_location":                       derefStr(appResp.AdvancedSettings.AppLocation),
-		"app_server_read_timeout":            appResp.AdvancedSettings.AppServerReadTimeout,
+		"app_server_read_timeout":            string(appResp.AdvancedSettings.AppServerReadTimeout),
 		"authenticated_server_conn_limit":    appResp.AdvancedSettings.AuthenticatedServerConnLimit,
 		"authenticated_server_request_limit": appResp.AdvancedSettings.AuthenticatedServerReqLimit,
 		"client_cert_auth":                   appResp.AdvancedSettings.ClientCertAuth,
@@ -342,9 +342,9 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"websocket_enabled":                  appResp.AdvancedSettings.WebSocketEnabled,
 		"wildcard_internal_hostname":         appResp.AdvancedSettings.WildcardInternalHostname,
 		"x_wapp_pool_enabled":                appResp.AdvancedSettings.XWappPoolEnabled,
-		"x_wapp_pool_size":                   appResp.AdvancedSettings.XWappPoolSize,
-		"x_wapp_pool_timeout":                appResp.AdvancedSettings.XWappPoolTimeout,
-		"x_wapp_read_timeout":                appResp.AdvancedSettings.XWappReadTimeout,
+		"x_wapp_pool_size":                   string(appResp.AdvancedSettings.XWappPoolSize),
+		"x_wapp_pool_timeout":                string(appResp.AdvancedSettings.XWappPoolTimeout),
+		"x_wapp_read_timeout":                string(appResp.AdvancedSettings.XWappReadTimeout),
 	}
 
 	healthCheckType, err := client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
@@ -471,11 +471,23 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 
 	if appResp.Cert != nil {
 		appCertData, certErr := client.GetCertificate(ctx, eaaclient, *appResp.Cert)
-		if certErr == nil {
-			err = d.Set("cert", appCertData.Cert)
+		if certErr != nil {
+			logging.Warn(ctx, fmt.Sprintf("failed to fetch certificate details for %s: %s; cert_body will be empty", *appResp.Cert, certErr.Error()),
+				[]logging.Tag{logging.TagApp, logging.TagCert, logging.TagRead})
+			err = d.Set("cert_body", "")
 			if err != nil {
-				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert")
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
 			}
+		} else {
+			err = d.Set("cert_body", appCertData.Cert)
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_body")
+			}
+		}
+	} else {
+		err = d.Set("cert_body", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
 		}
 	}
 
