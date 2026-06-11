@@ -113,6 +113,11 @@ func mapBasicAttributesFromResponse(ctx context.Context, d *schema.ResourceData,
 	}
 
 	attrs["uuid_url"] = appResp.UUIDURL
+	if appResp.TLSSuiteName != nil {
+		attrs["tls_suite_name"] = *appResp.TLSSuiteName
+	} else {
+		attrs["tls_suite_name"] = ""
+	}
 
 	var diags diag.Diagnostics
 	if appResp.AppBundle != "" {
@@ -336,7 +341,6 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"ssh_audit_enabled":                  appResp.AdvancedSettings.SSHAuditEnabled,
 		"sso":                                appResp.AdvancedSettings.SSO,
 		"sticky_agent":                       appResp.AdvancedSettings.StickyAgent,
-		"tls_suite_name":                     derefStr(appResp.AdvancedSettings.TLSSuiteName),
 		"user_name":                          derefStr(appResp.AdvancedSettings.UserName),
 		"wapp_auth":                          appResp.AdvancedSettings.WappAuth,
 		"websocket_enabled":                  appResp.AdvancedSettings.WebSocketEnabled,
@@ -352,18 +356,6 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		return diag.Errorf("failed to map health_check_type from API value %q: %v", appResp.AdvancedSettings.HealthCheckType, err)
 	}
 	full["health_check_type"] = healthCheckType
-
-	// tls_suite_type: int -> descriptive string; always set so nil clears state.
-	switch {
-	case appResp.AdvancedSettings.TLSSuiteType == nil:
-		full["tls_suite_type"] = ""
-	case *appResp.AdvancedSettings.TLSSuiteType == 1:
-		full["tls_suite_type"] = "default"
-	case *appResp.AdvancedSettings.TLSSuiteType == 2:
-		full["tls_suite_type"] = "custom"
-	default:
-		return diag.Errorf("failed to map tls_suite_type from API value %d: must be one of [1, 2]", *appResp.AdvancedSettings.TLSSuiteType)
-	}
 
 	// form_post_attributes: []string -> JSON string.
 	// Write "[]" only when the key is already tracked in state, so clearing is reflected.

@@ -12,14 +12,15 @@ Manages the lifecycle of an EAA application.
 * `domain` - (Optional) Domain type. Values: `custom`, `wapp`. Default `wapp`.
 * `host` - (Optional) External hostname for the application.
 * `bookmark_url` - (Optional) URL for bookmark applications.
-* `pop` - (Optional/Computed) PoP identifier.
-* `popname` - (Optional/Computed) PoP name.
+* `pop` - (Computed) PoP identifier.
+* `popname` - (Computed) PoP name.
 * `popregion` - (Optional/Computed) Target region for deployment.
 * `app_category` - (Optional) Application category name.
 * `agents` - (Optional) List of connector names to assign.
 * `auth_enabled` - (Optional) Enable application authentication. Default `"false"` (string; use `"true"`/`"false"`).
 * `protocol` - (Optional, SaaS only) Auth protocol. Values: `SAML`, `SAML2.0`, `OIDC`, `OpenID Connect 1.0`, `WSFed`, `WS-Federation`. Note: lowercase `wsfed` is NOT valid.
 * `app_bundle` - (Optional) Application bundle name for grouping related apps.
+* `tls_suite_name` - (Optional/Computed) TLS cipher suite name. See [TLS Suite](#tls-suite) for details.
 
 ### Servers
 
@@ -38,10 +39,12 @@ Manages the lifecycle of an EAA application.
 
 ### Certificates
 
-* `cert_name` - (Optional) Certificate name for custom domain.
-* `cert_type` - (Optional) Certificate type.
-* `cert` - (Optional/Computed) Certificate content.
-* `generate_self_signed_cert` - (Optional) Generate a self-signed certificate.
+* `cert_type` - (Optional) Certificate type for custom domain. Valid values: `self_signed` (default), `uploaded`.
+  * **`self_signed`** — The provider checks if a self-signed certificate already exists for the application's `host`. If one exists, it is reused. Otherwise, a new self-signed certificate is automatically generated. No additional fields are required.
+  * **`uploaded`** — The provider looks up a previously uploaded certificate by the name specified in `cert_name`. The certificate must already exist in EAA; if it is not found, the operation fails.
+* `cert_name` - (Optional) Name of a previously uploaded certificate to use. Required when `cert_type` is `uploaded`. Ignored when `cert_type` is `self_signed`.
+* `cert` - (Computed) The resolved certificate UUID assigned to the application. This is set automatically by the provider based on `cert_type` and `cert_name`.
+* `cert_body` - (Computed, Sensitive) The certificate body content. Set automatically by the provider.
 
 ### Authentication
 
@@ -72,6 +75,15 @@ Manages the lifecycle of an EAA application.
       * `operator` - (Required) Operator.
       * `type` - (Required) Condition type.
       * `value` - (Required) Condition value.
+
+### TLS Suite
+
+* `tls_suite_name` - (Optional/Computed, top-level) TLS cipher suite name for the application. When omitted, the API assigns the partner default suite. Use the `eaa_data_source_tls_cipher_suites` data source to discover valid suite names for an application.
+
+  **Behavior notes:**
+  - The API does not validate the suite name — an incorrect name will be saved without error.
+  - Setting `tls_suite_name = ""` (empty string) has no effect — the API does not support clearing the suite name. The provider silently ignores the empty value and the previously assigned suite remains active.
+  - Once set, removing `tls_suite_name` from the config will not reset it to the default. The previously computed value remains in Terraform state. To change the suite, set it to a different valid name explicitly.
 
 ## Computed Attributes
 
@@ -155,11 +167,6 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 * `cors_support_credential` - Support credentials.
 * `cors_max_age` - Preflight cache duration in seconds.
 
-### TLS Suite
-
-* `tls_suite_type` - TLS suite type: `default` or `custom`.
-* `tls_suite_name` - TLS suite name (when `tls_suite_type = "custom"`).
-
 ### SSL & WebSocket
 
 * `is_ssl_verification_enabled` - SSL cert verification. Default `true`.
@@ -225,12 +232,12 @@ Which advanced settings categories are allowed per app type:
 | Enterprise Connectivity | ✓ | ✓ | ✓ | limited | - | - |
 | Authentication | ✓ (all methods) | ✓ (all methods) | ✓ (no `app_auth`) | blocked | - | - |
 | CORS | ✓ | - | - | blocked | - | - |
-| TLS Suite | ✓ | ✓ | ✓ | blocked | - | - |
 | SSL & WebSocket | ✓ | ✓ | ✓ | ✓ (required) | - | - |
 | Tunnel Client | - | - | - | ✓ (required) | - | - |
 | Security | ✓ | ✓ | ✓ | ✓ | - | - |
 | RDP | - | ✓ | - | - | - | - |
 | Miscellaneous | ✓ | ✓ | ✓ | limited | - | - |
+
 
 **Bookmark and SaaS apps do not support `advanced_settings` at all.**
 
@@ -326,8 +333,6 @@ resource "eaa_application" "custom_domain_app" {
   host        = "app.example.com"
   popregion   = "us-east-1"
   agents      = ["my-connector"]
-
-  generate_self_signed_cert = true
 
   servers {
     origin_host     = "internal-app.corp.example.com"

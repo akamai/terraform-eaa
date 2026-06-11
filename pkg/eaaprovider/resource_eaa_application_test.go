@@ -41,10 +41,9 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 			"servers", "popregion",
 			"auth_enabled", "agents", "app_category",
 			"cert_name", "cert_type",
-			"generate_self_signed_cert", "advanced_settings",
+			"advanced_settings",
 			"app_bundle", "service", "client_app_mode",
-			"app_operational", "app_status", "app_deployed",
-			"cname", "uuid_url",
+			"tls_suite_name",
 		}
 		for _, field := range optionalFields {
 			f, exists := r.Schema[field]
@@ -70,7 +69,10 @@ func TestResourceEaaApplication_Schema(t *testing.T) {
 	})
 
 	t.Run("computed-only fields", func(t *testing.T) {
-		for _, field := range []string{"domain_suffix", "pop", "popname", "cert", "cert_body"} {
+		for _, field := range []string{
+			"domain_suffix", "pop", "popname", "cert", "cert_body",
+			"app_operational", "app_status", "app_deployed", "cname", "uuid_url",
+		} {
 			assert.True(t, r.Schema[field].Computed, "field %q must be computed", field)
 			assert.False(t, r.Schema[field].Optional, "field %q must not be optional", field)
 		}
@@ -1214,16 +1216,13 @@ func TestCreateAppRequestFromSchema(t *testing.T) {
 		assert.Empty(t, req.SAMLSettings)
 	})
 
-	t.Run("tls_suite_configuration", func(t *testing.T) {
+	t.Run("tls_suite_name_top_level", func(t *testing.T) {
 		mockClient, _ := createMockClient(t)
 		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"name":        "tls-app",
-			"app_type":    "enterprise",
-			"app_profile": "http",
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "custom",
-				"tls_suite_name": "my-suite",
-			},
+			"name":           "tls-app",
+			"app_type":       "enterprise",
+			"app_profile":    "http",
+			"tls_suite_name": "my-suite",
 		})
 
 		var req client.CreateAppRequest
@@ -1231,29 +1230,23 @@ func TestCreateAppRequestFromSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "tls-app", req.Name)
-		require.NotNil(t, req.TLSSuiteType)
-		assert.Equal(t, 2, *req.TLSSuiteType) // "custom" -> 2
 		require.NotNil(t, req.TLSSuiteName)
 		assert.Equal(t, "my-suite", *req.TLSSuiteName)
 	})
 
-	t.Run("tls_suite_default", func(t *testing.T) {
+	t.Run("tls_suite_name_omitted", func(t *testing.T) {
 		mockClient, _ := createMockClient(t)
 		d := createTestApplicationResourceData(t, map[string]interface{}{
 			"name":        "tls-default-app",
 			"app_type":    "enterprise",
 			"app_profile": "http",
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "default",
-			},
 		})
 
 		var req client.CreateAppRequest
 		err := req.CreateAppRequestFromSchema(ctx, d, mockClient)
 		require.NoError(t, err)
 
-		require.NotNil(t, req.TLSSuiteType)
-		assert.Equal(t, 1, *req.TLSSuiteType) // "default" -> 1
+		assert.Nil(t, req.TLSSuiteName)
 	})
 
 	t.Run("missing_name_returns_error", func(t *testing.T) {
@@ -1399,21 +1392,16 @@ func TestUpdateAppRequestFromSchema(t *testing.T) {
 	t.Run("tls_suite_updates", func(t *testing.T) {
 		mockClient, _ := createMockClient(t)
 		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"name":     "tls-update-app",
-			"app_type": "enterprise",
-			"domain":   "wapp",
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "custom",
-				"tls_suite_name": "updated-suite",
-			},
+			"name":           "tls-update-app",
+			"app_type":       "enterprise",
+			"domain":         "wapp",
+			"tls_suite_name": "updated-suite",
 		})
 
 		var req client.ApplicationUpdateRequest
 		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
 		require.NoError(t, err)
 
-		require.NotNil(t, req.TLSSuiteType)
-		assert.Equal(t, 2, *req.TLSSuiteType)
 		require.NotNil(t, req.TLSSuiteName)
 		assert.Equal(t, "updated-suite", *req.TLSSuiteName)
 	})
@@ -1581,20 +1569,4 @@ func TestUpdateAppRequestFromSchema(t *testing.T) {
 		assert.True(t, req.WSFED)
 	})
 
-	t.Run("invalid_tls_suite_type_returns_error", func(t *testing.T) {
-		mockClient, _ := createMockClient(t)
-		d := createTestApplicationResourceData(t, map[string]interface{}{
-			"name":     "bad-tls-app",
-			"app_type": "enterprise",
-			"domain":   "wapp",
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "invalid",
-			},
-		})
-
-		var req client.ApplicationUpdateRequest
-		err := req.UpdateAppRequestFromSchema(ctx, d, mockClient)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tls_suite_type")
-	})
 }

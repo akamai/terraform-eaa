@@ -24,7 +24,6 @@ type MinimalCreateAppRequest struct {
 type CreateAppRequest struct {
 	Description      *string          `json:"description"`
 	TLSSuiteName     *string          `json:"tls_suite_name,omitempty"`
-	TLSSuiteType     *int             `json:"tlsSuiteType,omitempty"`
 	OIDCSettings     *OIDCConfig      `json:"oidc_settings"`
 	AdvancedSettings AdvancedSettings `json:"advanced_settings,omitempty"`
 	Name             string           `json:"name"`
@@ -259,31 +258,16 @@ func (car *CreateAppRequest) CreateAppRequestFromSchema(ctx context.Context, d *
 		return fmt.Errorf("failed to parse advanced settings block: %w", err)
 	}
 
-	// Extract TLS Suite fields from the structured block
-	logging.Debug(ctx, "CREATE FLOW: TLS Suite extraction from block", tags)
-	if tlsSuiteTypeStr, ok := userSettings["tls_suite_type"].(string); ok && tlsSuiteTypeStr != "" {
-		logging.Debug(ctx, "CREATE FLOW: found tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
-		var tlsSuiteTypeInt int
-		switch tlsSuiteTypeStr {
-		case "default":
-			tlsSuiteTypeInt = 1
-		case "custom":
-			tlsSuiteTypeInt = 2
-		default:
-			logging.Error(ctx, "CREATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
-			return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
+	// tls_suite_name is read from the top-level Terraform schema attribute (not from the advanced_settings map)
+	if tlsSuiteName, ok := d.GetOk("tls_suite_name"); ok {
+		if tlsSuiteNameStr, ok := tlsSuiteName.(string); ok {
+			if tlsSuiteNameStr != "" {
+				car.TLSSuiteName = &tlsSuiteNameStr
+				logging.Debug(ctx, "CREATE FLOW: tls_suite_name set", tags, map[string]any{"value": tlsSuiteNameStr})
+			} else {
+				logging.Warn(ctx, "CREATE FLOW: tls_suite_name is set to empty string; ignoring because the API does not support clearing", tags)
+			}
 		}
-		car.TLSSuiteType = &tlsSuiteTypeInt
-		logging.Debug(ctx, "CREATE FLOW: TLSSuiteType set", tags, map[string]any{"value": tlsSuiteTypeInt})
-	} else {
-		logging.Debug(ctx, "CREATE FLOW: tls_suite_type not set in block", tags)
-	}
-
-	if tlsSuiteNameStr, ok := userSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
-		logging.Debug(ctx, "CREATE FLOW: tls_suite_name set", tags, map[string]any{"value": tlsSuiteNameStr})
-		car.TLSSuiteName = &tlsSuiteNameStr
-	} else {
-		logging.Debug(ctx, "CREATE FLOW: tls_suite_name not set in block", tags)
 	}
 
 	// Set authentication flags based on Terraform boolean flags for CREATE flow
@@ -640,11 +624,11 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 				appAuthenticationMap, ok := appAuthList[0].(map[string]interface{})
 				if !ok {
 					logging.Error(ctx, "invalid authentication data", tags)
-					return ErrInvalidType
+					return fmt.Errorf("invalid app_authentication: unexpected type, expected map[string]interface{}")
 				}
 				if appAuthenticationMap == nil {
-					logging.Error(ctx, "invalid authentication data", tags)
-					return ErrInvalidValue
+					logging.Error(ctx, "empty authentication data", tags)
+					return fmt.Errorf("invalid app_authentication data")
 				}
 
 				// Check if app_idp key is present
@@ -814,7 +798,6 @@ type Application struct {
 	OIDCSettings           *OIDCConfig          `json:"oidc_settings,omitempty"`
 	CName                  *string              `json:"cname"`
 	Host                   *string              `json:"host"`
-	TLSSuiteType           *int                 `json:"tlsSuiteType,omitempty"`
 	AppLogo                *string              `json:"app_logo"`
 	TLSSuiteName           *string              `json:"tls_suite_name"`
 	OriginHost             *string              `json:"origin_host"`
@@ -1084,6 +1067,18 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 		}
 	}
 
+	// tls_suite_name is read from the top-level Terraform schema attribute (not from the advanced_settings map)
+	if tlsSuiteName, ok := d.GetOk("tls_suite_name"); ok {
+		if tlsSuiteNameStr, ok := tlsSuiteName.(string); ok {
+			if tlsSuiteNameStr != "" {
+				appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
+				logging.Debug(ctx, "UPDATE FLOW: tls_suite_name set", tags, map[string]any{"value": tlsSuiteNameStr})
+			} else {
+				logging.Warn(ctx, "UPDATE FLOW: tls_suite_name is set to empty string; ignoring because the API does not support clearing", tags)
+			}
+		}
+	}
+
 	// Handle advanced settings for UPDATE flow - read from TypeMap block
 	var updateUserSettings map[string]interface{}
 	if advMap, ok := d.GetOk("advanced_settings"); ok {
@@ -1101,32 +1096,6 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 		// Preserve user-provided app_auth value from advanced_settings
 		logging.Debug(ctx, "UPDATE FLOW: using app_auth from advanced_settings", tags, map[string]any{"app_auth": advSettings.AppAuth})
-
-		// Extract TLS Suite fields from the structured block
-		logging.Debug(ctx, "UPDATE FLOW: TLS Suite extraction from block", tags)
-		if tlsSuiteTypeStr, ok := updateUserSettings["tls_suite_type"].(string); ok && tlsSuiteTypeStr != "" {
-			var tlsSuiteTypeInt int
-			switch tlsSuiteTypeStr {
-			case "default":
-				tlsSuiteTypeInt = 1
-			case "custom":
-				tlsSuiteTypeInt = 2
-			default:
-				logging.Error(ctx, "UPDATE FLOW: invalid tls_suite_type", tags, map[string]any{"value": tlsSuiteTypeStr})
-				return fmt.Errorf("invalid tls_suite_type value: %s", tlsSuiteTypeStr)
-			}
-			appUpdateReq.TLSSuiteType = &tlsSuiteTypeInt
-			logging.Debug(ctx, "UPDATE FLOW: TLSSuiteType set", tags, map[string]any{"value": tlsSuiteTypeInt})
-		} else {
-			logging.Debug(ctx, "UPDATE FLOW: tls_suite_type not set in block", tags)
-		}
-
-		if tlsSuiteNameStr, ok := updateUserSettings["tls_suite_name"].(string); ok && tlsSuiteNameStr != "" {
-			appUpdateReq.TLSSuiteName = &tlsSuiteNameStr
-			logging.Debug(ctx, "UPDATE FLOW: tls_suite_name set", tags, map[string]any{"value": tlsSuiteNameStr})
-		} else {
-			logging.Debug(ctx, "UPDATE FLOW: tls_suite_name not set in block", tags)
-		}
 
 		// Note: SAML/OIDC/WS-FED settings are now handled outside this block
 		// to ensure they run regardless of whether advanced_settings is provided
@@ -2000,7 +1969,6 @@ type AdvancedSettingsComplete struct {
 	IDPMaxExpiry                 *string                `json:"idp_max_expiry,omitempty"`
 	AppLocation                  *string                `json:"app_location"`
 	TLSSuiteName                 *string                `json:"tls_suite_name,omitempty"`
-	TLSSuiteType                 *int                   `json:"tlsSuiteType,omitempty"`
 	EdgeTransportPropertyID      *string                `json:"edge_transport_property_id,omitempty"`
 	G2OKey                       *string                `json:"g2o_key,omitempty"`
 	G2ONonce                     *string                `json:"g2o_nonce,omitempty"`

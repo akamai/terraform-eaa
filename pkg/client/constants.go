@@ -242,9 +242,6 @@ var (
 	ErrTLSSuiteNotAvailableForAppType           = errors.New("TLS Suite configuration is not available for this app type")
 	ErrTLSSuiteNotAvailableForSMBProfile        = errors.New("TLS Suite configuration is not available for SMB profile")
 	ErrTLSSuiteNotAvailableForEnterpriseProfile = errors.New("TLS Suite configuration is not available for this enterprise profile")
-	ErrTLSSuiteNameRequired                     = errors.New("tls_suite_name is required for custom TLS Suite")
-	ErrTLSSuiteNameNotString                    = errors.New("tls_suite_name must be a string")
-	ErrTLSSuiteNameInvalid                      = errors.New("invalid tls_suite_name for custom TLS Suite")
 
 	// App cleanup errors
 	ErrAppCleanupIncomplete           = errors.New("app may still exist in EAA and needs manual cleanup")
@@ -853,13 +850,6 @@ const (
 	LoadBalancingIPHash     LoadBalancingMetric = "ip-hash"
 	LoadBalancingLeastConn  LoadBalancingMetric = "least-conn"
 	LoadBalancingWeightedRR LoadBalancingMetric = "weighted-rr"
-)
-
-type TLSSuiteType string
-
-const (
-	TLSSuiteTypeDefault TLSSuiteType = "default"
-	TLSSuiteTypeCustom  TLSSuiteType = "custom"
 )
 
 type CORSValue string

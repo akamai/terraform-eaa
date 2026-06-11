@@ -137,6 +137,11 @@ func resourceEaaApplication() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"tls_suite_name": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+			},
 
 			"domain": {
 				Type:     schema.TypeString,
@@ -757,29 +762,24 @@ func resourceEaaApplication() *schema.Resource {
 
 			"app_operational": {
 				Type:     schema.TypeInt,
-				Optional: true,
 				Computed: true,
 			},
 			"app_status": {
 				Type:     schema.TypeInt,
-				Optional: true,
 				Computed: true,
 			},
 
 			"app_deployed": {
 				Type:     schema.TypeBool,
-				Optional: true,
 				Computed: true,
 			},
 			"cname": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 
 			"uuid_url": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 
@@ -810,10 +810,6 @@ func resourceEaaApplication() *schema.Resource {
 				Type:      schema.TypeString,
 				Computed:  true,
 				Sensitive: true,
-			},
-			"generate_self_signed_cert": {
-				Type:     schema.TypeBool,
-				Optional: true,
 			},
 			"advanced_settings": {
 				Type:             schema.TypeMap,
@@ -1212,16 +1208,16 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 					return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "authentication data is nil")...)
 				}
 				if len(appAuthList) > 0 {
-					appAuthenticationMap, ok := appAuthList[0].(map[string]interface{})
-					if !ok {
+					appAuthenticationMap, mapOK := appAuthList[0].(map[string]interface{})
+					if !mapOK {
+						logging.Error(ctx, "app_authentication block has unexpected type in UPDATE", tags)
 						return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "invalid authentication map data")...)
 					}
 					if appAuthenticationMap == nil {
-						logging.Warn(ctx, "invalid authentication data", tags)
-						return append(warningDiags, logging.DiagFromErr(ErrInvalidData, tags, "authentication map is nil")...)
+						logging.Debug(ctx, "app_authentication block is empty in UPDATE, skipping", tags)
+						return warningDiags
 					}
-
-					if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok {
+					if appIDPName, ok := appAuthenticationMap["app_idp"].(string); ok && appIDPName != "" {
 						idpData, getIDPErr := client.GetIdpWithName(ctx, eaaclient, appIDPName)
 						if getIDPErr != nil {
 							logging.Warn(ctx, "get IDP with name error", tags, map[string]any{"error": getIDPErr.Error()})

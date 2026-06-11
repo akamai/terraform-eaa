@@ -947,22 +947,22 @@ func TestCreateAppRequestFromSchema_Direct(t *testing.T) {
 		"app_type":          {Type: schema.TypeString, Optional: true},
 		"app_profile":       {Type: schema.TypeString, Optional: true},
 		"client_app_mode":   {Type: schema.TypeString, Optional: true},
+		"tls_suite_name":    {Type: schema.TypeString, Optional: true},
 		"advanced_settings": {Type: schema.TypeMap, Optional: true},
 	}
 
 	ec := &EaaClient{}
 
-	t.Run("success_with_tls_suite_fields", func(t *testing.T) {
+	t.Run("success_with_tls_suite_name", func(t *testing.T) {
 		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
 			"name":            "create-app",
 			"description":     "desc",
 			"app_type":        "enterprise",
 			"app_profile":     "http",
 			"client_app_mode": "tcp",
+			"tls_suite_name":  "my-suite",
 			"advanced_settings": map[string]interface{}{
-				"app_auth":       "none",
-				"tls_suite_type": "custom",
-				"tls_suite_name": "my-suite",
+				"app_auth": "none",
 			},
 		})
 
@@ -972,10 +972,22 @@ func TestCreateAppRequestFromSchema_Direct(t *testing.T) {
 		require.Equal(t, "create-app", req.Name)
 		require.NotNil(t, req.Description)
 		assert.Equal(t, "desc", *req.Description)
-		require.NotNil(t, req.TLSSuiteType)
-		assert.Equal(t, 2, *req.TLSSuiteType)
 		require.NotNil(t, req.TLSSuiteName)
 		assert.Equal(t, "my-suite", *req.TLSSuiteName)
+	})
+
+	t.Run("empty_tls_suite_name_is_ignored", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
+			"name":           "create-app",
+			"app_type":       "enterprise",
+			"app_profile":    "http",
+			"tls_suite_name": "",
+		})
+
+		req := &CreateAppRequest{}
+		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
+		requireErrIs(t, err, false, nil)
+		assert.Nil(t, req.TLSSuiteName, "empty tls_suite_name should not be sent to the API")
 	})
 
 	t.Run("missing_name_fails", func(t *testing.T) {
@@ -983,19 +995,6 @@ func TestCreateAppRequestFromSchema_Direct(t *testing.T) {
 		req := &CreateAppRequest{}
 		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
 		requireErrIs(t, err, true, ErrInvalidValue)
-	})
-
-	t.Run("invalid_tls_suite_type_fails", func(t *testing.T) {
-		d := schema.TestResourceDataRaw(t, createSchema, map[string]interface{}{
-			"name": "create-app",
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "invalid",
-			},
-		})
-		req := &CreateAppRequest{}
-		err := req.CreateAppRequestFromSchema(context.Background(), d, ec)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tls_suite_type value")
 	})
 }
 
@@ -1014,6 +1013,7 @@ func TestUpdateAppRequestFromSchema_Direct(t *testing.T) {
 				"proto_type": {Type: schema.TypeInt, Optional: true},
 			}},
 		},
+		"tls_suite_name":    {Type: schema.TypeString, Optional: true},
 		"advanced_settings": {Type: schema.TypeMap, Optional: true},
 	}
 
@@ -1021,17 +1021,16 @@ func TestUpdateAppRequestFromSchema_Direct(t *testing.T) {
 
 	t.Run("success_maps_basic_and_tls_fields", func(t *testing.T) {
 		d := schema.TestResourceDataRaw(t, updateSchema, map[string]interface{}{
-			"name":        "updated-app",
-			"description": "updated-desc",
-			"host":        "updated.example.com",
-			"domain":      "wapp",
+			"name":           "updated-app",
+			"description":    "updated-desc",
+			"host":           "updated.example.com",
+			"domain":         "wapp",
+			"tls_suite_name": "default-suite",
 			"tunnel_internal_hosts": []interface{}{
 				map[string]interface{}{"host": "10.0.0.2", "port_range": "22", "proto_type": 6},
 			},
 			"advanced_settings": map[string]interface{}{
-				"app_auth":       "none",
-				"tls_suite_type": "default",
-				"tls_suite_name": "default-suite",
+				"app_auth": "none",
 			},
 		})
 
@@ -1046,22 +1045,21 @@ func TestUpdateAppRequestFromSchema_Direct(t *testing.T) {
 		assert.Equal(t, "2", req.Domain)
 		require.Len(t, req.TunnelInternalHosts, 1)
 		assert.Equal(t, "10.0.0.2", req.TunnelInternalHosts[0].Host)
-		require.NotNil(t, req.TLSSuiteType)
-		assert.Equal(t, 1, *req.TLSSuiteType)
 		require.NotNil(t, req.TLSSuiteName)
 		assert.Equal(t, "default-suite", *req.TLSSuiteName)
 	})
 
-	t.Run("invalid_tls_suite_type_fails", func(t *testing.T) {
+	t.Run("empty_tls_suite_name_is_ignored", func(t *testing.T) {
 		d := schema.TestResourceDataRaw(t, updateSchema, map[string]interface{}{
-			"advanced_settings": map[string]interface{}{
-				"tls_suite_type": "invalid",
-			},
+			"name":           "update-app",
+			"domain":         "wapp",
+			"tls_suite_name": "",
 		})
+
 		req := &ApplicationUpdateRequest{}
 		err := req.UpdateAppRequestFromSchema(context.Background(), d, ec)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tls_suite_type value")
+		requireErrIs(t, err, false, nil)
+		assert.Nil(t, req.TLSSuiteName, "empty tls_suite_name should not be sent to the API")
 	})
 }
 
