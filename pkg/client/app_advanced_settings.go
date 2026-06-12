@@ -215,11 +215,6 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	// Remove from flat map so applyAdvancedSettingsWithReflection doesn't try to handle the string.
 	delete(flat, "rdp_remote_apps")
 
-	// tls_suite_type / tls_suite_name are handled at the call site (CREATE/UPDATE flows),
-	// not inside AdvancedSettings struct. Remove them so reflection doesn't try to find them.
-	delete(flat, "tls_suite_type")
-	delete(flat, "tls_suite_name")
-
 	// Marshal to JSON and reuse ParseAdvancedSettingsWithDefaults so all defaults are applied.
 	jsonBytes, err := json.Marshal(flat)
 	if err != nil {
@@ -373,8 +368,6 @@ func applyAdvancedSettingsWithReflection(advSettings *AdvancedSettings, userSett
 		"single_host_path":               "SingleHostPath",
 		"user_name":                      "UserName",
 		"wildcard_internal_hostname":     "WildcardInternalHostname",
-		"tlsSuiteType":                   "TLSSuiteType",
-		"tls_suite_name":                 "TLSSuiteName",
 
 		// JWT fields
 		"jwt_audience":      "JWTAudience",

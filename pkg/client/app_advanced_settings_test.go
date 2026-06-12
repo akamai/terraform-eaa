@@ -283,25 +283,6 @@ func TestAdvancedSettingsFromBlock_RequestParameters(t *testing.T) {
 	assert.Equal(t, `{"key":"value"}`, *got.RequestParameters)
 }
 
-func TestAdvancedSettingsFromBlock_StripsTLSKeys(t *testing.T) {
-	block := map[string]interface{}{
-		"tls_suite_type": "1",
-		"tls_suite_name": "tls-1-2",
-		"acceleration":   "true",
-	}
-	got, err := advancedSettingsFromBlock(block)
-	require.NoError(t, err)
-
-	// TLS keys should NOT appear in ExtraFields
-	if got.ExtraFields != nil {
-		_, hasTLSType := got.ExtraFields["tls_suite_type"]
-		_, hasTLSName := got.ExtraFields["tls_suite_name"]
-		assert.False(t, hasTLSType, "tls_suite_type should not appear in ExtraFields")
-		assert.False(t, hasTLSName, "tls_suite_name should not appear in ExtraFields")
-	}
-	assert.Equal(t, "true", got.Acceleration)
-}
-
 func TestAdvancedSettingsFromBlock_InvalidHealthCheckType(t *testing.T) {
 	block := map[string]interface{}{
 		"health_check_type": "99",

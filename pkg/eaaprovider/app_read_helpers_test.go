@@ -1,12 +1,14 @@
 package eaaprovider
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestMapAdvancedSettingsFromResponseWithInvalidHealthCheckType tests that
@@ -194,133 +196,6 @@ func TestMapAdvancedSettingsFromResponseWithValidHealthCheckType(t *testing.T) {
 	}
 }
 
-func TestMapAdvancedSettingsFromResponseWithInvalidTLSSuiteType(t *testing.T) {
-	invalidTLSSuiteType := 99
-
-	resourceSchema := map[string]*schema.Schema{
-		"uuid_url": {
-			Type:     schema.TypeString,
-			Computed: true,
-		},
-		"name": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"app_type": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"host": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"advanced_settings": {
-			Type:     schema.TypeMap,
-			Optional: true,
-		},
-	}
-
-	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
-		"uuid_url": "test-app-id",
-		"name":     "test-app",
-		"app_type": "http",
-		"host":     "test.example.com",
-		"advanced_settings": map[string]interface{}{
-			"tls_suite_type": "default",
-		},
-	})
-
-	appResp := &client.ApplicationResponse{
-		UUIDURL: "test-app-id",
-		Name:    "test-app",
-		AdvancedSettings: client.AdvancedSettingsComplete{
-			HealthCheckType: "0",
-			TLSSuiteType:    &invalidTLSSuiteType,
-		},
-	}
-
-	diags := mapAdvancedSettingsFromResponse(d, appResp)
-	if !diags.HasError() {
-		t.Fatalf("mapAdvancedSettingsFromResponse with invalid tls_suite_type returned no errors")
-	}
-	if len(diags) == 0 || !strings.Contains(diags[0].Summary, "tls_suite_type") {
-		t.Fatalf("expected diagnostic mentioning tls_suite_type, got: %+v", diags)
-	}
-}
-
-func TestMapAdvancedSettingsFromResponseWithValidTLSSuiteType(t *testing.T) {
-	tests := []struct {
-		name           string
-		tlsSuiteVal    *int
-		expectedResult string
-	}{
-		{name: "nil", tlsSuiteVal: nil, expectedResult: ""},
-		{name: "default", tlsSuiteVal: intPtr(1), expectedResult: "default"},
-		{name: "custom", tlsSuiteVal: intPtr(2), expectedResult: "custom"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resourceSchema := map[string]*schema.Schema{
-				"uuid_url": {
-					Type:     schema.TypeString,
-					Computed: true,
-				},
-				"name": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"app_type": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"host": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"advanced_settings": {
-					Type:     schema.TypeMap,
-					Optional: true,
-				},
-			}
-
-			d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
-				"uuid_url": "test-app-id",
-				"name":     "test-app",
-				"app_type": "http",
-				"host":     "test.example.com",
-				"advanced_settings": map[string]interface{}{
-					"tls_suite_type": "default",
-				},
-			})
-
-			appResp := &client.ApplicationResponse{
-				UUIDURL: "test-app-id",
-				Name:    "test-app",
-				AdvancedSettings: client.AdvancedSettingsComplete{
-					HealthCheckType: "0",
-					TLSSuiteType:    tt.tlsSuiteVal,
-				},
-			}
-
-			diags := mapAdvancedSettingsFromResponse(d, appResp)
-			if diags.HasError() {
-				t.Fatalf("mapAdvancedSettingsFromResponse returned errors: %v", diags)
-			}
-
-			advSettingsRaw := d.Get("advanced_settings")
-			advSettings, ok := advSettingsRaw.(map[string]interface{})
-			if !ok {
-				t.Fatalf("advanced_settings type = %T, want map[string]interface{}", advSettingsRaw)
-			}
-
-			if got := advSettings["tls_suite_type"]; got != tt.expectedResult {
-				t.Fatalf("tls_suite_type = %q, want %q", got, tt.expectedResult)
-			}
-		})
-	}
-}
-
 func TestMapAdvancedSettingsFromResponse_FlexStringFields(t *testing.T) {
 	resourceSchema := map[string]*schema.Schema{
 		"uuid_url": {
@@ -377,6 +252,64 @@ func TestMapAdvancedSettingsFromResponse_FlexStringFields(t *testing.T) {
 	assert.Equal(t, "900", advSettings["x_wapp_read_timeout"])
 }
 
-func intPtr(v int) *int {
-	return &v
+func TestMapBasicAttributesFromResponse_TLSSuiteName(t *testing.T) {
+	basicSchema := map[string]*schema.Schema{
+		"name":            {Type: schema.TypeString, Optional: true},
+		"description":     {Type: schema.TypeString, Optional: true},
+		"app_profile":     {Type: schema.TypeString, Optional: true},
+		"app_type":        {Type: schema.TypeString, Optional: true},
+		"client_app_mode": {Type: schema.TypeString, Optional: true},
+		"domain":          {Type: schema.TypeString, Computed: true},
+		"domain_suffix":   {Type: schema.TypeString, Computed: true},
+		"host":            {Type: schema.TypeString, Optional: true, Computed: true},
+		"bookmark_url":    {Type: schema.TypeString, Optional: true},
+		"origin_host":     {Type: schema.TypeString, Optional: true, Computed: true},
+		"orig_tls":        {Type: schema.TypeBool, Computed: true},
+		"origin_port":     {Type: schema.TypeInt, Computed: true},
+		"pop":             {Type: schema.TypeString, Computed: true},
+		"popname":         {Type: schema.TypeString, Computed: true},
+		"popregion":       {Type: schema.TypeString, Optional: true, Computed: true},
+		"auth_enabled":    {Type: schema.TypeString, Optional: true},
+		"app_deployed":    {Type: schema.TypeBool, Computed: true},
+		"app_operational": {Type: schema.TypeInt, Computed: true},
+		"app_status":      {Type: schema.TypeInt, Computed: true},
+		"saml":            {Type: schema.TypeBool, Computed: true},
+		"oidc":            {Type: schema.TypeBool, Computed: true},
+		"wsfed":           {Type: schema.TypeBool, Computed: true},
+		"cname":           {Type: schema.TypeString, Computed: true},
+		"app_category":    {Type: schema.TypeString, Optional: true},
+		"cert":            {Type: schema.TypeString, Computed: true},
+		"uuid_url":        {Type: schema.TypeString, Computed: true},
+		"tls_suite_name":  {Type: schema.TypeString, Optional: true, Computed: true},
+		"app_bundle":      {Type: schema.TypeString, Optional: true},
+	}
+
+	t.Run("non-nil tls_suite_name is set", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, basicSchema, map[string]interface{}{})
+		suiteName := "my-tls-suite"
+		appResp := &client.ApplicationResponse{
+			UUIDURL:      "test-app-id",
+			Name:         "test-app",
+			TLSSuiteName: &suiteName,
+		}
+
+		diags := mapBasicAttributesFromResponse(context.Background(), d, appResp, nil)
+		require.False(t, diags.HasError(), "unexpected error: %v", diags)
+		assert.Equal(t, "my-tls-suite", d.Get("tls_suite_name"))
+	})
+
+	t.Run("nil tls_suite_name is cleared", func(t *testing.T) {
+		d := schema.TestResourceDataRaw(t, basicSchema, map[string]interface{}{
+			"tls_suite_name": "old-suite",
+		})
+		appResp := &client.ApplicationResponse{
+			UUIDURL:      "test-app-id",
+			Name:         "test-app",
+			TLSSuiteName: nil,
+		}
+
+		diags := mapBasicAttributesFromResponse(context.Background(), d, appResp, nil)
+		require.False(t, diags.HasError(), "unexpected error: %v", diags)
+		assert.Equal(t, "", d.Get("tls_suite_name"))
+	})
 }
