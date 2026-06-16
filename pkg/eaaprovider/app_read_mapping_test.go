@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,10 +85,16 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 		diags := mapServersAndTunnelHostsFromResponse(d, appResp)
 		require.False(t, diags.HasError())
 
-		serversRaw := d.Get("servers").([]interface{})
+		// servers is a TypeSet (unordered), so index by origin_host rather than position.
+		serversRaw := d.Get("servers").(*schema.Set).List()
 		require.Len(t, serversRaw, 2)
-		first := serversRaw[0].(map[string]interface{})
-		assert.Equal(t, "srv1.internal", first["origin_host"])
+		byHost := make(map[string]map[string]interface{}, len(serversRaw))
+		for _, s := range serversRaw {
+			m := s.(map[string]interface{})
+			byHost[m["origin_host"].(string)] = m
+		}
+		require.Contains(t, byHost, "srv1.internal")
+		first := byHost["srv1.internal"]
 		assert.Equal(t, true, first["orig_tls"])
 		assert.Equal(t, 443, first["origin_port"])
 		assert.Equal(t, "https", first["origin_protocol"])

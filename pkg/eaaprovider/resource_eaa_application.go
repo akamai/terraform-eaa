@@ -29,6 +29,21 @@ var jsonStringAdvancedSettingsKeys = map[string]bool{
 	"rdp_remote_apps":      true,
 }
 
+// serversSetHash hashes a "servers" element on its user-meaningful fields only.
+// orig_tls is intentionally excluded: it is Optional+Computed (derived by the API
+// from origin_protocol), so including it would make an unset config value hash
+// differently from the API-populated state value and reintroduce a perpetual diff.
+func serversSetHash(v interface{}) int {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	host, _ := m["origin_host"].(string)
+	port, _ := m["origin_port"].(int)
+	protocol, _ := m["origin_protocol"].(string)
+	return schema.HashString(fmt.Sprintf("%s-%d-%s", host, port, protocol))
+}
+
 // suppressServerComputedAdvSettingsKey suppresses plan diffs for:
 //  1. API-auto-populated keys (e.g. edge_cookie_key) the user never configured.
 //  2. JSON-string fields where only key-order or whitespace differs.
@@ -191,8 +206,9 @@ func resourceEaaApplication() *schema.Resource {
 				},
 			},
 			"servers": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Optional: true,
+				Set:      serversSetHash,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"origin_host": {
