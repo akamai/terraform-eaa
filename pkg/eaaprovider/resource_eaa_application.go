@@ -41,6 +41,10 @@ func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.Resou
 	if serverComputedAdvancedSettingsKeys[key] && newStr == "" {
 		return true
 	}
+	// API returns null for session_sticky after update when originally set to "false"
+	if key == "session_sticky" && ((old == "false" && newStr == "") || (old == "" && newStr == "false")) {
+		return true
+	}
 	if jsonStringAdvancedSettingsKeys[key] {
 		return jsonSemanticEqual(old, newStr)
 	}
@@ -1018,7 +1022,14 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		},
 		func() error {
 			logging.Debug(ctx, "phase 2: deploying application", tags)
-			return client.DeployExistingApplication(ctx, appUUIDURL, eaaclient)
+			deployResult, err := client.DeployExistingApplication(ctx, appUUIDURL, eaaclient)
+			if err != nil {
+				return err
+			}
+			if !deployResult.Deployed {
+				warningDiags = append(warningDiags, logging.DiagWarningf(tags, "Application was not deployed because it is not ready. Check the EAA portal for details.")...)
+			}
+			return nil
 		},
 	}
 
@@ -1349,9 +1360,12 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	// Add delay before deploy in UPDATE flow to ensure all operations are complete
 	logging.Debug(ctx, "waiting before deploy in UPDATE flow...", tags)
 
-	err = appUpdateReq.DeployApplication(ctx, eaaclient)
-	if err != nil {
-		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to deploy application")...)
+	deployResult, deployErr := appUpdateReq.DeployApplication(ctx, eaaclient)
+	if deployErr != nil {
+		return append(warningDiags, logging.DiagFromErr(deployErr, tags, "failed to deploy application")...)
+	}
+	if deployResult != nil && !deployResult.Deployed {
+		warningDiags = append(warningDiags, logging.DiagWarningf(tags, "Application was not deployed because it is not ready. Check the EAA portal for details.")...)
 	}
 
 	logging.Info(ctx, "application updated successfully", tags)

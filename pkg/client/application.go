@@ -763,33 +763,30 @@ func ConfigureService(ctx context.Context, appID string, d *schema.ResourceData,
 }
 
 // DeployExistingApplication deploys an existing application
-func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient) error {
+func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient) (*DeployResult, error) {
 	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagDeploy}
 
-	// Get the current app data
 	var appResp ApplicationResponse
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, APPS_URL, appID)
 	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		return logging.Wrapf(err, tags, "failed to get app for deployment")
+		return nil, logging.Wrapf(err, tags, "failed to get app for deployment")
 	}
 	if getResp.StatusCode != http.StatusOK {
 		desc := FormatErrorDescription(getResp)
-		return logging.Errorf(tags, "failed to get app: %s", desc)
+		return nil, logging.Errorf(tags, "failed to get app: %s", desc)
 	}
 
-	// Convert response to Application struct
 	app := Application{}
 	app.FromResponse(&appResp)
 
-	// Deploy the application
-	err = app.DeployApplication(ctx, ec)
+	result, err := app.DeployApplication(ctx, ec)
 	if err != nil {
-		return logging.Wrapf(err, tags, "deploy application failed")
+		return nil, logging.Wrapf(err, tags, "deploy application failed")
 	}
 
 	logging.Debug(ctx, "deploy application succeeded", tags)
-	return nil
+	return result, nil
 }
 
 type Application struct {
@@ -931,23 +928,138 @@ func (app *Application) UpdateEdgeAuthentication(ctx context.Context, ec *EaaCli
 	return &edgeAuthResp, nil
 }
 
-func (app *Application) DeployApplication(ctx context.Context, ec *EaaClient) error {
+func (app *Application) DeployApplication(ctx context.Context, ec *EaaClient) (*DeployResult, error) {
 	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagDeploy}
 	logging.Info(ctx, "deploying application", tags, map[string]any{"app": app.UUIDURL})
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/deploy", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 	data := map[string]interface{}{
 		"deploy_note": "deploying the app managed through terraform",
 	}
-	deployResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", data, nil, false)
+
+	var statusResp DeployStatusResponse
+	deployResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", data, &statusResp, false)
 	if err != nil {
-		return logging.Wrapf(err, tags, "failed to deploy application")
+		return nil, logging.Wrapf(err, tags, "failed to deploy application")
 	}
 
 	if deployResp.StatusCode < http.StatusOK || deployResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(deployResp)
-		return logging.Wrapf(ErrDeploy, tags, "HTTP %d: %s", deployResp.StatusCode, desc)
+		return nil, logging.Wrapf(ErrDeploy, tags, "HTTP %d: %s", deployResp.StatusCode, desc)
 	}
-	return nil
+
+	if statusResp.CmdID != "" {
+		logging.Info(ctx, "deployment triggered", tags, map[string]any{"cmdid": statusResp.CmdID})
+		return &DeployResult{Deployed: true}, nil
+	}
+
+	hasBlocking := false
+	for _, f := range statusResp.fields() {
+		if f.Value == "" || deployValidStatuses[f.Value] {
+			continue
+		}
+		desc := f.Value
+		if fieldDescs, ok := deployStatusDescriptions[f.Field]; ok {
+			if d, ok := fieldDescs[f.Value]; ok {
+				desc = fmt.Sprintf("%s (%s)", f.Value, d)
+			}
+		}
+		logging.Warn(ctx, fmt.Sprintf("deployment blocked: %s is '%s'", f.Field, desc), tags)
+		hasBlocking = true
+	}
+
+	if !hasBlocking {
+		logging.Error(ctx, "deploy API returned 200 with no cmdid and no blocking fields — unexpected response", tags)
+	}
+
+	return &DeployResult{Deployed: false}, nil
+}
+
+type DeployResult struct {
+	Deployed bool
+}
+
+type DeployStatusResponse struct {
+	CmdID              string `json:"cmdid"`
+	HostDNSStatus      string `json:"host_dns_status"`
+	OriginHostStatus   string `json:"origin_host_status"`
+	PopStatus          string `json:"pop_status"`
+	DialinServerStatus string `json:"dialin_server_status"`
+	CertStatus         string `json:"cert_status"`
+	DataAgentStatus    string `json:"data_agent_status"`
+	DirectoriesStatus  string `json:"directories_status"`
+	AppIdpStatus       string `json:"app_idp_status"`
+	RedirectURIStatus  string `json:"redirect_uri_status"`
+}
+
+var deployValidStatuses = map[string]bool{
+	"ok":         true,
+	"configured": true,
+	"added":      true,
+	"valid":      true,
+}
+
+var deployStatusDescriptions = map[string]map[string]string{
+	"host_dns_status": {
+		"not_configured": "No external hostname set",
+		"not_resolved":   "DNS lookup failed",
+		"not_created":    "DNS record not created",
+		"cname_mismatch": "CNAME record doesn't match expected value",
+	},
+	"origin_host_status": {
+		"not_configured": "No origin host set",
+		"not_reachable":  "Origin server is unreachable",
+	},
+	"pop_status": {
+		"not_configured": "No POP assigned",
+	},
+	"dialin_server_status": {
+		"not_configured": "Not set up",
+		"not_created":    "Server not provisioned",
+		"not_resolved":   "DNS for dial-in server failed",
+	},
+	"cert_status": {
+		"not_added":             "No certificate",
+		"expired":               "Certificate expired",
+		"invalid_cname":         "Cert CN/SAN doesn't match hostname",
+		"invalid_ca":            "Untrusted CA",
+		"no_private_key":        "Private key missing",
+		"invalid_ca_user_param": "CA invalid per user parameters",
+		"about_to_expire":       "Certificate nearing expiration",
+	},
+	"data_agent_status": {
+		"not_added":      "No connector assigned",
+		"not_installed":  "Connector not installed",
+		"not_approved":   "Connector not approved",
+		"not_reachable":  "Connector unreachable",
+		"not_compatible": "Connector version incompatible",
+	},
+	"directories_status": {
+		"not_added":     "No directory assigned",
+		"no_agent":      "Directory has no connector",
+		"pending":       "Directory sync pending",
+		"not_reachable": "Directory unreachable",
+	},
+	"app_idp_status": {
+		"not_added":     "No IdP assigned",
+		"not_reachable": "IdP unreachable",
+	},
+	"redirect_uri_status": {
+		"not_configured": "Not set",
+	},
+}
+
+func (d *DeployStatusResponse) fields() []struct{ Field, Value string } {
+	return []struct{ Field, Value string }{
+		{"host_dns_status", d.HostDNSStatus},
+		{"origin_host_status", d.OriginHostStatus},
+		{"pop_status", d.PopStatus},
+		{"dialin_server_status", d.DialinServerStatus},
+		{"cert_status", d.CertStatus},
+		{"data_agent_status", d.DataAgentStatus},
+		{"directories_status", d.DirectoriesStatus},
+		{"app_idp_status", d.AppIdpStatus},
+		{"redirect_uri_status", d.RedirectURIStatus},
+	}
 }
 
 func (app *Application) DeleteApplication(ctx context.Context, ec *EaaClient) error {
