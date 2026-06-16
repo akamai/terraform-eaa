@@ -785,7 +785,7 @@ func DeployExistingApplication(ctx context.Context, appID string, ec *EaaClient)
 		return nil, logging.Wrapf(err, tags, "deploy application failed")
 	}
 
-	logging.Debug(ctx, "deploy application succeeded", tags)
+	logging.Debug(ctx, "deploy application finished", tags, map[string]any{"deployed": result.Deployed})
 	return result, nil
 }
 

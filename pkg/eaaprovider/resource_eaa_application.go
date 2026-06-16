@@ -1026,7 +1026,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 			if err != nil {
 				return err
 			}
-			if !deployResult.Deployed {
+			if deployResult != nil && !deployResult.Deployed {
 				warningDiags = append(warningDiags, logging.DiagWarningf(tags, "Application was not deployed because it is not ready. Check the EAA portal for details.")...)
 			}
 			return nil

@@ -855,6 +855,18 @@ func TestSuppressServerComputedAdvSettingsKey(t *testing.T) {
 			newVal:   `{"a":"2"}`,
 			suppress: false,
 		},
+		"session_sticky_false_to_empty": {
+			key: "advanced_settings.session_sticky", oldVal: "false", newVal: "", suppress: true,
+		},
+		"session_sticky_empty_to_false": {
+			key: "advanced_settings.session_sticky", oldVal: "", newVal: "false", suppress: true,
+		},
+		"session_sticky_true_to_empty_not_suppressed": {
+			key: "advanced_settings.session_sticky", oldVal: "true", newVal: "", suppress: false,
+		},
+		"session_sticky_changed_not_suppressed": {
+			key: "advanced_settings.session_sticky", oldVal: "true", newVal: "false", suppress: false,
+		},
 		"regular_key_not_suppressed": {
 			key: "advanced_settings.acceleration", oldVal: "true", newVal: "false", suppress: false,
 		},
