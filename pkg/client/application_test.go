@@ -114,7 +114,7 @@ func TestDeployApplication(t *testing.T) {
 		wantErr bool
 	}{
 		"success": {
-			handler: jsonHandler(http.StatusOK, nil),
+			handler: jsonHandler(http.StatusOK, map[string]string{"cmdid": "cmd-1"}),
 		},
 		"api_error": {
 			handler: errorJSONHandler(http.StatusInternalServerError, "deploy failed"),
@@ -129,7 +129,7 @@ func TestDeployApplication(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			err := app.DeployApplication(context.Background(), ec)
+			_, err := app.DeployApplication(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -1283,4 +1283,102 @@ func TestConfigureService(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// DeployApplication – status parsing
+// ---------------------------------------------------------------------------
+
+func TestDeployApplication_Success(t *testing.T) {
+	respBody := map[string]string{"cmdid": "abc-123"}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Deployed)
+}
+
+func TestDeployApplication_NotReady(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "configured",
+		"origin_host_status":   "configured",
+		"pop_status":           "ok",
+		"dialin_server_status": "configured",
+		"cert_status":          "ok",
+		"data_agent_status":    "ok",
+		"directories_status":   "added",
+		"app_idp_status":       "not_added",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
+}
+
+func TestDeployApplication_MultipleBlocking(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "not_configured",
+		"origin_host_status":   "not_reachable",
+		"pop_status":           "ok",
+		"dialin_server_status": "configured",
+		"cert_status":          "expired",
+		"data_agent_status":    "ok",
+		"directories_status":   "added",
+		"app_idp_status":       "not_added",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
+}
+
+func TestDeployApplication_HTTPError(t *testing.T) {
+	handler := errorJSONHandler(http.StatusInternalServerError, "server error")
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrDeploy)
+}
+
+func TestDeployApplication_UnknownBlockingValue(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "ok",
+		"origin_host_status":   "ok",
+		"pop_status":           "ok",
+		"dialin_server_status": "ok",
+		"cert_status":          "some_new_status",
+		"data_agent_status":    "ok",
+		"directories_status":   "ok",
+		"app_idp_status":       "ok",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
 }
