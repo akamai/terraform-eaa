@@ -38,9 +38,9 @@ func serversSetHash(v interface{}) int {
 	if !ok {
 		return 0
 	}
-	host, _ := m["origin_host"].(string)
-	port, _ := m["origin_port"].(int)
-	protocol, _ := m["origin_protocol"].(string)
+	host, _ := m["origin_host"].(string)         //nolint:errcheck // zero-value is safe for hashing
+	port, _ := m["origin_port"].(int)            //nolint:errcheck // zero-value is safe for hashing
+	protocol, _ := m["origin_protocol"].(string) //nolint:errcheck // zero-value is safe for hashing
 	return schema.HashString(fmt.Sprintf("%s-%d-%s", host, port, protocol))
 }
 
