@@ -113,7 +113,7 @@ Help the user compose a GitHub issue at https://github.com/akamai/terraform-eaa/
 ```markdown
 ## Environment
 - Terraform version: (output of `terraform version`)
-- EAA provider version: 2.0.0
+- EAA provider version: (check your `required_providers` block or run `terraform providers`)
 - OS: (e.g., macOS 15, Ubuntu 24.04)
 
 ## Terraform Configuration

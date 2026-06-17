@@ -51,10 +51,12 @@ Manages the full lifecycle of an EAA application including servers, authenticati
 | Attribute | Required | Description |
 |-----------|----------|-------------|
 | `name` | Yes | Application name |
-| `app_profile` | No | Protocol: `http` (default), `tcp`, `rdp`, `ssh`, `vnc`, `smb` |
+| `app_profile` | No | Protocol: `http` (default), `tcp`, `rdp`, `ssh`, `vnc`, `smb`, `sharepoint`, `jira`, `jenkins`, `confluence` |
 | `app_type` | No | `enterprise` (default), `tunnel`, `bookmark`, `saas` |
 | `domain` | No | `wapp` (default) or `custom` |
 | `host` | No | External hostname |
+| `description` | No | Application description |
+| `client_app_mode` | No | `tcp` (default) or `tunnel`. Required for tunnel apps to expose `tunnel_internal_hosts` |
 | `popregion` | No | Target deployment region |
 | `agents` | No | List of connector names to assign |
 | `auth_enabled` | No | `"true"` or `"false"` (string, not bool). Default `"false"` |
@@ -68,12 +70,13 @@ Manages the full lifecycle of an EAA application including servers, authenticati
 | `service` | No | ACL access rules |
 | `cert_type` | No | `self_signed` (default) or `uploaded` for custom domains |
 | `cert_name` | No | Name of uploaded certificate (required when `cert_type = "uploaded"`) |
+| `tls_suite_name` | No | TLS cipher suite name (use `eaa_data_source_tls_cipher_suites` to discover valid values) |
 | `protocol` | No | SaaS only: `SAML`, `SAML2.0`, `OIDC`, `OpenID Connect 1.0`, `WSFed`, `WS-Federation` |
 
 **Gotchas:**
 - `auth_enabled` uses **string** `"true"`/`"false"`, not boolean
-- `orig_tls` is deprecated — do not set it; it's computed from `origin_protocol`
-- `protocol` is case-sensitive — `wsfed` (lowercase) is NOT valid; use `WSFed` or `WS-Federation`
+- `orig_tls` (top-level) and `servers.orig_tls` (nested) are both deprecated — the API computes TLS settings from `origin_protocol`
+- `protocol` (SaaS top-level field) is case-sensitive — `wsfed` is NOT valid; use `WSFed` or `WS-Federation`. Note: `advanced_settings.app_auth` does accept lowercase aliases like `wsfed`, `saml`, `oidc`
 - `tls_suite_name = ""` (empty string) has no effect — the API ignores it
 - `advanced_settings` accepts any key the EAA API supports, not just the ones documented
 
@@ -91,9 +94,9 @@ Manages an EAA connector VM.
 | `description` | No | Description |
 | `package` | Yes | Installer: `vmware`, `vbox`, `aws`, `kvm`, `hyperv`, `docker`, `azure`, `google`, `softlayer`, `fujitsu_k5` |
 | `debug_channel_permitted` | No | Enable debug channel for support |
-| `advanced_settings.network_info` | Yes (nested) | List of CIDRs/IPs the connector can reach |
+| `advanced_settings.network_info` | Required if `advanced_settings` is present | List of CIDRs/IPs the connector can reach |
 
-**Computed:** `uuid_url`, `reach`, `state`, `download_url`, `public_ip`, `private_ip`
+**Computed:** `uuid_url`, `reach`, `state`, `download_url`, `public_ip`, `private_ip`, `os_version`, `type`, `region`
 
 Full reference: [docs/eaa_connector.md](docs/eaa_connector.md)
 
@@ -322,9 +325,13 @@ When helping users compose Terraform configurations for this provider:
    - `orig_tls` is deprecated — never set it
    - SaaS apps use `protocol` field, enterprise apps use `advanced_settings.app_auth`
    - `protocol` values are case-sensitive: `WSFed` or `WS-Federation`, NOT `wsfed`
-   - Registration token `expires_at` must be RFC3339 with non-zero seconds (`:01` not `:00`)
+   - Registration token `expires_at` with `:00` seconds is automatically bumped to `:01` — use `:01` directly to avoid plan diffs
 
 5. **When unsure about advanced settings**, point the user to the full list in `docs/eaa_application.md`. The `advanced_settings` map accepts any key the EAA API supports.
+
+## Importing Existing Resources
+
+Existing EAA resources can be imported into Terraform state. See [docs/import.md](docs/import.md) for per-resource import commands. A bulk import tool (`bin/import-config`) is also available — see `make buildtool`.
 
 ## EAA API Reference
 

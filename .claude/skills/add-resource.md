@@ -47,7 +47,7 @@ Invoke `superpowers:brainstorming` with the following domain context included in
 Code layout:
 - pkg/client/          — API data model structs and HTTP methods
 - pkg/eaaprovider/     — Terraform schema definitions and CRUD functions
-- pkg/testsupport/     — HTTP mocking helpers for tests
+- pkg/testsupport/     — HTTP mocking and test assertion helpers
 - pkg/eaaprovider/provider.go — ResourcesMap and DataSourcesMap registration
 
 Logging convention:
@@ -84,7 +84,7 @@ Reference implementations to study:
   - Provider: pkg/eaaprovider/data_source_apps.go
 
 - Complex data source: eaa_connector_pools
-  - Client:   pkg/client/connectorpools.go
+  - Client:   pkg/client/connectorpool.go
   - Provider: pkg/eaaprovider/data_source_connector_pools.go
 ```
 
