@@ -1564,8 +1564,9 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 	appUpdateReq.Servers = []Server{}
 	if servers, ok := d.GetOk("servers"); ok {
-		if serversList, ok := servers.([]interface{}); ok {
-			for _, s := range serversList {
+		// "servers" is a TypeSet, so GetOk returns a *schema.Set.
+		if serversSet, ok := servers.(*schema.Set); ok {
+			for _, s := range serversSet.List() {
 				sData, ok := s.(map[string]interface{})
 				if !ok {
 					logging.Warn(ctx, "skipping malformed server entry", tags)

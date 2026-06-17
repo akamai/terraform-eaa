@@ -1468,8 +1468,9 @@ func TestUpdateAppRequestFromSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, req.Servers, 2)
-		assert.Equal(t, "backend1.internal", req.Servers[0].OriginHost)
-		assert.Equal(t, "backend2.internal", req.Servers[1].OriginHost)
+		// servers is a TypeSet, so order is not guaranteed; assert by membership.
+		hosts := []string{req.Servers[0].OriginHost, req.Servers[1].OriginHost}
+		assert.ElementsMatch(t, []string{"backend1.internal", "backend2.internal"}, hosts)
 	})
 
 	t.Run("bookmark_url_set", func(t *testing.T) {
