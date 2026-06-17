@@ -106,6 +106,29 @@ terraform init && terraform plan && terraform apply
 
 See [docs/troubleshooting.md](docs/troubleshooting.md) for logging setup, log tag format, and a full reference of all `[SOURCE][RESOURCE][OPERATION]` log tags.
 
+## Using with Claude Code
+
+This repository includes [Claude Code](https://claude.ai/code) configuration to help both users and contributors.
+
+### CLAUDE.md
+
+The `CLAUDE.md` file at the repository root teaches Claude about the EAA provider's resources, data sources, common patterns, and gotchas. With it, Claude can help you write Terraform configurations — for example:
+
+- "Help me write a Terraform config for an HTTP application with SAML auth"
+- "Set up a connector pool with two connectors and a registration token"
+- "What data source do I use to look up IDP names?"
+
+### Skills
+
+Two Claude Code skills are available in `.claude/skills/`:
+
+| Skill | Audience | Purpose |
+|-------|----------|---------|
+| `add-resource` | Contributors | Guides adding a new resource or data source through the full brainstorming → spec → plan → execution workflow |
+| `debug-provider` | Users | Helps troubleshoot `terraform plan`/`terraform apply` failures with structured log analysis and issue reporting |
+
+To use a skill, type `/add-resource` or `/debug-provider` in Claude Code.
+
 ## Support
 
 EAA Terraform provider is provided as-is and not supported by Akamai Support. Report issues at the [GitHub Issues page](https://github.com/akamai/terraform-eaa/issues).
