@@ -53,7 +53,7 @@ func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.Resou
 		return false
 	}
 	key := parts[1]
-	if serverComputedAdvancedSettingsKeys[key] && newStr == "" {
+	if client.ServerComputedAdvancedSettingsKeys[key] && newStr == "" {
 		return true
 	}
 	// API returns null for session_sticky after update when originally set to "false"
@@ -64,6 +64,72 @@ func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.Resou
 		return jsonSemanticEqual(old, newStr)
 	}
 	return false
+}
+
+// warnServerComputedKeys returns diagnostic warnings for any server-computed
+// advanced_settings keys that the user explicitly set in their config.
+// Uses GetRawConfig to read only user-written config, not state-merged values.
+func warnServerComputedKeys(d *schema.ResourceData) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	configKeys := configAdvancedSettingsKeys(d)
+	if len(configKeys) == 0 {
+		return diags
+	}
+	for k, s := range configKeys {
+		if !client.ServerComputedAdvancedSettingsKeys[k] {
+			continue
+		}
+		if s != "" {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("advanced_settings key %q is server-computed and will be ignored", k),
+				Detail:   fmt.Sprintf("The key %q in advanced_settings is auto-populated by the API. Your value %q will be ignored. Remove it from your configuration to suppress this warning.", k, s),
+			})
+		}
+	}
+	return diags
+}
+
+// configAdvancedSettingsKeys returns the advanced_settings keys from the user's
+// raw config (what they wrote in .tf). Falls back to d.GetOk when raw config is
+// unavailable (e.g. unit tests using TestResourceDataRaw).
+func configAdvancedSettingsKeys(d *schema.ResourceData) map[string]string {
+	rawConfig := d.GetRawConfig()
+	if !rawConfig.IsNull() {
+		advVal := rawConfig.GetAttr("advanced_settings")
+		if advVal.IsNull() || !advVal.IsKnown() {
+			return nil
+		}
+		vm := advVal.AsValueMap()
+		if len(vm) == 0 {
+			return nil
+		}
+		result := make(map[string]string, len(vm))
+		for k, v := range vm {
+			if v.IsNull() || !v.IsKnown() {
+				continue
+			}
+			result[k] = v.AsString()
+		}
+		return result
+	}
+	// Fallback for unit tests where GetRawConfig is not populated.
+	raw, ok := d.GetOk("advanced_settings")
+	if !ok {
+		return nil
+	}
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		if s, ok := v.(string); ok {
+			result[k] = s
+		}
+	}
+	return result
 }
 
 // jsonSemanticEqual returns true when a and b represent the same JSON value,
@@ -985,6 +1051,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var warningDiags diag.Diagnostics
+	warningDiags = append(warningDiags, warnServerComputedKeys(d)...)
 
 	var appUUIDURL string
 	var phase2Steps []func() error
@@ -1034,7 +1101,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		},
 		func() error {
 			logging.Debug(ctx, "phase 2: configuring advanced settings", tags)
-			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient)
+			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient, true)
 		},
 		func() error {
 			logging.Debug(ctx, "phase 2: deploying application", tags)
@@ -1136,6 +1203,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var warningDiags diag.Diagnostics
+	warningDiags = append(warningDiags, warnServerComputedKeys(d)...)
 
 	// Advanced settings validation is now handled at plan time via CustomizeDiff
 
@@ -1362,6 +1430,17 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 				}
 			}
 		}
+	}
+
+	// Handle G2O before the final PUT — G2O generates keys that must be included in the update.
+	if appUpdateReq.AdvancedSettings.G2OEnabled == client.STR_TRUE {
+		logging.Debug(ctx, "g2o_enabled=true: calling UpdateG2O in UPDATE flow", tags)
+		g2oResp, g2oErr := appUpdateReq.UpdateG2O(ctx, eaaclient)
+		if g2oErr != nil {
+			return append(warningDiags, logging.DiagFromErr(g2oErr, tags, "g2o request failed")...)
+		}
+		appUpdateReq.AdvancedSettings.G2OKey = &g2oResp.G2OKey
+		appUpdateReq.AdvancedSettings.G2ONonce = &g2oResp.G2ONonce
 	}
 
 	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete

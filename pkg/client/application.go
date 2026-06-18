@@ -670,7 +670,7 @@ func ConfigureAuthentication(ctx context.Context, appID string, d *schema.Resour
 }
 
 // ConfigureAdvancedSettings configures advanced settings for an existing application
-func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient) error {
+func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.ResourceData, ec *EaaClient, isCreate bool) error {
 	tags := []logging.Tag{logging.TagAPI, logging.TagApp, logging.TagUpdate}
 
 	// Create update request with advanced settings
@@ -711,10 +711,44 @@ func ConfigureAdvancedSettings(ctx context.Context, appID string, d *schema.Reso
 		}
 	}
 
-	// Apply the update
+	// Detect if edge_authentication_enabled needs a two-step dance on create.
+	// The API rejects edge_authentication_enabled=true on a freshly created app.
+	// Workaround: first PUT with false, then second PUT with true.
+	needsEdgeAuthDance := isCreate && updateRequest.AdvancedSettings.EdgeAuthenticationEnabled == STR_TRUE
+
+	if needsEdgeAuthDance {
+		logging.Debug(ctx, "edge_authentication_enabled=true on create: performing two-step dance", tags)
+		updateRequest.AdvancedSettings.EdgeAuthenticationEnabled = STR_FALSE
+	}
+
+	// Apply the update (first PUT — with edge_auth forced to false if dance is needed)
 	err = updateRequest.UpdateApplication(ctx, ec)
 	if err != nil {
 		return logging.Wrapf(err, tags, "failed to apply advanced settings")
+	}
+
+	if needsEdgeAuthDance {
+		logging.Debug(ctx, "second PUT: enabling edge_authentication_enabled", tags)
+		updateRequest.AdvancedSettings.EdgeAuthenticationEnabled = STR_TRUE
+		err = updateRequest.UpdateApplication(ctx, ec)
+		if err != nil {
+			return logging.Wrapf(err, tags, "failed to enable edge_authentication_enabled on second PUT")
+		}
+	}
+
+	// G2O requires edge_authentication_enabled=true, so it must run after the edge auth dance.
+	if updateRequest.AdvancedSettings.G2OEnabled == STR_TRUE {
+		logging.Debug(ctx, "g2o_enabled=true: calling UpdateG2O", tags)
+		g2oResp, g2oErr := updateRequest.UpdateG2O(ctx, ec)
+		if g2oErr != nil {
+			return logging.Wrapf(g2oErr, tags, "g2o request failed")
+		}
+		updateRequest.AdvancedSettings.G2OKey = &g2oResp.G2OKey
+		updateRequest.AdvancedSettings.G2ONonce = &g2oResp.G2ONonce
+		err = updateRequest.UpdateApplication(ctx, ec)
+		if err != nil {
+			return logging.Wrapf(err, tags, "failed to apply G2O settings")
+		}
 	}
 
 	logging.Debug(ctx, "configure advanced settings succeeded", tags)
@@ -900,7 +934,7 @@ func (app *Application) UpdateG2O(ctx context.Context, ec *EaaClient) (*G2ORespo
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/g2o", URL_SCHEME, ec.Host, APPS_URL, app.UUIDURL)
 
 	var g2oResp G2OResponse
-	g2ohttpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", nil, &g2oResp, false)
+	g2ohttpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", map[string]interface{}{}, &g2oResp, false)
 	if err != nil {
 		return nil, logging.Wrapf(err, tags, "g2o request failed")
 	}
@@ -1211,27 +1245,6 @@ func (appUpdateReq *ApplicationUpdateRequest) UpdateAppRequestFromSchema(ctx con
 
 		// Note: SAML/OIDC/WS-FED settings are now handled outside this block
 		// to ensure they run regardless of whether advanced_settings is provided
-
-		// Handle special cases that require API calls
-		if advSettings.G2OEnabled == STR_TRUE {
-			g2oResp, err := appUpdateReq.UpdateG2O(ctx, ec)
-			if err != nil {
-				logging.Error(ctx, "g2o request failed", tags, map[string]any{"error": err.Error()})
-				return err
-			}
-			advSettings.G2OKey = &g2oResp.G2OKey
-			advSettings.G2ONonce = &g2oResp.G2ONonce
-		}
-
-		if advSettings.EdgeAuthenticationEnabled == STR_TRUE {
-			edgeAuthResp, err := appUpdateReq.UpdateEdgeAuthentication(ctx, ec)
-			if err != nil {
-				logging.Error(ctx, "edge auth cookie request failed", tags, map[string]any{"error": err.Error()})
-				return err
-			}
-			advSettings.EdgeCookieKey = &edgeAuthResp.EdgeCookieKey
-			advSettings.SLAObjectURL = &edgeAuthResp.SLAObjectURL
-		}
 
 		// Use the UpdateAdvancedSettings function to properly update the struct
 		UpdateAdvancedSettings(&appUpdateReq.AdvancedSettings, advSettings)

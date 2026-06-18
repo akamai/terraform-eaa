@@ -186,17 +186,6 @@ func derefStr(p *string) string {
 	return *p
 }
 
-// serverComputedAdvancedSettingsKeys are keys the API auto-populates. They are used
-// only by the DiffSuppressFunc to prevent perpetual diffs when present in state but
-// absent from config (e.g. after an import or refresh-only).
-var serverComputedAdvancedSettingsKeys = map[string]bool{
-	"g2o_key":                    true,
-	"g2o_nonce":                  true,
-	"edge_cookie_key":            true,
-	"sla_object_url":             true,
-	"edge_transport_property_id": true,
-}
-
 // mapAdvancedSettingsFromResponse writes advanced_settings back into Terraform state.
 // All keys behave the same: on import/refresh-only (no prior state) every non-empty
 // API value is surfaced; on normal reads only keys already tracked in state are
@@ -416,6 +405,12 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		maps.Copy(result, existingState)
 		for k, v := range full {
 			if existingKeys[k] {
+				result[k] = v
+			}
+		}
+		// Always surface server-computed keys so users can reference them in outputs.
+		for k := range client.ServerComputedAdvancedSettingsKeys {
+			if v := full[k]; v != "" {
 				result[k] = v
 			}
 		}

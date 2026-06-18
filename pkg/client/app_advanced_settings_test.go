@@ -444,3 +444,28 @@ func TestParseAdvancedSettingsWithDefaults_NewFieldDefaults(t *testing.T) {
 	assert.Equal(t, "false", advSettings.ProxyDisableClipboard)
 	assert.Equal(t, "on", advSettings.RateLimit)
 }
+
+func TestAdvancedSettingsFromBlock_StripsComputedKeys(t *testing.T) {
+	block := map[string]interface{}{
+		"acceleration":               "true",
+		"g2o_key":                    "user-should-not-set-this",
+		"g2o_nonce":                  "nor-this",
+		"edge_cookie_key":            "nor-this-either",
+		"sla_object_url":             "ignore-me",
+		"edge_transport_property_id": "also-ignored",
+	}
+
+	advSettings, err := advancedSettingsFromBlock(block)
+	require.NoError(t, err)
+
+	// Verify user-settable keys are preserved
+	assert.Equal(t, "true", advSettings.Acceleration)
+
+	// Verify server-computed keys are NOT set from user input
+	// (they retain their default/zero values)
+	assert.Nil(t, advSettings.G2OKey)
+	assert.Nil(t, advSettings.G2ONonce)
+	assert.Nil(t, advSettings.EdgeCookieKey)
+	assert.Nil(t, advSettings.SLAObjectURL)
+	assert.Nil(t, advSettings.EdgeTransportPropertyID)
+}

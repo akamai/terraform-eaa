@@ -94,6 +94,37 @@ Manages the lifecycle of an EAA application.
 * `uuid_url` - App UUID.
 * `domain_suffix` - Domain suffix.
 
+### Server-Computed Advanced Settings Keys
+
+The following `advanced_settings` keys are **read-only** — they are auto-populated by the EAA API and always available in Terraform state for use in outputs or references:
+
+| Key | Description |
+|-----|-------------|
+| `g2o_key` | G2O authentication key |
+| `g2o_nonce` | G2O authentication nonce |
+| `edge_cookie_key` | Edge authentication cookie key |
+| `sla_object_url` | SLA object URL |
+| `edge_transport_property_id` | Edge transport property identifier |
+
+**Behavior:**
+- If you set any of these keys in your configuration, the provider emits a **diagnostic warning** during apply and the value is **silently stripped** from the outgoing API request.
+- The API-computed values are always stored in Terraform state regardless of whether they appear in your configuration.
+- Plan diffs for these keys are automatically suppressed when the new value is empty.
+
+**Example — referencing a computed key in an output:**
+
+```hcl
+resource "eaa_application" "web_app" {
+  name = "Web App"
+  # ...
+}
+
+output "g2o_key" {
+  value     = eaa_application.web_app.advanced_settings["g2o_key"]
+  sensitive = true
+}
+```
+
 ## Advanced Settings
 
 Flat map of key/value string pairs passed via `advanced_settings`. Organized by category below.
@@ -173,7 +204,7 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 * `websocket_enabled` - WebSocket support. Default `false`.
 * `x_wapp_read_timeout` - Read timeout in seconds. Default `900`.
 * `ignore_cname_resolution` - Ignore CNAME resolution for CDN access.
-* `g2o_enabled` - Enable G2O for Akamai Edge Enforcement.
+* `g2o_enabled` - Enable G2O for Akamai Edge Enforcement. On **create**, the provider ensures G2O is configured only after `edge_authentication_enabled` is fully applied, since G2O depends on edge authentication being active.
 * `internal_hostname` - Internal hostname.
 * `internal_host_port` - Internal host port.
 
@@ -188,7 +219,7 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 
 ### Security
 
-* `edge_authentication_enabled` - Enable edge authentication. Default `true`.
+* `edge_authentication_enabled` - Enable edge authentication. Default `true`. On **create**, the provider automatically handles a two-step enablement: it first creates the application with edge authentication disabled, then enables it in a second update. This is required because the API rejects `edge_authentication_enabled = "true"` on a freshly created application. No user action is needed — the provider handles this transparently.
 * `ip_access_allow` - Enable IP-based access control.
 * `hsts_age` - HSTS max-age in seconds. Default `15552000`.
 * `http_only_cookie` - Set cookies as HTTP-only. Default `true`.

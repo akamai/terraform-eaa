@@ -79,6 +79,8 @@ Manages the full lifecycle of an EAA application including servers, authenticati
 - `protocol` (SaaS top-level field) is case-sensitive — `wsfed` is NOT valid; use `WSFed` or `WS-Federation`. Note: `advanced_settings.app_auth` does accept lowercase aliases like `wsfed`, `saml`, `oidc`
 - `tls_suite_name = ""` (empty string) has no effect — the API ignores it
 - `advanced_settings` accepts any key the EAA API supports, not just the ones documented
+- Server-computed keys (`g2o_key`, `g2o_nonce`, `edge_cookie_key`, `sla_object_url`, `edge_transport_property_id`) are **read-only** — user-provided values are stripped and a warning is emitted. These values are always available in state for outputs.
+- `edge_authentication_enabled` on create uses a two-step PUT (false then true) — the provider handles this transparently
 
 Full reference: [docs/eaa_application.md](docs/eaa_application.md)
 
@@ -326,6 +328,7 @@ When helping users compose Terraform configurations for this provider:
    - SaaS apps use `protocol` field, enterprise apps use `advanced_settings.app_auth`
    - `protocol` values are case-sensitive: `WSFed` or `WS-Federation`, NOT `wsfed`
    - Registration token `expires_at` with `:00` seconds is automatically bumped to `:01` — use `:01` directly to avoid plan diffs
+   - Never set server-computed keys (`g2o_key`, `g2o_nonce`, `edge_cookie_key`, `sla_object_url`, `edge_transport_property_id`) — the provider strips them and warns. They are available in state for outputs.
 
 5. **When unsure about advanced settings**, point the user to the full list in `docs/eaa_application.md`. The `advanced_settings` map accepts any key the EAA API supports.
 
