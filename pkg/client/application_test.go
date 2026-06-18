@@ -849,16 +849,9 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 			Optional: true,
 		},
 		"advanced_settings": {
-			Type:     schema.TypeList,
+			Type:     schema.TypeMap,
 			Optional: true,
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"app_auth": {
-						Type:     schema.TypeString,
-						Optional: true,
-					},
-				},
-			},
+			Elem:     &schema.Schema{Type: schema.TypeString},
 		},
 	}
 
@@ -878,7 +871,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
@@ -893,7 +886,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42",
@@ -907,7 +900,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
