@@ -106,7 +106,7 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 			AppType: int(client.APP_TYPE_TUNNEL),
 			Servers: []client.Server{{OriginHost: "srv.internal", OrigTLS: true, OriginPort: 443, OriginProtocol: "https"}},
 			TunnelInternalHosts: []client.TunnelInternalHost{
-				{Host: "10.0.0.1", PortRange: "22", ProtoType: 6},
+				{Host: "10.0.0.1", PortRange: "22", ProtoType: 3},
 			},
 		}
 
@@ -118,7 +118,7 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 		mapped := tunnelRaw[0].(map[string]interface{})
 		assert.Equal(t, "10.0.0.1", mapped["host"])
 		assert.Equal(t, "22", mapped["port_range"])
-		assert.Equal(t, 6, mapped["proto_type"])
+		assert.Equal(t, 3, mapped["proto_type"])
 	})
 }
 

@@ -152,9 +152,8 @@ resource "eaa_application" "custom_domain_self_signed" {
   popregion       = "us-east-1"
   agents          = ["EAA_DC1_US1_Access_01"]
 
-  domain                    = "custom"
-  cert_type                 = "self_signed"
-  generate_self_signed_cert = true
+  domain    = "custom"
+  cert_type = "self_signed"
 
   servers {
     origin_protocol = "https"
