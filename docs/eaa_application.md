@@ -219,7 +219,7 @@ The `advanced_settings` map also accepts keys not listed here — any key the EA
 
 ### Security
 
-* `edge_authentication_enabled` - Enable edge authentication. Default `true`. On **create**, the provider automatically handles a two-step enablement: it first creates the application with edge authentication disabled, then enables it in a second update. This is required because the API rejects `edge_authentication_enabled = "true"` on a freshly created application. No user action is needed — the provider handles this transparently.
+* `edge_authentication_enabled` - Enable edge authentication. Default `false`. But when `true` on **create**, the provider automatically handles a two-step enablement: it first creates the application with edge authentication disabled, then enables it in a second update. This is required because the API rejects `edge_authentication_enabled = "true"` on a freshly created application. No user action is needed — the provider handles this transparently.
 * `ip_access_allow` - Enable IP-based access control.
 * `hsts_age` - HSTS max-age in seconds. Default `15552000`.
 * `http_only_cookie` - Set cookies as HTTP-only. Default `true`.
