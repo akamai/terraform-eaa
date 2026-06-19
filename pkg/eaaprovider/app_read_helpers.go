@@ -466,6 +466,14 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 			if err != nil {
 				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
 			}
+			err = d.Set("cert_name", "")
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_name")
+			}
+			err = d.Set("cert_type", "")
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_type")
+			}
 		} else {
 			err = d.Set("cert_body", appCertData.Cert)
 			if err != nil {
@@ -488,6 +496,14 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 		err = d.Set("cert_body", "")
 		if err != nil {
 			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
+		}
+		err = d.Set("cert_name", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_name")
+		}
+		err = d.Set("cert_type", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_type")
 		}
 	}
 
