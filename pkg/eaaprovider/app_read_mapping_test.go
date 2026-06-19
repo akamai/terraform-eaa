@@ -151,14 +151,16 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		}
 	}
 
-	t.Run("cert_body_set_on_successful_fetch", func(t *testing.T) {
+	t.Run("cert_fields_set_on_successful_fetch_self_signed", func(t *testing.T) {
 		mockClient, mockTransport := createMockClient(t)
 		baseRoutes(mockTransport)
 		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
 			StatusCode: 200,
 			Body: client.CertificateResponse{
-				UUIDURL: certUUID,
-				Cert:    pemBody,
+				UUIDURL:  certUUID,
+				Cert:     pemBody,
+				Name:     "app.example.com",
+				CertType: client.CERT_TYPE_APP_SSC,
 			},
 		}
 
@@ -168,9 +170,34 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
 		require.False(t, diags.HasError())
 		assert.Equal(t, pemBody, d.Get("cert_body"))
+		assert.Equal(t, "app.example.com", d.Get("cert_name"))
+		assert.Equal(t, "self_signed", d.Get("cert_type"))
 	})
 
-	t.Run("cert_body_cleared_when_cert_is_nil", func(t *testing.T) {
+	t.Run("cert_fields_set_on_successful_fetch_uploaded", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		baseRoutes(mockTransport)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
+			StatusCode: 200,
+			Body: client.CertificateResponse{
+				UUIDURL:  certUUID,
+				Cert:     pemBody,
+				Name:     "my-uploaded-cert",
+				CertType: client.CERT_TYPE_APP,
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		appResp := &client.ApplicationResponse{Cert: &certUUID, UUIDURL: appUUID}
+
+		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
+		require.False(t, diags.HasError())
+		assert.Equal(t, pemBody, d.Get("cert_body"))
+		assert.Equal(t, "my-uploaded-cert", d.Get("cert_name"))
+		assert.Equal(t, "uploaded", d.Get("cert_type"))
+	})
+
+	t.Run("cert_fields_cleared_when_cert_is_nil", func(t *testing.T) {
 		mockClient, mockTransport := createMockClient(t)
 		baseRoutes(mockTransport)
 
@@ -180,6 +207,8 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
 		require.False(t, diags.HasError())
 		assert.Equal(t, "", d.Get("cert_body"))
+		assert.Equal(t, "", d.Get("cert_name"))
+		assert.Equal(t, "", d.Get("cert_type"))
 	})
 
 	t.Run("cert_body_cleared_on_fetch_error", func(t *testing.T) {

@@ -393,9 +393,10 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 
 	result := make(map[string]string)
 	if len(existingKeys) == 0 {
-		// Import / refresh-only: surface all non-empty API values.
+		// Import / refresh-only: surface all non-empty API values,
+		// but exclude server-computed keys so they don't appear in generated config.
 		for k, v := range full {
-			if v != "" {
+			if v != "" && !client.ServerComputedAdvancedSettingsKeys[k] {
 				result[k] = v
 			}
 		}
@@ -465,16 +466,44 @@ func mapAgentsAndAuthFromResponse(ctx context.Context, d *schema.ResourceData, a
 			if err != nil {
 				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
 			}
+			err = d.Set("cert_name", "")
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_name")
+			}
+			err = d.Set("cert_type", "")
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_type")
+			}
 		} else {
 			err = d.Set("cert_body", appCertData.Cert)
 			if err != nil {
 				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_body")
+			}
+			if appCertData.CertType == client.CERT_TYPE_APP_SSC {
+				err = d.Set("cert_type", string(client.CertSelfSigned))
+			} else {
+				err = d.Set("cert_type", string(client.CertUploaded))
+			}
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_type")
+			}
+			err = d.Set("cert_name", appCertData.Name)
+			if err != nil {
+				return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to set cert_name")
 			}
 		}
 	} else {
 		err = d.Set("cert_body", "")
 		if err != nil {
 			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_body")
+		}
+		err = d.Set("cert_name", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_name")
+		}
+		err = d.Set("cert_type", "")
+		if err != nil {
+			return logging.DiagFromErr(err, []logging.Tag{logging.TagApp, logging.TagRead}, "failed to clear cert_type")
 		}
 	}
 
