@@ -883,10 +883,12 @@ func resourceEaaApplication() *schema.Resource {
 			"cert_name": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"cert_type": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"cert": {
 				Type:     schema.TypeString,
