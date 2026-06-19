@@ -14,6 +14,7 @@ import (
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/assert"
@@ -879,6 +880,74 @@ func TestSuppressServerComputedAdvSettingsKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := suppressServerComputedAdvSettingsKey(tc.key, tc.oldVal, tc.newVal, nil)
 			assert.Equal(t, tc.suppress, result)
+		})
+	}
+}
+
+func TestWarnServerComputedKeys(t *testing.T) {
+	advSchema := map[string]*schema.Schema{
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+			Elem:     &schema.Schema{Type: schema.TypeString},
+		},
+	}
+
+	tests := map[string]struct {
+		values      map[string]interface{}
+		wantSummary string
+		wantCount   int
+	}{
+		"no_advanced_settings": {
+			values:    map[string]interface{}{},
+			wantCount: 0,
+		},
+		"only_user_keys": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"acceleration": "true",
+				},
+			},
+			wantCount: 0,
+		},
+		"one_computed_key": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key": "user-set-value",
+				},
+			},
+			wantCount:   1,
+			wantSummary: `advanced_settings key "g2o_key" is server-computed and will be ignored`,
+		},
+		"multiple_computed_keys": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key":         "val1",
+					"edge_cookie_key": "val2",
+					"acceleration":    "true",
+				},
+			},
+			wantCount: 2,
+		},
+		"computed_key_empty_no_warning": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key": "",
+				},
+			},
+			wantCount: 0,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := schema.TestResourceDataRaw(t, advSchema, tt.values)
+			diags := warnServerComputedKeys(d)
+			assert.Len(t, diags, tt.wantCount)
+			if tt.wantCount > 0 && tt.wantSummary != "" {
+				assert.Equal(t, tt.wantSummary, diags[0].Summary)
+				assert.Equal(t, diag.Warning, diags[0].Severity)
+			}
 		})
 	}
 }
