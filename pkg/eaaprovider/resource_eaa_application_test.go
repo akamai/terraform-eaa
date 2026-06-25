@@ -14,6 +14,7 @@ import (
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/assert"
@@ -855,6 +856,18 @@ func TestSuppressServerComputedAdvSettingsKey(t *testing.T) {
 			newVal:   `{"a":"2"}`,
 			suppress: false,
 		},
+		"session_sticky_false_to_empty": {
+			key: "advanced_settings.session_sticky", oldVal: "false", newVal: "", suppress: true,
+		},
+		"session_sticky_empty_to_false": {
+			key: "advanced_settings.session_sticky", oldVal: "", newVal: "false", suppress: true,
+		},
+		"session_sticky_true_to_empty_not_suppressed": {
+			key: "advanced_settings.session_sticky", oldVal: "true", newVal: "", suppress: false,
+		},
+		"session_sticky_changed_not_suppressed": {
+			key: "advanced_settings.session_sticky", oldVal: "true", newVal: "false", suppress: false,
+		},
 		"regular_key_not_suppressed": {
 			key: "advanced_settings.acceleration", oldVal: "true", newVal: "false", suppress: false,
 		},
@@ -867,6 +880,74 @@ func TestSuppressServerComputedAdvSettingsKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := suppressServerComputedAdvSettingsKey(tc.key, tc.oldVal, tc.newVal, nil)
 			assert.Equal(t, tc.suppress, result)
+		})
+	}
+}
+
+func TestWarnServerComputedKeys(t *testing.T) {
+	advSchema := map[string]*schema.Schema{
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+			Elem:     &schema.Schema{Type: schema.TypeString},
+		},
+	}
+
+	tests := map[string]struct {
+		values      map[string]interface{}
+		wantSummary string
+		wantCount   int
+	}{
+		"no_advanced_settings": {
+			values:    map[string]interface{}{},
+			wantCount: 0,
+		},
+		"only_user_keys": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"acceleration": "true",
+				},
+			},
+			wantCount: 0,
+		},
+		"one_computed_key": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key": "user-set-value",
+				},
+			},
+			wantCount:   1,
+			wantSummary: `advanced_settings key "g2o_key" is server-computed and will be ignored`,
+		},
+		"multiple_computed_keys": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key":         "val1",
+					"edge_cookie_key": "val2",
+					"acceleration":    "true",
+				},
+			},
+			wantCount: 2,
+		},
+		"computed_key_empty_no_warning": {
+			values: map[string]interface{}{
+				"advanced_settings": map[string]interface{}{
+					"g2o_key": "",
+				},
+			},
+			wantCount: 0,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := schema.TestResourceDataRaw(t, advSchema, tt.values)
+			diags := warnServerComputedKeys(d)
+			assert.Len(t, diags, tt.wantCount)
+			if tt.wantCount > 0 && tt.wantSummary != "" {
+				assert.Equal(t, tt.wantSummary, diags[0].Summary)
+				assert.Equal(t, diag.Warning, diags[0].Severity)
+			}
 		})
 	}
 }
@@ -1456,8 +1537,9 @@ func TestUpdateAppRequestFromSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, req.Servers, 2)
-		assert.Equal(t, "backend1.internal", req.Servers[0].OriginHost)
-		assert.Equal(t, "backend2.internal", req.Servers[1].OriginHost)
+		// servers is a TypeSet, so order is not guaranteed; assert by membership.
+		hosts := []string{req.Servers[0].OriginHost, req.Servers[1].OriginHost}
+		assert.ElementsMatch(t, []string{"backend1.internal", "backend2.internal"}, hosts)
 	})
 
 	t.Run("bookmark_url_set", func(t *testing.T) {

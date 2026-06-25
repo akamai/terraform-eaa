@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// ServerComputedAdvancedSettingsKeys are keys the API auto-populates.
+// User-provided values for these keys are stripped from outgoing requests
+// and a diagnostic warning is emitted.
+var ServerComputedAdvancedSettingsKeys = map[string]bool{
+	"g2o_key":                    true,
+	"g2o_nonce":                  true,
+	"edge_cookie_key":            true,
+	"sla_object_url":             true,
+	"edge_transport_property_id": true,
+}
+
 // ParseAdvancedSettingsWithDefaults parses JSON advanced settings and applies sensible defaults
 func ParseAdvancedSettingsWithDefaults(jsonStr string) (*AdvancedSettings, error) {
 	var userSettings map[string]interface{}
@@ -178,6 +189,11 @@ func advancedSettingsFromBlock(block map[string]interface{}) (*AdvancedSettings,
 	flat := make(map[string]interface{}, len(block))
 	for k, v := range block {
 		flat[k] = v
+	}
+
+	// Strip server-computed keys — the API auto-populates these.
+	for k := range ServerComputedAdvancedSettingsKeys {
+		delete(flat, k)
 	}
 
 	// form_post_attributes: stored as JSON string in TypeMap; decode to []interface{} for reflection.

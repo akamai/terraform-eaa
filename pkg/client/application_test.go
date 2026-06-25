@@ -114,7 +114,7 @@ func TestDeployApplication(t *testing.T) {
 		wantErr bool
 	}{
 		"success": {
-			handler: jsonHandler(http.StatusOK, nil),
+			handler: jsonHandler(http.StatusOK, map[string]string{"cmdid": "cmd-1"}),
 		},
 		"api_error": {
 			handler: errorJSONHandler(http.StatusInternalServerError, "deploy failed"),
@@ -129,7 +129,7 @@ func TestDeployApplication(t *testing.T) {
 			ec := newTestClient(t, router)
 
 			app := &Application{UUIDURL: "app-uuid-1"}
-			err := app.DeployApplication(context.Background(), ec)
+			_, err := app.DeployApplication(context.Background(), ec)
 			if requireErrIs(t, err, tt.wantErr, tt.errIs) {
 				return
 			}
@@ -849,16 +849,9 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 			Optional: true,
 		},
 		"advanced_settings": {
-			Type:     schema.TypeList,
+			Type:     schema.TypeMap,
 			Optional: true,
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"app_auth": {
-						Type:     schema.TypeString,
-						Optional: true,
-					},
-				},
-			},
+			Elem:     &schema.Schema{Type: schema.TypeString},
 		},
 	}
 
@@ -878,7 +871,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
@@ -893,7 +886,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42",
@@ -907,7 +900,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 				"description":       "",
 				"host":              "",
 				"auth_enabled":      "false",
-				"advanced_settings": []interface{}{},
+				"advanced_settings": map[string]interface{}{"app_auth": "SAML2.0"},
 			},
 			setupRouter: func(pr *pathRouter) {
 				pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
@@ -926,7 +919,7 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 
 			d := schema.TestResourceDataRaw(t, advancedSchema, tt.values)
 
-			err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec)
+			err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -934,6 +927,207 @@ func TestConfigureAdvancedSettings(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestConfigureAdvancedSettings_EdgeAuthCreateDance(t *testing.T) {
+	advancedSchema := map[string]*schema.Schema{
+		"name": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"description": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"host": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"auth_enabled": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+			Elem:     &schema.Schema{Type: schema.TypeString},
+		},
+	}
+
+	appGetResp := ApplicationResponse{
+		Name:    "my-app",
+		UUIDURL: "app-42",
+	}
+
+	var putCount int
+
+	t.Run("isCreate_true_edge_auth_enabled_does_two_PUTs", func(t *testing.T) {
+		putCount = 0
+		pr := newPathRouter(t)
+		pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
+		pr.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-42", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			putCount++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{"name": "my-app"})
+		}))
+		ec := newTestClient(t, pr)
+
+		d := schema.TestResourceDataRaw(t, advancedSchema, map[string]interface{}{
+			"name":         "my-app",
+			"description":  "",
+			"host":         "",
+			"auth_enabled": "false",
+			"advanced_settings": map[string]interface{}{
+				"edge_authentication_enabled": "true",
+			},
+		})
+
+		err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, true)
+		require.NoError(t, err)
+		assert.Equal(t, 2, putCount, "expected two PUT calls for edge auth create dance")
+	})
+
+	t.Run("isCreate_false_edge_auth_enabled_does_one_PUT", func(t *testing.T) {
+		putCount = 0
+		pr := newPathRouter(t)
+		pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
+		pr.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-42", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			putCount++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{"name": "my-app"})
+		}))
+		ec := newTestClient(t, pr)
+
+		d := schema.TestResourceDataRaw(t, advancedSchema, map[string]interface{}{
+			"name":         "my-app",
+			"description":  "",
+			"host":         "",
+			"auth_enabled": "false",
+			"advanced_settings": map[string]interface{}{
+				"edge_authentication_enabled": "true",
+			},
+		})
+
+		err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, false)
+		require.NoError(t, err)
+		assert.Equal(t, 1, putCount, "expected one PUT call for non-create flow")
+	})
+
+	t.Run("isCreate_true_edge_auth_false_does_one_PUT", func(t *testing.T) {
+		putCount = 0
+		pr := newPathRouter(t)
+		pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
+		pr.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-42", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			putCount++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{"name": "my-app"})
+		}))
+		ec := newTestClient(t, pr)
+
+		d := schema.TestResourceDataRaw(t, advancedSchema, map[string]interface{}{
+			"name":         "my-app",
+			"description":  "",
+			"host":         "",
+			"auth_enabled": "false",
+			"advanced_settings": map[string]interface{}{
+				"edge_authentication_enabled": "false",
+			},
+		})
+
+		err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, true)
+		require.NoError(t, err)
+		assert.Equal(t, 1, putCount, "expected one PUT call when edge auth is false even on create")
+	})
+
+	t.Run("isCreate_true_edge_auth_and_g2o_does_g2o_after_dance", func(t *testing.T) {
+		putCount = 0
+		var g2oCount int
+		var callOrder []string
+		pr := newPathRouter(t)
+		pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
+		pr.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-42", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			putCount++
+			callOrder = append(callOrder, "PUT")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{"name": "my-app"})
+		}))
+		pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-42/g2o", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			g2oCount++
+			callOrder = append(callOrder, "G2O")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(G2OResponse{
+				G2OEnabled: "true",
+				G2OKey:     "generated-key",
+				G2ONonce:   "generated-nonce",
+			})
+		}))
+		ec := newTestClient(t, pr)
+
+		d := schema.TestResourceDataRaw(t, advancedSchema, map[string]interface{}{
+			"name":         "my-app",
+			"description":  "",
+			"host":         "",
+			"auth_enabled": "false",
+			"advanced_settings": map[string]interface{}{
+				"edge_authentication_enabled": "true",
+				"g2o_enabled":                 "true",
+			},
+		})
+
+		err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, true)
+		require.NoError(t, err)
+		assert.Equal(t, 3, putCount, "expected 3 PUTs: edge_auth=false, edge_auth=true, g2o keys")
+		assert.Equal(t, 1, g2oCount, "expected 1 G2O POST call")
+		assert.Equal(t, []string{"PUT", "PUT", "G2O", "PUT"}, callOrder, "G2O must happen after edge auth dance")
+	})
+
+	t.Run("isCreate_true_g2o_without_edge_auth_does_g2o_after_first_PUT", func(t *testing.T) {
+		putCount = 0
+		var g2oCount int
+		var callOrder []string
+		pr := newPathRouter(t)
+		pr.Handle("GET", "/crux/v1/mgmt-pop/apps/app-42", jsonHandler(http.StatusOK, appGetResp))
+		pr.Handle("PUT", "/crux/v1/mgmt-pop/apps/app-42", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			putCount++
+			callOrder = append(callOrder, "PUT")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{"name": "my-app"})
+		}))
+		pr.Handle("POST", "/crux/v1/mgmt-pop/apps/app-42/g2o", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			g2oCount++
+			callOrder = append(callOrder, "G2O")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(G2OResponse{
+				G2OEnabled: "true",
+				G2OKey:     "generated-key",
+				G2ONonce:   "generated-nonce",
+			})
+		}))
+		ec := newTestClient(t, pr)
+
+		d := schema.TestResourceDataRaw(t, advancedSchema, map[string]interface{}{
+			"name":         "my-app",
+			"description":  "",
+			"host":         "",
+			"auth_enabled": "false",
+			"advanced_settings": map[string]interface{}{
+				"g2o_enabled": "true",
+			},
+		})
+
+		err := ConfigureAdvancedSettings(context.Background(), "app-42", d, ec, true)
+		require.NoError(t, err)
+		assert.Equal(t, 2, putCount, "expected 2 PUTs: initial + g2o keys")
+		assert.Equal(t, 1, g2oCount, "expected 1 G2O POST call")
+		assert.Equal(t, []string{"PUT", "G2O", "PUT"}, callOrder, "G2O after initial PUT, then final PUT with keys")
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1283,4 +1477,102 @@ func TestConfigureService(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// DeployApplication – status parsing
+// ---------------------------------------------------------------------------
+
+func TestDeployApplication_Success(t *testing.T) {
+	respBody := map[string]string{"cmdid": "abc-123"}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Deployed)
+}
+
+func TestDeployApplication_NotReady(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "configured",
+		"origin_host_status":   "configured",
+		"pop_status":           "ok",
+		"dialin_server_status": "configured",
+		"cert_status":          "ok",
+		"data_agent_status":    "ok",
+		"directories_status":   "added",
+		"app_idp_status":       "not_added",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
+}
+
+func TestDeployApplication_MultipleBlocking(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "not_configured",
+		"origin_host_status":   "not_reachable",
+		"pop_status":           "ok",
+		"dialin_server_status": "configured",
+		"cert_status":          "expired",
+		"data_agent_status":    "ok",
+		"directories_status":   "added",
+		"app_idp_status":       "not_added",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
+}
+
+func TestDeployApplication_HTTPError(t *testing.T) {
+	handler := errorJSONHandler(http.StatusInternalServerError, "server error")
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrDeploy)
+}
+
+func TestDeployApplication_UnknownBlockingValue(t *testing.T) {
+	respBody := map[string]string{
+		"host_dns_status":      "ok",
+		"origin_host_status":   "ok",
+		"pop_status":           "ok",
+		"dialin_server_status": "ok",
+		"cert_status":          "some_new_status",
+		"data_agent_status":    "ok",
+		"directories_status":   "ok",
+		"app_idp_status":       "ok",
+		"redirect_uri_status":  "configured",
+	}
+	handler := jsonHandler(http.StatusOK, respBody)
+	ec := newTestClient(t, handler)
+
+	app := &Application{UUIDURL: "test-app-uuid"}
+	result, err := app.DeployApplication(t.Context(), ec)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Deployed)
 }

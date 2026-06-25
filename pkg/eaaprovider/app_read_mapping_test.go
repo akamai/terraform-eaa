@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,10 +85,16 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 		diags := mapServersAndTunnelHostsFromResponse(d, appResp)
 		require.False(t, diags.HasError())
 
-		serversRaw := d.Get("servers").([]interface{})
+		// servers is a TypeSet (unordered), so index by origin_host rather than position.
+		serversRaw := d.Get("servers").(*schema.Set).List()
 		require.Len(t, serversRaw, 2)
-		first := serversRaw[0].(map[string]interface{})
-		assert.Equal(t, "srv1.internal", first["origin_host"])
+		byHost := make(map[string]map[string]interface{}, len(serversRaw))
+		for _, s := range serversRaw {
+			m := s.(map[string]interface{})
+			byHost[m["origin_host"].(string)] = m
+		}
+		require.Contains(t, byHost, "srv1.internal")
+		first := byHost["srv1.internal"]
 		assert.Equal(t, true, first["orig_tls"])
 		assert.Equal(t, 443, first["origin_port"])
 		assert.Equal(t, "https", first["origin_protocol"])
@@ -99,7 +106,7 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 			AppType: int(client.APP_TYPE_TUNNEL),
 			Servers: []client.Server{{OriginHost: "srv.internal", OrigTLS: true, OriginPort: 443, OriginProtocol: "https"}},
 			TunnelInternalHosts: []client.TunnelInternalHost{
-				{Host: "10.0.0.1", PortRange: "22", ProtoType: 6},
+				{Host: "10.0.0.1", PortRange: "22", ProtoType: 3},
 			},
 		}
 
@@ -111,7 +118,7 @@ func TestMapServersAndTunnelHostsFromResponse(t *testing.T) {
 		mapped := tunnelRaw[0].(map[string]interface{})
 		assert.Equal(t, "10.0.0.1", mapped["host"])
 		assert.Equal(t, "22", mapped["port_range"])
-		assert.Equal(t, 6, mapped["proto_type"])
+		assert.Equal(t, 3, mapped["proto_type"])
 	})
 }
 
@@ -144,14 +151,16 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		}
 	}
 
-	t.Run("cert_body_set_on_successful_fetch", func(t *testing.T) {
+	t.Run("cert_fields_set_on_successful_fetch_self_signed", func(t *testing.T) {
 		mockClient, mockTransport := createMockClient(t)
 		baseRoutes(mockTransport)
 		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
 			StatusCode: 200,
 			Body: client.CertificateResponse{
-				UUIDURL: certUUID,
-				Cert:    pemBody,
+				UUIDURL:  certUUID,
+				Cert:     pemBody,
+				Name:     "app.example.com",
+				CertType: client.CERT_TYPE_APP_SSC,
 			},
 		}
 
@@ -161,9 +170,34 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
 		require.False(t, diags.HasError())
 		assert.Equal(t, pemBody, d.Get("cert_body"))
+		assert.Equal(t, "app.example.com", d.Get("cert_name"))
+		assert.Equal(t, "self_signed", d.Get("cert_type"))
 	})
 
-	t.Run("cert_body_cleared_when_cert_is_nil", func(t *testing.T) {
+	t.Run("cert_fields_set_on_successful_fetch_uploaded", func(t *testing.T) {
+		mockClient, mockTransport := createMockClient(t)
+		baseRoutes(mockTransport)
+		mockTransport.Responses["GET /crux/v1/mgmt-pop/certificates/"+certUUID] = MockResponse{
+			StatusCode: 200,
+			Body: client.CertificateResponse{
+				UUIDURL:  certUUID,
+				Cert:     pemBody,
+				Name:     "my-uploaded-cert",
+				CertType: client.CERT_TYPE_APP,
+			},
+		}
+
+		d := createTestApplicationResourceData(t, map[string]interface{}{})
+		appResp := &client.ApplicationResponse{Cert: &certUUID, UUIDURL: appUUID}
+
+		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
+		require.False(t, diags.HasError())
+		assert.Equal(t, pemBody, d.Get("cert_body"))
+		assert.Equal(t, "my-uploaded-cert", d.Get("cert_name"))
+		assert.Equal(t, "uploaded", d.Get("cert_type"))
+	})
+
+	t.Run("cert_fields_cleared_when_cert_is_nil", func(t *testing.T) {
 		mockClient, mockTransport := createMockClient(t)
 		baseRoutes(mockTransport)
 
@@ -173,6 +207,8 @@ func TestMapAgentsAndAuthFromResponse_CertBody(t *testing.T) {
 		diags := mapAgentsAndAuthFromResponse(context.Background(), d, appResp, mockClient)
 		require.False(t, diags.HasError())
 		assert.Equal(t, "", d.Get("cert_body"))
+		assert.Equal(t, "", d.Get("cert_name"))
+		assert.Equal(t, "", d.Get("cert_type"))
 	})
 
 	t.Run("cert_body_cleared_on_fetch_error", func(t *testing.T) {

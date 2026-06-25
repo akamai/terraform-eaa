@@ -252,6 +252,74 @@ func TestMapAdvancedSettingsFromResponse_FlexStringFields(t *testing.T) {
 	assert.Equal(t, "900", advSettings["x_wapp_read_timeout"])
 }
 
+func TestMapAdvancedSettingsFromResponse_ImportExcludesServerComputedKeys(t *testing.T) {
+	resourceSchema := map[string]*schema.Schema{
+		"uuid_url": {
+			Type:     schema.TypeString,
+			Computed: true,
+		},
+		"name": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"app_type": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"host": {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+		"advanced_settings": {
+			Type:     schema.TypeMap,
+			Optional: true,
+		},
+	}
+
+	// Empty advanced_settings simulates import (no prior state).
+	d := schema.TestResourceDataRaw(t, resourceSchema, map[string]interface{}{
+		"uuid_url":          "test-app-id",
+		"name":              "test-app",
+		"app_type":          "http",
+		"host":              "test.example.com",
+		"advanced_settings": map[string]interface{}{},
+	})
+
+	g2oKey := "secret-g2o-key"
+	g2oNonce := "secret-g2o-nonce"
+	edgeCookieKey := "secret-edge-cookie"
+	slaURL := "https://sla.example.com"
+	edgeTransportID := "etp-12345"
+
+	appResp := &client.ApplicationResponse{
+		UUIDURL: "test-app-id",
+		Name:    "test-app",
+		AdvancedSettings: client.AdvancedSettingsComplete{
+			HealthCheckType:         "0",
+			G2OKey:                  &g2oKey,
+			G2ONonce:                &g2oNonce,
+			EdgeCookieKey:           edgeCookieKey,
+			SLAObjectURL:            slaURL,
+			EdgeTransportPropertyID: &edgeTransportID,
+			AllowCORS:               "true",
+			LoadBalancingMetric:     "round-robin",
+		},
+	}
+
+	diags := mapAdvancedSettingsFromResponse(d, appResp)
+	require.False(t, diags.HasError(), "unexpected error: %v", diags)
+
+	advSettings := d.Get("advanced_settings").(map[string]interface{})
+
+	for key := range client.ServerComputedAdvancedSettingsKeys {
+		_, present := advSettings[key]
+		assert.False(t, present, "server-computed key %q should not appear in import state", key)
+	}
+
+	assert.Equal(t, "true", advSettings["allow_cors"], "non-computed key allow_cors should be present")
+	assert.Equal(t, "round-robin", advSettings["load_balancing_metric"], "non-computed key load_balancing_metric should be present")
+}
+
 func TestMapBasicAttributesFromResponse_TLSSuiteName(t *testing.T) {
 	basicSchema := map[string]*schema.Schema{
 		"name":            {Type: schema.TypeString, Optional: true},

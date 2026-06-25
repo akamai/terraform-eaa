@@ -29,6 +29,21 @@ var jsonStringAdvancedSettingsKeys = map[string]bool{
 	"rdp_remote_apps":      true,
 }
 
+// serversSetHash hashes a "servers" element on its user-meaningful fields only.
+// orig_tls is intentionally excluded: it is Optional+Computed (derived by the API
+// from origin_protocol), so including it would make an unset config value hash
+// differently from the API-populated state value and reintroduce a perpetual diff.
+func serversSetHash(v interface{}) int {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	host, _ := m["origin_host"].(string)         //nolint:errcheck // zero-value is safe for hashing
+	port, _ := m["origin_port"].(int)            //nolint:errcheck // zero-value is safe for hashing
+	protocol, _ := m["origin_protocol"].(string) //nolint:errcheck // zero-value is safe for hashing
+	return schema.HashString(fmt.Sprintf("%s-%d-%s", host, port, protocol))
+}
+
 // suppressServerComputedAdvSettingsKey suppresses plan diffs for:
 //  1. API-auto-populated keys (e.g. edge_cookie_key) the user never configured.
 //  2. JSON-string fields where only key-order or whitespace differs.
@@ -38,13 +53,83 @@ func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.Resou
 		return false
 	}
 	key := parts[1]
-	if serverComputedAdvancedSettingsKeys[key] && newStr == "" {
+	if client.ServerComputedAdvancedSettingsKeys[key] && newStr == "" {
+		return true
+	}
+	// API returns null for session_sticky after update when originally set to "false"
+	if key == "session_sticky" && ((old == "false" && newStr == "") || (old == "" && newStr == "false")) {
 		return true
 	}
 	if jsonStringAdvancedSettingsKeys[key] {
 		return jsonSemanticEqual(old, newStr)
 	}
 	return false
+}
+
+// warnServerComputedKeys returns diagnostic warnings for any server-computed
+// advanced_settings keys that the user explicitly set in their config.
+// Uses GetRawConfig to read only user-written config, not state-merged values.
+func warnServerComputedKeys(d *schema.ResourceData) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	configKeys := configAdvancedSettingsKeys(d)
+	if len(configKeys) == 0 {
+		return diags
+	}
+	for k, s := range configKeys {
+		if !client.ServerComputedAdvancedSettingsKeys[k] {
+			continue
+		}
+		if s != "" {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("advanced_settings key %q is server-computed and will be ignored", k),
+				Detail:   fmt.Sprintf("The key %q in advanced_settings is auto-populated by the API. Your value %q will be ignored. Remove it from your configuration to suppress this warning.", k, s),
+			})
+		}
+	}
+	return diags
+}
+
+// configAdvancedSettingsKeys returns the advanced_settings keys from the user's
+// raw config (what they wrote in .tf). Falls back to d.GetOk when raw config is
+// unavailable (e.g. unit tests using TestResourceDataRaw).
+func configAdvancedSettingsKeys(d *schema.ResourceData) map[string]string {
+	rawConfig := d.GetRawConfig()
+	if !rawConfig.IsNull() {
+		advVal := rawConfig.GetAttr("advanced_settings")
+		if advVal.IsNull() || !advVal.IsKnown() {
+			return nil
+		}
+		vm := advVal.AsValueMap()
+		if len(vm) == 0 {
+			return nil
+		}
+		result := make(map[string]string, len(vm))
+		for k, v := range vm {
+			if v.IsNull() || !v.IsKnown() {
+				continue
+			}
+			result[k] = v.AsString()
+		}
+		return result
+	}
+	// Fallback for unit tests where GetRawConfig is not populated.
+	raw, ok := d.GetOk("advanced_settings")
+	if !ok {
+		return nil
+	}
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		if s, ok := v.(string); ok {
+			result[k] = s
+		}
+	}
+	return result
 }
 
 // jsonSemanticEqual returns true when a and b represent the same JSON value,
@@ -191,8 +276,9 @@ func resourceEaaApplication() *schema.Resource {
 				},
 			},
 			"servers": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Optional: true,
+				Set:      serversSetHash,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"origin_host": {
@@ -797,10 +883,12 @@ func resourceEaaApplication() *schema.Resource {
 			"cert_name": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"cert_type": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"cert": {
 				Type:     schema.TypeString,
@@ -965,6 +1053,7 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var warningDiags diag.Diagnostics
+	warningDiags = append(warningDiags, warnServerComputedKeys(d)...)
 
 	var appUUIDURL string
 	var phase2Steps []func() error
@@ -1014,11 +1103,18 @@ func resourceEaaApplicationCreateTwoPhase(ctx context.Context, d *schema.Resourc
 		},
 		func() error {
 			logging.Debug(ctx, "phase 2: configuring advanced settings", tags)
-			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient)
+			return client.ConfigureAdvancedSettings(ctx, appUUIDURL, d, eaaclient, true)
 		},
 		func() error {
 			logging.Debug(ctx, "phase 2: deploying application", tags)
-			return client.DeployExistingApplication(ctx, appUUIDURL, eaaclient)
+			deployResult, err := client.DeployExistingApplication(ctx, appUUIDURL, eaaclient)
+			if err != nil {
+				return err
+			}
+			if deployResult != nil && !deployResult.Deployed {
+				warningDiags = append(warningDiags, logging.DiagWarningf(tags, "Application was not deployed because it is not ready. Check the EAA portal for details.")...)
+			}
+			return nil
 		},
 	}
 
@@ -1109,6 +1205,7 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
 	var warningDiags diag.Diagnostics
+	warningDiags = append(warningDiags, warnServerComputedKeys(d)...)
 
 	// Advanced settings validation is now handled at plan time via CustomizeDiff
 
@@ -1337,6 +1434,17 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	// Handle G2O before the final PUT — G2O generates keys that must be included in the update.
+	if appUpdateReq.AdvancedSettings.G2OEnabled == client.STR_TRUE {
+		logging.Debug(ctx, "g2o_enabled=true: calling UpdateG2O in UPDATE flow", tags)
+		g2oResp, g2oErr := appUpdateReq.UpdateG2O(ctx, eaaclient)
+		if g2oErr != nil {
+			return append(warningDiags, logging.DiagFromErr(g2oErr, tags, "g2o request failed")...)
+		}
+		appUpdateReq.AdvancedSettings.G2OKey = &g2oResp.G2OKey
+		appUpdateReq.AdvancedSettings.G2ONonce = &g2oResp.G2ONonce
+	}
+
 	// Now perform the PUT call to update advanced settings AFTER IDP assignment is complete
 	logging.Debug(ctx, "performing PUT call after IDP assignment in UPDATE flow", tags)
 	err = appUpdateReq.UpdateApplication(ctx, eaaclient)
@@ -1349,9 +1457,12 @@ func resourceEaaApplicationUpdate(ctx context.Context, d *schema.ResourceData, m
 	// Add delay before deploy in UPDATE flow to ensure all operations are complete
 	logging.Debug(ctx, "waiting before deploy in UPDATE flow...", tags)
 
-	err = appUpdateReq.DeployApplication(ctx, eaaclient)
-	if err != nil {
-		return append(warningDiags, logging.DiagFromErr(err, tags, "failed to deploy application")...)
+	deployResult, deployErr := appUpdateReq.DeployApplication(ctx, eaaclient)
+	if deployErr != nil {
+		return append(warningDiags, logging.DiagFromErr(deployErr, tags, "failed to deploy application")...)
+	}
+	if deployResult != nil && !deployResult.Deployed {
+		warningDiags = append(warningDiags, logging.DiagWarningf(tags, "Application was not deployed because it is not ready. Check the EAA portal for details.")...)
 	}
 
 	logging.Info(ctx, "application updated successfully", tags)
