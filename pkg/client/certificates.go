@@ -68,6 +68,22 @@ type CertObject struct {
 	CertType  int    `json:"cert_type"`
 }
 
+type AssociatedObject struct {
+	Name    string `json:"name"`
+	UUIDURL string `json:"uuid_url"`
+	Status  int    `json:"app_status,omitempty"`
+}
+
+type CertificateExpandedResponse struct {
+	Apps                   []AssociatedObject `json:"apps"`
+	IDPs                   []AssociatedObject `json:"idps"`
+	CertIDPs               []AssociatedObject `json:"cert_idps"`
+	ClientCertIDPs         []AssociatedObject `json:"client_cert_idps"`
+	SAMLCertIDPs           []AssociatedObject `json:"saml_cert_idps"`
+	SAMLCustomSignCertIDPs []AssociatedObject `json:"saml_custom_sign_cert_idps"`
+	CertificateResponse
+}
+
 type CertsResponse struct {
 	Objects []CertObject `json:"objects"`
 }
@@ -136,4 +152,35 @@ func DoesUploadedCertExist(ctx context.Context, ec *EaaClient, host string) (*Ce
 		}
 	}
 	return nil, logging.Errorf([]logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}, "uploaded certificate for host '%s' not found", host)
+}
+
+func GetCertificateExpanded(ctx context.Context, ec *EaaClient, certUUIDURL string) (*CertificateExpandedResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
+	var certResp CertificateExpandedResponse
+
+	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &certResp, false)
+	if err != nil {
+		return nil, err
+	}
+	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(getResp)
+		return nil, logging.Errorf(tags, "certificate get failed: %s", desc)
+	}
+	return &certResp, nil
+}
+
+func DeleteCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagDelete}
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
+
+	deleteResp, err := ec.SendAPIRequest(ctx, apiURL, http.MethodDelete, nil, nil, false)
+	if err != nil {
+		return logging.Wrapf(err, tags, "certificate delete failed")
+	}
+	if deleteResp.StatusCode != http.StatusNoContent {
+		desc := FormatErrorDescription(deleteResp)
+		return logging.Errorf(tags, "certificate delete failed: %s", desc)
+	}
+	return nil
 }

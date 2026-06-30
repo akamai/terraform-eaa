@@ -159,3 +159,75 @@ func TestGetCertificate(t *testing.T) {
 		})
 	}
 }
+
+func testExpandedCertResponse() CertificateExpandedResponse {
+	return CertificateExpandedResponse{
+		CertificateResponse: CertificateResponse{
+			Name:     "test-cert",
+			UUIDURL:  "test-uuid",
+			Cert:     "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
+			CN:       "localhost",
+			CertType: CERT_TYPE_APP,
+			Status:   1,
+			AppCount: 1,
+			DirCount: 0,
+			DaysLeft: 364,
+		},
+		Apps: []AssociatedObject{{Name: "app1", UUIDURL: "app-uuid-1", Status: 1}},
+		IDPs: []AssociatedObject{},
+	}
+}
+
+func TestGetCertificateExpanded(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, testExpandedCertResponse()),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "error"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			resp, err := GetCertificateExpanded(context.Background(), ec, "test-uuid")
+			if requireErrIs(t, err, tt.wantErr, nil) {
+				return
+			}
+			assert.Equal(t, "test-cert", resp.Name)
+			assert.Len(t, resp.Apps, 1)
+		})
+	}
+}
+
+func TestDeleteCertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "error"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			err := DeleteCertificate(context.Background(), ec, "test-uuid")
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

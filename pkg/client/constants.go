@@ -75,6 +75,11 @@ var (
 	ErrInvalidAppType                  = errors.New("invalid app type")
 	ErrInvalidAppProfile               = errors.New("invalid app profile")
 
+	ErrCertCreate = errors.New("certificate creation failed")
+	ErrCertUpdate = errors.New("certificate update failed")
+	ErrCertDelete = errors.New("certificate delete failed")
+	ErrCertDeploy = errors.New("certificate deploy failed")
+
 	// RDP configuration validation errors
 	ErrRDPNotSupportedForAppType = errors.New("RDP configuration parameters are not supported for this app type. RDP configuration is only available for Enterprise Hosted applications")
 	ErrRDPNotSupportedForProfile = errors.New("RDP configuration parameters are not supported for this app profile. RDP configuration is only available for RDP applications")
