@@ -330,3 +330,58 @@ func TestDeployCertificate(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateCACertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, CertificateResponse{
+				UUIDURL:  "ca-cert-uuid",
+				Name:     "my-ca",
+				CertType: CERT_TYPE_CA,
+			}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusBadRequest, "invalid ca cert"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			resp, err := CreateCACertificate(context.Background(), ec, "my-ca", "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----", "")
+			if requireErrIs(t, err, tt.wantErr, nil) {
+				return
+			}
+			assert.Equal(t, "ca-cert-uuid", resp.UUIDURL)
+		})
+	}
+}
+
+func TestUpdateCACertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, map[string]string{"cert": "updated"}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "upload failed"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			err := UpdateCACertificate(context.Background(), ec, "ca-cert-uuid", "my-ca", "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----", "")
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

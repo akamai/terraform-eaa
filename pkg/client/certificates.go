@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
@@ -251,6 +254,57 @@ func DeployCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) e
 	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(httpResp)
 		return logging.Errorf(tags, "certificate deploy failed: %s", desc)
+	}
+	return nil
+}
+
+func CreateCACertificate(ctx context.Context, ec *EaaClient, name, certContent, password string) (*CertificateResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagCreate}
+	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL)
+
+	fields := map[string]string{
+		"cert_type": strconv.Itoa(CERT_TYPE_CA),
+		"name":      name,
+		"password":  password,
+	}
+
+	httpResp, err := ec.SendMultipartRequest(ctx, apiURL, fields, "cert", []byte(certContent))
+	if err != nil {
+		return nil, logging.Wrapf(err, tags, "create CA certificate failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return nil, logging.Errorf(tags, "create CA certificate failed: %s", desc)
+	}
+
+	var certResp CertificateResponse
+	data, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, logging.Wrapf(err, tags, "failed to read create CA certificate response")
+	}
+	if err := json.Unmarshal(data, &certResp); err != nil {
+		return nil, logging.Wrapf(err, tags, "failed to unmarshal create CA certificate response")
+	}
+	return &certResp, nil
+}
+
+func UpdateCACertificate(ctx context.Context, ec *EaaClient, certUUIDURL, name, certContent, password string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagUpdate}
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/upload", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
+
+	fields := map[string]string{
+		"cert_type": strconv.Itoa(CERT_TYPE_CA),
+		"name":      name,
+		"password":  password,
+	}
+
+	httpResp, err := ec.SendMultipartRequest(ctx, apiURL, fields, "cert", []byte(certContent))
+	if err != nil {
+		return logging.Wrapf(err, tags, "update CA certificate failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return logging.Errorf(tags, "update CA certificate failed: %s", desc)
 	}
 	return nil
 }
