@@ -86,12 +86,41 @@ func main() {
 		AccountSwitchKey: accountSwitch,
 		Host:             edgerc.Host,
 	}
-	err = GenerateConfiguration(eaaClient, edgercPath, appNames)
+
+	reader2 := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Import applications? (Y/N): ")
+	appChoice, err := reader2.ReadString('\n')
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		println()
-		println(generateInfo)
+		fmt.Println("Error reading application choice:", err)
+		return
+	}
+	appChoice = strings.TrimSpace(strings.ToUpper(appChoice))
+	if appChoice == "Y" {
+		err = GenerateConfiguration(eaaClient, edgercPath, appNames)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			println()
+			println(generateInfo)
+		}
+	}
+
+	fmt.Print("Import certificates? (Y/N): ")
+	certChoice, err := reader2.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading certificate choice:", err)
+		return
+	}
+	certChoice = strings.TrimSpace(strings.ToUpper(certChoice))
+	if certChoice == "Y" {
+		err = GenerateCertificateConfiguration(eaaClient, edgercPath)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			println()
+			println(generateCertInfo)
+		}
 	}
 }
 
@@ -175,6 +204,88 @@ func GenerateConfiguration(ec *EaaClient, edgercPath, appNames string) error {
 			}
 		}
 		fmt.Printf("%d app imports added", len(uniqueBlocks))
+	}
+
+	return nil
+}
+
+func GenerateCertificateConfiguration(ec *EaaClient, edgercPath string) error {
+	fmt.Println("generating certificate import blocks ...")
+	fmt.Println()
+
+	var importBlocks []importBlock
+
+	certTypes := []struct {
+		resourceType string
+		certType     int
+	}{
+		{"eaa_custom_app_certificate", CERT_TYPE_APP},
+		{"eaa_ca_certificate", CERT_TYPE_CA},
+	}
+
+	for _, ct := range certTypes {
+		apiURL := fmt.Sprintf("https://%s/%s?cert_type=%d", ec.Host, CERTIFICATES_URL, ct.certType)
+		for apiURL != "" {
+			var certsResponse CertsResponse
+			getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &certsResponse, false)
+			if err != nil {
+				return err
+			}
+			if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+				desc := FormatErrorDescription(getResp)
+				return fmt.Errorf("certificate list failed: %s", desc)
+			}
+
+			for _, cert := range certsResponse.Objects {
+				if cert.Name == "" || cert.UUIDURL == "" {
+					continue
+				}
+				replacedString := convertToValidTFName(cert.Name)
+				resourceName := fmt.Sprintf("%s.%s\n", ct.resourceType, replacedString)
+				importBlocks = append(importBlocks, importBlock{appID: cert.UUIDURL, appName: resourceName})
+			}
+
+			if certsResponse.Metadata.Next != nil {
+				nextURL := *certsResponse.Metadata.Next
+				nextURL = strings.TrimPrefix(nextURL, "/api/v1")
+				apiURL = fmt.Sprintf("https://%s/%s%s", ec.Host, "crux/v1/mgmt-pop", nextURL)
+			} else {
+				apiURL = ""
+			}
+		}
+	}
+
+	if len(importBlocks) > 0 {
+		file, err := os.Create("import_existing_certs.tf")
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return err
+		}
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				fmt.Printf("Error closing file: %v", closeErr)
+			}
+		}()
+		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)
+		if err != nil {
+			fmt.Println("Error writing provider block to file:", err)
+			return err
+		}
+
+		uniqueBlocks := make(map[string]importBlock)
+		for _, block := range importBlocks {
+			uniqueBlocks[block.appID] = block
+		}
+		for _, block := range uniqueBlocks {
+			fmt.Printf("generating import block for %s\n", block.appName)
+			err := generateImportBlock(file, block.appID, block.appName)
+			if err != nil {
+				fmt.Printf("error generating import block %s\n", err)
+			}
+		}
+		fmt.Printf("%d certificate imports added\n", len(uniqueBlocks))
+	} else {
+		fmt.Println("No certificates found to import.")
 	}
 
 	return nil
