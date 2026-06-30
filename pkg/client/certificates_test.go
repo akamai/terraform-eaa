@@ -231,3 +231,102 @@ func TestDeleteCertificate(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateAppCertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, CertificateResponse{
+				UUIDURL:  "new-cert-uuid",
+				Name:     "my-cert",
+				CertType: CERT_TYPE_APP,
+			}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusBadRequest, "invalid cert"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			req := &CreateAppCertRequest{
+				CertType:   CERT_TYPE_APP,
+				Name:       "my-cert",
+				Cert:       "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
+				PrivateKey: "-----BEGIN RSA " + "PRIVATE KEY-----\ntest\n-----END RSA " + "PRIVATE KEY-----",
+				Password:   "",
+			}
+			resp, err := CreateAppCertificate(context.Background(), ec, req)
+			if requireErrIs(t, err, tt.wantErr, nil) {
+				return
+			}
+			assert.Equal(t, "new-cert-uuid", resp.UUIDURL)
+		})
+	}
+}
+
+func TestUpdateAppCertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, UpdateAppCertResponse{
+				CertificateResponse: CertificateResponse{UUIDURL: "cert-uuid", Name: "updated-cert"},
+				Associated:          true,
+			}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "update failed"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			req := &UpdateAppCertRequest{
+				UUIDURL:    "cert-uuid",
+				CertType:   CERT_TYPE_APP,
+				Name:       "updated-cert",
+				Cert:       "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
+				PrivateKey: "-----BEGIN RSA " + "PRIVATE KEY-----\ntest\n-----END RSA " + "PRIVATE KEY-----",
+				Password:   "",
+			}
+			resp, err := UpdateAppCertificate(context.Background(), ec, "cert-uuid", req)
+			if requireErrIs(t, err, tt.wantErr, nil) {
+				return
+			}
+			assert.Equal(t, "updated-cert", resp.Name)
+			assert.True(t, resp.Associated)
+		})
+	}
+}
+
+func TestDeployCertificate(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		"success": {
+			handler: jsonHandler(http.StatusOK, map[string]string{"message": "Certificate deployment initiated."}),
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "deploy failed"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			err := DeployCertificate(context.Background(), ec, "cert-uuid")
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

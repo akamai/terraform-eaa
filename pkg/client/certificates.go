@@ -13,6 +13,28 @@ type CreateSelfSignedCertRequest struct {
 	CertType int    `json:"cert_type"`
 }
 
+type CreateAppCertRequest struct {
+	Name       string `json:"name"`
+	Cert       string `json:"cert"`
+	PrivateKey string `json:"private_key"`
+	Password   string `json:"password"`
+	CertType   int    `json:"cert_type"`
+}
+
+type UpdateAppCertRequest struct {
+	UUIDURL    string `json:"uuid_url"`
+	Name       string `json:"name"`
+	Cert       string `json:"cert"`
+	PrivateKey string `json:"private_key"`
+	Password   string `json:"password"`
+	CertType   int    `json:"cert_type"`
+}
+
+type UpdateAppCertResponse struct {
+	CertificateResponse
+	Associated bool `json:"associated"`
+}
+
 func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx context.Context, ec *EaaClient) (*CertificateResponse, error) {
 	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagCreate}
 
@@ -181,6 +203,54 @@ func DeleteCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) e
 	if deleteResp.StatusCode != http.StatusNoContent {
 		desc := FormatErrorDescription(deleteResp)
 		return logging.Errorf(tags, "certificate delete failed: %s", desc)
+	}
+	return nil
+}
+
+func CreateAppCertificate(ctx context.Context, ec *EaaClient, req *CreateAppCertRequest) (*CertificateResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagCreate}
+	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL)
+
+	var certResp CertificateResponse
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", req, &certResp, false)
+	if err != nil {
+		return nil, logging.Wrapf(err, tags, "create app certificate failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return nil, logging.Errorf(tags, "create app certificate failed: %s", desc)
+	}
+	return &certResp, nil
+}
+
+func UpdateAppCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string, req *UpdateAppCertRequest) (*UpdateAppCertResponse, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagUpdate}
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
+
+	var certResp UpdateAppCertResponse
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", req, &certResp, false)
+	if err != nil {
+		return nil, logging.Wrapf(err, tags, "update app certificate failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return nil, logging.Errorf(tags, "update app certificate failed: %s", desc)
+	}
+	return &certResp, nil
+}
+
+func DeployCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagUpdate}
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/deploy", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
+
+	emptyBody := struct{}{}
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", &emptyBody, nil, false)
+	if err != nil {
+		return logging.Wrapf(err, tags, "certificate deploy failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return logging.Errorf(tags, "certificate deploy failed: %s", desc)
 	}
 	return nil
 }
