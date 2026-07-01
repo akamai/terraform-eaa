@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
@@ -30,6 +31,9 @@ func resourceEaaCustomAppCertificate() *schema.Resource {
 			"cert": {
 				Type:     schema.TypeString,
 				Optional: true,
+				DiffSuppressFunc: func(k, oldValue, newValue string, d *schema.ResourceData) bool {
+					return strings.TrimSpace(oldValue) == strings.TrimSpace(newValue)
+				},
 			},
 			"private_key": {
 				Type:      schema.TypeString,
@@ -333,20 +337,26 @@ func resourceEaaCustomAppCertificateUpdate(ctx context.Context, d *schema.Resour
 		Password:   passwordStr,
 	}
 
-	updateResp, err := client.UpdateAppCertificate(ctx, eaaclient, id, req)
+	_, err = client.UpdateAppCertificate(ctx, eaaclient, id, req)
 	if err != nil {
 		return logging.DiagFromErr(err, tags, "update custom app certificate failed")
 	}
 
 	var warningDiags diag.Diagnostics
 
-	if updateResp.Associated {
-		if deployErr := client.DeployCertificate(ctx, eaaclient, id); deployErr != nil {
-			logging.Warn(ctx, "certificate deploy failed, checking associated resources", tags)
+	associated, assocErr := client.GetCertificateAssociated(ctx, eaaclient, id, nameStr, client.CERT_TYPE_APP)
+	if assocErr != nil {
+		logging.Warn(ctx, "failed to check certificate association, checking associated resources", tags, map[string]any{"error": assocErr.Error()})
+		warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
+	} else {
+		if associated {
+			if deployErr := client.DeployCertificate(ctx, eaaclient, id); deployErr != nil {
+				logging.Warn(ctx, "certificate deploy failed, checking associated resources", tags)
+				warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
+			}
+		} else {
 			warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
 		}
-	} else {
-		warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
 	}
 
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(privateKeyStr)))

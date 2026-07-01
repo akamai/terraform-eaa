@@ -274,10 +274,7 @@ func TestUpdateAppCertificate(t *testing.T) {
 		wantErr bool
 	}{
 		"success": {
-			handler: jsonHandler(http.StatusOK, UpdateAppCertResponse{
-				CertificateResponse: CertificateResponse{UUIDURL: "cert-uuid", Name: "updated-cert"},
-				Associated:          true,
-			}),
+			handler: jsonHandler(http.StatusOK, CertificateResponse{UUIDURL: "cert-uuid", Name: "updated-cert"}),
 		},
 		"api_error": {
 			handler: errorJSONHandler(http.StatusInternalServerError, "update failed"),
@@ -300,7 +297,55 @@ func TestUpdateAppCertificate(t *testing.T) {
 				return
 			}
 			assert.Equal(t, "updated-cert", resp.Name)
-			assert.True(t, resp.Associated)
+		})
+	}
+}
+
+func TestGetCertificateAssociated(t *testing.T) {
+	tests := map[string]struct {
+		handler        http.HandlerFunc
+		wantAssociated bool
+		wantErr        bool
+	}{
+		"associated_true": {
+			handler: jsonHandler(http.StatusOK, CertThinResponse{
+				Objects: []CertThinObject{
+					{Name: "my-cert", UUIDURL: "cert-uuid", Associated: true},
+				},
+			}),
+			wantAssociated: true,
+		},
+		"associated_false": {
+			handler: jsonHandler(http.StatusOK, CertThinResponse{
+				Objects: []CertThinObject{
+					{Name: "my-cert", UUIDURL: "cert-uuid", Associated: false},
+				},
+			}),
+			wantAssociated: false,
+		},
+		"not_found": {
+			handler: jsonHandler(http.StatusOK, CertThinResponse{
+				Objects: []CertThinObject{
+					{Name: "other-cert", UUIDURL: "other-uuid", Associated: true},
+				},
+			}),
+			wantAssociated: false,
+		},
+		"api_error": {
+			handler: errorJSONHandler(http.StatusInternalServerError, "error"),
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, tt.handler)
+			associated, err := GetCertificateAssociated(context.Background(), ec, "cert-uuid", "my-cert", CERT_TYPE_APP)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAssociated, associated)
 		})
 	}
 }

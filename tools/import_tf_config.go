@@ -32,15 +32,6 @@ func main() {
 	}
 	accountSwitch = strings.TrimSpace(accountSwitch)
 
-	// Reading the comma-separated app names
-	fmt.Println("Enter comma-separated app name search patterns: (example: *, app)")
-	appNames, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading appNames:", err)
-		return
-	}
-	appNames = strings.TrimSpace(appNames)
-
 	edgercFile := ".edgerc"
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -97,6 +88,15 @@ func main() {
 	}
 	appChoice = strings.TrimSpace(strings.ToUpper(appChoice))
 	if appChoice == "Y" {
+		// Reading the comma-separated app names
+		fmt.Println("Enter comma-separated app name search patterns: (example: *, app)")
+		appNames, errName := reader.ReadString('\n')
+		if errName != nil {
+			fmt.Println("Error reading appNames:", errName)
+			return
+		}
+		appNames = strings.TrimSpace(appNames)
+
 		err = GenerateConfiguration(eaaClient, edgercPath, appNames)
 		if err != nil {
 			fmt.Println(err)

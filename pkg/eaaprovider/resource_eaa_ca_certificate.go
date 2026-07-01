@@ -3,6 +3,7 @@ package eaaprovider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
@@ -29,6 +30,9 @@ func resourceEaaCACertificate() *schema.Resource {
 			"cert": {
 				Type:     schema.TypeString,
 				Required: true,
+				DiffSuppressFunc: func(k, oldValue, newValue string, d *schema.ResourceData) bool {
+					return strings.TrimSpace(oldValue) == strings.TrimSpace(newValue)
+				},
 			},
 			"password": {
 				Type:      schema.TypeString,

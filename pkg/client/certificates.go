@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
@@ -33,9 +34,15 @@ type UpdateAppCertRequest struct {
 	CertType   int    `json:"cert_type"`
 }
 
-type UpdateAppCertResponse struct {
-	CertificateResponse
-	Associated bool `json:"associated"`
+type CertThinObject struct {
+	Name       string `json:"name"`
+	UUIDURL    string `json:"uuid_url"`
+	CertType   int    `json:"cert_type"`
+	Associated bool   `json:"associated"`
+}
+
+type CertThinResponse struct {
+	Objects []CertThinObject `json:"objects"`
 }
 
 func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx context.Context, ec *EaaClient) (*CertificateResponse, error) {
@@ -63,26 +70,26 @@ func (sscert *CreateSelfSignedCertRequest) CreateSelfSignedCertificate(ctx conte
 }
 
 type CertificateResponse struct {
-	CertFile    *string `json:"cert_file_name,omitempty"`
-	Uploaded    *string `json:"uploaded,omitempty"`
-	Description *string `json:"description,omitempty"`
-	HostName    string  `json:"host_name,omitempty"`
-	Resource    string  `json:"resource,omitempty"`
-	CreatedAt   string  `json:"created_at,omitempty"`
-	UUIDURL     string  `json:"uuid_url,omitempty"`
-	Cert        string  `json:"cert,omitempty"`
-	CN          string  `json:"cn,omitempty"`
-	ExpiredAt   string  `json:"expired_at,omitempty"`
-	Subject     string  `json:"subject,omitempty"`
-	IssuedAt    string  `json:"issued_at,omitempty"`
-	Issuer      string  `json:"issuer,omitempty"`
-	ModifiedAt  string  `json:"modified_at,omitempty"`
-	Name        string  `json:"name,omitempty"`
-	DirCount    int     `json:"dir_count,omitempty"`
-	Status      int     `json:"status,omitempty"`
-	AppCount    int     `json:"app_count,omitempty"`
-	CertType    int     `json:"cert_type,omitempty"`
-	DaysLeft    int     `json:"days_left,omitempty"`
+	CertFile    *string     `json:"cert_file_name,omitempty"`
+	Uploaded    interface{} `json:"uploaded,omitempty"`
+	Description *string     `json:"description,omitempty"`
+	HostName    string      `json:"host_name,omitempty"`
+	Resource    string      `json:"resource,omitempty"`
+	CreatedAt   string      `json:"created_at,omitempty"`
+	UUIDURL     string      `json:"uuid_url,omitempty"`
+	Cert        string      `json:"cert,omitempty"`
+	CN          string      `json:"cn,omitempty"`
+	ExpiredAt   string      `json:"expired_at,omitempty"`
+	Subject     string      `json:"subject,omitempty"`
+	IssuedAt    string      `json:"issued_at,omitempty"`
+	Issuer      string      `json:"issuer,omitempty"`
+	ModifiedAt  string      `json:"modified_at,omitempty"`
+	Name        string      `json:"name,omitempty"`
+	DirCount    int         `json:"dir_count,omitempty"`
+	Status      int         `json:"status,omitempty"`
+	AppCount    int         `json:"app_count,omitempty"`
+	CertType    int         `json:"cert_type,omitempty"`
+	DaysLeft    int         `json:"days_left,omitempty"`
 }
 
 type CertObject struct {
@@ -210,6 +217,32 @@ func DeleteCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string) e
 	return nil
 }
 
+func GetCertificateAssociated(ctx context.Context, ec *EaaClient, certUUIDURL, certName string, certType int) (bool, error) {
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
+	apiURL := fmt.Sprintf("%s://%s/%s/thin?cert_type=%d&search=%s",
+		URL_SCHEME, ec.Host, CERTIFICATES_URL, certType, url.QueryEscape(certName))
+
+	var thinResp CertThinResponse
+	noExpand := false
+	limit := 100
+	opts := GetRequestOptions{Expand: &noExpand, Limit: &limit}
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &thinResp, false, opts)
+	if err != nil {
+		return false, logging.Wrapf(err, tags, "failed to check certificate association")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return false, logging.Errorf(tags, "failed to check certificate association: %s", desc)
+	}
+
+	for _, obj := range thinResp.Objects {
+		if obj.UUIDURL == certUUIDURL {
+			return obj.Associated, nil
+		}
+	}
+	return false, nil
+}
+
 func CreateAppCertificate(ctx context.Context, ec *EaaClient, req *CreateAppCertRequest) (*CertificateResponse, error) {
 	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagCreate}
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL)
@@ -226,11 +259,11 @@ func CreateAppCertificate(ctx context.Context, ec *EaaClient, req *CreateAppCert
 	return &certResp, nil
 }
 
-func UpdateAppCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string, req *UpdateAppCertRequest) (*UpdateAppCertResponse, error) {
+func UpdateAppCertificate(ctx context.Context, ec *EaaClient, certUUIDURL string, req *UpdateAppCertRequest) (*CertificateResponse, error) {
 	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagUpdate}
 	apiURL := fmt.Sprintf("%s://%s/%s/%s", URL_SCHEME, ec.Host, CERTIFICATES_URL, certUUIDURL)
 
-	var certResp UpdateAppCertResponse
+	var certResp CertificateResponse
 	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "PUT", req, &certResp, false)
 	if err != nil {
 		return nil, logging.Wrapf(err, tags, "update app certificate failed")
