@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -127,6 +128,76 @@ func (ec *EaaClient) SendAPIRequest(ctx context.Context, apiURL, method string, 
 		}
 	}
 
+	return resp, nil
+}
+
+// SendMultipartRequest sends a multipart/form-data request to the API.
+// It builds a multipart form with the provided fields and file content,
+// signs the request, and returns the response for the caller to parse.
+func (ec *EaaClient) SendMultipartRequest(ctx context.Context, apiURL string, fields map[string]string, fileFieldName string, fileContent []byte) (*http.Response, error) {
+	parsedURL, err := url.Parse(apiURL)
+	if err != nil {
+		return nil, logging.Wrapf(err, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to parse API URL")
+	}
+	queryParams := parsedURL.Query()
+	if ec.ContractID != "" {
+		queryParams.Set("contractId", ec.ContractID)
+	}
+	if ec.AccountSwitchKey != "" {
+		queryParams.Set("accountSwitchKey", ec.AccountSwitchKey)
+	}
+	parsedURL.RawQuery = queryParams.Encode()
+	apiURL = parsedURL.String()
+
+	logging.Debug(ctx, "sending multipart API request", []logging.Tag{logging.TagAPI}, map[string]any{"url": apiURL})
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	for key, val := range fields {
+		if fieldErr := writer.WriteField(key, val); fieldErr != nil {
+			return nil, logging.Wrapf(fieldErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to write multipart field %s", key)
+		}
+	}
+
+	if fileContent != nil {
+		part, partErr := writer.CreateFormFile(fileFieldName, "cert.crt")
+		if partErr != nil {
+			return nil, logging.Wrapf(partErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to create multipart file field")
+		}
+		if _, writeErr := part.Write(fileContent); writeErr != nil {
+			return nil, logging.Wrapf(writeErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to write multipart file content")
+		}
+	}
+
+	if closeErr := writer.Close(); closeErr != nil {
+		return nil, logging.Wrapf(closeErr, []logging.Tag{logging.TagAPI, logging.TagMarshal}, "failed to close multipart writer")
+	}
+
+	r, err := http.NewRequest("POST", apiURL, &body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	r.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ContentLength = int64(body.Len())
+
+	ec.Signer.SignRequest(r)
+
+	resp, err := ec.Client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close() //nolint:errcheck // best-effort close on HTTP response body
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	logging.Debug(ctx, "received multipart API response", []logging.Tag{logging.TagAPI}, map[string]any{"status_code": resp.StatusCode})
+	logging.Trace(ctx, "response body", []logging.Tag{logging.TagAPI}, map[string]any{"body": string(responseBody)})
+
+	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	return resp, nil
 }
 
