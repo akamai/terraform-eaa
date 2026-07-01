@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -189,9 +190,12 @@ func resourceEaaCACertificateRead(ctx context.Context, d *schema.ResourceData, m
 
 	certResp, err := client.GetCertificateExpanded(ctx, eaaclient, id)
 	if err != nil {
-		logging.Warn(ctx, "certificate not found, removing from state", tags, map[string]any{"id": id, "error": err.Error()})
-		d.SetId("")
-		return nil
+		if errors.Is(err, client.ErrCertNotFound) {
+			logging.Warn(ctx, "certificate not found, removing from state", tags, map[string]any{"id": id})
+			d.SetId("")
+			return nil
+		}
+		return logging.DiagFromErr(err, tags, "failed to read CA certificate")
 	}
 
 	if certResp.CertType != client.CERT_TYPE_CA {

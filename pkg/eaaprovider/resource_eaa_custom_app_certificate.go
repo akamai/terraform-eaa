@@ -3,6 +3,7 @@ package eaaprovider
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -250,15 +251,22 @@ func resourceEaaCustomAppCertificateRead(ctx context.Context, d *schema.Resource
 
 	certResp, err := client.GetCertificateExpanded(ctx, eaaclient, id)
 	if err != nil {
-		logging.Warn(ctx, "certificate not found, removing from state", tags, map[string]any{"id": id, "error": err.Error()})
-		d.SetId("")
-		return nil
+		if errors.Is(err, client.ErrCertNotFound) {
+			logging.Warn(ctx, "certificate not found, removing from state", tags, map[string]any{"id": id})
+			d.SetId("")
+			return nil
+		}
+		return logging.DiagFromErr(err, tags, "failed to read custom app certificate")
 	}
 
 	if certResp.CertType != client.CERT_TYPE_APP {
 		return logging.DiagErrorf(tags, "certificate %s is not a custom app certificate (cert_type=%d, expected=%d)", id, certResp.CertType, client.CERT_TYPE_APP)
 	}
 
+	return setCustomAppCertState(d, certResp, tags)
+}
+
+func setCustomAppCertState(d *schema.ResourceData, certResp *client.CertificateExpandedResponse, tags []logging.Tag) diag.Diagnostics {
 	attrs := map[string]interface{}{
 		"name":                       certResp.Name,
 		"uuid_url":                   certResp.UUIDURL,
@@ -286,8 +294,6 @@ func resourceEaaCustomAppCertificateRead(ctx context.Context, d *schema.Resource
 	if err := client.SetAttrs(d, attrs); err != nil {
 		return logging.DiagFromErr(err, tags, "failed to set custom app certificate attributes")
 	}
-
-	logging.Info(ctx, "custom app certificate read successfully", tags)
 	return nil
 }
 
@@ -345,19 +351,40 @@ func resourceEaaCustomAppCertificateUpdate(ctx context.Context, d *schema.Resour
 
 	var warningDiags diag.Diagnostics
 
+	deployed := false
 	associated, assocErr := client.GetCertificateAssociated(ctx, eaaclient, id, nameStr, client.CERT_TYPE_APP)
 	if assocErr != nil {
-		logging.Warn(ctx, "failed to check certificate association, checking associated resources", tags, map[string]any{"error": assocErr.Error()})
-		warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
-	} else {
-		if associated {
-			if deployErr := client.DeployCertificate(ctx, eaaclient, id); deployErr != nil {
-				logging.Warn(ctx, "certificate deploy failed, checking associated resources", tags)
-				warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
-			}
+		logging.Warn(ctx, "failed to check certificate association, skipping deploy", tags, map[string]any{"error": assocErr.Error()})
+	} else if associated {
+		if deployErr := client.DeployCertificate(ctx, eaaclient, id); deployErr != nil {
+			logging.Warn(ctx, "certificate deploy failed", tags, map[string]any{"error": deployErr.Error()})
 		} else {
-			warningDiags = append(warningDiags, buildRedeployWarnings(ctx, eaaclient, id, tags)...)
+			deployed = true
 		}
+	}
+
+	certResp, err := client.GetCertificateExpanded(ctx, eaaclient, id)
+	if err != nil {
+		if errors.Is(err, client.ErrCertNotFound) {
+			d.SetId("")
+			return nil
+		}
+		return logging.DiagFromErr(err, tags, "failed to read custom app certificate after update")
+	}
+
+	if !deployed && len(certResp.Apps) > 0 {
+		names := make([]string, len(certResp.Apps))
+		for i, app := range certResp.Apps {
+			names[i] = app.Name
+		}
+		warningDiags = append(warningDiags, logging.DiagWarningf(tags, "The following applications need to be re-deployed for the new certificate to take effect: %v", names)...)
+	}
+	if !deployed && len(certResp.IDPs) > 0 {
+		names := make([]string, len(certResp.IDPs))
+		for i, idp := range certResp.IDPs {
+			names[i] = idp.Name
+		}
+		warningDiags = append(warningDiags, logging.DiagWarningf(tags, "The following IDPs need to be re-deployed for the new certificate to take effect: %v", names)...)
 	}
 
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(privateKeyStr)))
@@ -365,34 +392,16 @@ func resourceEaaCustomAppCertificateUpdate(ctx context.Context, d *schema.Resour
 		return logging.DiagFromErr(err, tags, "failed to set private_key_sha256")
 	}
 
+	if certResp.CertType != client.CERT_TYPE_APP {
+		return logging.DiagErrorf(tags, "certificate %s is not a custom app certificate (cert_type=%d, expected=%d)", id, certResp.CertType, client.CERT_TYPE_APP)
+	}
+
+	if stateDiags := setCustomAppCertState(d, certResp, tags); stateDiags.HasError() {
+		return append(warningDiags, stateDiags...)
+	}
+
 	logging.Info(ctx, "custom app certificate updated successfully", tags)
-	readDiags := resourceEaaCustomAppCertificateRead(ctx, d, m)
-	return append(warningDiags, readDiags...)
-}
-
-func buildRedeployWarnings(ctx context.Context, ec *client.EaaClient, certUUIDURL string, tags []logging.Tag) diag.Diagnostics {
-	certResp, err := client.GetCertificateExpanded(ctx, ec, certUUIDURL)
-	if err != nil {
-		logging.Warn(ctx, "failed to read certificate for redeploy warning", tags, map[string]any{"error": err.Error()})
-		return nil
-	}
-
-	var diags diag.Diagnostics
-	if len(certResp.Apps) > 0 {
-		names := make([]string, len(certResp.Apps))
-		for i, app := range certResp.Apps {
-			names[i] = app.Name
-		}
-		diags = append(diags, logging.DiagWarningf(tags, "The following applications need to be re-deployed for the new certificate to take effect: %v", names)...)
-	}
-	if len(certResp.IDPs) > 0 {
-		names := make([]string, len(certResp.IDPs))
-		for i, idp := range certResp.IDPs {
-			names[i] = idp.Name
-		}
-		diags = append(diags, logging.DiagWarningf(tags, "The following IDPs need to be re-deployed for the new certificate to take effect: %v", names)...)
-	}
-	return diags
+	return warningDiags
 }
 
 func resourceEaaCustomAppCertificateDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {

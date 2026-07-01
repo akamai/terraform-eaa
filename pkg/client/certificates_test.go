@@ -180,11 +180,17 @@ func testExpandedCertResponse() CertificateExpandedResponse {
 
 func TestGetCertificateExpanded(t *testing.T) {
 	tests := map[string]struct {
-		handler http.HandlerFunc
-		wantErr bool
+		handler      http.HandlerFunc
+		wantSentinel error
+		wantErr      bool
 	}{
 		"success": {
 			handler: jsonHandler(http.StatusOK, testExpandedCertResponse()),
+		},
+		"not_found": {
+			handler:      errorJSONHandler(http.StatusNotFound, "not found"),
+			wantErr:      true,
+			wantSentinel: ErrCertNotFound,
 		},
 		"api_error": {
 			handler: errorJSONHandler(http.StatusInternalServerError, "error"),
@@ -195,9 +201,14 @@ func TestGetCertificateExpanded(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 			resp, err := GetCertificateExpanded(context.Background(), ec, "test-uuid")
-			if requireErrIs(t, err, tt.wantErr, nil) {
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantSentinel != nil {
+					assert.ErrorIs(t, err, tt.wantSentinel)
+				}
 				return
 			}
+			require.NoError(t, err)
 			assert.Equal(t, "test-cert", resp.Name)
 			assert.Len(t, resp.Apps, 1)
 		})

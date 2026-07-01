@@ -194,6 +194,9 @@ func GetCertificateExpanded(ctx context.Context, ec *EaaClient, certUUIDURL stri
 	if err != nil {
 		return nil, err
 	}
+	if getResp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: %s", ErrCertNotFound, certUUIDURL)
+	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
 		desc := FormatErrorDescription(getResp)
 		return nil, logging.Errorf(tags, "certificate get failed: %s", desc)
