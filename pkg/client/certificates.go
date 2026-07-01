@@ -26,7 +26,6 @@ type CreateAppCertRequest struct {
 }
 
 type UpdateAppCertRequest struct {
-	UUIDURL    string `json:"uuid_url"`
 	Name       string `json:"name"`
 	Cert       string `json:"cert"`
 	PrivateKey string `json:"private_key"`

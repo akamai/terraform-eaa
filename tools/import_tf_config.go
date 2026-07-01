@@ -67,7 +67,8 @@ func main() {
 	fmt.Printf("Using '%s' \n", edgercPath)
 	edgerc, err := edgegrid.New(edgegrid.WithFile(edgercPath))
 	if err != nil {
-		fmt.Println("EdgeRc error")
+		fmt.Printf("EdgeRc error: %s\n", err)
+		return
 	}
 
 	eaaClient := &EaaClient{

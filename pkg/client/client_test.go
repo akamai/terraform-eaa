@@ -205,6 +205,126 @@ func TestFormatErrorResponse(t *testing.T) {
 	}
 }
 
+func TestSendMultipartRequest(t *testing.T) {
+	tests := map[string]struct {
+		handler     http.HandlerFunc
+		fields      map[string]string
+		fileField   string
+		fileContent []byte
+		wantStatus  int
+		wantErr     bool
+	}{
+		"sends_fields_and_file": {
+			fields:      map[string]string{"name": "my-cert", "cert_type": "6"},
+			fileField:   "cert",
+			fileContent: []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+
+				err := r.ParseMultipartForm(10 << 20)
+				require.NoError(t, err)
+				assert.Equal(t, "my-cert", r.FormValue("name"))
+				assert.Equal(t, "6", r.FormValue("cert_type"))
+
+				file, header, err := r.FormFile("cert")
+				require.NoError(t, err)
+				defer file.Close()
+				assert.Equal(t, "cert.crt", header.Filename)
+				content, _ := io.ReadAll(file)
+				assert.Contains(t, string(content), "BEGIN CERTIFICATE")
+
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+			},
+			wantStatus: http.StatusOK,
+		},
+		"adds_contract_id_to_query": {
+			fields:      map[string]string{"name": "test"},
+			fileField:   "cert",
+			fileContent: []byte("cert-data"),
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Contains(t, r.URL.RawQuery, "contractId=test-contract")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+			},
+			wantStatus: http.StatusOK,
+		},
+		"adds_account_switch_key": {
+			fields:      map[string]string{"name": "test"},
+			fileField:   "cert",
+			fileContent: []byte("cert-data"),
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Contains(t, r.URL.RawQuery, "accountSwitchKey=test-switch")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+			},
+			wantStatus: http.StatusOK,
+		},
+		"nil_file_content_skips_file_field": {
+			fields:      map[string]string{"name": "test"},
+			fileField:   "cert",
+			fileContent: nil,
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				err := r.ParseMultipartForm(10 << 20)
+				require.NoError(t, err)
+				assert.Equal(t, "test", r.FormValue("name"))
+				_, _, err = r.FormFile("cert")
+				assert.Error(t, err, "expected no file field when fileContent is nil")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+			},
+			wantStatus: http.StatusOK,
+		},
+		"api_error_status": {
+			fields:      map[string]string{"name": "test"},
+			fileField:   "cert",
+			fileContent: []byte("cert-data"),
+			handler:     errorJSONHandler(http.StatusBadRequest, "bad request"),
+			wantStatus:  http.StatusBadRequest,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := newTestClient(t, http.HandlerFunc(tt.handler))
+			if name == "adds_account_switch_key" {
+				ec.AccountSwitchKey = "test-switch"
+			}
+
+			resp, err := ec.SendMultipartRequest(
+				context.Background(),
+				"https://"+ec.Host+"/crux/v1/mgmt-pop/certificates",
+				tt.fields, tt.fileField, tt.fileContent,
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			// Verify response body is re-readable
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.NotEmpty(t, body)
+		})
+	}
+}
+
+func TestSendMultipartRequest_InvalidURL(t *testing.T) {
+	ec := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	_, err := ec.SendMultipartRequest(
+		context.Background(),
+		"://bad-url",
+		map[string]string{}, "cert", nil,
+	)
+	require.Error(t, err)
+}
+
 func TestFormatErrorDescription(t *testing.T) {
 	tests := map[string]struct {
 		resp     *http.Response

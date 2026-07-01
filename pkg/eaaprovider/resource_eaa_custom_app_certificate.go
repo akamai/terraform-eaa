@@ -250,7 +250,9 @@ func resourceEaaCustomAppCertificateRead(ctx context.Context, d *schema.Resource
 
 	certResp, err := client.GetCertificateExpanded(ctx, eaaclient, id)
 	if err != nil {
-		return logging.DiagFromErr(err, tags, "failed to read custom app certificate")
+		logging.Warn(ctx, "certificate not found, removing from state", tags, map[string]any{"id": id, "error": err.Error()})
+		d.SetId("")
+		return nil
 	}
 
 	if certResp.CertType != client.CERT_TYPE_APP {
@@ -329,7 +331,6 @@ func resourceEaaCustomAppCertificateUpdate(ctx context.Context, d *schema.Resour
 	}
 
 	req := &client.UpdateAppCertRequest{
-		UUIDURL:    id,
 		CertType:   client.CERT_TYPE_APP,
 		Name:       nameStr,
 		Cert:       certStr,

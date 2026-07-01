@@ -285,7 +285,6 @@ func TestUpdateAppCertificate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ec := newTestClient(t, tt.handler)
 			req := &UpdateAppCertRequest{
-				UUIDURL:    "cert-uuid",
 				CertType:   CERT_TYPE_APP,
 				Name:       "updated-cert",
 				Cert:       "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
@@ -328,6 +327,12 @@ func TestGetCertificateAssociated(t *testing.T) {
 				Objects: []CertThinObject{
 					{Name: "other-cert", UUIDURL: "other-uuid", Associated: true},
 				},
+			}),
+			wantAssociated: false,
+		},
+		"empty_objects": {
+			handler: jsonHandler(http.StatusOK, CertThinResponse{
+				Objects: []CertThinObject{},
 			}),
 			wantAssociated: false,
 		},
