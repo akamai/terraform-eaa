@@ -899,10 +899,13 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	// Set domains list separately (SetAttrs doesn't handle lists well)
-	if len(idpResp.Domains) > 0 {
-		if err := d.Set("domains", idpResp.Domains); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set domains")
-		}
+	// Always set domains, even if empty, to clear stale state
+	domains := idpResp.Domains
+	if domains == nil {
+		domains = []string{}
+	}
+	if err := d.Set("domains", domains); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set domains")
 	}
 
 	// Set flat map fields
@@ -928,16 +931,15 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	// Set directories from memberships (names, not UUIDs)
-	if len(memberships) > 0 {
-		dirNames := make([]string, 0, len(memberships))
-		for _, membership := range memberships {
-			if membership.Directory.Name != "" {
-				dirNames = append(dirNames, membership.Directory.Name)
-			}
+	// Always set directories, even if empty, to clear stale state
+	dirNames := make([]string, 0, len(memberships))
+	for _, membership := range memberships {
+		if membership.Directory.Name != "" {
+			dirNames = append(dirNames, membership.Directory.Name)
 		}
-		if err := d.Set("directories", dirNames); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set directories")
-		}
+	}
+	if err := d.Set("directories", dirNames); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set directories")
 	}
 
 	logging.Info(ctx, "IDP read successfully", tags)
