@@ -113,6 +113,47 @@ output "idp_names" {
 
 ---
 
+## eaa_data_source_directories
+
+Lists all directories (user repositories) available in EAA.
+
+### Attributes
+
+* `directories` - List of directories:
+  * `name` - Directory name.
+  * `uuid_url` - UUID.
+  * `service` - Directory service type. Common values: `1` = AD, `2` = LDAP, `6` = Cloud Directory.
+  * `status` - Status code.
+  * `directory_type` - Directory type code.
+  * `user_count` - Number of users in the directory.
+  * `group_count` - Number of groups in the directory.
+
+### Example
+
+```hcl
+data "eaa_data_source_directories" "all" {}
+
+output "cloud_directories" {
+  value = [
+    for d in data.eaa_data_source_directories.all.directories :
+    d.name if d.service == 6
+  ]
+}
+
+output "directory_summary" {
+  value = {
+    for d in data.eaa_data_source_directories.all.directories :
+    d.name => {
+      users  = d.user_count
+      groups = d.group_count
+      type   = d.service
+    }
+  }
+}
+```
+
+---
+
 ## eaa_data_source_tls_cipher_suites
 
 Lists TLS cipher suites available for a specific application.
