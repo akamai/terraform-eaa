@@ -83,6 +83,7 @@ func TestProvider_DataSources(t *testing.T) {
 		"eaa_data_source_appcategories",
 		"eaa_data_source_agents",
 		"eaa_data_source_idps",
+		"eaa_data_source_directories",
 		"eaa_data_source_tls_cipher_suites",
 		"eaa_connector_pools",
 		"eaa_data_source_apps",
