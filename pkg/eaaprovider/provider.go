@@ -43,6 +43,7 @@ func Provider() *schema.Provider {
 			"eaa_connector_pool":         resourceEaaConnectorPool(),
 			"eaa_custom_app_certificate": resourceEaaCustomAppCertificate(),
 			"eaa_ca_certificate":         resourceEaaCACertificate(),
+			"eaa_idp":                    resourceEaaIdp(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"eaa_data_source_pops":              dataSourcePops(),

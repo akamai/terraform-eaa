@@ -64,6 +64,7 @@ func TestProvider_Resources(t *testing.T) {
 		"eaa_connector_pool",
 		"eaa_custom_app_certificate",
 		"eaa_ca_certificate",
+		"eaa_idp",
 	}
 	for _, name := range expectedResources {
 		_, ok := p.ResourcesMap[name]
