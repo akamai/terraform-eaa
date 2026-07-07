@@ -123,6 +123,23 @@ func main() {
 			println(generateCertInfo)
 		}
 	}
+
+	fmt.Print("Import IDPs? (Y/N): ")
+	idpChoice, err := reader2.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading IDP choice:", err)
+		return
+	}
+	idpChoice = strings.TrimSpace(strings.ToUpper(idpChoice))
+	if idpChoice == "Y" {
+		err = GenerateIDPConfiguration(eaaClient, edgercPath)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			println()
+			println(generateIDPInfo)
+		}
+	}
 }
 
 func GenerateConfiguration(ec *EaaClient, edgercPath, appNames string) error {
@@ -287,6 +304,78 @@ func GenerateCertificateConfiguration(ec *EaaClient, edgercPath string) error {
 		fmt.Printf("%d certificate imports added\n", len(uniqueBlocks))
 	} else {
 		fmt.Println("No certificates found to import.")
+	}
+
+	return nil
+}
+
+func GenerateIDPConfiguration(ec *EaaClient, edgercPath string) error {
+	fmt.Println("generating IDP import blocks ...")
+	fmt.Println()
+
+	var importBlocks []importBlock
+
+	apiURL := fmt.Sprintf("https://%s/%s", ec.Host, IDP_URL)
+	for apiURL != "" {
+		var idpsResponse IDPsResponse
+		getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &idpsResponse, false)
+		if err != nil {
+			return err
+		}
+		if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+			desc := FormatErrorDescription(getResp)
+			return fmt.Errorf("IDP list failed: %s", desc)
+		}
+
+		for _, idp := range idpsResponse.Objects {
+			if idp.Name == "" || idp.UUIDURL == "" {
+				continue
+			}
+			replacedString := convertToValidTFName(idp.Name)
+			resourceName := fmt.Sprintf("eaa_idp.%s\n", replacedString)
+			importBlocks = append(importBlocks, importBlock{appID: idp.UUIDURL, appName: resourceName})
+		}
+
+		if idpsResponse.Metadata.Next != nil {
+			nextURL := *idpsResponse.Metadata.Next
+			nextURL = strings.TrimPrefix(nextURL, "/api/v1")
+			apiURL = fmt.Sprintf("https://%s/%s%s", ec.Host, "crux/v1/mgmt-pop", nextURL)
+		} else {
+			apiURL = ""
+		}
+	}
+
+	if len(importBlocks) > 0 {
+		file, err := os.Create("import_existing_idps.tf")
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return err
+		}
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				fmt.Printf("Error closing file: %v", closeErr)
+			}
+		}()
+		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)
+		if err != nil {
+			fmt.Println("Error writing provider block to file:", err)
+			return err
+		}
+
+		uniqueBlocks := make(map[string]importBlock)
+		for _, block := range importBlocks {
+			uniqueBlocks[block.appID] = block
+		}
+		for _, block := range uniqueBlocks {
+			fmt.Printf("generating import block for %s\n", block.appName)
+			err := generateImportBlock(file, block.appID, block.appName)
+			if err != nil {
+				fmt.Printf("error generating import block %s\n", err)
+			}
+		}
+		fmt.Printf("%d IDP imports added\n", len(uniqueBlocks))
+	} else {
+		fmt.Println("No IDPs found to import.")
 	}
 
 	return nil

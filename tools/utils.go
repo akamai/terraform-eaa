@@ -29,6 +29,12 @@ const (
 		"   terraform plan -generate-config-out=generated_cert_resources.tf\n" +
 		"2. In the resultant resources configuration file, add the provider section\n" +
 		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
+
+	generateIDPInfo = "The config file `import_existing_idps.tf` with IDP import blocks is generated.\n" +
+		"1. To generate the configuration, run the following command:\n" +
+		"   terraform plan -generate-config-out=generated_idp_resources.tf\n" +
+		"2. In the resultant resources configuration file, add the provider section\n" +
+		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
 )
 
 const (
@@ -49,6 +55,7 @@ const (
 	CERT_TYPE_CA  = 6
 
 	CERTIFICATES_URL = "crux/v1/mgmt-pop/certificates"
+	IDP_URL          = "crux/v1/mgmt-pop/idp"
 )
 
 var (
@@ -93,6 +100,16 @@ type CertObject struct {
 type CertsResponse struct {
 	Objects  []CertObject `json:"objects"`
 	Metadata Meta         `json:"meta"`
+}
+
+type IDPObject struct {
+	Name    string `json:"name"`
+	UUIDURL string `json:"uuid_url"`
+}
+
+type IDPsResponse struct {
+	Objects  []IDPObject `json:"objects"`
+	Metadata Meta        `json:"meta"`
 }
 
 type importBlock struct {
