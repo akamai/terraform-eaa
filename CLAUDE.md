@@ -179,9 +179,9 @@ Manages the lifecycle of an EAA Identity Provider (IDP) with full CRUD support a
 |-----------|----------|-------------|
 | `name` | Yes | IDP name |
 | `description` | No | IDP description |
-| `idp_type` | No | IDP type (e.g., 2 = certificate-based) |
+| `idp_type` | No | IDP type: `DEFAULT`, `EAA`, `SAML`, `OKTA`, `PINGONE`, `ONELOGIN`, `GOOGLE`, `OIDC`, `AZURE`, `DEVICE_AUTHENTICATION` |
 | `login_host` | No | Login hostname prefix (without domain suffix) |
-| `login_domain` | No | Login domain type (2 = WAPP) |
+| `login_domain` | No | Login domain type: `DEFAULT` (Akamai WAPP) or `CUSTOM` (customer-owned) |
 | `pop` | No | PoP name (resolved to uuid_url via PoPs list API) |
 | `failover_pop` | No | Failover PoP name (resolved to uuid_url via PoPs list API) |
 | `cookie_expiry` | No | Session cookie expiry in minutes |
@@ -356,7 +356,7 @@ resource "eaa_connector_pool" "main" {
 resource "eaa_idp" "corp_idp" {
   name        = "Corp IDP"
   description = "Corporate identity provider"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "corp-login"
   pop         = "us-east-pop"
 

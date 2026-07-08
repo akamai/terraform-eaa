@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
@@ -42,20 +43,32 @@ func GetIDPDirectoryMemberships(ctx context.Context, ec *EaaClient, idpUUID stri
 	tags := []logging.Tag{logging.TagAPI, logging.TagIDP, logging.TagDirectory, logging.TagList}
 	logging.Info(ctx, "getting IDP directory memberships", tags, map[string]any{"idp_uuid": idpUUID})
 
+	noExpand := false
+	var all []IDPDirectoryMembership
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories_membership", URL_SCHEME, ec.Host, IDP_URL, idpUUID)
 
-	noExpand := false
-	var resp IDPDirectoryMembershipResponse
-	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false, GetRequestOptions{Expand: &noExpand})
-	if err != nil {
-		return nil, logging.Wrapf(err, tags, "get IDP directory memberships failed")
-	}
-	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(httpResp)
-		return nil, logging.Errorf(tags, "get IDP directory memberships failed: %s", desc)
+	for apiURL != "" {
+		var resp IDPDirectoryMembershipResponse
+		httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false, GetRequestOptions{Expand: &noExpand})
+		if err != nil {
+			return nil, logging.Wrapf(err, tags, "get IDP directory memberships failed")
+		}
+		if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+			desc := FormatErrorDescription(httpResp)
+			return nil, logging.Errorf(tags, "get IDP directory memberships failed: %s", desc)
+		}
+
+		all = append(all, resp.Objects...)
+
+		if resp.Meta.Next != nil {
+			nextURL := strings.TrimPrefix(*resp.Meta.Next, "/api/v1")
+			apiURL = fmt.Sprintf("%s://%s/%s%s", URL_SCHEME, ec.Host, MGMT_POP_URL, nextURL)
+		} else {
+			apiURL = ""
+		}
 	}
 
-	return resp.Objects, nil
+	return all, nil
 }
 
 func AssociateDirectoriesToIDP(ctx context.Context, ec *EaaClient, idpUUID string, dirUUIDs []string) error {

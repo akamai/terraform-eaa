@@ -2,6 +2,7 @@ package eaaprovider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -16,6 +17,42 @@ import (
 var (
 	ErrIDPRollback = errors.New("IDP create rollback triggered")
 )
+
+var idpTypeNameToInt = map[string]int{
+	"DEFAULT":               1,
+	"EAA":                   2,
+	"SAML":                  3,
+	"OKTA":                  4,
+	"PINGONE":               5,
+	"ONELOGIN":              6,
+	"GOOGLE":                7,
+	"OIDC":                  8,
+	"AZURE":                 9,
+	"DEVICE_AUTHENTICATION": 10,
+}
+
+var idpTypeIntToName = map[int]string{
+	1:  "DEFAULT",
+	2:  "EAA",
+	3:  "SAML",
+	4:  "OKTA",
+	5:  "PINGONE",
+	6:  "ONELOGIN",
+	7:  "GOOGLE",
+	8:  "OIDC",
+	9:  "AZURE",
+	10: "DEVICE_AUTHENTICATION",
+}
+
+var loginDomainNameToInt = map[string]int{
+	"CUSTOM":  1,
+	"DEFAULT": 2,
+}
+
+var loginDomainIntToName = map[int]string{
+	1: "CUSTOM",
+	2: "DEFAULT",
+}
 
 func resourceEaaIdp() *schema.Resource {
 	return &schema.Resource{
@@ -42,9 +79,20 @@ func resourceEaaIdp() *schema.Resource {
 				Description: "IDP description",
 			},
 			"idp_type": {
-				Type:        schema.TypeInt,
+				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "IDP type (e.g., 2 = certificate-based)",
+				Description: "IDP type: DEFAULT, EAA, SAML, OKTA, PINGONE, ONELOGIN, GOOGLE, OIDC, AZURE, DEVICE_AUTHENTICATION",
+				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+					v, ok := val.(string)
+					if !ok {
+						errs = append(errs, fmt.Errorf("%q must be a string", key))
+						return
+					}
+					if _, found := idpTypeNameToInt[v]; !found {
+						errs = append(errs, fmt.Errorf("%q must be one of DEFAULT, EAA, SAML, OKTA, PINGONE, ONELOGIN, GOOGLE, OIDC, AZURE, DEVICE_AUTHENTICATION; got %q", key, v))
+					}
+					return
+				},
 			},
 			"login_host": {
 				Type:        schema.TypeString,
@@ -52,10 +100,21 @@ func resourceEaaIdp() *schema.Resource {
 				Description: "Login hostname prefix (without domain suffix)",
 			},
 			"login_domain": {
-				Type:        schema.TypeInt,
+				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				Description: "Login domain type (2 = WAPP)",
+				Description: "Login domain type: CUSTOM (customer-owned domain) or DEFAULT (Akamai-managed WAPP domain)",
+				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+					v, ok := val.(string)
+					if !ok {
+						errs = append(errs, fmt.Errorf("%q must be a string", key))
+						return
+					}
+					if _, found := loginDomainNameToInt[v]; !found {
+						errs = append(errs, fmt.Errorf("%q must be CUSTOM or DEFAULT, got %q", key, v))
+					}
+					return
+				},
 			},
 			"login_lockout": {
 				Type:        schema.TypeString,
@@ -78,11 +137,13 @@ func resourceEaaIdp() *schema.Resource {
 			"cookie_expiry": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "Session cookie expiry in minutes",
 			},
 			"trust_expiry": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "Trust expiry in days",
 			},
 			"client_principle_name": {
@@ -369,12 +430,8 @@ func resourceEaaIdp() *schema.Resource {
 	}
 }
 
-// resolveCertNameToUUID resolves a certificate name to its uuid_url by searching the certificates list.
-func resolveCertNameToUUID(ctx context.Context, ec *client.EaaClient, certName string, tags []logging.Tag) (string, error) {
-	certs, err := client.GetCertificates(ctx, ec)
-	if err != nil {
-		return "", logging.Wrapf(err, tags, "failed to get certificates for name resolution")
-	}
+// findCertByName searches a pre-fetched certificate list for a name match.
+func findCertByName(certs []client.CertObject, certName string, tags []logging.Tag) (string, error) {
 	for _, cert := range certs {
 		if cert.Name == certName {
 			return cert.UUIDURL, nil
@@ -383,32 +440,60 @@ func resolveCertNameToUUID(ctx context.Context, ec *client.EaaClient, certName s
 	return "", logging.Errorf(tags, "certificate with name '%s' not found", certName)
 }
 
-// resolveCertUUIDToName resolves a certificate uuid_url back to its name.
-func resolveCertUUIDToName(ctx context.Context, ec *client.EaaClient, certUUID string, tags []logging.Tag) (string, error) {
-	certs, err := client.GetCertificates(ctx, ec)
-	if err != nil {
-		return "", logging.Wrapf(err, tags, "failed to get certificates for UUID resolution")
-	}
+// findCertByUUID searches a pre-fetched certificate list for a UUID match.
+func findCertByUUID(certs []client.CertObject, certUUID string) (string, bool) {
 	for _, cert := range certs {
 		if cert.UUIDURL == certUUID {
-			return cert.Name, nil
+			return cert.Name, true
 		}
 	}
-	return "", logging.Errorf(tags, "certificate with UUID '%s' not found", certUUID)
+	return "", false
 }
 
-// resolvePopUUIDToName resolves a PoP uuid_url back to its name.
-func resolvePopUUIDToName(ctx context.Context, ec *client.EaaClient, popUUID string, tags []logging.Tag) (string, error) {
-	pops, err := client.GetPops(ctx, ec)
-	if err != nil {
-		return "", logging.Wrapf(err, tags, "failed to get pops for UUID resolution")
-	}
+// findPopByName searches a pre-fetched PoP list for a name match.
+func findPopByName(pops []client.Pop, popName string, tags []logging.Tag) (string, error) {
 	for i := range pops {
-		if pops[i].UUIDURL == popUUID {
-			return pops[i].Name, nil
+		if pops[i].Name == popName {
+			return pops[i].UUIDURL, nil
 		}
 	}
-	return "", logging.Errorf(tags, "PoP with UUID '%s' not found", popUUID)
+	return "", logging.Errorf(tags, "PoP with name '%s' not found", popName)
+}
+
+// findPopByUUID searches a pre-fetched PoP list for a UUID match.
+func findPopByUUID(pops []client.Pop, popUUID string) (string, bool) {
+	for i := range pops {
+		if pops[i].UUIDURL == popUUID {
+			return pops[i].Name, true
+		}
+	}
+	return "", false
+}
+
+// resolveDirectoryNamesToUUIDs fetches the directory list once and resolves all names to UUIDs.
+func resolveDirectoryNamesToUUIDs(ctx context.Context, ec *client.EaaClient, dirItems []interface{}, tags []logging.Tag) ([]string, error) {
+	allDirs, err := client.ListDirectories(ctx, ec)
+	if err != nil {
+		return nil, logging.Wrapf(err, tags, "failed to list directories for name resolution")
+	}
+	dirByName := make(map[string]string, len(allDirs))
+	for _, d := range allDirs {
+		dirByName[d.Name] = d.UUIDURL
+	}
+
+	uuids := make([]string, 0, len(dirItems))
+	for _, item := range dirItems {
+		name, ok := item.(string)
+		if !ok {
+			continue
+		}
+		uuid, found := dirByName[name]
+		if !found {
+			return nil, logging.Errorf(tags, "directory '%s' not found", name)
+		}
+		uuids = append(uuids, uuid)
+	}
+	return uuids, nil
 }
 
 // intSettingsKeys are settings keys that the API expects as integers, not strings.
@@ -444,7 +529,25 @@ func interfaceMapToStringMap(m map[string]interface{}) map[string]string {
 			result[k] = ""
 			continue
 		}
-		result[k] = fmt.Sprintf("%v", v)
+		switch val := v.(type) {
+		case string:
+			result[k] = val
+		case float64:
+			if val == float64(int(val)) {
+				result[k] = strconv.Itoa(int(val))
+			} else {
+				result[k] = strconv.FormatFloat(val, 'f', -1, 64)
+			}
+		case bool:
+			result[k] = strconv.FormatBool(val)
+		default:
+			b, err := json.Marshal(val)
+			if err != nil {
+				result[k] = fmt.Sprintf("%v", val)
+				continue
+			}
+			result[k] = string(b)
+		}
 	}
 	return result
 }
@@ -464,7 +567,6 @@ func rollbackIDP(ctx context.Context, d *schema.ResourceData, ec *client.EaaClie
 	return logging.DiagFromErr(originalErr, tags, "IDP create failed (rolled back)")
 }
 
-// setStringPtr sets a string pointer on the body from the schema value.
 func ptrStringOrEmpty(p *string) string {
 	if p != nil {
 		return *p
@@ -518,145 +620,194 @@ func applyIDPConfigToBody(ctx context.Context, d *schema.ResourceData, ec *clien
 		}
 	}
 	if v, ok := d.GetOk("idp_type"); ok {
-		if i, ok := v.(int); ok {
-			body.IDPType = i
+		if s, ok := v.(string); ok {
+			if i, found := idpTypeNameToInt[s]; found {
+				body.IDPType = i
+			}
 		}
 	}
-	if v, ok := d.GetOk("login_host"); ok {
-		body.LoginHost = setStringPtr(v)
+	if d.HasChange("login_host") {
+		body.LoginHost = setStringPtr(d.Get("login_host"))
 	}
-	if v, ok := d.GetOk("login_domain"); ok {
-		body.LoginDomain = setIntPtr(v)
+	if d.HasChange("login_domain") {
+		if s, ok := d.Get("login_domain").(string); ok {
+			if i, found := loginDomainNameToInt[s]; found {
+				body.LoginDomain = &i
+			}
+		}
 	}
-	if v, ok := d.GetOk("login_lockout"); ok {
-		body.LoginLockout = setStringPtr(v)
+	if d.HasChange("login_lockout") {
+		body.LoginLockout = setStringPtr(d.Get("login_lockout"))
 	}
-	if v, ok := d.GetOk("max_login_failures"); ok {
-		body.MaxLoginFailures = setIntPtr(v)
+	if d.HasChange("max_login_failures") {
+		body.MaxLoginFailures = setIntPtr(d.Get("max_login_failures"))
 	}
-	if v, ok := d.GetOk("lockout_interval"); ok {
-		body.LockoutInterval = setIntPtr(v)
+	if d.HasChange("lockout_interval") {
+		body.LockoutInterval = setIntPtr(d.Get("lockout_interval"))
 	}
-	if v, ok := d.GetOk("cookie_expiry"); ok {
-		body.CookieExpiry = setIntPtr(v)
+	if d.HasChange("cookie_expiry") {
+		body.CookieExpiry = setIntPtr(d.Get("cookie_expiry"))
 	}
-	if v, ok := d.GetOk("trust_expiry"); ok {
-		body.TrustExpiry = setIntPtr(v)
+	if d.HasChange("trust_expiry") {
+		body.TrustExpiry = setIntPtr(d.Get("trust_expiry"))
 	}
-	if v, ok := d.GetOk("client_principle_name"); ok {
-		body.ClientPrincipleName = setStringPtr(v)
+	if d.HasChange("client_principle_name") {
+		body.ClientPrincipleName = setStringPtr(d.Get("client_principle_name"))
 	}
 
-	// Resolve cert names to UUIDs
-	if v, ok := d.GetOk("cert"); ok {
-		if certName, ok := v.(string); ok {
-			certUUID, err := resolveCertNameToUUID(ctx, ec, certName, tags)
-			if err != nil {
-				return err
-			}
-			body.Cert = &certUUID
+	// Resolve cert names to UUIDs (fetch cert list once for all cert fields)
+	needCertLookup := d.HasChange("cert") || d.HasChange("client_cert") || d.HasChange("saml_idp_custom_sign_cert")
+	var certList []client.CertObject
+	if needCertLookup {
+		var certErr error
+		certList, certErr = client.GetCertificates(ctx, ec)
+		if certErr != nil {
+			return logging.Wrapf(certErr, tags, "failed to get certificates for name resolution")
 		}
 	}
-	if v, ok := d.GetOk("client_cert"); ok {
-		if certName, ok := v.(string); ok {
-			certUUID, err := resolveCertNameToUUID(ctx, ec, certName, tags)
-			if err != nil {
-				return err
+	if d.HasChange("cert") {
+		if v, ok := d.GetOk("cert"); ok {
+			if certName, ok := v.(string); ok {
+				certUUID, err := findCertByName(certList, certName, tags)
+				if err != nil {
+					return err
+				}
+				body.Cert = &certUUID
 			}
-			body.ClientCert = &certUUID
+		} else {
+			empty := ""
+			body.Cert = &empty
 		}
 	}
-	if v, ok := d.GetOk("saml_idp_custom_sign_cert"); ok {
-		if certName, ok := v.(string); ok {
-			certUUID, err := resolveCertNameToUUID(ctx, ec, certName, tags)
-			if err != nil {
-				return err
+	if d.HasChange("client_cert") {
+		if v, ok := d.GetOk("client_cert"); ok {
+			if certName, ok := v.(string); ok {
+				certUUID, err := findCertByName(certList, certName, tags)
+				if err != nil {
+					return err
+				}
+				body.ClientCert = &certUUID
 			}
-			body.SAMLIDPCustomSignCert = &certUUID
+		} else {
+			empty := ""
+			body.ClientCert = &empty
+		}
+	}
+	if d.HasChange("saml_idp_custom_sign_cert") {
+		if v, ok := d.GetOk("saml_idp_custom_sign_cert"); ok {
+			if certName, ok := v.(string); ok {
+				certUUID, err := findCertByName(certList, certName, tags)
+				if err != nil {
+					return err
+				}
+				body.SAMLIDPCustomSignCert = &certUUID
+			}
+		} else {
+			empty := ""
+			body.SAMLIDPCustomSignCert = &empty
 		}
 	}
 
-	// Resolve PoP names to UUIDs
-	if v, ok := d.GetOk("pop"); ok {
-		if popName, ok := v.(string); ok {
-			pop, err := client.GetPopByName(ctx, ec, popName)
-			if err != nil {
-				return err
-			}
-			body.Pop = &pop.UUIDURL
+	// Resolve PoP names to UUIDs (fetch pop list once for both pop fields)
+	needPopLookup := d.HasChange("pop") || d.HasChange("failover_pop")
+	var popList []client.Pop
+	if needPopLookup {
+		var popErr error
+		popList, popErr = client.GetPops(ctx, ec)
+		if popErr != nil {
+			return logging.Wrapf(popErr, tags, "failed to get pops for name resolution")
 		}
 	}
-	if v, ok := d.GetOk("failover_pop"); ok {
-		if popName, ok := v.(string); ok {
-			pop, err := client.GetPopByName(ctx, ec, popName)
-			if err != nil {
-				return err
+	if d.HasChange("pop") {
+		if v, ok := d.GetOk("pop"); ok {
+			if popName, ok := v.(string); ok {
+				popUUID, err := findPopByName(popList, popName, tags)
+				if err != nil {
+					return err
+				}
+				body.Pop = &popUUID
 			}
-			body.FailoverPop = &pop.UUIDURL
+		} else {
+			empty := ""
+			body.Pop = &empty
+		}
+	}
+	if d.HasChange("failover_pop") {
+		if v, ok := d.GetOk("failover_pop"); ok {
+			if popName, ok := v.(string); ok {
+				popUUID, err := findPopByName(popList, popName, tags)
+				if err != nil {
+					return err
+				}
+				body.FailoverPop = &popUUID
+			}
+		} else {
+			empty := ""
+			body.FailoverPop = &empty
 		}
 	}
 
-	// Boolean fields
-	if v, ok := d.GetOk("enable_mfa"); ok {
-		body.EnableMFA = setBoolPtr(v)
+	// Boolean fields (Optional+Computed: use HasChange to allow setting false)
+	if d.HasChange("enable_mfa") {
+		body.EnableMFA = setBoolPtr(d.Get("enable_mfa"))
 	}
-	if v, ok := d.GetOk("etp_enabled"); ok {
-		body.ETPEnabled = setBoolPtr(v)
+	if d.HasChange("etp_enabled") {
+		body.ETPEnabled = setBoolPtr(d.Get("etp_enabled"))
 	}
-	if v, ok := d.GetOk("enable_access_client"); ok {
-		body.EnableAccessClient = setBoolPtr(v)
+	if d.HasChange("enable_access_client") {
+		body.EnableAccessClient = setBoolPtr(d.Get("enable_access_client"))
 	}
-	if v, ok := d.GetOk("gc_client_enabled"); ok {
-		body.GCClientEnabled = setBoolPtr(v)
+	if d.HasChange("gc_client_enabled") {
+		body.GCClientEnabled = setBoolPtr(d.Get("gc_client_enabled"))
 	}
-	if v, ok := d.GetOk("auth_request_signed"); ok {
-		body.AuthRequestSigned = setBoolPtr(v)
+	if d.HasChange("auth_request_signed") {
+		body.AuthRequestSigned = setBoolPtr(d.Get("auth_request_signed"))
 	}
-	if v, ok := d.GetOk("auth_response_encrypt"); ok {
-		body.AuthResponseEncrypt = setBoolPtr(v)
+	if d.HasChange("auth_response_encrypt") {
+		body.AuthResponseEncrypt = setBoolPtr(d.Get("auth_response_encrypt"))
 	}
-	if v, ok := d.GetOk("default_tls_suite"); ok {
-		body.DefaultTLSSuite = setBoolPtr(v)
+	if d.HasChange("default_tls_suite") {
+		body.DefaultTLSSuite = setBoolPtr(d.Get("default_tls_suite"))
 	}
-	if v, ok := d.GetOk("agent_installation_profile"); ok {
-		body.AgentInstallationProfile = setBoolPtr(v)
-	}
-
-	// Int fields
-	if v, ok := d.GetOk("saml_cert_type"); ok {
-		body.SAMLCertType = setIntPtr(v)
+	if d.HasChange("agent_installation_profile") {
+		body.AgentInstallationProfile = setBoolPtr(d.Get("agent_installation_profile"))
 	}
 
-	// String fields
-	if v, ok := d.GetOk("saml_url"); ok {
-		body.SAMLUrl = setStringPtr(v)
+	// Int fields (Optional+Computed: use HasChange to allow setting zero)
+	if d.HasChange("saml_cert_type") {
+		body.SAMLCertType = setIntPtr(d.Get("saml_cert_type"))
 	}
-	if v, ok := d.GetOk("logout_url"); ok {
-		body.LogoutURL = setStringPtr(v)
+
+	// String fields (Optional+Computed: use HasChange to allow setting empty)
+	if d.HasChange("saml_url") {
+		body.SAMLUrl = setStringPtr(d.Get("saml_url"))
 	}
-	if v, ok := d.GetOk("helpdesk_email"); ok {
-		body.HelpdeskEmail = setStringPtr(v)
+	if d.HasChange("logout_url") {
+		body.LogoutURL = setStringPtr(d.Get("logout_url"))
 	}
-	if v, ok := d.GetOk("default_language"); ok {
-		body.DefaultLanguage = setStringPtr(v)
+	if d.HasChange("helpdesk_email") {
+		body.HelpdeskEmail = setStringPtr(d.Get("helpdesk_email"))
 	}
-	if v, ok := d.GetOk("custom_tls_suite_name"); ok {
-		body.CustomTLSSuiteName = setStringPtr(v)
+	if d.HasChange("default_language") {
+		body.DefaultLanguage = setStringPtr(d.Get("default_language"))
 	}
-	if v, ok := d.GetOk("source"); ok {
-		body.Source = setStringPtr(v)
+	if d.HasChange("custom_tls_suite_name") {
+		body.CustomTLSSuiteName = setStringPtr(d.Get("custom_tls_suite_name"))
 	}
-	if v, ok := d.GetOk("post_auth_failure_redirect_type"); ok {
-		body.PostAuthFailureRedirectType = setStringPtr(v)
+	if d.HasChange("source") {
+		body.Source = setStringPtr(d.Get("source"))
 	}
-	if v, ok := d.GetOk("post_auth_failure_redirect_custom_url"); ok {
-		body.PostAuthFailureRedirectCustomURL = setStringPtr(v)
+	if d.HasChange("post_auth_failure_redirect_type") {
+		body.PostAuthFailureRedirectType = setStringPtr(d.Get("post_auth_failure_redirect_type"))
 	}
-	if v, ok := d.GetOk("post_logout_redirect_type"); ok {
-		body.PostLogoutRedirectType = setStringPtr(v)
+	if d.HasChange("post_auth_failure_redirect_custom_url") {
+		body.PostAuthFailureRedirectCustomURL = setStringPtr(d.Get("post_auth_failure_redirect_custom_url"))
 	}
-	if v, ok := d.GetOk("post_logout_redirect_custom_url"); ok {
-		body.PostLogoutRedirectCustomURL = setStringPtr(v)
+	if d.HasChange("post_logout_redirect_type") {
+		body.PostLogoutRedirectType = setStringPtr(d.Get("post_logout_redirect_type"))
+	}
+	if d.HasChange("post_logout_redirect_custom_url") {
+		body.PostLogoutRedirectCustomURL = setStringPtr(d.Get("post_logout_redirect_custom_url"))
 	}
 
 	// Domains list
@@ -712,8 +863,10 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 		}
 	}
 	if v, ok := d.GetOk("idp_type"); ok {
-		if i, ok := v.(int); ok {
-			createReq.IDPType = i
+		if s, ok := v.(string); ok {
+			if i, found := idpTypeNameToInt[s]; found {
+				createReq.IDPType = i
+			}
 		}
 	}
 
@@ -748,17 +901,11 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 			return logging.DiagFromErr(fmt.Errorf("directories is not a *schema.Set"), tags, "unexpected type for directories")
 		}
 		dirList := dirSet.List()
-		dirUUIDs := make([]string, 0, len(dirList))
-		for _, dn := range dirList {
-			if dirName, ok := dn.(string); ok {
-				dirEntry, dirErr := client.GetDirectoryByName(ctx, eaaclient, dirName)
-				if dirErr != nil {
-					return rollbackIDP(ctx, d, eaaclient, idpUUID, dirErr, tags)
-				}
-				dirUUIDs = append(dirUUIDs, dirEntry.UUIDURL)
+		if len(dirList) > 0 {
+			dirUUIDs, dirErr := resolveDirectoryNamesToUUIDs(ctx, eaaclient, dirList, tags)
+			if dirErr != nil {
+				return rollbackIDP(ctx, d, eaaclient, idpUUID, dirErr, tags)
 			}
-		}
-		if len(dirUUIDs) > 0 {
 			if assocErr := client.AssociateDirectoriesToIDP(ctx, eaaclient, idpUUID, dirUUIDs); assocErr != nil {
 				return rollbackIDP(ctx, d, eaaclient, idpUUID, assocErr, tags)
 			}
@@ -800,7 +947,6 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 	memberships, err := client.GetIDPDirectoryMemberships(ctx, eaaclient, id)
 	if err != nil {
 		logging.Warn(ctx, "failed to get IDP directory memberships", tags, map[string]any{"error": err.Error()})
-		// Non-fatal: continue without directory info
 	}
 
 	// Build attrs map
@@ -808,7 +954,11 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 	attrs["name"] = idpResp.Name
 	attrs["uuid_url"] = idpResp.UUIDURL
 	attrs["description"] = idpResp.Description
-	attrs["idp_type"] = idpResp.IDPType
+	if name, ok := idpTypeIntToName[idpResp.IDPType]; ok {
+		attrs["idp_type"] = name
+	} else {
+		attrs["idp_type"] = strconv.Itoa(idpResp.IDPType)
+	}
 	attrs["created_at"] = idpResp.CreatedAt
 	attrs["modified_at"] = idpResp.ModifiedAt
 	attrs["company_id"] = idpResp.CompanyID
@@ -845,9 +995,13 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 
 	// Optional int pointer fields — use 0 when nil
 	if idpResp.LoginDomain != nil {
-		attrs["login_domain"] = *idpResp.LoginDomain
+		if name, ok := loginDomainIntToName[*idpResp.LoginDomain]; ok {
+			attrs["login_domain"] = name
+		} else {
+			attrs["login_domain"] = strconv.Itoa(*idpResp.LoginDomain)
+		}
 	} else {
-		attrs["login_domain"] = 0
+		attrs["login_domain"] = ""
 	}
 	if idpResp.MaxLoginFailures != nil {
 		attrs["max_login_failures"] = *idpResp.MaxLoginFailures
@@ -917,52 +1071,70 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 		attrs["agent_installation_profile"] = false
 	}
 
-	// Reverse-resolve cert UUIDs to names (clear to "" when nil/empty)
+	// Reverse-resolve cert UUIDs to names (fetch cert list once)
+	hasCertFields := (idpResp.Cert != nil && *idpResp.Cert != "") ||
+		(idpResp.ClientCert != nil && *idpResp.ClientCert != "") ||
+		(idpResp.SAMLIDPCustomSignCert != nil && *idpResp.SAMLIDPCustomSignCert != "")
+	var readCerts []client.CertObject
+	if hasCertFields {
+		var certErr error
+		readCerts, certErr = client.GetCertificates(ctx, eaaclient)
+		if certErr != nil {
+			logging.Warn(ctx, "failed to get certificates for UUID resolution", tags, map[string]any{"error": certErr.Error()})
+		}
+	}
+
 	attrs["cert"] = ""
 	if idpResp.Cert != nil && *idpResp.Cert != "" {
-		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.Cert, tags)
-		if certErr != nil {
-			logging.Warn(ctx, "failed to resolve cert UUID to name", tags, map[string]any{"uuid": *idpResp.Cert, "error": certErr.Error()})
+		if name, ok := findCertByUUID(readCerts, *idpResp.Cert); ok {
+			attrs["cert"] = name
 		} else {
-			attrs["cert"] = certName
+			logging.Warn(ctx, "failed to resolve cert UUID to name", tags, map[string]any{"uuid": *idpResp.Cert})
 		}
 	}
 	attrs["client_cert"] = ""
 	if idpResp.ClientCert != nil && *idpResp.ClientCert != "" {
-		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.ClientCert, tags)
-		if certErr != nil {
-			logging.Warn(ctx, "failed to resolve client_cert UUID to name", tags, map[string]any{"uuid": *idpResp.ClientCert, "error": certErr.Error()})
+		if name, ok := findCertByUUID(readCerts, *idpResp.ClientCert); ok {
+			attrs["client_cert"] = name
 		} else {
-			attrs["client_cert"] = certName
+			logging.Warn(ctx, "failed to resolve client_cert UUID to name", tags, map[string]any{"uuid": *idpResp.ClientCert})
 		}
 	}
 	attrs["saml_idp_custom_sign_cert"] = ""
 	if idpResp.SAMLIDPCustomSignCert != nil && *idpResp.SAMLIDPCustomSignCert != "" {
-		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.SAMLIDPCustomSignCert, tags)
-		if certErr != nil {
-			logging.Warn(ctx, "failed to resolve saml_idp_custom_sign_cert UUID to name", tags, map[string]any{"uuid": *idpResp.SAMLIDPCustomSignCert, "error": certErr.Error()})
+		if name, ok := findCertByUUID(readCerts, *idpResp.SAMLIDPCustomSignCert); ok {
+			attrs["saml_idp_custom_sign_cert"] = name
 		} else {
-			attrs["saml_idp_custom_sign_cert"] = certName
+			logging.Warn(ctx, "failed to resolve saml_idp_custom_sign_cert UUID to name", tags, map[string]any{"uuid": *idpResp.SAMLIDPCustomSignCert})
 		}
 	}
 
-	// Reverse-resolve PoP UUIDs to names (clear to "" when nil/empty)
+	// Reverse-resolve PoP UUIDs to names (fetch pop list once)
+	hasPopFields := (idpResp.Pop != nil && *idpResp.Pop != "") ||
+		(idpResp.FailoverPop != nil && *idpResp.FailoverPop != "")
+	var readPops []client.Pop
+	if hasPopFields {
+		var popErr error
+		readPops, popErr = client.GetPops(ctx, eaaclient)
+		if popErr != nil {
+			logging.Warn(ctx, "failed to get pops for UUID resolution", tags, map[string]any{"error": popErr.Error()})
+		}
+	}
+
 	attrs["pop"] = ""
 	if idpResp.Pop != nil && *idpResp.Pop != "" {
-		popName, popErr := resolvePopUUIDToName(ctx, eaaclient, *idpResp.Pop, tags)
-		if popErr != nil {
-			logging.Warn(ctx, "failed to resolve pop UUID to name", tags, map[string]any{"uuid": *idpResp.Pop, "error": popErr.Error()})
+		if name, ok := findPopByUUID(readPops, *idpResp.Pop); ok {
+			attrs["pop"] = name
 		} else {
-			attrs["pop"] = popName
+			logging.Warn(ctx, "failed to resolve pop UUID to name", tags, map[string]any{"uuid": *idpResp.Pop})
 		}
 	}
 	attrs["failover_pop"] = ""
 	if idpResp.FailoverPop != nil && *idpResp.FailoverPop != "" {
-		popName, popErr := resolvePopUUIDToName(ctx, eaaclient, *idpResp.FailoverPop, tags)
-		if popErr != nil {
-			logging.Warn(ctx, "failed to resolve failover_pop UUID to name", tags, map[string]any{"uuid": *idpResp.FailoverPop, "error": popErr.Error()})
+		if name, ok := findPopByUUID(readPops, *idpResp.FailoverPop); ok {
+			attrs["failover_pop"] = name
 		} else {
-			attrs["failover_pop"] = popName
+			logging.Warn(ctx, "failed to resolve failover_pop UUID to name", tags, map[string]any{"uuid": *idpResp.FailoverPop})
 		}
 	}
 
@@ -1119,13 +1291,13 @@ func resourceEaaIdpUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 
 		// Associate added directories
 		if len(toAddNames) > 0 {
-			dirUUIDs := make([]string, 0, len(toAddNames))
-			for _, name := range toAddNames {
-				dirEntry, dirErr := client.GetDirectoryByName(ctx, eaaclient, name)
-				if dirErr != nil {
-					return logging.DiagFromErr(dirErr, tags, fmt.Sprintf("failed to resolve directory '%s'", name))
-				}
-				dirUUIDs = append(dirUUIDs, dirEntry.UUIDURL)
+			addItems := make([]interface{}, len(toAddNames))
+			for i, name := range toAddNames {
+				addItems[i] = name
+			}
+			dirUUIDs, dirErr := resolveDirectoryNamesToUUIDs(ctx, eaaclient, addItems, tags)
+			if dirErr != nil {
+				return logging.DiagFromErr(dirErr, tags, "failed to resolve directory names")
 			}
 			if assocErr := client.AssociateDirectoriesToIDP(ctx, eaaclient, id, dirUUIDs); assocErr != nil {
 				return logging.DiagFromErr(assocErr, tags, "failed to associate directories")

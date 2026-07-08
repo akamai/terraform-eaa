@@ -19,7 +19,7 @@ provider "eaa" {
 resource "eaa_idp" "corp_idp" {
   name        = "Corp IDP"
   description = "Corporate identity provider"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "corp-login"
   pop         = "us-east-pop"
 
@@ -39,7 +39,7 @@ resource "eaa_idp" "corp_idp" {
 resource "eaa_idp" "secure_idp" {
   name        = "Secure IDP"
   description = "IDP with MFA and lockout policies"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "secure-login"
   pop         = "us-west-pop"
 
@@ -63,7 +63,7 @@ resource "eaa_idp" "secure_idp" {
 # --- IDP with Custom Certificates ---
 resource "eaa_idp" "custom_cert_idp" {
   name       = "Custom Cert IDP"
-  idp_type   = 2
+  idp_type   = "EAA"
   login_host = "custom-login"
   pop        = "eu-west-pop"
 
@@ -78,7 +78,7 @@ resource "eaa_idp" "custom_cert_idp" {
 resource "eaa_idp" "saml_idp" {
   name        = "SAML IDP"
   description = "IDP with SAML authentication"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "saml-login"
   pop         = "us-east-pop"
 
@@ -118,7 +118,7 @@ output "cloud_directories" {
 # --- IDP with Dynamically Discovered Directories ---
 resource "eaa_idp" "dynamic_idp" {
   name       = "Dynamic IDP"
-  idp_type   = 2
+  idp_type   = "EAA"
   login_host = "dynamic-login"
   pop        = "us-east-pop"
 
@@ -135,7 +135,7 @@ resource "eaa_idp" "dynamic_idp" {
 # --- IDP with Custom Post-Auth/Logout Redirects ---
 resource "eaa_idp" "custom_redirect_idp" {
   name       = "Custom Redirect IDP"
-  idp_type   = 2
+  idp_type   = "EAA"
   login_host = "redirect-login"
   pop        = "us-east-pop"
 

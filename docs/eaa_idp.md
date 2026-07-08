@@ -21,9 +21,9 @@ Key features:
 ### Optional - Core Settings
 
 * `description` - (Optional) IDP description.
-* `idp_type` - (Optional) IDP type. Common values: `2` = certificate-based.
+* `idp_type` - (Optional) IDP type. Values: `DEFAULT`, `EAA`, `SAML`, `OKTA`, `PINGONE`, `ONELOGIN`, `GOOGLE`, `OIDC`, `AZURE`, `DEVICE_AUTHENTICATION`.
 * `login_host` - (Optional) Login hostname prefix (without domain suffix).
-* `login_domain` - (Optional) Login domain type. `2` = WAPP (Akamai-managed domain).
+* `login_domain` - (Optional) Login domain type. `DEFAULT` = Akamai-managed WAPP domain, `CUSTOM` = customer-owned domain.
 * `pop` - (Optional) PoP name (resolved to uuid_url via PoPs list API).
 * `failover_pop` - (Optional) Failover PoP name (resolved to uuid_url via PoPs list API).
 
@@ -168,7 +168,7 @@ Like the connector resource, updating an IDP requires a GET-modify-PUT pattern. 
 resource "eaa_idp" "corp_idp" {
   name        = "Corp IDP"
   description = "Corporate identity provider"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "corp-login"
   pop         = "us-east-pop"
 
@@ -191,7 +191,7 @@ resource "eaa_idp" "corp_idp" {
 resource "eaa_idp" "secure_idp" {
   name        = "Secure IDP"
   description = "IDP with MFA and lockout policies"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "secure-login"
   pop         = "us-west-pop"
 
@@ -224,7 +224,7 @@ resource "eaa_custom_app_certificate" "idp_cert" {
 
 resource "eaa_idp" "custom_cert_idp" {
   name       = "Custom Cert IDP"
-  idp_type   = 2
+  idp_type   = "EAA"
   login_host = "custom-login"
   pop        = "eu-west-pop"
 
@@ -242,7 +242,7 @@ resource "eaa_idp" "custom_cert_idp" {
 resource "eaa_idp" "saml_idp" {
   name        = "SAML IDP"
   description = "IDP with SAML authentication"
-  idp_type    = 2
+  idp_type    = "EAA"
   login_host  = "saml-login"
   pop         = "us-east-pop"
 
@@ -279,7 +279,7 @@ output "directory_names" {
 # Use a discovered directory in an IDP
 resource "eaa_idp" "dynamic_idp" {
   name       = "Dynamic IDP"
-  idp_type   = 2
+  idp_type   = "EAA"
   login_host = "dynamic-login"
   pop        = "us-east-pop"
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
 )
@@ -27,25 +28,35 @@ func ListDirectories(ctx context.Context, ec *EaaClient) ([]DirectoryListEntry, 
 	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagList}
 	logging.Info(ctx, "listing directories", tags)
 
+	var dirs []DirectoryListEntry
 	apiURL := fmt.Sprintf("%s://%s/%s", URL_SCHEME, ec.Host, DIRECTORIES_URL)
 
-	var resp DirectoryListResponse
-	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false)
-	if err != nil {
-		return nil, logging.Wrapf(err, tags, "list directories API request failed")
-	}
-	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
-		desc := FormatErrorDescription(httpResp)
-		return nil, logging.Errorf(tags, "list directories failed: %s", desc)
+	for apiURL != "" {
+		var resp DirectoryListResponse
+		httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false)
+		if err != nil {
+			return nil, logging.Wrapf(err, tags, "list directories API request failed")
+		}
+		if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+			desc := FormatErrorDescription(httpResp)
+			return nil, logging.Errorf(tags, "list directories failed: %s", desc)
+		}
+
+		for _, d := range resp.Objects {
+			if d.Name == "" || d.UUIDURL == "" {
+				continue
+			}
+			dirs = append(dirs, d)
+		}
+
+		if resp.Meta.Next != nil {
+			nextURL := strings.TrimPrefix(*resp.Meta.Next, "/api/v1")
+			apiURL = fmt.Sprintf("%s://%s/%s%s", URL_SCHEME, ec.Host, MGMT_POP_URL, nextURL)
+		} else {
+			apiURL = ""
+		}
 	}
 
-	var dirs []DirectoryListEntry
-	for _, d := range resp.Objects {
-		if d.Name == "" || d.UUIDURL == "" {
-			continue
-		}
-		dirs = append(dirs, d)
-	}
 	return dirs, nil
 }
 
