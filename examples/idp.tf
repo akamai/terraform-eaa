@@ -61,19 +61,13 @@ resource "eaa_idp" "secure_idp" {
 }
 
 # --- IDP with Custom Certificates ---
-resource "eaa_custom_app_certificate" "idp_cert" {
-  name        = "idp-tls-cert"
-  cert        = file("certs/idp.crt")
-  private_key = file("certs/idp.key")
-}
-
 resource "eaa_idp" "custom_cert_idp" {
   name       = "Custom Cert IDP"
   idp_type   = 2
   login_host = "custom-login"
   pop        = "eu-west-pop"
 
-  cert        = eaa_custom_app_certificate.idp_cert.name
+  cert        = "valid-cert-name"
   client_cert = "client-auth-cert"
 
   cookie_expiry = 90

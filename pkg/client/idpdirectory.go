@@ -44,8 +44,9 @@ func GetIDPDirectoryMemberships(ctx context.Context, ec *EaaClient, idpUUID stri
 
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/directories_membership", URL_SCHEME, ec.Host, IDP_URL, idpUUID)
 
+	noExpand := false
 	var resp IDPDirectoryMembershipResponse
-	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false)
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &resp, false, GetRequestOptions{Expand: &noExpand})
 	if err != nil {
 		return nil, logging.Wrapf(err, tags, "get IDP directory memberships failed")
 	}

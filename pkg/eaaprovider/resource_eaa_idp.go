@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
 	"git.source.akamai.com/terraform-provider-eaa/pkg/logging"
@@ -53,21 +54,25 @@ func resourceEaaIdp() *schema.Resource {
 			"login_domain": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "Login domain type (2 = WAPP)",
 			},
 			"login_lockout": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Login lockout: \"true\" or \"off\"",
 			},
 			"max_login_failures": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "Failed logins before lockout",
 			},
 			"lockout_interval": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "Lockout duration in minutes",
 			},
 			"cookie_expiry": {
@@ -83,6 +88,7 @@ func resourceEaaIdp() *schema.Resource {
 			"client_principle_name": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Client principal name template",
 			},
 			"cert": {
@@ -113,71 +119,85 @@ func resourceEaaIdp() *schema.Resource {
 			"enable_mfa": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Enable MFA",
 			},
 			"etp_enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Enable ETP integration",
 			},
 			"enable_access_client": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Enable EAA Client",
 			},
 			"gc_client_enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Enable Global Cloud client",
 			},
 			"auth_request_signed": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Sign SAML auth requests",
 			},
 			"auth_response_encrypt": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Encrypt SAML auth responses",
 			},
 			"saml_cert_type": {
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Computed:    true,
 				Description: "1=self-signed, 2=custom",
 			},
 			"saml_url": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "SAML URL",
 			},
 			"logout_url": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Post-logout URL",
 			},
 			"helpdesk_email": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Helpdesk contact email",
 			},
 			"default_language": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Login portal language (e.g., \"english\")",
 			},
 			"default_tls_suite": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Use default TLS suite",
 			},
 			"custom_tls_suite_name": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Custom TLS suite name",
 			},
 			"domains": {
 				Type:        schema.TypeList,
 				Optional:    true,
+				Computed:    true,
 				Description: "Custom domains",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -186,31 +206,37 @@ func resourceEaaIdp() *schema.Resource {
 			"agent_installation_profile": {
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Computed:    true,
 				Description: "Enable agent install profile",
 			},
 			"source": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Source identifier",
 			},
 			"post_auth_failure_redirect_type": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Auth failure redirect type (EAA_APPS_PORTAL or custom)",
 			},
 			"post_auth_failure_redirect_custom_url": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Custom auth failure redirect URL",
 			},
 			"post_logout_redirect_type": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Logout redirect type (EAA_APPS_PORTAL or custom)",
 			},
 			"post_logout_redirect_custom_url": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 				Description: "Custom logout redirect URL",
 			},
 
@@ -218,6 +244,7 @@ func resourceEaaIdp() *schema.Resource {
 			"mfa_settings": {
 				Type:        schema.TypeMap,
 				Optional:    true,
+				Computed:    true,
 				Description: "MFA sub-fields (duo, pushzero, totp, sms, email, etc.)",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -226,6 +253,7 @@ func resourceEaaIdp() *schema.Resource {
 			"settings": {
 				Type:        schema.TypeMap,
 				Optional:    true,
+				Computed:    true,
 				Description: "IDP settings (portal theme, client cert auth, IWA, force login, etc.)",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -234,6 +262,7 @@ func resourceEaaIdp() *schema.Resource {
 			"attribute_map": {
 				Type:        schema.TypeMap,
 				Optional:    true,
+				Computed:    true,
 				Description: "SAML attribute mapping",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -242,6 +271,7 @@ func resourceEaaIdp() *schema.Resource {
 			"multilang_fields": {
 				Type:        schema.TypeMap,
 				Optional:    true,
+				Computed:    true,
 				Description: "Multi-language field overrides",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -250,7 +280,7 @@ func resourceEaaIdp() *schema.Resource {
 
 			// Optional list
 			"directories": {
-				Type:        schema.TypeList,
+				Type:        schema.TypeSet,
 				Optional:    true,
 				Description: "Directory names to associate (resolved to uuid_url via directories list API)",
 				Elem: &schema.Schema{
@@ -381,10 +411,26 @@ func resolvePopUUIDToName(ctx context.Context, ec *client.EaaClient, popUUID str
 	return "", logging.Errorf(tags, "PoP with UUID '%s' not found", popUUID)
 }
 
+// intSettingsKeys are settings keys that the API expects as integers, not strings.
+var intSettingsKeys = map[string]bool{
+	"idp_max_sso_sessions":          true,
+	"websocket_pool_maxidle":        true,
+	"websocket_pool_maxopen":        true,
+	"client_cert_exp_warn_interval": true,
+}
+
 // stringMapToInterfaceMap converts map[string]interface{} from Terraform schema to a new map[string]interface{} for the API.
+// Keys listed in intSettingsKeys are converted from string to integer.
 func stringMapToInterfaceMap(m map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
 	for k, v := range m {
+		s, ok := v.(string)
+		if ok && intSettingsKeys[k] {
+			if i, err := strconv.Atoi(s); err == nil {
+				result[k] = i
+				continue
+			}
+		}
 		result[k] = v
 	}
 	return result
@@ -394,6 +440,10 @@ func stringMapToInterfaceMap(m map[string]interface{}) map[string]interface{} {
 func interfaceMapToStringMap(m map[string]interface{}) map[string]string {
 	result := make(map[string]string)
 	for k, v := range m {
+		if v == nil {
+			result[k] = ""
+			continue
+		}
 		result[k] = fmt.Sprintf("%v", v)
 	}
 	return result
@@ -415,6 +465,13 @@ func rollbackIDP(ctx context.Context, d *schema.ResourceData, ec *client.EaaClie
 }
 
 // setStringPtr sets a string pointer on the body from the schema value.
+func ptrStringOrEmpty(p *string) string {
+	if p != nil {
+		return *p
+	}
+	return ""
+}
+
 func setStringPtr(v interface{}) *string {
 	if s, ok := v.(string); ok {
 		return &s
@@ -686,21 +743,24 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 	// Step 3: Associate directories if configured
 	if v, ok := d.GetOk("directories"); ok {
-		if dirList, ok := v.([]interface{}); ok {
-			dirUUIDs := make([]string, 0, len(dirList))
-			for _, dn := range dirList {
-				if dirName, ok := dn.(string); ok {
-					dirEntry, dirErr := client.GetDirectoryByName(ctx, eaaclient, dirName)
-					if dirErr != nil {
-						return rollbackIDP(ctx, d, eaaclient, idpUUID, dirErr, tags)
-					}
-					dirUUIDs = append(dirUUIDs, dirEntry.UUIDURL)
+		dirSet, ok := v.(*schema.Set)
+		if !ok {
+			return logging.DiagFromErr(fmt.Errorf("directories is not a *schema.Set"), tags, "unexpected type for directories")
+		}
+		dirList := dirSet.List()
+		dirUUIDs := make([]string, 0, len(dirList))
+		for _, dn := range dirList {
+			if dirName, ok := dn.(string); ok {
+				dirEntry, dirErr := client.GetDirectoryByName(ctx, eaaclient, dirName)
+				if dirErr != nil {
+					return rollbackIDP(ctx, d, eaaclient, idpUUID, dirErr, tags)
 				}
+				dirUUIDs = append(dirUUIDs, dirEntry.UUIDURL)
 			}
-			if len(dirUUIDs) > 0 {
-				if assocErr := client.AssociateDirectoriesToIDP(ctx, eaaclient, idpUUID, dirUUIDs); assocErr != nil {
-					return rollbackIDP(ctx, d, eaaclient, idpUUID, assocErr, tags)
-				}
+		}
+		if len(dirUUIDs) > 0 {
+			if assocErr := client.AssociateDirectoriesToIDP(ctx, eaaclient, idpUUID, dirUUIDs); assocErr != nil {
+				return rollbackIDP(ctx, d, eaaclient, idpUUID, assocErr, tags)
 			}
 		}
 	}
@@ -768,90 +828,97 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 	attrs["app_count"] = idpResp.AppCount
 	attrs["tls_suite_name"] = idpResp.TLSSuiteName
 
-	// Optional pointer fields
-	if idpResp.LoginHost != nil {
-		attrs["login_host"] = *idpResp.LoginHost
-	}
+	// Optional string pointer fields — use "" when nil to clear stale state
+	attrs["login_host"] = ptrStringOrEmpty(idpResp.LoginHost)
+	attrs["login_lockout"] = ptrStringOrEmpty(idpResp.LoginLockout)
+	attrs["client_principle_name"] = ptrStringOrEmpty(idpResp.ClientPrincipleName)
+	attrs["saml_url"] = ptrStringOrEmpty(idpResp.SAMLUrl)
+	attrs["logout_url"] = ptrStringOrEmpty(idpResp.LogoutURL)
+	attrs["helpdesk_email"] = ptrStringOrEmpty(idpResp.HelpdeskEmail)
+	attrs["default_language"] = ptrStringOrEmpty(idpResp.DefaultLanguage)
+	attrs["custom_tls_suite_name"] = ptrStringOrEmpty(idpResp.CustomTLSSuiteName)
+	attrs["source"] = ptrStringOrEmpty(idpResp.Source)
+	attrs["post_auth_failure_redirect_type"] = ptrStringOrEmpty(idpResp.PostAuthFailureRedirectType)
+	attrs["post_auth_failure_redirect_custom_url"] = ptrStringOrEmpty(idpResp.PostAuthFailureRedirectCustomURL)
+	attrs["post_logout_redirect_type"] = ptrStringOrEmpty(idpResp.PostLogoutRedirectType)
+	attrs["post_logout_redirect_custom_url"] = ptrStringOrEmpty(idpResp.PostLogoutRedirectCustomURL)
+
+	// Optional int pointer fields — use 0 when nil
 	if idpResp.LoginDomain != nil {
 		attrs["login_domain"] = *idpResp.LoginDomain
-	}
-	if idpResp.LoginLockout != nil {
-		attrs["login_lockout"] = *idpResp.LoginLockout
+	} else {
+		attrs["login_domain"] = 0
 	}
 	if idpResp.MaxLoginFailures != nil {
 		attrs["max_login_failures"] = *idpResp.MaxLoginFailures
+	} else {
+		attrs["max_login_failures"] = 0
 	}
 	if idpResp.LockoutInterval != nil {
 		attrs["lockout_interval"] = *idpResp.LockoutInterval
+	} else {
+		attrs["lockout_interval"] = 0
 	}
 	if idpResp.CookieExpiry != nil {
 		attrs["cookie_expiry"] = *idpResp.CookieExpiry
+	} else {
+		attrs["cookie_expiry"] = 0
 	}
 	if idpResp.TrustExpiry != nil {
 		attrs["trust_expiry"] = *idpResp.TrustExpiry
-	}
-	if idpResp.ClientPrincipleName != nil {
-		attrs["client_principle_name"] = *idpResp.ClientPrincipleName
-	}
-	if idpResp.EnableMFA != nil {
-		attrs["enable_mfa"] = *idpResp.EnableMFA
-	}
-	if idpResp.ETPEnabled != nil {
-		attrs["etp_enabled"] = *idpResp.ETPEnabled
-	}
-	if idpResp.EnableAccessClient != nil {
-		attrs["enable_access_client"] = *idpResp.EnableAccessClient
-	}
-	if idpResp.GCClientEnabled != nil {
-		attrs["gc_client_enabled"] = *idpResp.GCClientEnabled
-	}
-	if idpResp.AuthRequestSigned != nil {
-		attrs["auth_request_signed"] = *idpResp.AuthRequestSigned
-	}
-	if idpResp.AuthResponseEncrypt != nil {
-		attrs["auth_response_encrypt"] = *idpResp.AuthResponseEncrypt
+	} else {
+		attrs["trust_expiry"] = 0
 	}
 	if idpResp.SAMLCertType != nil {
 		attrs["saml_cert_type"] = *idpResp.SAMLCertType
+	} else {
+		attrs["saml_cert_type"] = 0
 	}
-	if idpResp.SAMLUrl != nil {
-		attrs["saml_url"] = *idpResp.SAMLUrl
+
+	// Optional bool pointer fields — use false when nil
+	if idpResp.EnableMFA != nil {
+		attrs["enable_mfa"] = *idpResp.EnableMFA
+	} else {
+		attrs["enable_mfa"] = false
 	}
-	if idpResp.LogoutURL != nil {
-		attrs["logout_url"] = *idpResp.LogoutURL
+	if idpResp.ETPEnabled != nil {
+		attrs["etp_enabled"] = *idpResp.ETPEnabled
+	} else {
+		attrs["etp_enabled"] = false
 	}
-	if idpResp.HelpdeskEmail != nil {
-		attrs["helpdesk_email"] = *idpResp.HelpdeskEmail
+	if idpResp.EnableAccessClient != nil {
+		attrs["enable_access_client"] = *idpResp.EnableAccessClient
+	} else {
+		attrs["enable_access_client"] = false
 	}
-	if idpResp.DefaultLanguage != nil {
-		attrs["default_language"] = *idpResp.DefaultLanguage
+	if idpResp.GCClientEnabled != nil {
+		attrs["gc_client_enabled"] = *idpResp.GCClientEnabled
+	} else {
+		attrs["gc_client_enabled"] = false
+	}
+	if idpResp.AuthRequestSigned != nil {
+		attrs["auth_request_signed"] = *idpResp.AuthRequestSigned
+	} else {
+		attrs["auth_request_signed"] = false
+	}
+	if idpResp.AuthResponseEncrypt != nil {
+		attrs["auth_response_encrypt"] = *idpResp.AuthResponseEncrypt
+	} else {
+		attrs["auth_response_encrypt"] = false
 	}
 	if idpResp.DefaultTLSSuite != nil {
 		attrs["default_tls_suite"] = *idpResp.DefaultTLSSuite
-	}
-	if idpResp.CustomTLSSuiteName != nil {
-		attrs["custom_tls_suite_name"] = *idpResp.CustomTLSSuiteName
+	} else {
+		attrs["default_tls_suite"] = false
 	}
 	if idpResp.AgentInstallationProfile != nil {
 		attrs["agent_installation_profile"] = *idpResp.AgentInstallationProfile
-	}
-	if idpResp.Source != nil {
-		attrs["source"] = *idpResp.Source
-	}
-	if idpResp.PostAuthFailureRedirectType != nil {
-		attrs["post_auth_failure_redirect_type"] = *idpResp.PostAuthFailureRedirectType
-	}
-	if idpResp.PostAuthFailureRedirectCustomURL != nil {
-		attrs["post_auth_failure_redirect_custom_url"] = *idpResp.PostAuthFailureRedirectCustomURL
-	}
-	if idpResp.PostLogoutRedirectType != nil {
-		attrs["post_logout_redirect_type"] = *idpResp.PostLogoutRedirectType
-	}
-	if idpResp.PostLogoutRedirectCustomURL != nil {
-		attrs["post_logout_redirect_custom_url"] = *idpResp.PostLogoutRedirectCustomURL
+	} else {
+		attrs["agent_installation_profile"] = false
 	}
 
-	// Reverse-resolve cert UUIDs to names
+	// Reverse-resolve cert UUIDs to names (clear to "" when nil/empty)
+	attrs["cert"] = ""
 	if idpResp.Cert != nil && *idpResp.Cert != "" {
 		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.Cert, tags)
 		if certErr != nil {
@@ -860,6 +927,7 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 			attrs["cert"] = certName
 		}
 	}
+	attrs["client_cert"] = ""
 	if idpResp.ClientCert != nil && *idpResp.ClientCert != "" {
 		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.ClientCert, tags)
 		if certErr != nil {
@@ -868,6 +936,7 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 			attrs["client_cert"] = certName
 		}
 	}
+	attrs["saml_idp_custom_sign_cert"] = ""
 	if idpResp.SAMLIDPCustomSignCert != nil && *idpResp.SAMLIDPCustomSignCert != "" {
 		certName, certErr := resolveCertUUIDToName(ctx, eaaclient, *idpResp.SAMLIDPCustomSignCert, tags)
 		if certErr != nil {
@@ -877,7 +946,8 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 		}
 	}
 
-	// Reverse-resolve PoP UUIDs to names
+	// Reverse-resolve PoP UUIDs to names (clear to "" when nil/empty)
+	attrs["pop"] = ""
 	if idpResp.Pop != nil && *idpResp.Pop != "" {
 		popName, popErr := resolvePopUUIDToName(ctx, eaaclient, *idpResp.Pop, tags)
 		if popErr != nil {
@@ -886,6 +956,7 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 			attrs["pop"] = popName
 		}
 	}
+	attrs["failover_pop"] = ""
 	if idpResp.FailoverPop != nil && *idpResp.FailoverPop != "" {
 		popName, popErr := resolvePopUUIDToName(ctx, eaaclient, *idpResp.FailoverPop, tags)
 		if popErr != nil {
@@ -909,26 +980,37 @@ func resourceEaaIdpRead(ctx context.Context, d *schema.ResourceData, m interface
 		return logging.DiagFromErr(err, tags, "failed to set domains")
 	}
 
-	// Set flat map fields
+	// Set flat map fields — always set even when nil to keep state consistent
+	mfaSettings := map[string]string{}
 	if idpResp.MFASettings != nil {
-		if err := d.Set("mfa_settings", interfaceMapToStringMap(idpResp.MFASettings)); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set mfa_settings")
-		}
+		mfaSettings = interfaceMapToStringMap(idpResp.MFASettings)
 	}
+	if err := d.Set("mfa_settings", mfaSettings); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set mfa_settings")
+	}
+
+	settingsMap := map[string]string{}
 	if idpResp.Settings != nil {
-		if err := d.Set("settings", interfaceMapToStringMap(idpResp.Settings)); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set settings")
-		}
+		settingsMap = interfaceMapToStringMap(idpResp.Settings)
 	}
+	if err := d.Set("settings", settingsMap); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set settings")
+	}
+
+	attrMap := map[string]string{}
 	if idpResp.AttributeMap != nil {
-		if err := d.Set("attribute_map", interfaceMapToStringMap(idpResp.AttributeMap)); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set attribute_map")
-		}
+		attrMap = interfaceMapToStringMap(idpResp.AttributeMap)
 	}
+	if err := d.Set("attribute_map", attrMap); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set attribute_map")
+	}
+
+	multilangMap := map[string]string{}
 	if idpResp.MultilangFields != nil {
-		if err := d.Set("multilang_fields", interfaceMapToStringMap(idpResp.MultilangFields)); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set multilang_fields")
-		}
+		multilangMap = interfaceMapToStringMap(idpResp.MultilangFields)
+	}
+	if err := d.Set("multilang_fields", multilangMap); err != nil {
+		return logging.DiagFromErr(err, tags, "failed to set multilang_fields")
 	}
 
 	// Set directories from memberships (names, not UUIDs)
@@ -981,40 +1063,30 @@ func resourceEaaIdpUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 	// Step 4: Diff directories
 	if d.HasChange("directories") {
 		oldRaw, newRaw := d.GetChange("directories")
-		var oldDirs []interface{}
-		var newDirs []interface{}
-		if od, ok := oldRaw.([]interface{}); ok {
-			oldDirs = od
+		oldSet, ok := oldRaw.(*schema.Set)
+		if !ok {
+			return logging.DiagFromErr(fmt.Errorf("old directories is not a *schema.Set"), tags, "unexpected type for directories")
 		}
-		if nd, ok := newRaw.([]interface{}); ok {
-			newDirs = nd
+		newSet, ok := newRaw.(*schema.Set)
+		if !ok {
+			return logging.DiagFromErr(fmt.Errorf("new directories is not a *schema.Set"), tags, "unexpected type for directories")
 		}
 
-		oldSet := make(map[string]bool, len(oldDirs))
-		for _, od := range oldDirs {
-			if s, ok := od.(string); ok {
-				oldSet[s] = true
-			}
-		}
-		newSet := make(map[string]bool, len(newDirs))
-		for _, nd := range newDirs {
-			if s, ok := nd.(string); ok {
-				newSet[s] = true
-			}
-		}
+		removed := oldSet.Difference(newSet)
+		added := newSet.Difference(oldSet)
 
 		// Directories to remove (in old but not in new)
 		var toRemoveNames []string
-		for _, od := range oldDirs {
-			if name, ok := od.(string); ok && !newSet[name] {
+		for _, v := range removed.List() {
+			if name, ok := v.(string); ok {
 				toRemoveNames = append(toRemoveNames, name)
 			}
 		}
 
 		// Directories to add (in new but not in old)
 		var toAddNames []string
-		for _, nd := range newDirs {
-			if name, ok := nd.(string); ok && !oldSet[name] {
+		for _, v := range added.List() {
+			if name, ok := v.(string); ok {
 				toAddNames = append(toAddNames, name)
 			}
 		}
