@@ -400,8 +400,9 @@ func interfaceMapToStringMap(m map[string]interface{}) map[string]string {
 }
 
 // rollbackIDP deletes the IDP and returns the original error wrapped with rollback context.
-func rollbackIDP(ctx context.Context, ec *client.EaaClient, uuid string, originalErr error, tags []logging.Tag) diag.Diagnostics {
+func rollbackIDP(ctx context.Context, d *schema.ResourceData, ec *client.EaaClient, uuid string, originalErr error, tags []logging.Tag) diag.Diagnostics {
 	logging.Warn(ctx, "rolling back IDP creation", tags, map[string]any{"uuid": uuid, "error": originalErr.Error()})
+	d.SetId("")
 	deleteErr := client.DeleteIDP(ctx, ec, uuid)
 	if deleteErr != nil {
 		logging.Error(ctx, "rollback delete failed", tags, map[string]any{"delete_error": deleteErr.Error()})
@@ -671,16 +672,16 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// Step 2: GET current state, overlay user config, PUT
 	currentIDP, err := client.GetIDP(ctx, eaaclient, idpUUID)
 	if err != nil {
-		return rollbackIDP(ctx, eaaclient, idpUUID, err, tags)
+		return rollbackIDP(ctx, d, eaaclient, idpUUID, err, tags)
 	}
 
 	if applyErr := applyIDPConfigToBody(ctx, d, eaaclient, currentIDP, tags); applyErr != nil {
-		return rollbackIDP(ctx, eaaclient, idpUUID, applyErr, tags)
+		return rollbackIDP(ctx, d, eaaclient, idpUUID, applyErr, tags)
 	}
 
 	_, err = client.UpdateIDP(ctx, eaaclient, idpUUID, currentIDP)
 	if err != nil {
-		return rollbackIDP(ctx, eaaclient, idpUUID, err, tags)
+		return rollbackIDP(ctx, d, eaaclient, idpUUID, err, tags)
 	}
 
 	// Step 3: Associate directories if configured
@@ -691,14 +692,14 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 				if dirName, ok := dn.(string); ok {
 					dirEntry, dirErr := client.GetDirectoryByName(ctx, eaaclient, dirName)
 					if dirErr != nil {
-						return rollbackIDP(ctx, eaaclient, idpUUID, dirErr, tags)
+						return rollbackIDP(ctx, d, eaaclient, idpUUID, dirErr, tags)
 					}
 					dirUUIDs = append(dirUUIDs, dirEntry.UUIDURL)
 				}
 			}
 			if len(dirUUIDs) > 0 {
 				if assocErr := client.AssociateDirectoriesToIDP(ctx, eaaclient, idpUUID, dirUUIDs); assocErr != nil {
-					return rollbackIDP(ctx, eaaclient, idpUUID, assocErr, tags)
+					return rollbackIDP(ctx, d, eaaclient, idpUUID, assocErr, tags)
 				}
 			}
 		}
@@ -706,7 +707,7 @@ func resourceEaaIdpCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 	// Step 4: Deploy
 	if deployErr := client.DeployIDP(ctx, eaaclient, idpUUID); deployErr != nil {
-		return rollbackIDP(ctx, eaaclient, idpUUID, deployErr, tags)
+		return rollbackIDP(ctx, d, eaaclient, idpUUID, deployErr, tags)
 	}
 
 	logging.Info(ctx, "IDP created successfully", tags, map[string]any{"uuid": idpUUID})
