@@ -972,7 +972,10 @@ func resourceEaaIdpUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 	// Step 3: PUT updated IDP
 	_, err = client.UpdateIDP(ctx, eaaclient, id, currentIDP)
 	if err != nil {
-		return logging.DiagFromErr(err, tags, "failed to update IDP")
+		// Read back actual API state so Terraform doesn't keep the rejected values
+		readDiags := resourceEaaIdpRead(ctx, d, m)
+		updateDiags := logging.DiagFromErr(err, tags, "failed to update IDP")
+		return append(updateDiags, readDiags...)
 	}
 
 	// Step 4: Diff directories
