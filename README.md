@@ -91,10 +91,11 @@ terraform init && terraform plan && terraform apply
 | `eaa_connector_pool` | Pool management, registration tokens, app/connector assignment | [docs/eaa_connector_pool.md](docs/eaa_connector_pool.md) | [connector_pool](examples/connector_pool.tf) |
 | `eaa_custom_app_certificate` | Custom application certificate (upload cert + private key) | [docs/eaa_custom_app_certificate.md](docs/eaa_custom_app_certificate.md) | [cert_custom_app](examples/cert_custom_app.tf) |
 | `eaa_ca_certificate` | CA certificate (upload CA cert) | [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md) | [cert_ca](examples/cert_ca.tf) |
+| `eaa_idp` | Identity Provider lifecycle, directory association, auto-deploy | [docs/eaa_idp.md](docs/eaa_idp.md) | [idp](examples/idp.tf) |
 
 ### Data Sources
 
-`eaa_data_source_pops`, `eaa_data_source_appcategories`, `eaa_data_source_agents`, `eaa_data_source_idps`, `eaa_data_source_tls_cipher_suites`, `eaa_connector_pools`, `eaa_data_source_apps` — see [docs/data-sources.md](docs/data-sources.md).
+`eaa_data_source_pops`, `eaa_data_source_appcategories`, `eaa_data_source_agents`, `eaa_data_source_idps`, `eaa_data_source_tls_cipher_suites`, `eaa_connector_pools`, `eaa_data_source_apps`, `eaa_data_source_directories` — see [docs/data-sources.md](docs/data-sources.md).
 
 ### Other
 

@@ -169,6 +169,48 @@ Manages the lifecycle of an EAA CA certificate (CERT_TYPE_CA=6). Uploads via mul
 
 Full reference: [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md)
 
+### eaa_idp
+
+Manages the lifecycle of an EAA Identity Provider (IDP) with full CRUD support and directory association.
+
+**Key attributes:**
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `name` | Yes | IDP name |
+| `description` | No | IDP description |
+| `idp_type` | No | IDP type: `DEFAULT`, `EAA`, `SAML`, `OKTA`, `PINGONE`, `ONELOGIN`, `GOOGLE`, `OIDC`, `AZURE`, `DEVICE_AUTHENTICATION` |
+| `login_host` | No | Login hostname prefix (without domain suffix) |
+| `login_domain` | No | Login domain type: `DEFAULT` (Akamai WAPP) or `CUSTOM` (customer-owned) |
+| `pop` | No | PoP name (resolved to uuid_url via PoPs list API) |
+| `failover_pop` | No | Failover PoP name (resolved to uuid_url via PoPs list API) |
+| `cookie_expiry` | No | Session cookie expiry in minutes |
+| `trust_expiry` | No | Trust expiry in days |
+| `login_lockout` | No | Login lockout: `"true"` or `"off"` (string, not boolean) |
+| `max_login_failures` | No | Failed logins before lockout |
+| `lockout_interval` | No | Lockout duration in minutes |
+| `cert` | No | TLS certificate name (resolved to uuid_url via GetCertificates) |
+| `client_cert` | No | Client certificate name (resolved to uuid_url via GetCertificates) |
+| `saml_idp_custom_sign_cert` | No | Custom SAML signing certificate name (resolved via GetCertificates) |
+| `enable_mfa` | No | Enable MFA |
+| `mfa_settings` | No | Map of MFA sub-fields (duo, pushzero, totp, sms, email, etc.) |
+| `settings` | No | Map of IDP settings (portal theme, client cert auth, IWA, force login, etc.) |
+| `attribute_map` | No | Map of SAML attribute mappings |
+| `multilang_fields` | No | Map of multi-language field overrides |
+| `directories` | No | List of directory names to associate (resolved to uuid_url via directories list API) |
+
+**Computed:** `uuid_url`, `created_at`, `modified_at`, `company_id`, `localization`, `status`, `dns_added`, `login_cname`, `login_dialin_server`, `login_suffix`, `domain_suffix`, `client_host`, `pop_name`, `idp_status`, `idp_operational`, `idp_deployed`, `directory_count`, `app_count`, `tls_suite_name`
+
+**Gotchas:**
+- `login_lockout` uses string `"true"`/`"off"`, not boolean
+- Name resolution: certificates, PoPs, and directories accept names and are resolved to uuid_url internally
+- Auto-deploy is called after every create and update
+- Create rollback: if any step fails after initial creation, the IDP is automatically deleted
+- Directory disassociation uses membership UUIDs internally (handled transparently by the provider)
+- GET-modify-PUT pattern: updates require fetching current state, overlaying changes, and sending full config
+
+Full reference: [docs/eaa_idp.md](docs/eaa_idp.md)
+
 ## Data Sources
 
 | Data Source | Returns | When to Use |
@@ -177,6 +219,7 @@ Full reference: [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md)
 | `eaa_data_source_appcategories` | App category names and UUIDs | Look up valid values for `app_category` |
 | `eaa_data_source_agents` | Connectors with reachability, IPs, pool membership | Find connector names for `agents`, check reach status |
 | `eaa_data_source_idps` | IDPs with directories and groups | Look up IDP/directory/group names for `app_authentication` |
+| `eaa_data_source_directories` | Directories with service type, user/group counts | List available directories for IDP association |
 | `eaa_data_source_tls_cipher_suites` | TLS suites for a specific app (requires `app_uuid_url`) | Discover valid `tls_suite_name` values |
 | `eaa_connector_pools` | Pools with connectors, tokens, and app assignments | List existing pools, connectors, and tokens |
 | `eaa_data_source_apps` | App names and UUIDs | Reference existing apps by name |
@@ -196,6 +239,12 @@ output "reachable" {
 data "eaa_data_source_idps" "all" {}
 output "idps" {
   value = [for idp in data.eaa_data_source_idps.all.idps : idp.name]
+}
+
+# List available directories
+data "eaa_data_source_directories" "all" {}
+output "cloud_dirs" {
+  value = [for d in data.eaa_data_source_directories.all.directories : d.name if d.service == 6]
 }
 
 # Get TLS suites for an app
@@ -301,6 +350,61 @@ resource "eaa_connector_pool" "main" {
 }
 ```
 
+### IDP with Directories
+
+```hcl
+resource "eaa_idp" "corp_idp" {
+  name        = "Corp IDP"
+  description = "Corporate identity provider"
+  idp_type    = "EAA"
+  login_host  = "corp-login"
+  pop         = "us-east-pop"
+
+  cookie_expiry = 120
+  trust_expiry  = 365
+
+  login_lockout      = "true"
+  max_login_failures = 5
+  lockout_interval   = 30
+
+  enable_mfa = true
+
+  mfa_settings = {
+    duo_enabled  = "true"
+    totp_enabled = "true"
+  }
+
+  directories = ["Cloud Directory", "Corporate LDAP"]
+
+  settings = {
+    force_login       = "true"
+    force_login_after = "7200"
+    captive_portal    = "true"
+  }
+}
+
+# Use the IDP in an application
+resource "eaa_application" "web_app" {
+  name        = "Web App"
+  app_profile = "http"
+  domain      = "wapp"
+  host        = "web-app"
+  agents      = ["my-connector"]
+
+  auth_enabled = "true"
+
+  app_authentication {
+    app_idp = eaa_idp.corp_idp.name
+    app_directories {
+      name = "Cloud Directory"
+      app_groups {
+        name = "Engineering"
+      }
+    }
+  }
+}
+```
+
 ### Auth Methods
 
 **Enterprise SAML** — set `app_auth = "SAML2.0"` in `advanced_settings`, optionally add `saml_settings` block:
@@ -387,7 +491,7 @@ resource "eaa_custom_app_certificate" "from_vault" {
 
 When helping users compose Terraform configurations for this provider:
 
-1. **Reference the docs** — Always check `docs/eaa_application.md`, `docs/eaa_connector.md`, `docs/eaa_connector_pool.md`, `docs/eaa_custom_app_certificate.md`, `docs/eaa_ca_certificate.md`, and `docs/data-sources.md` for attribute details. Check `examples/*.tf` for working configurations.
+1. **Reference the docs** — Always check `docs/eaa_application.md`, `docs/eaa_connector.md`, `docs/eaa_connector_pool.md`, `docs/eaa_custom_app_certificate.md`, `docs/eaa_ca_certificate.md`, `docs/eaa_idp.md`, and `docs/data-sources.md` for attribute details. Check `examples/*.tf` for working configurations.
 
 2. **Validate app type compatibility** — Not all settings work with all app types. Check the compatibility table in `docs/eaa_application.md` under "App Type Compatibility". Key rules:
    - Bookmark and SaaS apps do NOT support `advanced_settings`
@@ -398,12 +502,14 @@ When helping users compose Terraform configurations for this provider:
 3. **Suggest data sources** when users need dynamic values:
    - Need connector names? → `eaa_data_source_agents`
    - Need IDP/directory/group names? → `eaa_data_source_idps`
+   - Need directory names for IDP association? → `eaa_data_source_directories`
    - Need PoP regions? → `eaa_data_source_pops`
    - Need app categories? → `eaa_data_source_appcategories`
    - Need TLS suite names? → `eaa_data_source_tls_cipher_suites`
 
 4. **Watch for common mistakes:**
    - `auth_enabled` is a **string** (`"true"`), not a boolean
+   - `login_lockout` (IDP resource) uses string `"true"`/`"off"`, not boolean
    - `orig_tls` is deprecated — never set it
    - SaaS apps use `protocol` field, enterprise apps use `advanced_settings.app_auth`
    - `protocol` values are case-sensitive: `WSFed` or `WS-Federation`, NOT `wsfed`
@@ -412,6 +518,7 @@ When helping users compose Terraform configurations for this provider:
    - `eaa_custom_app_certificate` requires both `cert` and `private_key` on every Create/Update — you cannot update just the name without resending the cert
    - `eaa_ca_certificate` does NOT have a `private_key` field — only the CA certificate itself
    - Certificate `cert` field uses `DiffSuppressFunc` — trailing/leading whitespace won't cause perpetual diffs
+   - `eaa_idp` name resolution: certificates, PoPs, and directories accept names (not UUIDs) and are resolved internally
    - After importing a custom app certificate, the first update requires adding `cert` and `private_key` to the config
 
 5. **When unsure about advanced settings**, point the user to the full list in `docs/eaa_application.md`. The `advanced_settings` map accepts any key the EAA API supports.

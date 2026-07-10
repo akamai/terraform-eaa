@@ -38,6 +38,8 @@ const (
 	REGISTRATION_TOKEN_URL            = "crux/v1/zt/registration-token"       // #nosec G101 -- API path constant, not a credential
 	REGISTRATION_TOKEN_GET_URL        = "crux/v3/mgmt-pop/registrationtokens" // #nosec G101 -- API path constant, not a credential
 	URL_SCHEME                        = "https"
+	DIRECTORIES_URL                   = "crux/v1/mgmt-pop/directories"
+	IDPDIRECTORY_URL                  = "crux/v1/mgmt-pop/idpdirectory"
 )
 
 // All Error Types
@@ -249,6 +251,19 @@ var (
 	ErrAppCleanupIncomplete           = errors.New("app may still exist in EAA and needs manual cleanup")
 	ErrGetAppFailed                   = errors.New("failed to get app")
 	ErrAuthSettingsVerificationFailed = errors.New("failed to verify authentication settings")
+
+	// IDP errors
+	ErrIDPCreate   = errors.New("IDP creation failed")
+	ErrIDPUpdate   = errors.New("IDP update failed")
+	ErrIDPDelete   = errors.New("IDP delete failed")
+	ErrIDPDeploy   = errors.New("IDP deploy failed")
+	ErrIDPGet      = errors.New("IDP get failed")
+	ErrIDPNotFound = errors.New("IDP not found")
+
+	// Directory errors
+	ErrDirectoryNotFound        = errors.New("directory not found")
+	ErrIDPDirectoryAssociate    = errors.New("IDP directory association failed")
+	ErrIDPDirectoryDisassociate = errors.New("IDP directory disassociation failed")
 
 	// Authentication validation errors
 	ErrSAMLSettingEmpty               = errors.New("SAML setting must have at least one field")
