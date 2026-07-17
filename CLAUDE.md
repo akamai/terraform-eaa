@@ -211,6 +211,41 @@ Manages the lifecycle of an EAA Identity Provider (IDP) with full CRUD support a
 
 Full reference: [docs/eaa_idp.md](docs/eaa_idp.md)
 
+### eaa_directory
+
+Manages the lifecycle of an EAA Directory with full CRUD support, group search/assignment, verification, and sync.
+
+**Key attributes:**
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `name` | Yes | Directory name |
+| `service` | Yes (ForceNew) | Directory type: `AD`, `LDAP`, `OKTA`, `PINGONE`, `SAML`, `CLOUD`, `ONELOGIN`, `GOOGLE`, `AKAMAI`, `AKAMAI_MSP`, `LDS`, `SCIM` |
+| `description` | No | Directory description |
+| `host` | No | LDAP server hostname or IP |
+| `port` | No | LDAP server port |
+| `root_dn` | No | Root distinguished name |
+| `admin_user` | No | LDAP admin bind username |
+| `admin_pwd` | No | LDAP admin bind password (Sensitive) |
+| `ssl` | No | Enable SSL for LDAP connection |
+| `agents` | No | Connector names (resolved to UUIDs) |
+| `groups` | No | Group names to search and assign |
+| `user_base_dn` | No | Base DN for user searches |
+| `group_base_dn` | No | Base DN for group searches |
+
+**Computed:** `uuid_url`, `created_at`, `modified_at`, `localization`, `directory_type`, `directory_status`, `directory_deployed_status`, `cname`, `dialin_sni`, `sync_state`, `sync_interval`, `last_sync`, `user_count`, `group_count`, `status`
+
+**Gotchas:**
+- `service` is **ForceNew** — changing the directory type destroys and recreates the resource
+- `admin_pwd` is Sensitive and suppresses diff when old value exists but new value is empty
+- Group assignment requires the directory to be verified first — the create flow handles this automatically
+- Verify and search operations are async with polling (5-second intervals, 2-minute timeout)
+- Create rollback: if any step fails after initial creation, the directory is automatically deleted
+- Connectors (`agents`) are resolved by name — use the same names as shown in the EAA console
+- GET-modify-PUT pattern: updates require fetching current state, overlaying changes, and sending full config
+
+Full reference: [docs/eaa_directory.md](docs/eaa_directory.md)
+
 ## Data Sources
 
 | Data Source | Returns | When to Use |

@@ -35,6 +35,12 @@ const (
 		"   terraform plan -generate-config-out=generated_idp_resources.tf\n" +
 		"2. In the resultant resources configuration file, add the provider section\n" +
 		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
+
+	generateDirInfo = "The config file `import_existing_directories.tf` with directory import blocks is generated.\n" +
+		"1. To generate the configuration, run the following command:\n" +
+		"   terraform plan -generate-config-out=generated_directory_resources.tf\n" +
+		"2. In the resultant resources configuration file, add the provider section\n" +
+		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
 )
 
 const (
@@ -54,8 +60,9 @@ const (
 	CERT_TYPE_APP = 1
 	CERT_TYPE_CA  = 6
 
-	CERTIFICATES_URL = "crux/v1/mgmt-pop/certificates"
-	IDP_URL          = "crux/v1/mgmt-pop/idp"
+	CERTIFICATES_URL   = "crux/v1/mgmt-pop/certificates"
+	IDP_URL            = "crux/v1/mgmt-pop/idp"
+	DIRECTORIES_URL_V1 = "crux/v1/mgmt-pop/directories"
 )
 
 var (
@@ -110,6 +117,16 @@ type IDPObject struct {
 type IDPsResponse struct {
 	Objects  []IDPObject `json:"objects"`
 	Metadata Meta        `json:"meta"`
+}
+
+type DirectoryObject struct {
+	Name    string `json:"name"`
+	UUIDURL string `json:"uuid_url"`
+}
+
+type DirectoriesResponse struct {
+	Objects  []DirectoryObject `json:"objects"`
+	Metadata Meta              `json:"meta"`
 }
 
 type importBlock struct {

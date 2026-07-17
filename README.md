@@ -92,6 +92,7 @@ terraform init && terraform plan && terraform apply
 | `eaa_custom_app_certificate` | Custom application certificate (upload cert + private key) | [docs/eaa_custom_app_certificate.md](docs/eaa_custom_app_certificate.md) | [cert_custom_app](examples/cert_custom_app.tf) |
 | `eaa_ca_certificate` | CA certificate (upload CA cert) | [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md) | [cert_ca](examples/cert_ca.tf) |
 | `eaa_idp` | Identity Provider lifecycle, directory association, auto-deploy | [docs/eaa_idp.md](docs/eaa_idp.md) | [idp](examples/idp.tf) |
+| `eaa_directory` | Directory lifecycle, group search/assign, verify, sync | [docs/eaa_directory.md](docs/eaa_directory.md) | [directory](examples/directory.tf) |
 
 ### Data Sources
 
