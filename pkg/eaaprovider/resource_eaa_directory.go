@@ -84,18 +84,18 @@ func resourceEaaDirectory() *schema.Resource {
 
 			// Optional — Directory config
 			"description":                 {Type: schema.TypeString, Optional: true, Description: "Directory description"},
-			"host":                        {Type: schema.TypeString, Optional: true, Description: "LDAP server hostname or IP"},
-			"port":                        {Type: schema.TypeInt, Optional: true, Computed: true, Description: "LDAP server port"},
+			"host":                        {Type: schema.TypeString, Optional: true, Description: "Directory server hostname or IP"},
+			"port":                        {Type: schema.TypeInt, Optional: true, Computed: true, Description: "Directory server port"},
 			"root_dn":                     {Type: schema.TypeString, Optional: true, Description: "Root distinguished name"},
-			"admin_user":                  {Type: schema.TypeString, Optional: true, Description: "LDAP admin bind username"},
-			"admin_pwd":                   {Type: schema.TypeString, Optional: true, Sensitive: true, Description: "LDAP admin bind password", DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool { return old != "" && new == "" }},
-			"ssl":                         {Type: schema.TypeBool, Optional: true, Computed: true, Description: "Enable SSL for LDAP connection"},
+			"admin_user":                  {Type: schema.TypeString, Optional: true, Description: "Admin bind username"},
+			"admin_pwd":                   {Type: schema.TypeString, Optional: true, Sensitive: true, Description: "Admin bind password", DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool { return old != "" && new == "" }},
+			"ssl":                         {Type: schema.TypeBool, Optional: true, Computed: true, Description: "Enable SSL connection"},
 			"is_ssl_verification_enabled": {Type: schema.TypeBool, Optional: true, Computed: true, Description: "Enable SSL cert verification"},
 			"is_leda_dir":                 {Type: schema.TypeBool, Optional: true, Description: "Whether this is a Leda-managed directory"},
 			"mfa":                         {Type: schema.TypeString, Optional: true, Computed: true, Description: "MFA mode"},
 			"logout_url":                  {Type: schema.TypeString, Optional: true, Description: "Logout URL"},
 
-			// Agents and connector pools (names, resolved internally)
+			// Agents (names, resolved to UUIDs internally)
 			"agents": {
 				Type:        schema.TypeSet,
 				Optional:    true,
@@ -113,31 +113,31 @@ func resourceEaaDirectory() *schema.Resource {
 
 			// LDAP search/filter
 			"user_base_dn":        {Type: schema.TypeString, Optional: true, Description: "Base DN for user searches"},
-			"user_search_filter":  {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP filter for user searches"},
+			"user_search_filter":  {Type: schema.TypeString, Optional: true, Computed: true, Description: "Filter for user searches"},
 			"group_base_dn":       {Type: schema.TypeString, Optional: true, Description: "Base DN for group searches"},
-			"group_search_filter": {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP filter for group searches"},
-			"group_members":       {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for group members"},
-			"group_name_attr":     {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for group name"},
-			"group_token":         {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for primary group token"},
-			"user_display_name":   {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for display name"},
-			"user_email":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for email"},
-			"user_fname":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for first name"},
-			"user_lname":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for last name"},
-			"user_phone_num":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for phone number"},
-			"user_principal":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for user principal name"},
-			"user_samaccountname": {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for sAMAccountName"},
-			"user_upn":            {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for UPN"},
-			"user_memberof":       {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for group membership"},
-			"user_memberuid":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "LDAP attribute for member UID"},
+			"group_search_filter": {Type: schema.TypeString, Optional: true, Computed: true, Description: "Filter for group searches"},
+			"group_members":       {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for group members"},
+			"group_name_attr":     {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for group name"},
+			"group_token":         {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for primary group token"},
+			"user_display_name":   {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for display name"},
+			"user_email":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for email"},
+			"user_fname":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for first name"},
+			"user_lname":          {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for last name"},
+			"user_phone_num":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for phone number"},
+			"user_principal":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for user principal name"},
+			"user_samaccountname": {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for sAMAccountName"},
+			"user_upn":            {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for UPN"},
+			"user_memberof":       {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for group membership"},
+			"user_memberuid":      {Type: schema.TypeString, Optional: true, Computed: true, Description: "Attribute for member UID"},
 			"ou_attr":             {Type: schema.TypeString, Optional: true, Description: "OU attribute"},
 			"ou_filter":           {Type: schema.TypeString, Optional: true, Description: "OU filter"},
 
-			// List attributes
-			"user_object_classes":  {Type: schema.TypeList, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "LDAP object classes for user entries"},
-			"group_object_classes": {Type: schema.TypeList, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "LDAP object classes for group entries"},
-			"ou_object_classes":    {Type: schema.TypeList, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "LDAP object classes for OU entries"},
-			"host_aliases":         {Type: schema.TypeList, Optional: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Host aliases for LDAP server"},
-			"domains":              {Type: schema.TypeList, Optional: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Associated domains"},
+			// Set attributes (order-independent)
+			"user_object_classes":  {Type: schema.TypeSet, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Object classes for user entries"},
+			"group_object_classes": {Type: schema.TypeSet, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Object classes for group entries"},
+			"ou_object_classes":    {Type: schema.TypeSet, Optional: true, Computed: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Object classes for OU entries"},
+			"host_aliases":         {Type: schema.TypeSet, Optional: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Host aliases for directory server"},
+			"domains":              {Type: schema.TypeSet, Optional: true, Elem: &schema.Schema{Type: schema.TypeString}, Description: "Associated domains"},
 
 			// Additional settings
 			"chase_referral":                 {Type: schema.TypeBool, Optional: true, Computed: true, Description: "Chase LDAP referrals"},
@@ -168,8 +168,8 @@ func resourceEaaDirectory() *schema.Resource {
 			"modified_at":               {Type: schema.TypeString, Computed: true, Description: "Last modification timestamp"},
 			"localization":              {Type: schema.TypeString, Computed: true, Description: "Data center localization"},
 			"directory_type":            {Type: schema.TypeInt, Computed: true, Description: "Directory type code"},
-			"directory_status":          {Type: schema.TypeInt, Computed: true, Description: "Deployment status"},
-			"directory_deployed_status": {Type: schema.TypeInt, Computed: true, Description: "Deployed status"},
+			"directory_status":          {Type: schema.TypeInt, Computed: true, Description: "Overall directory status code"},
+			"directory_deployed_status": {Type: schema.TypeInt, Computed: true, Description: "Deployment lifecycle status"},
 			"cname":                     {Type: schema.TypeString, Computed: true, Description: "Directory CNAME"},
 			"dialin_sni":                {Type: schema.TypeString, Computed: true, Description: "Dial-in SNI hostname"},
 			"sync_state":                {Type: schema.TypeInt, Computed: true, Description: "Sync state"},
@@ -210,9 +210,9 @@ func applyDirectoryConfigToBody(ctx context.Context, d *schema.ResourceData, ec 
 			body.Host = s
 		}
 	}
-	if d.HasChange("port") {
+	if d.IsNewResource() || d.HasChange("port") {
 		if p, ok := d.Get("port").(int); ok {
-			body.Port = p
+			body.Port = &p
 		}
 	}
 	if v, ok := d.GetOk("root_dn"); ok {
@@ -230,19 +230,19 @@ func applyDirectoryConfigToBody(ctx context.Context, d *schema.ResourceData, ec 
 			body.AdminPwd = s
 		}
 	}
-	if d.HasChange("ssl") {
+	if d.IsNewResource() || d.HasChange("ssl") {
 		if b, ok := d.Get("ssl").(bool); ok {
-			body.SSL = b
+			body.SSL = &b
 		}
 	}
-	if d.HasChange("is_ssl_verification_enabled") {
+	if d.IsNewResource() || d.HasChange("is_ssl_verification_enabled") {
 		if b, ok := d.Get("is_ssl_verification_enabled").(bool); ok {
-			body.IsSSLVerificationEnabled = b
+			body.IsSSLVerificationEnabled = &b
 		}
 	}
-	if d.HasChange("is_leda_dir") {
+	if d.IsNewResource() || d.HasChange("is_leda_dir") {
 		if b, ok := d.Get("is_leda_dir").(bool); ok {
-			body.IsLedaDir = b
+			body.IsLedaDir = &b
 		}
 	}
 	if v, ok := d.GetOk("mfa"); ok {
@@ -292,7 +292,7 @@ func applyDirectoryConfigToBody(ctx context.Context, d *schema.ResourceData, ec 
 	}
 
 	// Bool fields
-	boolFields := map[string]*bool{
+	boolFields := map[string]**bool{
 		"chase_referral":        &body.ChaseReferral,
 		"global_catalog":        &body.GlobalCatalog,
 		"server_cert_validate":  &body.ServerCertValidate,
@@ -303,59 +303,59 @@ func applyDirectoryConfigToBody(ctx context.Context, d *schema.ResourceData, ec 
 		"is_rate_limit_enabled": &body.IsRateLimitEnabled,
 	}
 	for key, target := range boolFields {
-		if d.HasChange(key) {
+		if d.IsNewResource() || d.HasChange(key) {
 			if b, ok := d.Get(key).(bool); ok {
-				*target = b
+				*target = &b
 			}
 		}
 	}
 
 	// Int fields
-	if d.HasChange("password_expire_warn_threshold") {
+	if d.IsNewResource() || d.HasChange("password_expire_warn_threshold") {
 		if n, ok := d.Get("password_expire_warn_threshold").(int); ok {
-			body.PasswordExpireWarn = n
+			body.PasswordExpireWarn = &n
 		}
 	}
-	if d.HasChange("password_change_threshold") {
+	if d.IsNewResource() || d.HasChange("password_change_threshold") {
 		if n, ok := d.Get("password_change_threshold").(int); ok {
-			body.PasswordChangeThreshold = n
+			body.PasswordChangeThreshold = &n
 		}
 	}
-	if d.HasChange("rate_limit_time_interval") {
+	if d.IsNewResource() || d.HasChange("rate_limit_time_interval") {
 		if n, ok := d.Get("rate_limit_time_interval").(int); ok {
-			body.RateLimitTimeInterval = n
+			body.RateLimitTimeInterval = &n
 		}
 	}
-	if d.HasChange("rate_limit_query_count") {
+	if d.IsNewResource() || d.HasChange("rate_limit_query_count") {
 		if n, ok := d.Get("rate_limit_query_count").(int); ok {
-			body.RateLimitQueryCount = n
+			body.RateLimitQueryCount = &n
 		}
 	}
 
-	// List attributes
+	// Set attributes
 	if v, ok := d.GetOk("user_object_classes"); ok {
-		if l, ok := v.([]interface{}); ok {
-			body.UserObjectClasses = interfaceListToStringSlice(l)
+		if s, ok := v.(*schema.Set); ok {
+			body.UserObjectClasses = interfaceListToStringSlice(s.List())
 		}
 	}
 	if v, ok := d.GetOk("group_object_classes"); ok {
-		if l, ok := v.([]interface{}); ok {
-			body.GroupObjectClasses = interfaceListToStringSlice(l)
+		if s, ok := v.(*schema.Set); ok {
+			body.GroupObjectClasses = interfaceListToStringSlice(s.List())
 		}
 	}
 	if v, ok := d.GetOk("ou_object_classes"); ok {
-		if l, ok := v.([]interface{}); ok {
-			body.OUObjectClasses = interfaceListToStringSlice(l)
+		if s, ok := v.(*schema.Set); ok {
+			body.OUObjectClasses = interfaceListToStringSlice(s.List())
 		}
 	}
 	if v, ok := d.GetOk("host_aliases"); ok {
-		if l, ok := v.([]interface{}); ok {
-			body.HostAliases = interfaceListToStringSlice(l)
+		if s, ok := v.(*schema.Set); ok {
+			body.HostAliases = interfaceListToStringSlice(s.List())
 		}
 	}
 	if v, ok := d.GetOk("domains"); ok {
-		if l, ok := v.([]interface{}); ok {
-			body.Domains = interfaceListToStringSlice(l)
+		if s, ok := v.(*schema.Set); ok {
+			body.Domains = interfaceListToStringSlice(s.List())
 		}
 	}
 
@@ -390,7 +390,7 @@ func applyDirectoryConfigToBody(ctx context.Context, d *schema.ResourceData, ec 
 			for _, item := range agentSet.List() {
 				name, ok := item.(string)
 				if !ok {
-					continue
+					return logging.Errorf(tags, "agents: expected string, got %T", item)
 				}
 				agent, found := agentByName[name]
 				if !found {
@@ -457,6 +457,11 @@ func resourceEaaDirectoryCreate(ctx context.Context, d *schema.ResourceData, m i
 		return rollbackDirectory(ctx, d, eaaclient, dirUUID, err, tags)
 	}
 
+	// Deploy directory
+	if deployErr := client.DeployDirectory(ctx, eaaclient, dirUUID); deployErr != nil {
+		return rollbackDirectory(ctx, d, eaaclient, dirUUID, deployErr, tags)
+	}
+
 	// Verify directory
 	if verifyErr := client.VerifyDirectory(ctx, eaaclient, dirUUID); verifyErr != nil {
 		return rollbackDirectory(ctx, d, eaaclient, dirUUID, verifyErr, tags)
@@ -471,7 +476,7 @@ func resourceEaaDirectoryCreate(ctx context.Context, d *schema.ResourceData, m i
 		for _, item := range groupSet.List() {
 			groupName, ok := item.(string)
 			if !ok {
-				continue
+				return rollbackDirectory(ctx, d, eaaclient, dirUUID, fmt.Errorf("groups: expected string, got %T", item), tags)
 			}
 
 			searchResult, searchErr := client.SearchDirectoryGroup(ctx, eaaclient, dirUUID, groupName)
@@ -561,28 +566,60 @@ func resourceEaaDirectoryRead(ctx context.Context, d *schema.ResourceData, m int
 	attrs["group_count"] = dirResp.GroupCount
 	attrs["status"] = dirResp.Status
 	attrs["host"] = dirResp.Host
-	attrs["port"] = dirResp.Port
+	if dirResp.Port != nil {
+		attrs["port"] = *dirResp.Port
+	}
 	attrs["root_dn"] = dirResp.RootDN
 	attrs["admin_user"] = dirResp.AdminUser
-	attrs["ssl"] = dirResp.SSL
-	attrs["is_ssl_verification_enabled"] = dirResp.IsSSLVerificationEnabled
-	attrs["is_leda_dir"] = dirResp.IsLedaDir
+	if dirResp.SSL != nil {
+		attrs["ssl"] = *dirResp.SSL
+	}
+	if dirResp.IsSSLVerificationEnabled != nil {
+		attrs["is_ssl_verification_enabled"] = *dirResp.IsSSLVerificationEnabled
+	}
+	if dirResp.IsLedaDir != nil {
+		attrs["is_leda_dir"] = *dirResp.IsLedaDir
+	}
 	attrs["mfa"] = dirResp.MFA
 	attrs["logout_url"] = dirResp.LogoutURL
-	attrs["chase_referral"] = dirResp.ChaseReferral
-	attrs["global_catalog"] = dirResp.GlobalCatalog
-	attrs["server_cert_validate"] = dirResp.ServerCertValidate
-	attrs["auth_request_signed"] = dirResp.AuthRequestSigned
-	attrs["auth_response_encrypt"] = dirResp.AuthResponseEncrypt
-	attrs["password_change_allow"] = dirResp.PasswordChangeAllow
-	attrs["password_reset_allow"] = dirResp.PasswordResetAllow
+	if dirResp.ChaseReferral != nil {
+		attrs["chase_referral"] = *dirResp.ChaseReferral
+	}
+	if dirResp.GlobalCatalog != nil {
+		attrs["global_catalog"] = *dirResp.GlobalCatalog
+	}
+	if dirResp.ServerCertValidate != nil {
+		attrs["server_cert_validate"] = *dirResp.ServerCertValidate
+	}
+	if dirResp.AuthRequestSigned != nil {
+		attrs["auth_request_signed"] = *dirResp.AuthRequestSigned
+	}
+	if dirResp.AuthResponseEncrypt != nil {
+		attrs["auth_response_encrypt"] = *dirResp.AuthResponseEncrypt
+	}
+	if dirResp.PasswordChangeAllow != nil {
+		attrs["password_change_allow"] = *dirResp.PasswordChangeAllow
+	}
+	if dirResp.PasswordResetAllow != nil {
+		attrs["password_reset_allow"] = *dirResp.PasswordResetAllow
+	}
 	attrs["password_policy_default"] = dirResp.PasswordPolicyDefault
-	attrs["password_expire_warn_threshold"] = dirResp.PasswordExpireWarn
-	attrs["password_change_threshold"] = dirResp.PasswordChangeThreshold
+	if dirResp.PasswordExpireWarn != nil {
+		attrs["password_expire_warn_threshold"] = *dirResp.PasswordExpireWarn
+	}
+	if dirResp.PasswordChangeThreshold != nil {
+		attrs["password_change_threshold"] = *dirResp.PasswordChangeThreshold
+	}
 	attrs["password_complexity_message"] = dirResp.PasswordComplexityMsg
-	attrs["is_rate_limit_enabled"] = dirResp.IsRateLimitEnabled
-	attrs["rate_limit_time_interval"] = dirResp.RateLimitTimeInterval
-	attrs["rate_limit_query_count"] = dirResp.RateLimitQueryCount
+	if dirResp.IsRateLimitEnabled != nil {
+		attrs["is_rate_limit_enabled"] = *dirResp.IsRateLimitEnabled
+	}
+	if dirResp.RateLimitTimeInterval != nil {
+		attrs["rate_limit_time_interval"] = *dirResp.RateLimitTimeInterval
+	}
+	if dirResp.RateLimitQueryCount != nil {
+		attrs["rate_limit_query_count"] = *dirResp.RateLimitQueryCount
+	}
 	attrs["scim_provider_id"] = dirResp.ScimProviderID
 	attrs["company_id"] = dirResp.CompanyID
 	attrs["source"] = dirResp.Source
@@ -610,7 +647,7 @@ func resourceEaaDirectoryRead(ctx context.Context, d *schema.ResourceData, m int
 		return logging.DiagFromErr(err, tags, "failed to set directory attributes")
 	}
 
-	// Set list attributes
+	// Set TypeSet attributes
 	if dirResp.UserObjectClasses != nil {
 		if err := d.Set("user_object_classes", dirResp.UserObjectClasses); err != nil {
 			return logging.DiagFromErr(err, tags, "failed to set user_object_classes")
@@ -661,20 +698,19 @@ func resourceEaaDirectoryRead(ctx context.Context, d *schema.ResourceData, m int
 	if len(dirResp.Agents) > 0 {
 		agentsList, agentErr := client.GetAgents(ctx, eaaclient)
 		if agentErr != nil {
-			logging.Warn(ctx, "failed to list agents for name resolution", tags, map[string]any{"error": agentErr.Error()})
-		} else {
-			agentNames := make([]string, 0, len(dirResp.Agents))
-			for i := range dirResp.Agents {
-				for j := range agentsList {
-					if agentsList[j].UUIDURL == dirResp.Agents[i].UUIDURL {
-						agentNames = append(agentNames, agentsList[j].Name)
-						break
-					}
+			return logging.DiagFromErr(agentErr, tags, "failed to list agents for name resolution")
+		}
+		agentNames := make([]string, 0, len(dirResp.Agents))
+		for i := range dirResp.Agents {
+			for j := range agentsList {
+				if agentsList[j].UUIDURL == dirResp.Agents[i].UUIDURL {
+					agentNames = append(agentNames, agentsList[j].Name)
+					break
 				}
 			}
-			if err := d.Set("agents", agentNames); err != nil {
-				return logging.DiagFromErr(err, tags, "failed to set agents")
-			}
+		}
+		if err := d.Set("agents", agentNames); err != nil {
+			return logging.DiagFromErr(err, tags, "failed to set agents")
 		}
 	} else {
 		if err := d.Set("agents", []string{}); err != nil {
@@ -772,7 +808,7 @@ func resourceEaaDirectoryUpdate(ctx context.Context, d *schema.ResourceData, m i
 		for _, v := range added.List() {
 			groupName, ok := v.(string)
 			if !ok {
-				continue
+				return logging.DiagFromErr(fmt.Errorf("groups: expected string, got %T", v), tags, "unexpected type in groups set")
 			}
 
 			searchResult, searchErr := client.SearchDirectoryGroup(ctx, eaaclient, id, groupName)

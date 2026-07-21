@@ -275,6 +275,8 @@ var (
 	ErrDirectorySync            = errors.New("directory sync failed")
 	ErrDirectoryGroupAssign     = errors.New("directory group assignment failed")
 	ErrDirectoryGroupRemove     = errors.New("directory group removal failed")
+	ErrDirectoryDeploy          = errors.New("directory deploy failed")
+	ErrDirectoryDeployTimeout   = errors.New("directory deploy timed out")
 
 	// Authentication validation errors
 	ErrSAMLSettingEmpty               = errors.New("SAML setting must have at least one field")

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -161,14 +162,15 @@ func TestSearchDirectoryGroup(t *testing.T) {
 					CmdID:  "search-cmd-123",
 					Status: "PENDING",
 				}))
+				dataJSON, _ := json.Marshal([]SearchGroupResult{{
+					Name:       "testgroup",
+					DN:         "CN=testgroup,DC=test,DC=com",
+					ExternalID: "ext-123",
+					Assigned:   false,
+				}})
 				pr.Handle("POST", "/crux/v1/mgmt-pop/directories/dir-123/status", jsonHandler(http.StatusOK, SearchStatusResponse{
 					Status: "SUCCESS",
-					Data: []SearchGroupResult{{
-						Name:       "testgroup",
-						DN:         "CN=testgroup,DC=test,DC=com",
-						ExternalID: "ext-123",
-						Assigned:   false,
-					}},
+					Data:   dataJSON,
 				}))
 			},
 			wantName: "testgroup",

@@ -107,7 +107,7 @@ func main() {
 		}
 	}
 
-	fmt.Print("Import certificates? (Y/N): ")
+	fmt.Print("Import All certificates? (Y/N): ")
 	certChoice, err := reader2.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading certificate choice:", err)
@@ -124,24 +124,7 @@ func main() {
 		}
 	}
 
-	fmt.Print("Import IDPs? (Y/N): ")
-	idpChoice, err := reader2.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading IDP choice:", err)
-		return
-	}
-	idpChoice = strings.TrimSpace(strings.ToUpper(idpChoice))
-	if idpChoice == "Y" {
-		err = GenerateIDPConfiguration(eaaClient, edgercPath)
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			println()
-			println(generateIDPInfo)
-		}
-	}
-
-	fmt.Print("Import directories? (Y/N): ")
+	fmt.Print("Import All directories? (Y/N): ")
 	dirChoice, err := reader2.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading directory choice:", err)
@@ -155,6 +138,23 @@ func main() {
 		} else {
 			println()
 			println(generateDirInfo)
+		}
+	}
+
+	fmt.Print("Import All IDPs? (Y/N): ")
+	idpChoice, err := reader2.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading IDP choice:", err)
+		return
+	}
+	idpChoice = strings.TrimSpace(strings.ToUpper(idpChoice))
+	if idpChoice == "Y" {
+		err = GenerateIDPConfiguration(eaaClient, edgercPath)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			println()
+			println(generateIDPInfo)
 		}
 	}
 }

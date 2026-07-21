@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,8 +12,9 @@ import (
 )
 
 const (
-	directoryPollInterval = 5 * time.Second
-	directoryPollTimeout  = 2 * time.Minute
+	directoryPollInterval     = 15 * time.Second
+	directoryPollTimeout      = 5 * time.Minute
+	directoryVerifyMaxRetries = 3
 )
 
 type DirectoryCreateRequest struct {
@@ -28,16 +30,30 @@ type DirectoryGroupEntry struct {
 }
 
 type DirectoryFullResponse struct {
+	AuthRequestSigned        *bool                  `json:"auth_request_signed,omitempty"`
+	IsLedaDir                *bool                  `json:"is_leda_dir,omitempty"`
+	IsRateLimitEnabled       *bool                  `json:"is_rate_limit_enabled,omitempty"`
+	PasswordResetAllow       *bool                  `json:"password_reset_allow,omitempty"`
+	PasswordChangeAllow      *bool                  `json:"password_change_allow,omitempty"`
+	AuthResponseEncrypt      *bool                  `json:"auth_response_encrypt,omitempty"`
+	SSL                      *bool                  `json:"ssl,omitempty"`
+	IsSSLVerificationEnabled *bool                  `json:"is_ssl_verification_enabled,omitempty"`
+	ChaseReferral            *bool                  `json:"chase_referral,omitempty"`
 	AttributeMap             map[string]interface{} `json:"attribute_map,omitempty"`
 	PasswordFilter           map[string]interface{} `json:"password_filter,omitempty"`
-	ScimProviderID           string                 `json:"scim_provider_id,omitempty"`
-	AdminUser                string                 `json:"admin_user,omitempty"`
-	ModifiedAt               string                 `json:"modified_at,omitempty"`
-	Localization             string                 `json:"localization,omitempty"`
+	GlobalCatalog            *bool                  `json:"global_catalog,omitempty"`
+	ServerCertValidate       *bool                  `json:"server_cert_validate,omitempty"`
+	Port                     *int                   `json:"port,omitempty"`
+	RateLimitQueryCount      *int                   `json:"rate_limit_query_count,omitempty"`
+	PasswordExpireWarn       *int                   `json:"password_expire_warn_threshold,omitempty"`
+	PasswordChangeThreshold  *int                   `json:"password_change_threshold,omitempty"`
+	RateLimitTimeInterval    *int                   `json:"rate_limit_time_interval,omitempty"`
+	UserPrincipal            string                 `json:"user_principal,omitempty"`
+	OUFilter                 string                 `json:"ou_filter,omitempty"`
 	CName                    string                 `json:"cname,omitempty"`
 	DialinSNI                string                 `json:"dialin_sni,omitempty"`
 	LastSync                 string                 `json:"last_sync,omitempty"`
-	Host                     string                 `json:"host,omitempty"`
+	ScimProviderID           string                 `json:"scim_provider_id,omitempty"`
 	RootDN                   string                 `json:"root_dn,omitempty"`
 	Description              string                 `json:"description,omitempty"`
 	AdminPwd                 string                 `json:"admin_pwd,omitempty"`
@@ -50,7 +66,7 @@ type DirectoryFullResponse struct {
 	UserFname                string                 `json:"user_fname,omitempty"`
 	UserLname                string                 `json:"user_lname,omitempty"`
 	UserPhoneNum             string                 `json:"user_phone_num,omitempty"`
-	UserPrincipal            string                 `json:"user_principal,omitempty"`
+	Host                     string                 `json:"host,omitempty"`
 	UserSamaccountname       string                 `json:"user_samaccountname,omitempty"`
 	UserUPN                  string                 `json:"user_upn,omitempty"`
 	UserMemberof             string                 `json:"user_memberof,omitempty"`
@@ -61,48 +77,34 @@ type DirectoryFullResponse struct {
 	GroupName                string                 `json:"group_name,omitempty"`
 	GroupToken               string                 `json:"group_token,omitempty"`
 	OUAttr                   string                 `json:"ou_attr,omitempty"`
-	OUFilter                 string                 `json:"ou_filter,omitempty"`
-	PasswordPolicyDefault    string                 `json:"password_policy_default,omitempty"`
 	PasswordComplexityMsg    string                 `json:"password_complexity_message,omitempty"`
+	PasswordPolicyDefault    string                 `json:"password_policy_default,omitempty"`
+	Localization             string                 `json:"localization,omitempty"`
 	Name                     string                 `json:"name,omitempty"`
 	CompanyID                string                 `json:"company_id,omitempty"`
 	CreatedAt                string                 `json:"created_at,omitempty"`
 	UUIDURL                  string                 `json:"uuid_url,omitempty"`
 	Source                   string                 `json:"source,omitempty"`
-	Groups                   []DirectoryGroupEntry  `json:"groups,omitempty"`
+	ModifiedAt               string                 `json:"modified_at,omitempty"`
+	AdminUser                string                 `json:"admin_user,omitempty"`
 	UserObjectClasses        []string               `json:"user_object_classes,omitempty"`
-	GroupObjectClasses       []string               `json:"group_object_classes,omitempty"`
-	ConnectorPools           []interface{}          `json:"connector_pools,omitempty"`
-	Agents                   []Connector            `json:"agents,omitempty"`
-	KerbRealms               []interface{}          `json:"kerb_realms,omitempty"`
-	Domains                  []string               `json:"domains,omitempty"`
+	Groups                   []DirectoryGroupEntry  `json:"groups,omitempty"`
 	HostAliases              []string               `json:"host_aliases,omitempty"`
+	Domains                  []string               `json:"domains,omitempty"`
+	KerbRealms               []interface{}          `json:"kerb_realms,omitempty"`
+	Agents                   []Connector            `json:"agents,omitempty"`
+	ConnectorPools           []interface{}          `json:"connector_pools,omitempty"`
+	GroupObjectClasses       []string               `json:"group_object_classes,omitempty"`
 	OUObjectClasses          []string               `json:"ou_object_classes,omitempty"`
-	SyncInterval             int                    `json:"sync_interval,omitempty"`
-	Service                  int                    `json:"service,omitempty"`
 	UserCount                int                    `json:"user_count,omitempty"`
+	Service                  int                    `json:"service,omitempty"`
 	GroupCount               int                    `json:"group_count,omitempty"`
-	PasswordExpireWarn       int                    `json:"password_expire_warn_threshold,omitempty"`
-	PasswordChangeThreshold  int                    `json:"password_change_threshold,omitempty"`
 	Status                   int                    `json:"status,omitempty"`
-	RateLimitQueryCount      int                    `json:"rate_limit_query_count,omitempty"`
-	Port                     int                    `json:"port,omitempty"`
+	SyncInterval             int                    `json:"sync_interval,omitempty"`
 	DirectoryType            int                    `json:"directory_type,omitempty"`
 	DirectoryStatus          int                    `json:"directory_status,omitempty"`
 	DirectoryDeployedStatus  int                    `json:"directory_deployed_status,omitempty"`
 	SyncState                int                    `json:"sync_state,omitempty"`
-	RateLimitTimeInterval    int                    `json:"rate_limit_time_interval,omitempty"`
-	AuthRequestSigned        bool                   `json:"auth_request_signed,omitempty"`
-	ServerCertValidate       bool                   `json:"server_cert_validate,omitempty"`
-	GlobalCatalog            bool                   `json:"global_catalog,omitempty"`
-	ChaseReferral            bool                   `json:"chase_referral,omitempty"`
-	IsSSLVerificationEnabled bool                   `json:"is_ssl_verification_enabled,omitempty"`
-	SSL                      bool                   `json:"ssl,omitempty"`
-	AuthResponseEncrypt      bool                   `json:"auth_response_encrypt,omitempty"`
-	PasswordChangeAllow      bool                   `json:"password_change_allow,omitempty"`
-	PasswordResetAllow       bool                   `json:"password_reset_allow,omitempty"`
-	IsRateLimitEnabled       bool                   `json:"is_rate_limit_enabled,omitempty"`
-	IsLedaDir                bool                   `json:"is_leda_dir,omitempty"`
 }
 
 type VerifyResponse struct {
@@ -127,10 +129,10 @@ type SearchGroupResult struct {
 }
 
 type SearchStatusResponse struct {
-	Status  string              `json:"status"`
-	Message string              `json:"message,omitempty"`
-	Data    []SearchGroupResult `json:"data"`
-	Code    int                 `json:"code,omitempty"`
+	Status  string          `json:"status"`
+	Message string          `json:"message,omitempty"`
+	Data    json.RawMessage `json:"data"`
+	Code    int             `json:"code,omitempty"`
 }
 
 type DirectoryGroupAssignRequest struct {
@@ -226,10 +228,87 @@ func DeleteDirectory(ctx context.Context, ec *EaaClient, uuid string) error {
 	return nil
 }
 
+const (
+	directoryDeployPollInterval = 5 * time.Second
+	directoryDeployPollTimeout  = 2 * time.Minute
+	directoryDeployedStatus     = 4
+	directoryDeployFailedStatus = 5
+)
+
+type DirectoryDeployRequest struct {
+	DeployNote string `json:"deploy_note"`
+}
+
+func DeployDirectory(ctx context.Context, ec *EaaClient, uuid string) error {
+	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagDeploy}
+	logging.Info(ctx, "deploying directory", tags, map[string]any{"uuid": uuid})
+
+	apiURL := fmt.Sprintf("%s://%s/%s/%s/deployonly?contractId=%s",
+		URL_SCHEME, ec.Host, DIRECTORIES_URL, uuid, ec.ContractID)
+
+	req := DirectoryDeployRequest{DeployNote: "Changes done by terraform."}
+	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", &req, nil, false)
+	if err != nil {
+		return logging.Wrapf(err, tags, "deploy directory API request failed")
+	}
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
+		desc := FormatErrorDescription(httpResp)
+		return logging.Wrapf(ErrDirectoryDeploy, tags, "HTTP %d: %s", httpResp.StatusCode, desc)
+	}
+
+	logging.Info(ctx, "deploy initiated, polling for completion", tags, map[string]any{"uuid": uuid})
+
+	deadline := time.Now().Add(directoryDeployPollTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(directoryDeployPollInterval)
+
+		dir, getErr := GetDirectory(ctx, ec, uuid)
+		if getErr != nil {
+			return logging.Wrapf(getErr, tags, "failed to poll directory deploy status")
+		}
+
+		if dir.DirectoryDeployedStatus == directoryDeployedStatus {
+			logging.Info(ctx, "directory deployed", tags, map[string]any{"uuid": uuid})
+			return nil
+		}
+		if dir.DirectoryDeployedStatus == directoryDeployFailedStatus {
+			return logging.Wrapf(ErrDirectoryDeploy, tags, "directory deploy failed (status=%d)", dir.DirectoryDeployedStatus)
+		}
+	}
+
+	return logging.Wrapf(ErrDirectoryDeployTimeout, tags, "directory deploy timed out after %s", directoryDeployPollTimeout)
+}
+
 func VerifyDirectory(ctx context.Context, ec *EaaClient, uuid string) error {
 	tags := []logging.Tag{logging.TagAPI, logging.TagDirectory, logging.TagValidate}
 	logging.Info(ctx, "verifying directory", tags, map[string]any{"uuid": uuid})
 
+	var lastErr error
+	for attempt := 1; attempt <= directoryVerifyMaxRetries; attempt++ {
+		if attempt > 1 {
+			logging.Info(ctx, "retrying directory verify", tags, map[string]any{
+				"uuid":    uuid,
+				"attempt": attempt,
+				"of":      directoryVerifyMaxRetries,
+			})
+		}
+
+		lastErr = verifyDirectoryAttempt(ctx, ec, uuid, tags)
+		if lastErr == nil {
+			return nil
+		}
+
+		logging.Info(ctx, "directory verify attempt failed", tags, map[string]any{
+			"uuid":    uuid,
+			"attempt": attempt,
+			"error":   lastErr.Error(),
+		})
+	}
+
+	return logging.Wrapf(lastErr, tags, "directory verify failed after %d attempts", directoryVerifyMaxRetries)
+}
+
+func verifyDirectoryAttempt(ctx context.Context, ec *EaaClient, uuid string, tags []logging.Tag) error {
 	apiURL := fmt.Sprintf("%s://%s/%s/%s/verify", URL_SCHEME, ec.Host, DIRECTORIES_URL, uuid)
 	var verifyResp VerifyResponse
 	httpResp, err := ec.SendAPIRequest(ctx, apiURL, "POST", map[string]interface{}{}, &verifyResp, false)
@@ -322,10 +401,16 @@ func SearchDirectoryGroup(ctx context.Context, ec *EaaClient, dirUUID, groupName
 		}
 
 		if statusResp.Status == "SUCCESS" {
-			if len(statusResp.Data) == 0 {
+			var results []SearchGroupResult
+			if len(statusResp.Data) > 0 && statusResp.Data[0] == '[' {
+				if err := json.Unmarshal(statusResp.Data, &results); err != nil {
+					return nil, logging.Wrapf(err, tags, "failed to parse search results")
+				}
+			}
+			if len(results) == 0 {
 				return nil, logging.Wrapf(ErrDirectorySearch, tags, "group '%s' not found in directory", groupName)
 			}
-			return &statusResp.Data[0], nil
+			return &results[0], nil
 		}
 	}
 

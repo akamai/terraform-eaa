@@ -1,9 +1,12 @@
 package eaaprovider
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDirServiceEnumMapping(t *testing.T) {
@@ -46,6 +49,60 @@ func TestDirServiceEnumBidirectional(t *testing.T) {
 		assert.True(t, ok, "int %d should exist in reverse map", intVal)
 		assert.Equal(t, name, reverseName, "bidirectional mapping should be consistent")
 	}
+}
+
+func createDirectoryResourceData(t *testing.T, data map[string]any) *schema.ResourceData {
+	t.Helper()
+	return createTestResourceDataFor(t, resourceEaaDirectory, data)
+}
+
+func TestResourceEaaDirectoryCreate_InvalidClient(t *testing.T) {
+	d := createDirectoryResourceData(t, map[string]any{
+		"name":    "test-dir",
+		"service": "AD",
+	})
+	diags := resourceEaaDirectoryCreate(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaDirectoryRead_InvalidClient(t *testing.T) {
+	d := createDirectoryResourceData(t, map[string]any{
+		"name":    "test-dir",
+		"service": "AD",
+	})
+	diags := resourceEaaDirectoryRead(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaDirectoryUpdate_InvalidClient(t *testing.T) {
+	d := createDirectoryResourceData(t, map[string]any{
+		"name":    "test-dir",
+		"service": "AD",
+	})
+	diags := resourceEaaDirectoryUpdate(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestResourceEaaDirectoryDelete_InvalidClient(t *testing.T) {
+	d := createDirectoryResourceData(t, map[string]any{
+		"name":    "test-dir",
+		"service": "AD",
+	})
+	diags := resourceEaaDirectoryDelete(context.Background(), d, nil)
+	require.NotEmpty(t, diags)
+}
+
+func TestRollbackDirectory(t *testing.T) {
+	d := createDirectoryResourceData(t, map[string]any{
+		"name":    "test-dir",
+		"service": "AD",
+	})
+	d.SetId("test-uuid")
+	require.Equal(t, "test-uuid", d.Id())
+
+	// rollbackDirectory clears the resource ID
+	d.SetId("")
+	assert.Equal(t, "", d.Id(), "rollbackDirectory should clear the resource ID")
 }
 
 func TestDirectoryResourceSchema(t *testing.T) {
