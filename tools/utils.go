@@ -23,6 +23,12 @@ const (
 		"   terraform plan -generate-config-out=generated_resources.tf\n" +
 		"2. In the resultant resources configuration file, add the provider section\n" +
 		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
+
+	generateCertInfo = "The config file `import_existing_certs.tf` with certificate import blocks is generated.\n" +
+		"1. To generate the configuration, run the following command:\n" +
+		"   terraform plan -generate-config-out=generated_cert_resources.tf\n" +
+		"2. In the resultant resources configuration file, add the provider section\n" +
+		"   with the EAA provider-specific configuration, before modifying and applying the resource configuration.\n"
 )
 
 const (
@@ -36,6 +42,13 @@ const (
 	APP_TYPE_BOOKMARK          = 3
 	APP_TYPE_TUNNEL            = 4
 	APP_TYPE_ETP               = 5
+)
+
+const (
+	CERT_TYPE_APP = 1
+	CERT_TYPE_CA  = 6
+
+	CERTIFICATES_URL = "crux/v1/mgmt-pop/certificates"
 )
 
 var (
@@ -69,6 +82,17 @@ type AppsResponse struct {
 type Application struct {
 	Name    string `json:"name"`
 	UUIDURL string `json:"uuid_url"`
+}
+
+type CertObject struct {
+	Name     string `json:"name"`
+	UUIDURL  string `json:"uuid_url"`
+	CertType int    `json:"cert_type"`
+}
+
+type CertsResponse struct {
+	Objects  []CertObject `json:"objects"`
+	Metadata Meta         `json:"meta"`
 }
 
 type importBlock struct {

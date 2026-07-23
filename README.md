@@ -22,7 +22,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "2.0.0"
+      version = "2.1.0"
     }
   }
 }
@@ -89,6 +89,8 @@ terraform init && terraform plan && terraform apply
 | `eaa_application` | Application lifecycle, advanced settings, auth, ACL rules | [docs/eaa_application.md](docs/eaa_application.md) | [enterprise_http](examples/enterprise_http.tf), [enterprise_rdp](examples/enterprise_rdp.tf), [tunnel](examples/tunnel.tf), [auth_*](examples/) |
 | `eaa_connector` | Connector VM provisioning | [docs/eaa_connector.md](docs/eaa_connector.md) | [connector](examples/connector.tf) |
 | `eaa_connector_pool` | Pool management, registration tokens, app/connector assignment | [docs/eaa_connector_pool.md](docs/eaa_connector_pool.md) | [connector_pool](examples/connector_pool.tf) |
+| `eaa_custom_app_certificate` | Custom application certificate (upload cert + private key) | [docs/eaa_custom_app_certificate.md](docs/eaa_custom_app_certificate.md) | [cert_custom_app](examples/cert_custom_app.tf) |
+| `eaa_ca_certificate` | CA certificate (upload CA cert) | [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md) | [cert_ca](examples/cert_ca.tf) |
 
 ### Data Sources
 

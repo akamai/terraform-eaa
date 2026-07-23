@@ -13,7 +13,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "2.0.0"
+      version = "2.1.0"
     }
   }
 }
@@ -122,6 +122,52 @@ Manages a connector pool with connectors, registration tokens, and app assignmen
 **Gotcha:** `infra_type = "cpag"` requires `operating_mode` to be `cpag_public` or `cpag_private`, and vice versa.
 
 Full reference: [docs/eaa_connector_pool.md](docs/eaa_connector_pool.md)
+
+### eaa_custom_app_certificate
+
+Manages the lifecycle of an EAA custom application certificate (CERT_TYPE_APP=1). Uploads a certificate and private key pair via JSON API.
+
+**Key attributes:**
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `name` | Yes | Certificate name |
+| `cert` | Create/Update | PEM-encoded certificate. Use `file()` to read from disk |
+| `private_key` | Create/Update | PEM-encoded private key. Sensitive |
+| `password` | No | Certificate password. Sensitive. Defaults to empty string |
+
+**Computed:** `uuid_url`, `cn`, `subject`, `issuer`, `issued_at`, `expired_at`, `days_left`, `status`, `app_count`, `dir_count`, `cert_type`, `private_key_sha256`, `created_at`, `modified_at`, `apps`, `idps`, `cert_idps`, `client_cert_idps`, `saml_cert_idps`, `saml_custom_sign_cert_idps`
+
+**Gotchas:**
+- `cert` and `private_key` are Optional in the schema (for clean imports) but validated as required at runtime during Create/Update
+- The API always requires both `cert` and `private_key` on every PUT — you cannot update just the name
+- On update, the provider checks if the certificate is associated with apps via the `/certificates/thin` endpoint and auto-deploys if associated
+- `private_key_sha256` stores a SHA256 hash of the private key for change detection (since the key itself is never returned by the API)
+- `DiffSuppressFunc` with `strings.TrimSpace()` on `cert` prevents perpetual diffs from whitespace differences
+
+Full reference: [docs/eaa_custom_app_certificate.md](docs/eaa_custom_app_certificate.md)
+
+### eaa_ca_certificate
+
+Manages the lifecycle of an EAA CA certificate (CERT_TYPE_CA=6). Uploads via multipart/form-data.
+
+**Key attributes:**
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `name` | Yes | Certificate name |
+| `cert` | Yes | PEM-encoded CA certificate. Use `file()` to read from disk |
+| `password` | No | Certificate password. Sensitive. Defaults to empty string |
+
+**Computed:** `uuid_url`, `cn`, `subject`, `issuer`, `issued_at`, `expired_at`, `days_left`, `cert_file_name`, `status`, `app_count`, `dir_count`, `cert_type`, `created_at`, `modified_at`, `apps`, `idps`, `cert_idps`, `client_cert_idps`, `saml_cert_idps`, `saml_custom_sign_cert_idps`
+
+**Gotchas:**
+- No `private_key` field — CA certificates only need the certificate itself
+- Create uses POST multipart to `/certificates`, Update uses POST multipart to `/certificates/<uuid>/upload` (not PUT)
+- `cert_file_name` is a computed field unique to CA certificates
+- `DiffSuppressFunc` with `strings.TrimSpace()` on `cert` prevents perpetual diffs
+
+Full reference: [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md)
 
 ## Data Sources
 
@@ -303,11 +349,45 @@ resource "eaa_application" "custom_app" {
 }
 ```
 
+### Upload a Custom App Certificate
+
+```hcl
+resource "eaa_custom_app_certificate" "app_cert" {
+  name        = "my-app-cert"
+  cert        = file("certs/app.crt")
+  private_key = file("certs/app.key")
+}
+```
+
+### Upload a CA Certificate
+
+```hcl
+resource "eaa_ca_certificate" "ca_cert" {
+  name = "my-ca-cert"
+  cert = file("certs/ca.crt")
+}
+```
+
+### Certificate from HashiCorp Vault
+
+```hcl
+data "vault_kv_secret_v2" "app_cert" {
+  mount = "secret"
+  name  = "certs/app"
+}
+
+resource "eaa_custom_app_certificate" "from_vault" {
+  name        = "vault-cert"
+  cert        = data.vault_kv_secret_v2.app_cert.data["cert"]
+  private_key = data.vault_kv_secret_v2.app_cert.data["private_key"]
+}
+```
+
 ## Writing Terraform Configs — Guidance for Claude
 
 When helping users compose Terraform configurations for this provider:
 
-1. **Reference the docs** — Always check `docs/eaa_application.md`, `docs/eaa_connector.md`, `docs/eaa_connector_pool.md`, and `docs/data-sources.md` for attribute details. Check `examples/*.tf` for working configurations.
+1. **Reference the docs** — Always check `docs/eaa_application.md`, `docs/eaa_connector.md`, `docs/eaa_connector_pool.md`, `docs/eaa_custom_app_certificate.md`, `docs/eaa_ca_certificate.md`, and `docs/data-sources.md` for attribute details. Check `examples/*.tf` for working configurations.
 
 2. **Validate app type compatibility** — Not all settings work with all app types. Check the compatibility table in `docs/eaa_application.md` under "App Type Compatibility". Key rules:
    - Bookmark and SaaS apps do NOT support `advanced_settings`
@@ -329,12 +409,16 @@ When helping users compose Terraform configurations for this provider:
    - `protocol` values are case-sensitive: `WSFed` or `WS-Federation`, NOT `wsfed`
    - Registration token `expires_at` with `:00` seconds is automatically bumped to `:01` — use `:01` directly to avoid plan diffs
    - Never set server-computed keys (`g2o_key`, `g2o_nonce`, `edge_cookie_key`, `sla_object_url`, `edge_transport_property_id`) — the provider strips them and warns. They are available in state for outputs.
+   - `eaa_custom_app_certificate` requires both `cert` and `private_key` on every Create/Update — you cannot update just the name without resending the cert
+   - `eaa_ca_certificate` does NOT have a `private_key` field — only the CA certificate itself
+   - Certificate `cert` field uses `DiffSuppressFunc` — trailing/leading whitespace won't cause perpetual diffs
+   - After importing a custom app certificate, the first update requires adding `cert` and `private_key` to the config
 
 5. **When unsure about advanced settings**, point the user to the full list in `docs/eaa_application.md`. The `advanced_settings` map accepts any key the EAA API supports.
 
 ## Importing Existing Resources
 
-Existing EAA resources can be imported into Terraform state. See [docs/import.md](docs/import.md) for per-resource import commands. A bulk import tool (`bin/import-config`) is also available — see `make buildtool`.
+Existing EAA resources can be imported into Terraform state. See [docs/import.md](docs/import.md) for per-resource import commands. A bulk import tool (`bin/import-config`) is also available — see `make buildtool`. The import tool supports both applications and certificates (custom app and CA).
 
 ## EAA API Reference
 
