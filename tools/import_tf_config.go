@@ -107,7 +107,7 @@ func main() {
 		}
 	}
 
-	fmt.Print("Import certificates? (Y/N): ")
+	fmt.Print("Import All certificates? (Y/N): ")
 	certChoice, err := reader2.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading certificate choice:", err)
@@ -124,7 +124,24 @@ func main() {
 		}
 	}
 
-	fmt.Print("Import IDPs? (Y/N): ")
+	fmt.Print("Import All directories? (Y/N): ")
+	dirChoice, err := reader2.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading directory choice:", err)
+		return
+	}
+	dirChoice = strings.TrimSpace(strings.ToUpper(dirChoice))
+	if dirChoice == "Y" {
+		err = GenerateDirectoryConfiguration(eaaClient, edgercPath)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			println()
+			println(generateDirInfo)
+		}
+	}
+
+	fmt.Print("Import All IDPs? (Y/N): ")
 	idpChoice, err := reader2.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading IDP choice:", err)
@@ -376,6 +393,78 @@ func GenerateIDPConfiguration(ec *EaaClient, edgercPath string) error {
 		fmt.Printf("%d IDP imports added\n", len(uniqueBlocks))
 	} else {
 		fmt.Println("No IDPs found to import.")
+	}
+
+	return nil
+}
+
+func GenerateDirectoryConfiguration(ec *EaaClient, edgercPath string) error {
+	fmt.Println("generating directory import blocks ...")
+	fmt.Println()
+
+	var importBlocks []importBlock
+
+	apiURL := fmt.Sprintf("https://%s/%s", ec.Host, DIRECTORIES_URL_V1)
+	for apiURL != "" {
+		var dirsResponse DirectoriesResponse
+		getResp, err := ec.SendAPIRequest(apiURL, "GET", nil, &dirsResponse, false)
+		if err != nil {
+			return err
+		}
+		if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+			desc := FormatErrorDescription(getResp)
+			return fmt.Errorf("directory list failed: %s", desc)
+		}
+
+		for _, dir := range dirsResponse.Objects {
+			if dir.Name == "" || dir.UUIDURL == "" {
+				continue
+			}
+			replacedString := convertToValidTFName(dir.Name)
+			resourceName := fmt.Sprintf("eaa_directory.%s\n", replacedString)
+			importBlocks = append(importBlocks, importBlock{appID: dir.UUIDURL, appName: resourceName})
+		}
+
+		if dirsResponse.Metadata.Next != nil {
+			nextURL := *dirsResponse.Metadata.Next
+			nextURL = strings.TrimPrefix(nextURL, "/api/v1")
+			apiURL = fmt.Sprintf("https://%s/%s%s", ec.Host, "crux/v1/mgmt-pop", nextURL)
+		} else {
+			apiURL = ""
+		}
+	}
+
+	if len(importBlocks) > 0 {
+		file, err := os.Create("import_existing_directories.tf")
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return err
+		}
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				fmt.Printf("Error closing file: %v", closeErr)
+			}
+		}()
+		err = writeProviderBlock(file, ec.ContractID, ec.AccountSwitchKey, edgercPath)
+		if err != nil {
+			fmt.Println("Error writing provider block to file:", err)
+			return err
+		}
+
+		uniqueBlocks := make(map[string]importBlock)
+		for _, block := range importBlocks {
+			uniqueBlocks[block.appID] = block
+		}
+		for _, block := range uniqueBlocks {
+			fmt.Printf("generating import block for %s\n", block.appName)
+			err := generateImportBlock(file, block.appID, block.appName)
+			if err != nil {
+				fmt.Printf("error generating import block %s\n", err)
+			}
+		}
+		fmt.Printf("%d directory imports added\n", len(uniqueBlocks))
+	} else {
+		fmt.Println("No directories found to import.")
 	}
 
 	return nil
