@@ -55,7 +55,7 @@ else
     endif
 endif
 
-VERSION_STR := 2.1.0
+VERSION_STR := 2.2.0
 GOLANGCI_LINT_VERSION := v2.11.4
 SRC          := $(shell find . -type f -name '*.go' -print)
 

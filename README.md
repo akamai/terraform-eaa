@@ -22,7 +22,7 @@ terraform {
   required_providers {
     eaa = {
       source  = "terraform.eaaprovider.dev/eaaprovider/eaa"
-      version = "2.1.0"
+      version = "2.2.0"
     }
   }
 }
