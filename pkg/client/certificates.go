@@ -117,30 +117,66 @@ type CertificateExpandedResponse struct {
 
 type CertsResponse struct {
 	Objects []CertObject `json:"objects"`
+	Meta    Meta         `json:"meta,omitempty"`
 }
 
+// GetCertificates fetches all certificates from /certificates/thin, paginating
+// until the server signals no more pages. The server applies a default page
+// size (limit=0 is treated as "use server default"), so a single request only
+// returns the first page — callers that name-match over the result must see
+// every certificate, or lookups like DoesUploadedCertExist silently return
+// "not found" for certs beyond page 1.
 func GetCertificates(ctx context.Context, ec *EaaClient) ([]CertObject, error) {
-	apiURL := fmt.Sprintf("%s://%s/%s/thin", URL_SCHEME, ec.Host, CERTIFICATES_URL)
-	certsResponse := CertsResponse{}
+	tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
 
-	getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &certsResponse, false)
-	if err != nil {
-		return nil, err
-	}
-	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		tags := []logging.Tag{logging.TagAPI, logging.TagCert, logging.TagRead}
-		desc := FormatErrorDescription(getResp)
-		return nil, logging.Errorf(tags, "certificates get failed: %s", desc)
-	}
+	var allCerts []CertObject
+	offset := 0
+	var apiLimit int
 
-	var certs []CertObject
-	for _, cert := range certsResponse.Objects {
-		if cert.Name == "" || cert.UUIDURL == "" {
-			continue
+	for {
+		var apiURL string
+		if offset == 0 {
+			apiURL = fmt.Sprintf("%s://%s/%s/thin", URL_SCHEME, ec.Host, CERTIFICATES_URL)
+		} else {
+			apiURL = fmt.Sprintf("%s://%s/%s/thin?offset=%d", URL_SCHEME, ec.Host, CERTIFICATES_URL, offset)
 		}
-		certs = append(certs, cert)
+
+		certsResponse := CertsResponse{}
+		getResp, err := ec.SendAPIRequest(ctx, apiURL, "GET", nil, &certsResponse, false)
+		if err != nil {
+			return nil, err
+		}
+		if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
+			desc := FormatErrorDescription(getResp)
+			return nil, logging.Errorf(tags, "certificates get failed: %s", desc)
+		}
+
+		for _, cert := range certsResponse.Objects {
+			if cert.Name == "" || cert.UUIDURL == "" {
+				continue
+			}
+			allCerts = append(allCerts, cert)
+		}
+
+		if offset == 0 {
+			apiLimit = certsResponse.Meta.Limit
+		}
+
+		if certsResponse.Meta.Next == nil {
+			break
+		}
+		if certsResponse.Meta.TotalCount > 0 && len(allCerts) >= certsResponse.Meta.TotalCount {
+			break
+		}
+		if apiLimit > 0 && len(certsResponse.Objects) < apiLimit {
+			break
+		}
+		if apiLimit <= 0 {
+			break
+		}
+		offset += apiLimit
 	}
-	return certs, nil
+	return allCerts, nil
 }
 
 func DoesSelfSignedCertExistForHost(ctx context.Context, ec *EaaClient, host string) (*CertObject, error) {
