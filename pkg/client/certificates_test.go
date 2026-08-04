@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
+	"git.source.akamai.com/terraform-provider-eaa/pkg/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +45,57 @@ func TestGetCertificates(t *testing.T) {
 			assert.Len(t, certs, tt.wantCount)
 		})
 	}
+}
+
+// TestGetCertificatesPagination proves GetCertificates walks past the first
+// page. Regression test for BWVONE-50686: a cert beyond page 1 was invisible
+// to DoesUploadedCertExist, so app create with cert_type="uploaded" failed
+// with "uploaded certificate for host 'X' not found".
+func TestGetCertificatesPagination(t *testing.T) {
+	page1 := make([]CertObject, 0, 25)
+	for i := 0; i < 25; i++ {
+		page1 = append(page1, CertObject{
+			Name:     fmt.Sprintf("cert-page1-%d", i),
+			UUIDURL:  fmt.Sprintf("uuid-p1-%d", i),
+			CertType: CERT_TYPE_APP,
+		})
+	}
+	nextURL := "next-page"
+	page2 := []CertObject{
+		{Name: "app-cert-from-vault-kv", UUIDURL: "uuid-p2-0", CertType: CERT_TYPE_APP},
+		{Name: "cert-page2-1", UUIDURL: "uuid-p2-1", CertType: CERT_TYPE_APP},
+	}
+
+	var requestCount int
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		offset := r.URL.Query().Get("offset")
+		switch offset {
+		case "", "0":
+			testsupport.WriteJSONResponse(w, http.StatusOK, CertsResponse{
+				Objects: page1,
+				Meta:    Meta{Next: &nextURL, Limit: 25, TotalCount: 27},
+			})
+		case "25":
+			testsupport.WriteJSONResponse(w, http.StatusOK, CertsResponse{
+				Objects: page2,
+				Meta:    Meta{Limit: 25, TotalCount: 27},
+			})
+		default:
+			t.Fatalf("unexpected offset: %q", offset)
+		}
+	}
+
+	ec := newTestClient(t, http.HandlerFunc(handler))
+	certs, err := GetCertificates(context.Background(), ec)
+	require.NoError(t, err)
+	assert.Equal(t, 2, requestCount, "expected pagination to make two requests")
+	assert.Len(t, certs, 27, "expected certs from both pages")
+
+	cert, err := DoesUploadedCertExist(context.Background(), ec, "app-cert-from-vault-kv")
+	require.NoError(t, err, "cert on page 2 must be findable after pagination")
+	require.NotNil(t, cert)
+	assert.Equal(t, "uuid-p2-0", cert.UUIDURL)
 }
 
 func TestDoesSelfSignedCertExistForHost(t *testing.T) {
