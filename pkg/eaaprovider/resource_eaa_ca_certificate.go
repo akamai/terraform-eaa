@@ -174,6 +174,12 @@ func resourceEaaCACertificateCreate(ctx context.Context, d *schema.ResourceData,
 
 	d.SetId(certResp.UUIDURL)
 
+	if certResp.CertFile != nil {
+		if err := d.Set("cert_file_name", *certResp.CertFile); err != nil {
+			return logging.DiagFromErr(err, tags, "failed to set cert_file_name")
+		}
+	}
+
 	logging.Info(ctx, "CA certificate created successfully", tags)
 	return resourceEaaCACertificateRead(ctx, d, m)
 }
@@ -202,9 +208,11 @@ func resourceEaaCACertificateRead(ctx context.Context, d *schema.ResourceData, m
 		return logging.DiagErrorf(tags, "certificate %s is not a CA certificate (cert_type=%d, expected=%d)", id, certResp.CertType, client.CERT_TYPE_CA)
 	}
 
-	certFileName := ""
+	var certFileName string
 	if certResp.CertFile != nil {
 		certFileName = *certResp.CertFile
+	} else if v, ok := d.Get("cert_file_name").(string); ok {
+		certFileName = v
 	}
 
 	attrs := map[string]interface{}{

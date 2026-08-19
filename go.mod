@@ -1,6 +1,6 @@
 module git.source.akamai.com/terraform-provider-eaa
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/akamai/AkamaiOPEN-edgegrid-golang/v6 v6.0.0
