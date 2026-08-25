@@ -327,30 +327,50 @@ func TestSendMultipartRequest_InvalidURL(t *testing.T) {
 
 func TestValidatePEMContent(t *testing.T) {
 	tests := map[string]struct {
+		errMsg  string
 		content []byte
 		wantErr bool
 	}{
-		"valid_pem": {
+		"valid_certificate": {
 			content: []byte("-----BEGIN CERTIFICATE-----\ndata\n-----END CERTIFICATE-----"),
 		},
-		"valid_pem_with_leading_whitespace": {
+		"valid_with_leading_whitespace": {
 			content: []byte("  \n-----BEGIN CERTIFICATE-----\ndata\n-----END CERTIFICATE-----"),
+		},
+		"pkcs7_rejected": {
+			content: []byte("-----BEGIN PKCS7-----\ndata\n-----END PKCS7-----"),
+			wantErr: true,
+			errMsg:  "unsupported PEM type",
+		},
+		"private_key_rejected": {
+			content: []byte("-----BEGIN PRIVATE KEY-----\ndata\n-----END PRIVATE KEY-----"),
+			wantErr: true,
+			errMsg:  "unsupported PEM type",
+		},
+		"public_key_rejected": {
+			content: []byte("-----BEGIN PUBLIC KEY-----\ndata\n-----END PUBLIC KEY-----"),
+			wantErr: true,
+			errMsg:  "unsupported PEM type",
 		},
 		"pkcs12_rejected": {
 			content: []byte{0x30, 0x82, 0x0A, 0x00, 0x02, 0x01, 0x03},
 			wantErr: true,
+			errMsg:  "PEM-encoded",
 		},
 		"der_rejected": {
 			content: []byte{0x30, 0x82, 0x03, 0x00, 0x30},
 			wantErr: true,
+			errMsg:  "PEM-encoded",
 		},
 		"random_content_rejected": {
 			content: []byte("some random content"),
 			wantErr: true,
+			errMsg:  "PEM-encoded",
 		},
 		"empty_rejected": {
 			content: []byte{},
 			wantErr: true,
+			errMsg:  "PEM-encoded",
 		},
 	}
 
@@ -359,7 +379,7 @@ func TestValidatePEMContent(t *testing.T) {
 			err := ValidatePEMContent(tc.content)
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "PEM-encoded")
+				assert.Contains(t, err.Error(), tc.errMsg)
 			} else {
 				require.NoError(t, err)
 			}

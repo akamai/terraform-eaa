@@ -201,11 +201,15 @@ func (ec *EaaClient) SendMultipartRequest(ctx context.Context, apiURL string, fi
 	return resp, nil
 }
 
-// ValidatePEMContent checks that the content is PEM-encoded (starts with
-// "-----BEGIN "). Only PEM format is supported for certificate uploads.
+// ValidatePEMContent checks that the content is a PEM-encoded certificate.
+// Only PEM certificates (-----BEGIN CERTIFICATE-----) are supported.
 func ValidatePEMContent(content []byte) error {
-	if !bytes.HasPrefix(bytes.TrimSpace(content), []byte("-----BEGIN ")) {
-		return fmt.Errorf("certificate content must be PEM-encoded (-----BEGIN ...-----); binary formats such as DER, PKCS12, and PFX are not supported")
+	trimmed := bytes.TrimSpace(content)
+	if !bytes.HasPrefix(trimmed, []byte("-----BEGIN CERTIFICATE-----")) {
+		if bytes.HasPrefix(trimmed, []byte("-----BEGIN ")) {
+			return fmt.Errorf("unsupported PEM type; only -----BEGIN CERTIFICATE----- is accepted")
+		}
+		return fmt.Errorf("certificate content must be PEM-encoded (-----BEGIN CERTIFICATE-----); binary formats such as DER, PKCS12, and PFX are not supported")
 	}
 	return nil
 }
