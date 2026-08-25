@@ -159,12 +159,11 @@ Manages the lifecycle of an EAA CA certificate (CERT_TYPE_CA=6). Uploads via mul
 | `cert` | Yes | PEM-encoded CA certificate. Use `file()` to read from disk |
 | `password` | No | Certificate password. Sensitive. Defaults to empty string |
 
-**Computed:** `uuid_url`, `cn`, `subject`, `issuer`, `issued_at`, `expired_at`, `days_left`, `cert_file_name`, `status`, `app_count`, `dir_count`, `cert_type`, `created_at`, `modified_at`, `apps`, `idps`, `cert_idps`, `client_cert_idps`, `saml_cert_idps`, `saml_custom_sign_cert_idps`
+**Computed:** `uuid_url`, `cn`, `subject`, `issuer`, `issued_at`, `expired_at`, `days_left`, `status`, `app_count`, `dir_count`, `cert_type`, `created_at`, `modified_at`, `apps`, `idps`, `cert_idps`, `client_cert_idps`, `saml_cert_idps`, `saml_custom_sign_cert_idps`
 
 **Gotchas:**
 - No `private_key` field — CA certificates only need the certificate itself
 - Create uses POST multipart to `/certificates`, Update uses POST multipart to `/certificates/<uuid>/upload` (not PUT)
-- `cert_file_name` is a computed field unique to CA certificates
 - `DiffSuppressFunc` with `strings.TrimSpace()` on `cert` prevents perpetual diffs
 
 Full reference: [docs/eaa_ca_certificate.md](docs/eaa_ca_certificate.md)

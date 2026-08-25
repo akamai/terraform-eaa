@@ -24,7 +24,6 @@ resource "eaa_ca_certificate" "ca_cert" {
 - `issued_at` - Issue date.
 - `expired_at` - Expiry date.
 - `days_left` - Days until expiry.
-- `cert_file_name` - Original filename from upload.
 - `status` - Certificate status.
 - `app_count` - Number of associated applications.
 - `dir_count` - Number of associated directories.

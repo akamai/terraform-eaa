@@ -69,10 +69,6 @@ func resourceEaaCACertificate() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
-			"cert_file_name": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
 			"status": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -162,6 +158,10 @@ func resourceEaaCACertificateCreate(ctx context.Context, d *schema.ResourceData,
 		return logging.DiagErrorf(tags, "'cert' must be a string")
 	}
 
+	if err = client.ValidatePEMContent([]byte(certContent)); err != nil {
+		return logging.DiagFromErr(err, tags, "invalid certificate content")
+	}
+
 	password, ok := d.Get("password").(string)
 	if !ok {
 		return logging.DiagErrorf(tags, "'password' must be a string")
@@ -173,12 +173,6 @@ func resourceEaaCACertificateCreate(ctx context.Context, d *schema.ResourceData,
 	}
 
 	d.SetId(certResp.UUIDURL)
-
-	if certResp.CertFile != nil {
-		if err := d.Set("cert_file_name", *certResp.CertFile); err != nil {
-			return logging.DiagFromErr(err, tags, "failed to set cert_file_name")
-		}
-	}
 
 	logging.Info(ctx, "CA certificate created successfully", tags)
 	return resourceEaaCACertificateRead(ctx, d, m)
@@ -208,13 +202,6 @@ func resourceEaaCACertificateRead(ctx context.Context, d *schema.ResourceData, m
 		return logging.DiagErrorf(tags, "certificate %s is not a CA certificate (cert_type=%d, expected=%d)", id, certResp.CertType, client.CERT_TYPE_CA)
 	}
 
-	var certFileName string
-	if certResp.CertFile != nil {
-		certFileName = *certResp.CertFile
-	} else if v, ok := d.Get("cert_file_name").(string); ok {
-		certFileName = v
-	}
-
 	attrs := map[string]interface{}{
 		"name":                       certResp.Name,
 		"uuid_url":                   certResp.UUIDURL,
@@ -225,7 +212,6 @@ func resourceEaaCACertificateRead(ctx context.Context, d *schema.ResourceData, m
 		"issued_at":                  certResp.IssuedAt,
 		"expired_at":                 certResp.ExpiredAt,
 		"days_left":                  fmt.Sprintf("%d", certResp.DaysLeft),
-		"cert_file_name":             certFileName,
 		"status":                     fmt.Sprintf("%d", certResp.Status),
 		"app_count":                  fmt.Sprintf("%d", certResp.AppCount),
 		"dir_count":                  fmt.Sprintf("%d", certResp.DirCount),
@@ -267,6 +253,10 @@ func resourceEaaCACertificateUpdate(ctx context.Context, d *schema.ResourceData,
 	certContent, ok := d.Get("cert").(string)
 	if !ok {
 		return logging.DiagErrorf(tags, "'cert' must be a string")
+	}
+
+	if err = client.ValidatePEMContent([]byte(certContent)); err != nil {
+		return logging.DiagFromErr(err, tags, "invalid certificate content")
 	}
 
 	password, ok := d.Get("password").(string)
