@@ -72,7 +72,3 @@ output "file_ca_uuid" {
 output "file_ca_expiry" {
   value = eaa_ca_certificate.from_file.expired_at
 }
-
-output "file_ca_cert_file_name" {
-  value = eaa_ca_certificate.from_file.cert_file_name
-}

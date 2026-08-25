@@ -25,7 +25,7 @@ func TestResourceEaaCACertificateSchema(t *testing.T) {
 	expectedFields := []string{
 		"name", "cert", "password",
 		"uuid_url", "cn", "subject", "issuer",
-		"issued_at", "expired_at", "days_left", "cert_file_name",
+		"issued_at", "expired_at", "days_left",
 		"status", "app_count", "dir_count", "cert_type",
 		"created_at", "modified_at",
 		"apps", "idps", "cert_idps", "client_cert_idps",
@@ -55,13 +55,14 @@ func TestResourceEaaCACertificateSchema(t *testing.T) {
 	_, hasPrivateKeySHA := resource.Schema["private_key_sha256"]
 	assert.False(t, hasPrivateKeySHA, "CA cert should not have private_key_sha256 field")
 
-	// CA cert should have cert_file_name (unique to CA certs)
-	assert.True(t, resource.Schema["cert_file_name"].Computed)
+	// CA cert should NOT have cert_file_name
+	_, hasCertFileName := resource.Schema["cert_file_name"]
+	assert.False(t, hasCertFileName, "CA cert should not have cert_file_name field")
 
 	// Computed fields
 	computedFields := []string{
 		"uuid_url", "cn", "subject", "issuer",
-		"issued_at", "expired_at", "days_left", "cert_file_name",
+		"issued_at", "expired_at", "days_left",
 		"status", "app_count", "dir_count", "cert_type",
 		"created_at", "modified_at",
 		"apps", "idps", "cert_idps", "client_cert_idps",

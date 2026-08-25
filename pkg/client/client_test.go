@@ -325,6 +325,48 @@ func TestSendMultipartRequest_InvalidURL(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidatePEMContent(t *testing.T) {
+	tests := map[string]struct {
+		content []byte
+		wantErr bool
+	}{
+		"valid_pem": {
+			content: []byte("-----BEGIN CERTIFICATE-----\ndata\n-----END CERTIFICATE-----"),
+		},
+		"valid_pem_with_leading_whitespace": {
+			content: []byte("  \n-----BEGIN CERTIFICATE-----\ndata\n-----END CERTIFICATE-----"),
+		},
+		"pkcs12_rejected": {
+			content: []byte{0x30, 0x82, 0x0A, 0x00, 0x02, 0x01, 0x03},
+			wantErr: true,
+		},
+		"der_rejected": {
+			content: []byte{0x30, 0x82, 0x03, 0x00, 0x30},
+			wantErr: true,
+		},
+		"random_content_rejected": {
+			content: []byte("some random content"),
+			wantErr: true,
+		},
+		"empty_rejected": {
+			content: []byte{},
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidatePEMContent(tc.content)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "PEM-encoded")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestFormatErrorDescription(t *testing.T) {
 	tests := map[string]struct {
 		resp     *http.Response
