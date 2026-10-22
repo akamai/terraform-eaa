@@ -2000,7 +2000,7 @@ type AdvancedSettings struct {
 	IgnoreBypassMFA              string                 `json:"ignore_bypass_mfa,omitempty"`
 	InjectAjaxJavascript         string                 `json:"inject_ajax_javascript,omitempty"`
 	InterceptURL                 string                 `json:"intercept_url,omitempty"`
-	AppAuth                      string                 `json:"app_auth"`
+	AppAuth                      string                 `json:"app_auth,omitempty"`
 	KeepaliveConnectionPool      string                 `json:"keepalive_connection_pool,omitempty"`
 	KeepaliveEnable              string                 `json:"keepalive_enable,omitempty"`
 	KeepaliveTimeout             string                 `json:"keepalive_timeout,omitempty"`
@@ -2182,7 +2182,7 @@ type AdvancedSettingsComplete struct {
 	FormPostURL                  string                 `json:"form_post_url,omitempty"`
 	EdgeAuthenticationEnabled    string                 `json:"edge_authentication_enabled,omitempty"`
 	HSTSage                      string                 `json:"hsts_age,omitempty"`
-	AppAuth                      string                 `json:"app_auth"`
+	AppAuth                      string                 `json:"app_auth,omitempty"`
 	WildcardInternalHostname     string                 `json:"wildcard_internal_hostname,omitempty"`
 	RemoteSparkMapClipboard      string                 `json:"remote_spark_mapClipboard,omitempty"`
 	RDPLegacyMode                string                 `json:"rdp_legacy_mode,omitempty"`

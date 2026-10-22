@@ -26,20 +26,37 @@ func FormatExpiresAt(raw string) (string, error) {
 	return t.UTC().Format(time.RFC3339), nil
 }
 
+// RegistrationTokenAgent represents a connector assigned to a registration token.
+type RegistrationTokenAgent struct {
+	UUIDURL   string `json:"uuid_url"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at,omitempty"`
+	Status    int    `json:"status"`
+}
+
 // RegistrationToken represents a registration token for a connector pool
 type RegistrationToken struct {
-	UUIDURL             string   `json:"uuid_url,omitempty"`
-	Name                string   `json:"name"`
-	ConnectorPool       string   `json:"connector_pool"`
-	ExpiresAt           string   `json:"expires_at"`
-	ImageURL            string   `json:"image_url,omitempty"`
-	Token               string   `json:"token,omitempty"`
-	TokenSuffix         string   `json:"token_suffix,omitempty"`
-	ModifiedAt          string   `json:"modified_at,omitempty"`
-	Agents              []string `json:"agents,omitempty"`
-	MaxUse              int      `json:"max_use"`
-	UsedCount           int      `json:"used_count,omitempty"`
-	GenerateEmbeddedImg bool     `json:"generate_embedded_img,omitempty"`
+	UUIDURL             string                   `json:"uuid_url,omitempty"`
+	Name                string                   `json:"name"`
+	ConnectorPool       string                   `json:"connector_pool"`
+	ExpiresAt           string                   `json:"expires_at"`
+	ImageURL            string                   `json:"image_url,omitempty"`
+	Token               string                   `json:"token,omitempty"`
+	TokenSuffix         string                   `json:"token_suffix,omitempty"`
+	ModifiedAt          string                   `json:"modified_at,omitempty"`
+	Agents              []RegistrationTokenAgent `json:"agents,omitempty"`
+	MaxUse              int                      `json:"max_use"`
+	UsedCount           int                      `json:"used_count,omitempty"`
+	GenerateEmbeddedImg bool                     `json:"generate_embedded_img,omitempty"`
+}
+
+// AgentNames returns the names of the connectors assigned to the token.
+func (r *RegistrationToken) AgentNames() []string {
+	names := make([]string, len(r.Agents))
+	for i, agent := range r.Agents {
+		names[i] = agent.Name
+	}
+	return names
 }
 
 // MetaResponse represents the meta information in API responses

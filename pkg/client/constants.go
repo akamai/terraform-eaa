@@ -50,6 +50,8 @@ var (
 	ErrAppUpdate = errors.New("app update failed")
 	ErrAppDelete = errors.New("app delete failed")
 
+	ErrCertNotFound = errors.New("certificate not found")
+
 	ErrAssignAgentsFailure    = errors.New("assigning agents to the app failed")
 	ErrAssignIdpFailure       = errors.New("assigning IDP to the app failed")
 	ErrAssignDirectoryFailure = errors.New("assigning directory to the app failed")

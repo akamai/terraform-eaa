@@ -420,7 +420,7 @@ func resourceEaaConnectorPoolRead(ctx context.Context, d *schema.ResourceData, m
 				"name":                  token.Name,
 				"max_use":               token.MaxUse,
 				"connector_pool":        token.ConnectorPool,
-				"agents":                token.Agents,
+				"agents":                token.AgentNames(),
 				"expires_at":            formattedExpiresAt,
 				"image_url":             token.ImageURL,
 				"token":                 token.Token,

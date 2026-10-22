@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatExpiresAt(t *testing.T) {
@@ -116,6 +118,31 @@ func TestRegistrationTokenWriteRequest_Validate(t *testing.T) {
 			requireErrIs(t, err, tt.wantErr, nil)
 		})
 	}
+}
+
+func TestRegistrationToken_Agents(t *testing.T) {
+	body := `{
+		"name": "tok",
+		"agents": [
+			{"uuid_url": "vLLqK77yT_Sx6Wa_vwnyjw", "name": "connector-a", "status": 1, "created_at": "2026-06-25T08:19:13.279315Z"},
+			{"uuid_url": "otherUUID", "name": "connector-b", "status": 1, "created_at": "2026-06-25T08:19:13.279315Z"}
+		]
+	}`
+
+	var token RegistrationToken
+	require.NoError(t, json.Unmarshal([]byte(body), &token))
+
+	assert.Equal(t, []RegistrationTokenAgent{
+		{UUIDURL: "vLLqK77yT_Sx6Wa_vwnyjw", Name: "connector-a", Status: 1, CreatedAt: "2026-06-25T08:19:13.279315Z"},
+		{UUIDURL: "otherUUID", Name: "connector-b", Status: 1, CreatedAt: "2026-06-25T08:19:13.279315Z"},
+	}, token.Agents)
+	assert.Equal(t, []string{"connector-a", "connector-b"}, token.AgentNames())
+}
+
+func TestRegistrationToken_AgentNames_Empty(t *testing.T) {
+	var token RegistrationToken
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"tok","agents":[]}`), &token))
+	assert.Equal(t, []string{}, token.AgentNames())
 }
 
 func TestGetRegistrationTokens(t *testing.T) {

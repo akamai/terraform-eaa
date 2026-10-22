@@ -258,7 +258,7 @@ func resourceEaaConnectorUpdate(ctx context.Context, d *schema.ResourceData, m i
 
 		apiURL := fmt.Sprintf("%s://%s/%s/%s/approve", client.URL_SCHEME, eaaclient.Host, client.AGENTS_URL, id)
 
-		getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "POST", nil, nil, false)
+		getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "POST", map[string]interface{}{}, nil, false)
 		if err != nil {
 			return logging.DiagFromErr(err, tags, "failed to approve connector")
 		}
