@@ -552,6 +552,40 @@ func TestGetAccessControlRules(t *testing.T) {
 	})
 }
 
+func TestCreateAppServiceStruct_SortsRules(t *testing.T) {
+	serviceUUID := "svc-uuid-123"
+	router := newPathRouter(t)
+	router.Handle("GET", "/crux/v1/mgmt-pop/services/"+serviceUUID+"/rules",
+		jsonHandler(http.StatusOK, ACLRulesResponse{
+			ACLRules: []AccessRule{{
+				Name: "rule-1",
+				Settings: []ACLSetting{
+					{Operator: "!=", Type: "user", Value: "user-1"},
+					{Operator: "!=", Type: "group", Value: "group-c"},
+					{Operator: "!=", Type: "group", Value: "group-a"},
+					{Operator: "!=", Type: "group", Value: "group-b"},
+				},
+			}},
+		}))
+
+	ec := newTestClient(t, router)
+	svc, err := AppService{UUIDURL: serviceUUID}.CreateAppServiceStruct(context.Background(), ec)
+	require.NoError(t, err)
+	require.Len(t, svc, 1)
+
+	accessRules, ok := svc[0].(map[string]interface{})["access_rule"].([]map[string]interface{})
+	require.True(t, ok)
+	require.Len(t, accessRules, 1)
+	rules, ok := accessRules[0]["rule"].([]map[string]interface{})
+	require.True(t, ok)
+
+	var got []string
+	for _, r := range rules {
+		got = append(got, r["type"].(string)+":"+r["value"].(string))
+	}
+	assert.Equal(t, []string{"group:group-a", "group:group-b", "group:group-c", "user:user-1"}, got)
+}
+
 // ---------------------------------------------------------------------------
 // CreateAccessRule request body validation
 // ---------------------------------------------------------------------------

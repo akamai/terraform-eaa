@@ -856,6 +856,30 @@ func TestSuppressServerComputedAdvSettingsKey(t *testing.T) {
 			newVal:   `{"a":"2"}`,
 			suppress: false,
 		},
+		"custom_headers_reordered": {
+			key:      "advanced_settings.custom_headers",
+			oldVal:   `[{"header":"X-Header-B","attribute":"attr-b"},{"header":"X-Header-A","attribute":"attr-a"}]`,
+			newVal:   `[{"attribute":"attr-a","header":"X-Header-A"},{"header":"X-Header-B","attribute":"attr-b"}]`,
+			suppress: true,
+		},
+		"custom_headers_header_removed": {
+			key:      "advanced_settings.custom_headers",
+			oldVal:   `[{"header":"X-Header-B","attribute":"attr-b"},{"header":"X-Header-A","attribute":"attr-a"}]`,
+			newVal:   `[{"header":"X-Header-B","attribute":"attr-b"}]`,
+			suppress: false,
+		},
+		"custom_headers_duplicate_not_equal": {
+			key:      "advanced_settings.custom_headers",
+			oldVal:   `[{"header":"X-Header-B","attribute":"attr-b"},{"header":"X-Header-B","attribute":"attr-b"}]`,
+			newVal:   `[{"header":"X-Header-B","attribute":"attr-b"}]`,
+			suppress: false,
+		},
+		"form_post_attributes_reordered_not_suppressed": {
+			key:      "advanced_settings.form_post_attributes",
+			oldVal:   `["a","b"]`,
+			newVal:   `["b","a"]`,
+			suppress: false,
+		},
 		"session_sticky_false_to_empty": {
 			key: "advanced_settings.session_sticky", oldVal: "false", newVal: "", suppress: true,
 		},

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
 	"git.source.akamai.com/terraform-provider-eaa/pkg/client"
@@ -59,6 +60,10 @@ func suppressServerComputedAdvSettingsKey(k, old, newStr string, _ *schema.Resou
 	// API returns null for session_sticky after update when originally set to "false"
 	if key == "session_sticky" && ((old == "false" && newStr == "") || (old == "" && newStr == "false")) {
 		return true
+	}
+	// The API does not keep the order of custom_headers, and headers have no order.
+	if key == "custom_headers" {
+		return jsonUnorderedArrayEqual(old, newStr)
 	}
 	if jsonStringAdvancedSettingsKeys[key] {
 		return jsonSemanticEqual(old, newStr)
@@ -146,6 +151,36 @@ func jsonSemanticEqual(a, b string) bool {
 		return false
 	}
 	return reflect.DeepEqual(ja, jb)
+}
+
+// jsonUnorderedArrayEqual is jsonSemanticEqual for JSON arrays whose element
+// order does not matter: a and b are equal if they hold the same elements.
+func jsonUnorderedArrayEqual(a, b string) bool {
+	if jsonSemanticEqual(a, b) {
+		return true
+	}
+	ea, okA := canonicalJSONArray(a)
+	eb, okB := canonicalJSONArray(b)
+	return okA && okB && slices.Equal(ea, eb)
+}
+
+// canonicalJSONArray returns the elements of a JSON array, each re-encoded
+// with sorted keys, in sorted order.
+func canonicalJSONArray(s string) ([]string, bool) {
+	var arr []interface{}
+	if err := json.Unmarshal([]byte(s), &arr); err != nil {
+		return nil, false
+	}
+	out := make([]string, len(arr))
+	for i, e := range arr {
+		b, err := json.Marshal(e)
+		if err != nil {
+			return nil, false
+		}
+		out[i] = string(b)
+	}
+	slices.Sort(out)
+	return out, true
 }
 
 func getAppError(resp *http.Response) error {

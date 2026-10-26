@@ -271,6 +271,8 @@ func (appService AppService) CreateAppServiceStruct(ctx context.Context, ec *Eaa
 			}
 			rules = append(rules, ruleMap)
 		}
+		// Sort by type, then value: the API does not keep the order the
+		// rules were created in, so same-type rules would otherwise diff.
 		sort.SliceStable(rules, func(i, j int) bool {
 			typeI, okI := rules[i]["type"].(string)
 			typeJ, okJ := rules[j]["type"].(string)
@@ -281,8 +283,12 @@ func (appService AppService) CreateAppServiceStruct(ctx context.Context, ec *Eaa
 				return false
 			case !okJ:
 				return true
-			default:
+			case typeI != typeJ:
 				return typeI < typeJ
+			default:
+				valueI, _ := rules[i]["value"].(string) //nolint:errcheck // zero-value sorts first
+				valueJ, _ := rules[j]["value"].(string) //nolint:errcheck // zero-value sorts first
+				return valueI < valueJ
 			}
 		})
 		rule["rule"] = rules
