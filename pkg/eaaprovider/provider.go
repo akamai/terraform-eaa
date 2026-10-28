@@ -55,6 +55,7 @@ func Provider() *schema.Provider {
 			"eaa_data_source_tls_cipher_suites": dataSourceTLSCipherSuites(),
 			"eaa_connector_pools":               dataSourceEaaConnectorPools(),
 			"eaa_data_source_apps":              dataSourceApps(),
+			"eaa_application":                   dataSourceApplication(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}

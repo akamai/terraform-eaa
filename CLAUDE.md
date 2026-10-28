@@ -258,6 +258,7 @@ Full reference: [docs/eaa_directory.md](docs/eaa_directory.md)
 | `eaa_data_source_tls_cipher_suites` | TLS suites for a specific app (requires `app_uuid_url`) | Discover valid `tls_suite_name` values |
 | `eaa_connector_pools` | Pools with connectors, tokens, and app assignments | List existing pools, connectors, and tokens |
 | `eaa_data_source_apps` | App names and UUIDs | Reference existing apps by name |
+| `eaa_application` | Full configuration of one application (by `name` or `uuid_url`) | Read settings of an app managed elsewhere, e.g. `host`/`cname`/`g2o_key` |
 
 Usage examples and full attribute lists: [docs/data-sources.md](docs/data-sources.md)
 
@@ -285,6 +286,14 @@ output "cloud_dirs" {
 # Get TLS suites for an app
 data "eaa_data_source_tls_cipher_suites" "app_tls" {
   app_uuid_url = eaa_application.web_app.uuid_url
+}
+
+# Read an existing app's host and CNAME by name
+data "eaa_application" "web_app" {
+  name = "Web App"
+}
+output "web_app_cname" {
+  value = data.eaa_application.web_app.cname
 }
 ```
 

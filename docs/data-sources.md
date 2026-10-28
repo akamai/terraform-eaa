@@ -267,3 +267,53 @@ output "app_names" {
   value = [for a in data.eaa_data_source_apps.all.apps : a.name]
 }
 ```
+
+---
+
+## eaa_application
+
+Reads one existing application. All attributes are read-only; see [eaa_application.md](eaa_application.md) for their meaning.
+
+### Arguments
+
+Set exactly one of the following. Setting both or neither is an error.
+
+* `name` - App name, exact match. Errors if no app has this name, or if more than one app does (the error lists the matching `uuid_url`s).
+* `uuid_url` - App UUID.
+
+### Attributes
+
+All attributes of the [`eaa_application`](eaa_application.md) resource are available as read-only attributes. This includes `host`, `cname`, `app_type`, `app_profile`, `domain`, `popregion`, `agents`, `servers`, `tunnel_internal_hosts`, `advanced_settings`, `app_authentication`, `saml_settings`, `oidc_settings`, `wsfed_settings`, `service`, `cert_name`, `cert_type` and `uuid_url`.
+
+* `advanced_settings` - Every non-empty setting returned by the API. Includes the server-computed keys (`g2o_key`, `g2o_nonce`, `edge_cookie_key`, `sla_object_url`, `edge_transport_property_id`) when the API returns a value for them.
+* `service` - Includes the access service and its rules.
+
+The ID is the app's `uuid_url`.
+
+### Example
+
+```hcl
+data "eaa_application" "by_name" {
+  name = "Web App"
+}
+
+# Look up by UUID, using the app list to find it
+data "eaa_data_source_apps" "all" {}
+
+data "eaa_application" "by_uuid" {
+  uuid_url = one([for a in data.eaa_data_source_apps.all.apps : a.uuid_url if a.name == "Web App"])
+}
+
+output "host" {
+  value = data.eaa_application.by_name.host
+}
+
+output "cname" {
+  value = data.eaa_application.by_name.cname
+}
+
+output "g2o_key" {
+  value     = data.eaa_application.by_name.advanced_settings["g2o_key"]
+  sensitive = true
+}
+```

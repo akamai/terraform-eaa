@@ -1147,21 +1147,30 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagRead}
 	logging.Info(ctx, "reading application", tags)
 
-	id := d.Id()
 	eaaclient, err := Client(m)
 	if err != nil {
 		return logging.DiagFromErr(err, tags, "failed to get client")
 	}
+
+	_, diags := readApplication(ctx, d, eaaclient, d.Id())
+	return diags
+}
+
+// readApplication fetches the application with the given UUID URL and maps the
+// API response into d. Shared by the eaa_application resource and data source.
+// The response is returned (nil when the GET fails) so callers can read extra values.
+func readApplication(ctx context.Context, d *schema.ResourceData, eaaclient *client.EaaClient, uuidURL string) (*client.ApplicationResponse, diag.Diagnostics) {
+	tags := []logging.Tag{logging.TagProvider, logging.TagApp, logging.TagRead}
 	var appResp client.ApplicationResponse
 
-	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, id)
+	apiURL := fmt.Sprintf("%s://%s/%s/%s", client.URL_SCHEME, eaaclient.Host, client.APPS_URL, uuidURL)
 
 	getResp, err := eaaclient.SendAPIRequest(ctx, apiURL, "GET", nil, &appResp, false)
 	if err != nil {
-		return logging.DiagFromErr(err, tags, "failed to read application")
+		return nil, logging.DiagFromErr(err, tags, "failed to read application")
 	}
 	if getResp.StatusCode < http.StatusOK || getResp.StatusCode >= http.StatusMultipleChoices {
-		return logging.DiagFromErr(getAppError(getResp), tags, "application get failed")
+		return nil, logging.DiagFromErr(getAppError(getResp), tags, "application get failed")
 	}
 
 	var diags diag.Diagnostics
@@ -1187,7 +1196,7 @@ func resourceEaaApplicationRead(ctx context.Context, d *schema.ResourceData, m i
 	// Map OIDC settings
 	diags = append(diags, mapOIDCSettingsFromResponse(d, &appResp)...)
 
-	return diags
+	return &appResp, diags
 }
 
 // resourceEaaApplicationUpdate function updates an existing EAA application.
