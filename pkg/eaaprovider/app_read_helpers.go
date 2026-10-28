@@ -186,6 +186,19 @@ func derefStr(p *string) string {
 	return *p
 }
 
+// serverComputedAdvancedSettings returns the values of the server-computed advanced
+// settings (client.ServerComputedAdvancedSettingsKeys) from the API response.
+// Keys the API left unset have an empty value.
+func serverComputedAdvancedSettings(appResp *client.ApplicationResponse) map[string]string {
+	return map[string]string{
+		"edge_cookie_key":            appResp.AdvancedSettings.EdgeCookieKey,
+		"edge_transport_property_id": derefStr(appResp.AdvancedSettings.EdgeTransportPropertyID),
+		"g2o_key":                    derefStr(appResp.AdvancedSettings.G2OKey),
+		"g2o_nonce":                  derefStr(appResp.AdvancedSettings.G2ONonce),
+		"sla_object_url":             appResp.AdvancedSettings.SLAObjectURL,
+	}
+}
+
 // mapAdvancedSettingsFromResponse writes advanced_settings back into Terraform state.
 // All keys behave the same: on import/refresh-only (no prior state) every non-empty
 // API value is surfaced; on normal reads only keys already tracked in state are
@@ -231,9 +244,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"disable_user_agent_check":           appResp.AdvancedSettings.DisableUserAgentCheck,
 		"domain_exception_list":              appResp.AdvancedSettings.DomainExceptionList,
 		"edge_authentication_enabled":        appResp.AdvancedSettings.EdgeAuthenticationEnabled,
-		"edge_cookie_key":                    appResp.AdvancedSettings.EdgeCookieKey,
 		"edge_transport_manual_mode":         appResp.AdvancedSettings.EdgeTransportManualMode,
-		"edge_transport_property_id":         derefStr(appResp.AdvancedSettings.EdgeTransportPropertyID),
 		"enable_client_side_xhr_rewrite":     appResp.AdvancedSettings.EnableClientSideXHRRewrite,
 		"external_cookie_domain":             derefStr(appResp.AdvancedSettings.ExternalCookieDomain),
 		"force_ip_route":                     appResp.AdvancedSettings.ForceIPRoute,
@@ -241,8 +252,6 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"form_post_url":                      appResp.AdvancedSettings.FormPostURL,
 		"forward_ticket_granting_ticket":     appResp.AdvancedSettings.ForwardTicketGrantingTicket,
 		"g2o_enabled":                        appResp.AdvancedSettings.G2OEnabled,
-		"g2o_key":                            derefStr(appResp.AdvancedSettings.G2OKey),
-		"g2o_nonce":                          derefStr(appResp.AdvancedSettings.G2ONonce),
 		"health_check_fall":                  appResp.AdvancedSettings.HealthCheckFall,
 		"health_check_http_host_header":      derefStr(appResp.AdvancedSettings.HealthCheckHTTPHostHeader),
 		"health_check_http_url":              appResp.AdvancedSettings.HealthCheckHTTPURL,
@@ -325,7 +334,6 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"single_host_enable":                 appResp.AdvancedSettings.SingleHostEnable,
 		"single_host_fqdn":                   appResp.AdvancedSettings.SingleHostFQDN,
 		"single_host_path":                   appResp.AdvancedSettings.SingleHostPath,
-		"sla_object_url":                     appResp.AdvancedSettings.SLAObjectURL,
 		"spdy_enabled":                       appResp.AdvancedSettings.SPDYEnabled,
 		"ssh_audit_enabled":                  appResp.AdvancedSettings.SSHAuditEnabled,
 		"sso":                                appResp.AdvancedSettings.SSO,
@@ -339,6 +347,7 @@ func mapAdvancedSettingsFromResponse(d *schema.ResourceData, appResp *client.App
 		"x_wapp_pool_timeout":                string(appResp.AdvancedSettings.XWappPoolTimeout),
 		"x_wapp_read_timeout":                string(appResp.AdvancedSettings.XWappReadTimeout),
 	}
+	maps.Copy(full, serverComputedAdvancedSettings(appResp))
 
 	healthCheckType, err := client.MapHealthCheckTypeToDescriptive(appResp.AdvancedSettings.HealthCheckType)
 	if err != nil {

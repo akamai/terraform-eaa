@@ -89,6 +89,7 @@ func TestProvider_DataSources(t *testing.T) {
 		"eaa_data_source_tls_cipher_suites",
 		"eaa_connector_pools",
 		"eaa_data_source_apps",
+		"eaa_application",
 	}
 	for _, name := range expectedDS {
 		_, ok := p.DataSourcesMap[name]
